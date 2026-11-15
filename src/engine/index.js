@@ -1,0 +1,184 @@
+// The game engine for JavaScript (docs/ENGINE.md): the Playdate game's Lua
+// core and lua/web's session in wasmoon's Lua 5.4, behind a few coarse
+// calls that take and return plain objects. Browser and Node; no DOM.
+//
+//   import { Engine } from "../engine/index.js";
+//   const engine = await Engine.create({ sources, wasmUrl });
+//   const view = engine.newPractice({ surface: "grass" });
+//   const out = engine.frame({ dt, arm, plan, move, walk });
+//
+// sources: the module map tools/lua-bundle.mjs writes ({ "core/world":
+// "<lua>", ... }), or a URL to fetch it from. wasmUrl: wasmoon's glue.wasm
+// (the browser; Node finds it in node_modules when it is left out).
+import { LuaFactory } from "wasmoon";
+
+// The import shim (the Playdate's `import`): runs a module once, from the
+// sources map. The session's one door is kubbCall (lua/web/api.lua).
+const BOOT = `
+local imported = {}
+function import(name)
+  name = name:gsub("%.lua$", "")
+  if imported[name] then return nil end
+  imported[name] = true
+  local s = __kubbSource(name)
+  if not s then error("import: no module " .. name, 2) end
+  return assert(load(s, "@" .. name))()
+end
+import "web/api"
+`;
+
+export class EngineError extends Error {}
+
+export class Engine {
+  // Use Engine.create.
+  constructor(lua, call) {
+    this.lua = lua;
+    this._kubbCall = call;
+  }
+
+  static async create({ sources, wasmUrl } = {}) {
+    if (typeof sources === "string") {
+      const res = await fetch(sources);
+      if (!res.ok) throw new EngineError(`lua sources: ${res.status}`);
+      sources = await res.json();
+    }
+    if (!sources || typeof sources !== "object")
+      throw new EngineError("Engine.create needs the Lua sources map");
+    const factory = new LuaFactory(wasmUrl);
+    const lua = await factory.createEngine();
+    lua.global.set("__kubbSource", (name) =>
+      Object.hasOwn(sources, name) ? sources[name] : null,
+    );
+    await lua.doString(BOOT);
+    const call = lua.global.get("kubbCall");
+    if (typeof call !== "function")
+      throw new EngineError("lua/web/api did not load");
+    return new Engine(lua, call);
+  }
+
+  // The raw door: method name and argument text in, result text out.
+  callText(method, argText = "") {
+    const text = this._kubbCall(method, argText);
+    if (typeof text !== "string") throw new EngineError(`${method}: no result`);
+    return text;
+  }
+
+  call(method, args) {
+    const text = this.callText(
+      method,
+      args === undefined ? "" : JSON.stringify(args),
+    );
+    const out = JSON.parse(text);
+    if (out && typeof out === "object" && !Array.isArray(out) && "error" in out)
+      throw new EngineError(`${method}: ${out.error}`);
+    return out;
+  }
+
+  // ---- sessions ----
+  newPractice(opts = {}) {
+    return this.call("new", { ...opts, mode: "practice" });
+  }
+  newMatch(opts = {}) {
+    return this.call("new", { ...opts, mode: "match" });
+  }
+  // snapshot: the text snapshot() gave (passed through untouched).
+  restore(snapshot) {
+    if (typeof snapshot !== "string")
+      throw new EngineError("restore takes the snapshot text");
+    const out = JSON.parse(this.callText("restore", snapshot));
+    if (out && "error" in out) throw new EngineError(`restore: ${out.error}`);
+    return out;
+  }
+  // The whole match as JSON text (opaque: store and send it as it is).
+  snapshot() {
+    const text = this.callText("snapshot");
+    if (text.startsWith('{"error":'))
+      throw new EngineError(`snapshot: ${JSON.parse(text).error}`);
+    return text;
+  }
+  hash() {
+    return this.call("hash");
+  }
+
+  // ---- reading ----
+  view() {
+    return this.call("view");
+  }
+  need() {
+    return this.call("need");
+  }
+  aim() {
+    return this.call("aim");
+  }
+  recording() {
+    return this.call("recording");
+  }
+
+  // ---- each frame ----
+  frame(input = {}) {
+    const a = { dt: input.dt ?? 1 / 60 };
+    if (input.arm !== undefined && input.arm !== null) a.arm = input.arm;
+    if (input.plan) a.plan = true;
+    if (input.move) a.move = input.move;
+    if (input.walk) a.walk = input.walk;
+    return this.call("frame", a);
+  }
+  showAt(t) {
+    return this.call("showAt", { t });
+  }
+
+  // ---- aiming ----
+  setTarget(x, y, snap = false) {
+    return this.call("setTarget", { x, y, snap });
+  }
+  nudgeTarget(dx, dy) {
+    return this.call("nudgeTarget", { dx, dy });
+  }
+  // setStance() with no arguments: the stance follows the target again.
+  setStance(x, y) {
+    return this.call("setStance", x === undefined ? {} : { x, y });
+  }
+  stepArc(step) {
+    return this.call("stepArc", { step });
+  }
+  setArc(deg) {
+    return this.call("setArc", { deg });
+  }
+  stepSide(step) {
+    return this.call("stepSide", { step });
+  }
+  freshPlan() {
+    return this.call("freshPlan");
+  }
+  setLevel(level) {
+    return this.call("setLevel", { level });
+  }
+
+  // ---- practice ----
+  setDrill(on) {
+    return this.call("setDrill", { on: !!on });
+  }
+  reset() {
+    return this.call("reset");
+  }
+  setSurface(surface) {
+    return this.call("setSurface", { surface });
+  }
+
+  // ---- a match among browsers ----
+  setControl(control) {
+    return this.call("setControl", control);
+  }
+  aimState() {
+    return this.call("aimState");
+  }
+  showAim(state) {
+    return this.call("showAim", state);
+  }
+  apply(action) {
+    return this.call("apply", action);
+  }
+  checkPunish(x, y) {
+    return this.call("checkPunish", { x, y });
+  }
+}

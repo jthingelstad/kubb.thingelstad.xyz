@@ -1,0 +1,278 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "kubb.thingelstad.xyz rooms: API Gateway WebSocket API, one Lambda function and one DynamoDB table for multiplayer rooms",
+  "Parameters": {
+    "CodeBucket": {
+      "Type": "String",
+      "Description": "S3 bucket holding the zipped handler bundle"
+    },
+    "CodeKey": {
+      "Type": "String",
+      "Description": "S3 key of the zipped bundle (index.mjs exporting handler)"
+    },
+    "AllowedOrigins": {
+      "Type": "String",
+      "Default": "https://kubb.thingelstad.xyz,http://localhost,http://127.0.0.1",
+      "Description": "Comma separated Origin allow-list for new connections; an origin without a port allows any port"
+    }
+  },
+  "Resources": {
+    "RoomsTable": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "BillingMode": "PAY_PER_REQUEST",
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "pk",
+            "AttributeType": "S"
+          },
+          {
+            "AttributeName": "sk",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "pk",
+            "KeyType": "HASH"
+          },
+          {
+            "AttributeName": "sk",
+            "KeyType": "RANGE"
+          }
+        ],
+        "TimeToLiveSpecification": {
+          "AttributeName": "exp",
+          "Enabled": true
+        }
+      }
+    },
+    "RoomsLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Sub": "/aws/lambda/${AWS::StackName}-rooms"
+        },
+        "RetentionInDays": 30
+      }
+    },
+    "RoomsRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "Description": "Execution role for the kubb rooms function",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "rooms",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "RoomsTable",
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem",
+                    "dynamodb:UpdateItem",
+                    "dynamodb:DeleteItem",
+                    "dynamodb:Query",
+                    "dynamodb:BatchWriteItem"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": ["RoomsTable", "Arn"]
+                  }
+                },
+                {
+                  "Sid": "Logs",
+                  "Effect": "Allow",
+                  "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
+                  "Resource": {
+                    "Fn::GetAtt": ["RoomsLogGroup", "Arn"]
+                  }
+                },
+                {
+                  "Sid": "Connections",
+                  "Effect": "Allow",
+                  "Action": "execute-api:ManageConnections",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${RoomsApi}/prod/*/@connections/*"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "RoomsFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": {
+          "Fn::Sub": "${AWS::StackName}-rooms"
+        },
+        "Description": "kubb.thingelstad.xyz room server: presence, one shared document, relay",
+        "Runtime": "nodejs24.x",
+        "Architectures": ["arm64"],
+        "Handler": "index.handler",
+        "MemorySize": 256,
+        "Timeout": 10,
+        "Role": {
+          "Fn::GetAtt": ["RoomsRole", "Arn"]
+        },
+        "Code": {
+          "S3Bucket": {
+            "Ref": "CodeBucket"
+          },
+          "S3Key": {
+            "Ref": "CodeKey"
+          }
+        },
+        "LoggingConfig": {
+          "LogGroup": {
+            "Ref": "RoomsLogGroup"
+          },
+          "LogFormat": "Text"
+        },
+        "Environment": {
+          "Variables": {
+            "TABLE": {
+              "Ref": "RoomsTable"
+            },
+            "ALLOWED_ORIGINS": {
+              "Ref": "AllowedOrigins"
+            },
+            "NODE_OPTIONS": "--enable-source-maps"
+          }
+        }
+      }
+    },
+    "RoomsApi": {
+      "Type": "AWS::ApiGatewayV2::Api",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-rooms"
+        },
+        "Description": "kubb.thingelstad.xyz multiplayer rooms",
+        "ProtocolType": "WEBSOCKET",
+        "RouteSelectionExpression": "$request.body.action"
+      }
+    },
+    "RoomsIntegration": {
+      "Type": "AWS::ApiGatewayV2::Integration",
+      "Properties": {
+        "ApiId": {
+          "Ref": "RoomsApi"
+        },
+        "IntegrationType": "AWS_PROXY",
+        "IntegrationUri": {
+          "Fn::Sub": "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomsFunction.Arn}/invocations"
+        }
+      }
+    },
+    "ConnectRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Properties": {
+        "ApiId": {
+          "Ref": "RoomsApi"
+        },
+        "RouteKey": "$connect",
+        "Target": {
+          "Fn::Sub": "integrations/${RoomsIntegration}"
+        }
+      }
+    },
+    "DisconnectRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Properties": {
+        "ApiId": {
+          "Ref": "RoomsApi"
+        },
+        "RouteKey": "$disconnect",
+        "Target": {
+          "Fn::Sub": "integrations/${RoomsIntegration}"
+        }
+      }
+    },
+    "DefaultRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Properties": {
+        "ApiId": {
+          "Ref": "RoomsApi"
+        },
+        "RouteKey": "$default",
+        "Target": {
+          "Fn::Sub": "integrations/${RoomsIntegration}"
+        }
+      }
+    },
+    "RoomsInvokePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "RoomsFunction"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${RoomsApi}/*"
+        }
+      }
+    },
+    "RoomsStage": {
+      "Type": "AWS::ApiGatewayV2::Stage",
+      "DependsOn": ["ConnectRoute", "DisconnectRoute", "DefaultRoute"],
+      "Properties": {
+        "ApiId": {
+          "Ref": "RoomsApi"
+        },
+        "StageName": "prod",
+        "Description": "Production stage, throttled for a hobby game",
+        "AutoDeploy": true,
+        "DefaultRouteSettings": {
+          "ThrottlingRateLimit": 50,
+          "ThrottlingBurstLimit": 100
+        },
+        "RouteSettings": {
+          "$connect": {
+            "ThrottlingRateLimit": 5,
+            "ThrottlingBurstLimit": 20
+          }
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "WebSocketUrl": {
+      "Description": "The rooms endpoint for the client",
+      "Value": {
+        "Fn::Sub": "wss://${RoomsApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+      }
+    },
+    "ApiId": {
+      "Value": {
+        "Ref": "RoomsApi"
+      }
+    },
+    "TableName": {
+      "Value": {
+        "Ref": "RoomsTable"
+      }
+    },
+    "FunctionName": {
+      "Value": {
+        "Ref": "RoomsFunction"
+      }
+    }
+  }
+}

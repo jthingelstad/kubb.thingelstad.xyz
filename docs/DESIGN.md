@@ -86,7 +86,7 @@ times `k`) hold on any screen.
 The renderer is a pure function of what it is given:
 
 ```js
-drawWorld(ctx, view, camera, scene)
+drawWorld(ctx, view, camera, scene);
 // view   { width, height, dpr }            canvas size in CSS px
 // camera the core camera table above
 // scene  {

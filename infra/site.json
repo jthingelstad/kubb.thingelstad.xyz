@@ -1,0 +1,484 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "kubb.thingelstad.xyz: private S3 origin, CloudFront, certificate, DNS records, access log, and the optional /ws route to the rooms WebSocket API",
+  "Parameters": {
+    "HostedZoneId": {
+      "Type": "String",
+      "Default": "Z00131847XOTS27DSIZF",
+      "Description": "The thingelstad.xyz hosted zone (stack dns-thingelstad-xyz in projects-sysadmin)"
+    },
+    "RoomsApiDomain": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^[a-z0-9]+\\.execute-api\\.[a-z0-9-]+\\.amazonaws\\.com$",
+      "Description": "Domain of the rooms WebSocket API (stack kubb-xyz-rooms). Empty leaves the /ws route out."
+    },
+    "RoomsStage": {
+      "Type": "String",
+      "Default": "prod",
+      "AllowedPattern": "^[A-Za-z0-9_-]+$",
+      "Description": "Stage of the rooms WebSocket API; /ws is sent on to this path"
+    }
+  },
+  "Conditions": {
+    "HasRooms": {
+      "Fn::Not": [{ "Fn::Equals": [{ "Ref": "RoomsApiDomain" }, ""] }]
+    }
+  },
+  "Resources": {
+    "Certificate": {
+      "Type": "AWS::CertificateManager::Certificate",
+      "Properties": {
+        "DomainName": "kubb.thingelstad.xyz",
+        "ValidationMethod": "DNS",
+        "DomainValidationOptions": [
+          {
+            "DomainName": "kubb.thingelstad.xyz",
+            "HostedZoneId": { "Ref": "HostedZoneId" }
+          }
+        ]
+      }
+    },
+    "SiteBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "BucketName": { "Fn::Sub": "${AWS::StackName}-web-${AWS::AccountId}" },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            { "ServerSideEncryptionByDefault": { "SSEAlgorithm": "AES256" } }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "IgnorePublicAcls": true,
+          "BlockPublicPolicy": true,
+          "RestrictPublicBuckets": true
+        },
+        "OwnershipControls": {
+          "Rules": [{ "ObjectOwnership": "BucketOwnerEnforced" }]
+        },
+        "VersioningConfiguration": { "Status": "Enabled" },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "Id": "AbortIncompleteUploads",
+              "Status": "Enabled",
+              "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 7 }
+            },
+            {
+              "Id": "ExpireOldVersions",
+              "Status": "Enabled",
+              "NoncurrentVersionExpiration": { "NoncurrentDays": 30 },
+              "ExpiredObjectDeleteMarker": true
+            }
+          ]
+        }
+      }
+    },
+    "SiteBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": { "Ref": "SiteBucket" },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "RequireTls",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": [
+                { "Fn::GetAtt": ["SiteBucket", "Arn"] },
+                { "Fn::Sub": "${SiteBucket.Arn}/*" }
+              ],
+              "Condition": { "Bool": { "aws:SecureTransport": "false" } }
+            },
+            {
+              "Sid": "CloudFrontReadsWebsite",
+              "Effect": "Allow",
+              "Principal": { "Service": "cloudfront.amazonaws.com" },
+              "Action": "s3:GetObject",
+              "Resource": { "Fn::Sub": "${SiteBucket.Arn}/*" },
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
+                  }
+                }
+              }
+            },
+            {
+              "Sid": "CloudFrontListsWebsiteForTrue404s",
+              "Effect": "Allow",
+              "Principal": { "Service": "cloudfront.amazonaws.com" },
+              "Action": "s3:ListBucket",
+              "Resource": { "Fn::GetAtt": ["SiteBucket", "Arn"] },
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "OriginAccess": {
+      "Type": "AWS::CloudFront::OriginAccessControl",
+      "Properties": {
+        "OriginAccessControlConfig": {
+          "Name": { "Fn::Sub": "${AWS::StackName}-origin" },
+          "OriginAccessControlOriginType": "s3",
+          "SigningBehavior": "always",
+          "SigningProtocol": "sigv4"
+        }
+      }
+    },
+    "CachePolicy": {
+      "Type": "AWS::CloudFront::CachePolicy",
+      "Properties": {
+        "CachePolicyConfig": {
+          "Name": { "Fn::Sub": "${AWS::StackName}-cache" },
+          "Comment": "Honour each object's Cache-Control; nothing from the viewer in the key",
+          "MinTTL": 0,
+          "DefaultTTL": 300,
+          "MaxTTL": 31536000,
+          "ParametersInCacheKeyAndForwardedToOrigin": {
+            "EnableAcceptEncodingGzip": true,
+            "EnableAcceptEncodingBrotli": true,
+            "CookiesConfig": { "CookieBehavior": "none" },
+            "HeadersConfig": { "HeaderBehavior": "none" },
+            "QueryStringsConfig": { "QueryStringBehavior": "none" }
+          }
+        }
+      }
+    },
+    "Headers": {
+      "Type": "AWS::CloudFront::ResponseHeadersPolicy",
+      "Properties": {
+        "ResponseHeadersPolicyConfig": {
+          "Name": { "Fn::Sub": "${AWS::StackName}-headers" },
+          "Comment": "Security headers and the Content-Security-Policy of a game that is never framed",
+          "SecurityHeadersConfig": {
+            "ContentTypeOptions": { "Override": true },
+            "ReferrerPolicy": {
+              "ReferrerPolicy": "strict-origin-when-cross-origin",
+              "Override": true
+            },
+            "StrictTransportSecurity": {
+              "AccessControlMaxAgeSec": 31536000,
+              "Override": true
+            },
+            "FrameOptions": { "FrameOption": "DENY", "Override": true },
+            "ContentSecurityPolicy": {
+              "ContentSecurityPolicy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://tinylytics.app; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://avatars.micro.blog https://tinylytics.app; font-src 'self'; connect-src 'self' wss://kubb.thingelstad.xyz wss://*.execute-api.us-east-1.amazonaws.com https://tinylytics.app; media-src 'self' data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+              "Override": true
+            }
+          }
+        }
+      }
+    },
+    "ViewerRequestFunction": {
+      "Type": "AWS::CloudFront::Function",
+      "Properties": {
+        "Name": { "Fn::Sub": "${AWS::StackName}-viewer-request" },
+        "AutoPublish": true,
+        "FunctionConfig": {
+          "Runtime": "cloudfront-js-2.0",
+          "Comment": "A pitch at any code is the one game page; directory routes to index.html; extensionless paths 301 to the slash form"
+        },
+        "FunctionCode": "// The site's viewer request function (CloudFront Functions, JavaScript\n// runtime 2.0). infra/site.json carries this file as its FunctionCode\n// (tools/infra.mjs copies it in before every plan; tests/site fails when the\n// two differ), and the preview server runs this same file.\n//\n//   /p/<code>   any code serves the one game page, /pitch/index.html\n//   /p, /p/     302 to a pitch with a new code (for a browser without scripts)\n//   /x/         /x/index.html\n//   /x          301 to /x/, keeping the query\n//\n// A code is 8 to 24 characters from the alphabet below, the rooms' own rule\n// (ROOM_CODE in backend/rooms/core.mjs); the home page makes 8. Any other\n// /p/ address is not a pitch and ends at the 404.\nfunction handler(event) {\n  var request = event.request;\n  var uri = request.uri;\n  var query = Object.keys(request.querystring)\n    .map(function (k) {\n      var v = request.querystring[k];\n      return v.multiValue\n        ? v.multiValue\n            .map(function (m) {\n              return k + \"=\" + m.value;\n            })\n            .join(\"&\")\n        : k + \"=\" + v.value;\n    })\n    .join(\"&\");\n  if (uri === \"/p\" || uri === \"/p/\") {\n    var alphabet = \"abcdefghjkmnpqrstuvwxyz23456789\";\n    var code = \"\";\n    for (var i = 0; i < 8; i++)\n      code += alphabet.charAt(Math.floor(Math.random() * alphabet.length));\n    return {\n      statusCode: 302,\n      statusDescription: \"Found\",\n      headers: {\n        location: { value: \"/p/\" + code + (query ? \"?\" + query : \"\") },\n        \"cache-control\": { value: \"no-store\" },\n      },\n    };\n  }\n  if (/^\\/p\\/[2-9a-hjkmnp-z]{8,24}\\/?$/.test(uri)) {\n    request.uri = \"/pitch/index.html\";\n    return request;\n  }\n  if (uri.endsWith(\"/\")) request.uri = uri + \"index.html\";\n  else if (uri.split(\"/\").pop().indexOf(\".\") === -1)\n    return {\n      statusCode: 301,\n      statusDescription: \"Moved Permanently\",\n      headers: { location: { value: uri + \"/\" + (query ? \"?\" + query : \"\") } },\n    };\n  return request;\n}\n"
+      }
+    },
+    "Distribution": {
+      "Type": "AWS::CloudFront::Distribution",
+      "Properties": {
+        "DistributionConfig": {
+          "Enabled": true,
+          "Comment": "Kubb: Throwing Wood on the web",
+          "HttpVersion": "http2and3",
+          "IPV6Enabled": true,
+          "PriceClass": "PriceClass_100",
+          "WebACLId": { "Fn::ImportValue": "edge-waf-WebAclArn" },
+          "DefaultRootObject": "index.html",
+          "Aliases": ["kubb.thingelstad.xyz"],
+          "ViewerCertificate": {
+            "AcmCertificateArn": { "Ref": "Certificate" },
+            "SslSupportMethod": "sni-only",
+            "MinimumProtocolVersion": "TLSv1.2_2021"
+          },
+          "Origins": [
+            {
+              "Id": "website",
+              "DomainName": {
+                "Fn::GetAtt": ["SiteBucket", "RegionalDomainName"]
+              },
+              "OriginAccessControlId": { "Ref": "OriginAccess" },
+              "S3OriginConfig": { "OriginAccessIdentity": "" }
+            },
+            {
+              "Fn::If": [
+                "HasRooms",
+                {
+                  "Id": "rooms",
+                  "DomainName": { "Ref": "RoomsApiDomain" },
+                  "CustomOriginConfig": {
+                    "OriginProtocolPolicy": "https-only",
+                    "OriginSSLProtocols": ["TLSv1.2"]
+                  }
+                },
+                { "Ref": "AWS::NoValue" }
+              ]
+            }
+          ],
+          "DefaultCacheBehavior": {
+            "TargetOriginId": "website",
+            "ViewerProtocolPolicy": "redirect-to-https",
+            "AllowedMethods": ["GET", "HEAD"],
+            "CachedMethods": ["GET", "HEAD"],
+            "Compress": true,
+            "CachePolicyId": { "Ref": "CachePolicy" },
+            "ResponseHeadersPolicyId": { "Ref": "Headers" },
+            "FunctionAssociations": [
+              {
+                "EventType": "viewer-request",
+                "FunctionARN": {
+                  "Fn::GetAtt": [
+                    "ViewerRequestFunction",
+                    "FunctionMetadata.FunctionARN"
+                  ]
+                }
+              }
+            ]
+          },
+          "CustomErrorResponses": [
+            {
+              "ErrorCode": 403,
+              "ResponseCode": 404,
+              "ResponsePagePath": "/404.html",
+              "ErrorCachingMinTTL": 60
+            },
+            {
+              "ErrorCode": 404,
+              "ResponseCode": 404,
+              "ResponsePagePath": "/404.html",
+              "ErrorCachingMinTTL": 60
+            }
+          ],
+          "CacheBehaviors": {
+            "Fn::If": [
+              "HasRooms",
+              [
+                {
+                  "PathPattern": "/ws",
+                  "TargetOriginId": "rooms",
+                  "ViewerProtocolPolicy": "https-only",
+                  "AllowedMethods": ["GET", "HEAD"],
+                  "CachedMethods": ["GET", "HEAD"],
+                  "Compress": false,
+                  "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+                  "OriginRequestPolicyId": "b689b0a8-53d0-40ab-baf2-68738e2966ac",
+                  "FunctionAssociations": [
+                    {
+                      "EventType": "viewer-request",
+                      "FunctionARN": {
+                        "Fn::GetAtt": [
+                          "RoomsRequestFunction",
+                          "FunctionMetadata.FunctionARN"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              { "Ref": "AWS::NoValue" }
+            ]
+          }
+        }
+      }
+    },
+    "SiteRecordA": {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+        "HostedZoneId": { "Ref": "HostedZoneId" },
+        "Name": "kubb.thingelstad.xyz.",
+        "Type": "A",
+        "AliasTarget": {
+          "HostedZoneId": "Z2FDTNDATAQYW2",
+          "DNSName": { "Fn::GetAtt": ["Distribution", "DomainName"] }
+        }
+      }
+    },
+    "SiteRecordAAAA": {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+        "HostedZoneId": { "Ref": "HostedZoneId" },
+        "Name": "kubb.thingelstad.xyz.",
+        "Type": "AAAA",
+        "AliasTarget": {
+          "HostedZoneId": "Z2FDTNDATAQYW2",
+          "DNSName": { "Fn::GetAtt": ["Distribution", "DomainName"] }
+        }
+      }
+    },
+    "AccessLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/kubb-xyz/web-access",
+        "RetentionInDays": 731
+      }
+    },
+    "AccessLogSource": {
+      "Type": "AWS::Logs::DeliverySource",
+      "Properties": {
+        "Name": "kubb-xyz-web-access",
+        "LogType": "ACCESS_LOGS",
+        "ResourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
+        }
+      }
+    },
+    "AccessLogDestination": {
+      "Type": "AWS::Logs::DeliveryDestination",
+      "Properties": {
+        "Name": "kubb-xyz-web-access",
+        "DestinationResourceArn": { "Fn::GetAtt": ["AccessLogGroup", "Arn"] },
+        "OutputFormat": "json"
+      }
+    },
+    "AccessLogDelivery": {
+      "Type": "AWS::Logs::Delivery",
+      "Properties": {
+        "DeliverySourceName": { "Ref": "AccessLogSource" },
+        "DeliveryDestinationArn": {
+          "Fn::GetAtt": ["AccessLogDestination", "Arn"]
+        },
+        "RecordFields": [
+          "timestamp(ms)",
+          "cs-method",
+          "cs-uri-stem",
+          "sc-status",
+          "sc-bytes",
+          "sc-range-start",
+          "sc-range-end",
+          "time-taken",
+          "time-to-first-byte",
+          "x-edge-result-type",
+          "x-edge-detailed-result-type",
+          "x-edge-location",
+          "cs-protocol",
+          "cs(User-Agent)"
+        ]
+      }
+    },
+    "CodeBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "BucketName": { "Fn::Sub": "${AWS::StackName}-code-${AWS::AccountId}" },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            { "ServerSideEncryptionByDefault": { "SSEAlgorithm": "AES256" } }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "IgnorePublicAcls": true,
+          "BlockPublicPolicy": true,
+          "RestrictPublicBuckets": true
+        },
+        "OwnershipControls": {
+          "Rules": [{ "ObjectOwnership": "BucketOwnerEnforced" }]
+        },
+        "VersioningConfiguration": { "Status": "Enabled" },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "Id": "AbortIncompleteUploads",
+              "Status": "Enabled",
+              "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 7 }
+            },
+            {
+              "Id": "ExpireOldVersions",
+              "Status": "Enabled",
+              "NoncurrentVersionExpiration": { "NoncurrentDays": 30 },
+              "ExpiredObjectDeleteMarker": true
+            }
+          ]
+        }
+      }
+    },
+    "CodeBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": { "Ref": "CodeBucket" },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "RequireTls",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": [
+                { "Fn::GetAtt": ["CodeBucket", "Arn"] },
+                { "Fn::Sub": "${CodeBucket.Arn}/*" }
+              ],
+              "Condition": { "Bool": { "aws:SecureTransport": "false" } }
+            }
+          ]
+        }
+      }
+    },
+    "RoomsRequestFunction": {
+      "Type": "AWS::CloudFront::Function",
+      "Condition": "HasRooms",
+      "Properties": {
+        "Name": { "Fn::Sub": "${AWS::StackName}-rooms-request" },
+        "AutoPublish": true,
+        "FunctionConfig": {
+          "Runtime": "cloudfront-js-2.0",
+          "Comment": "The WebSocket API answers at its stage path, so /ws is sent on as /<stage>, keeping the query"
+        },
+        "FunctionCode": {
+          "Fn::Sub": "function handler(event) {\n  var request = event.request;\n  request.uri = \"/${RoomsStage}\";\n  return request;\n}\n"
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "SiteBucket": {
+      "Value": { "Ref": "SiteBucket" },
+      "Description": "Private website origin"
+    },
+    "CertificateArn": {
+      "Value": { "Ref": "Certificate" },
+      "Description": "kubb.thingelstad.xyz HTTPS certificate"
+    },
+    "DistributionId": {
+      "Value": { "Ref": "Distribution" },
+      "Description": "Site distribution"
+    },
+    "DistributionDomain": {
+      "Value": { "Fn::GetAtt": ["Distribution", "DomainName"] },
+      "Description": "CloudFront domain the alias records point at"
+    },
+    "AccessLogGroup": {
+      "Value": { "Ref": "AccessLogGroup" },
+      "Description": "CloudFront access log, 731 days, no client IPs or query strings"
+    },
+    "CodeBucket": {
+      "Value": { "Ref": "CodeBucket" },
+      "Description": "Private bucket for the rooms function's code bundles"
+    },
+    "RoomsRoute": {
+      "Value": { "Fn::If": ["HasRooms", "wss://kubb.thingelstad.xyz/ws", ""] },
+      "Description": "The rooms WebSocket through this hostname, empty while the /ws route is off"
+    }
+  }
+}

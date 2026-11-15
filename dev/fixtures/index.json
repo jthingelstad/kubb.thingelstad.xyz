@@ -1,0 +1,18 @@
+[
+  { "name": "aim-first-person", "title": "First person at the far baseline" },
+  { "name": "aim-plan-view", "title": "The plan view (B held)" },
+  { "name": "impact", "title": "Impact: kubbs mid-fall and the baton" },
+  { "name": "field-turn", "title": "A field-kubb turn with debris" },
+  { "name": "field-impact", "title": "Field kubbs struck, with debris" },
+  { "name": "king-aim", "title": "King shot: the aim" },
+  { "name": "king-impact", "title": "King shot: the king going over" },
+  { "name": "surface-sand", "title": "Sand: first person" },
+  { "name": "surface-snow", "title": "Snow: first person" },
+  { "name": "set-classic", "title": "Kubb set: classic" },
+  { "name": "set-usa", "title": "Kubb set: usa" },
+  { "name": "set-sweden", "title": "Kubb set: sweden" },
+  { "name": "set-minnesota", "title": "Kubb set: minnesota" },
+  { "name": "set-wisconsin", "title": "Kubb set: wisconsin" },
+  { "name": "raise", "title": "Raising a kubb" },
+  { "name": "punish", "title": "Placing a punishment kubb" }
+]

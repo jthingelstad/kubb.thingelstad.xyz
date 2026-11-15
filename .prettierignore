@@ -1,6 +1,8 @@
 dist/
+build/
 node_modules/
 package-lock.json
 public/shared/
+src/site/sites.json
 infra/deployment.json
 vendor/

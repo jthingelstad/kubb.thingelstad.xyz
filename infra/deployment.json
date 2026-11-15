@@ -1,0 +1,32 @@
+{
+  "account": "999153317627",
+  "region": "us-east-1",
+  "stacks": {
+    "site": "kubb-xyz-site",
+    "rooms": "kubb-xyz-rooms",
+    "delivery": "kubb-xyz-delivery"
+  },
+  "productionUrl": "https://kubb.thingelstad.xyz/",
+  "wsRoute": false,
+  "githubRepositoryId": "",
+  "siteBucket": "kubb-xyz-site-web-999153317627",
+  "codeBucket": "kubb-xyz-site-code-999153317627",
+  "distributionId": "E3T39LIDR2ADLL",
+  "cloudfrontDomain": "dijxvf6kipkda.cloudfront.net",
+  "certificateArn": "arn:aws:acm:us-east-1:999153317627:certificate/9796c898-6ce2-425d-a3d9-7ccc04792183",
+  "deploymentRoleArn": "arn:aws:iam::999153317627:role/kubb-xyz-delivery-DeploymentRole-CbBWWX2vhgqG",
+  "rooms": {
+    "functionName": "kubb-xyz-rooms-rooms",
+    "webSocketUrl": "wss://x3wdf2kum4.execute-api.us-east-1.amazonaws.com/prod",
+    "apiDomain": "x3wdf2kum4.execute-api.us-east-1.amazonaws.com",
+    "stage": "prod",
+    "codeKey": "rooms/4c5d6116fae17002a9f8f3ab98e699f1de736ec89ad88b9b5d531632cdf09879.zip"
+  },
+  "stackTags": {
+    "Application": "Thingelstad",
+    "Project": "kubb-xyz",
+    "Repository": "jthingelstad/kubb.thingelstad.xyz",
+    "ManagedBy": "cloudformation",
+    "Environment": "production"
+  }
+}

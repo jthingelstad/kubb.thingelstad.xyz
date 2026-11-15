@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Renderer gallery</title>
+    <!-- The canvas renderer (src/render/) over fixtures made by the real core
+         (dev/fixtures/generate.mjs). Served from the repository root:
+         /dev/render.html, ?only=<fixture> for one full-window picture (what
+         tools/render-shots.mjs captures), ?bench for draw timings. -->
+    <style>
+      @font-face {
+        font-family: "Londrina Solid";
+        src: url("/public/fonts/LondrinaSolid-Black.woff2") format("woff2");
+        font-weight: 900;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "Inter";
+        src: url("/public/shared/fonts/inter-latin-wght-normal.woff2")
+          format("woff2");
+        font-weight: 100 900;
+        font-style: normal;
+      }
+      :root {
+        --ground: #f3eee2;
+        --ink: #17140f;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--ground);
+        color: var(--ink);
+        font:
+          15px/1.5 Inter,
+          system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 1320px;
+        margin: 0 auto;
+        padding: 16px;
+      }
+      h1 {
+        font:
+          900 36px "Londrina Solid",
+          sans-serif;
+        margin: 8px 0;
+      }
+      h2 {
+        font:
+          900 22px "Londrina Solid",
+          sans-serif;
+        margin: 28px 0 8px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+        gap: 16px;
+      }
+      figure {
+        margin: 0;
+      }
+      figure canvas {
+        display: block;
+        width: 100%;
+        aspect-ratio: 5 / 3;
+        border: 2px solid var(--ink);
+        background: #fff;
+      }
+      figure.square canvas {
+        aspect-ratio: 1;
+      }
+      figcaption {
+        font-weight: 600;
+        margin-top: 4px;
+      }
+      figcaption small {
+        display: block;
+        font-weight: 400;
+        color: #5a5348;
+      }
+      body.only {
+        overflow: hidden;
+      }
+      body.only main {
+        display: none;
+      }
+      #full {
+        display: none;
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+      }
+      body.only #full {
+        display: block;
+      }
+      pre#bench {
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="full"></canvas>
+    <main>
+      <h1>Renderer gallery</h1>
+      <p>
+        Every picture is drawn by <code>src/render/</code> from a fixture the
+        game's core made under Node. Open one with
+        <code>?only=&lt;name&gt;</code>.
+      </p>
+      <pre id="bench" hidden></pre>
+      <div id="gallery"></div>
+    </main>
+    <script type="module">
+      import { drawWorld } from "../src/render/world.js";
+      import { drawDial } from "../src/render/dial.js";
+      import { drawMinimap } from "../src/render/minimap.js";
+      import { drawBurst, tune as burstTune } from "../src/render/burst.js";
+      import { projectView, frameScale } from "../src/render/camera.js";
+
+      const params = new URLSearchParams(location.search);
+      const index = await (await fetch("fixtures/index.json")).json();
+      const fixtures = {};
+      await Promise.all(
+        index.map(async ({ name }) => {
+          fixtures[name] = await (await fetch(`fixtures/${name}.json`)).json();
+        }),
+      );
+      await Promise.all([
+        document.fonts.load('900 20px "Londrina Solid"'),
+        document.fonts.load("700 14px Inter"),
+      ]);
+
+      // ---------- the HUD's states, from the first throw's plan ----------
+      const plan = fixtures["aim-first-person"].dial;
+      const DIALS = [
+        {
+          name: "idle",
+          title: "Idle: the arm hangs at 6",
+          st: { phase: "idle", crank: 0, prompt: "WIND BACK" },
+        },
+        {
+          name: "winding",
+          title: "Winding, grabbed",
+          st: {
+            phase: "winding",
+            arm: -95,
+            back: 95,
+            prompt: "WIND BACK",
+            grabbed: true,
+          },
+        },
+        {
+          name: "in-target",
+          title: "In the power target",
+          st: {
+            phase: "winding",
+            arm: -plan.back,
+            back: plan.back,
+            prompt: "FLICK!",
+            grabbed: true,
+          },
+        },
+        {
+          name: "over",
+          title: "Overpowered",
+          st: {
+            phase: "winding",
+            arm: -158,
+            back: 158,
+            prompt: "EASE OFF",
+            grabbed: true,
+          },
+        },
+        {
+          name: "swinging",
+          title: "The flick, past 6",
+          st: {
+            phase: "swinging",
+            arm: 48,
+            back: plan.back + 3,
+            grabbed: true,
+          },
+        },
+        {
+          name: "cooldown",
+          title: "Released: last dots",
+          st: {
+            phase: "cooldown",
+            arm: plan.release + 4,
+            lastBack: plan.back + 3,
+            lastStop: plan.release + 4,
+          },
+        },
+        {
+          name: "watch",
+          title: "Watching the Playdate",
+          st: { phase: "swinging", arm: -60, back: 110, prompt: "WATCH" },
+        },
+      ].map((d) => ({
+        ...d,
+        st: {
+          powerLo: plan.powerLo,
+          powerHi: plan.powerHi,
+          releaseLo: plan.releaseLo,
+          releaseHi: plan.releaseHi,
+          deadDeg: plan.deadDeg,
+          overDeg: plan.overDeg,
+          ...d.st,
+        },
+      }));
+
+      const BURST_PHASES = [
+        ["flash", 0.03],
+        ["burst", burstTune.flash + 0.2],
+        ["break-up", burstTune.flash + burstTune.burst + 0.07],
+      ];
+
+      // ---------- drawing one picture ----------
+
+      function setup(canvas, width, height) {
+        const dpr = Number(params.get("dpr")) || window.devicePixelRatio || 1;
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        const ctx = canvas.getContext("2d");
+        return { ctx, dpr };
+      }
+
+      // Where the HUD sits on a canvas of this shape (DESIGN 5: the dial large
+      // at the lower right, lower centre on a phone; the minimap lower left).
+      function hudLayout(width, height) {
+        const portrait = height > width;
+        const d = portrait
+          ? Math.min(width * 0.52, height * 0.3)
+          : Math.min(height * 0.42, width * 0.26);
+        const m = Math.max(10, Math.min(width, height) * 0.025);
+        const dial = portrait
+          ? { x: (width - d) / 2, y: height - d - m, width: d, height: d }
+          : { x: width - d - m, y: height - d - m, width: d, height: d };
+        const mw = portrait
+          ? Math.min(width * 0.22, 92)
+          : Math.min(width * 0.085, height * 0.16);
+        const mini = {
+          x: m,
+          y: height - mw * 1.9 - m,
+          width: mw,
+          height: mw * 1.9,
+        };
+        return { dial, mini };
+      }
+
+      function burstAt(f, view) {
+        const h = f.hit;
+        if (!h) return null;
+        return projectView(view, f.camera, h.x, h.y, h.z + 0.08);
+      }
+
+      function paint(canvas, width, height, f, opts = {}) {
+        const { ctx, dpr } = setup(canvas, width, height);
+        const view = { width, height, dpr };
+        const t0 = performance.now();
+        drawWorld(ctx, view, f.camera, f.scene);
+        const t1 = performance.now();
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const L = hudLayout(width, height);
+        if (opts.hud && f.dial) {
+          drawDial(ctx, L.dial, {
+            phase: "idle",
+            crank: 0,
+            prompt: "WIND BACK",
+            ...f.dial,
+          });
+        }
+        if (opts.hud && f.minimap) {
+          drawMinimap(ctx, L.mini, {
+            surface: f.scene.surface,
+            items: f.scene.items,
+            ...f.minimap,
+          });
+        }
+        if (opts.burst) {
+          const p = burstAt(f, view);
+          if (p) {
+            const { k } = frameScale(width, height);
+            drawBurst(ctx, p[0], p[1], opts.burst, opts.burstTime ?? 0.25, {
+              size: Math.min(width * 0.32, 52 * k),
+            });
+          }
+        }
+        return t1 - t0;
+      }
+
+      function paintDial(canvas, width, height, st) {
+        const { ctx, dpr } = setup(canvas, width, height);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = "#5fa43c";
+        ctx.fillRect(0, 0, width, height);
+        const size = Math.min(width, height);
+        drawDial(
+          ctx,
+          {
+            x: (width - size) / 2,
+            y: (height - size) / 2,
+            width: size,
+            height: size,
+          },
+          st,
+        );
+      }
+
+      function paintMinimap(canvas, width, height, f) {
+        const { ctx, dpr } = setup(canvas, width, height);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = "#d8ecf2";
+        ctx.fillRect(0, 0, width, height);
+        const w = height * 0.5;
+        drawMinimap(
+          ctx,
+          { x: (width - w) / 2, y: 0, width: w, height },
+          {
+            surface: f.scene.surface,
+            items: f.scene.items,
+            ...f.minimap,
+            wind: { x: 2.4, y: -3.1, text: "WIND 3.9 M/S" },
+            baton: null,
+          },
+        );
+      }
+
+      // What each named picture is.
+      const BURST_ON = {
+        impact: "clean",
+        "field-impact": "double",
+        "king-impact": "king",
+      };
+      function scenes() {
+        const out = [];
+        for (const { name, title } of index) {
+          const f = fixtures[name];
+          out.push({
+            name,
+            title,
+            notes: f.notes,
+            group: "Pitch",
+            draw: (c, w, h) =>
+              paint(c, w, h, f, {
+                hud: !!f.dial,
+                burst:
+                  BURST_ON[name] && !params.has("noburst")
+                    ? BURST_ON[name]
+                    : null,
+                burstTime: 0.3,
+              }),
+          });
+        }
+        for (const d of DIALS) {
+          out.push({
+            name: `dial-${d.name}`,
+            title: `Dial: ${d.title}`,
+            group: "Dial",
+            square: true,
+            draw: (c, w, h) => paintDial(c, w, h, d.st),
+          });
+        }
+        out.push({
+          name: "minimap",
+          title: "Minimap: the field-kubb turn, with wind",
+          group: "Minimap",
+          draw: (c, w, h) => paintMinimap(c, w, h, fixtures["field-turn"]),
+        });
+        for (const kind of ["clean", "double", "king"]) {
+          const f =
+            fixtures[
+              kind === "king"
+                ? "king-impact"
+                : kind === "double"
+                  ? "field-impact"
+                  : "impact"
+            ];
+          for (const [phase, t] of BURST_PHASES) {
+            out.push({
+              name: `burst-${kind}-${phase}`,
+              title: `Burst ${kind}: ${phase}`,
+              group: "Bursts",
+              draw: (c, w, h) =>
+                paint(c, w, h, f, {
+                  burst: kind,
+                  burstTime:
+                    kind === "double" && phase === "flash"
+                      ? burstTune.second + 0.03
+                      : t,
+                }),
+            });
+          }
+        }
+        return out;
+      }
+      const all = scenes();
+
+      // ---------- one full-window picture ----------
+      const only = params.get("only");
+      if (only) {
+        document.body.classList.add("only");
+        const s = all.find((x) => x.name === only);
+        const canvas = document.getElementById("full");
+        const w = window.innerWidth,
+          h = window.innerHeight;
+        if (s) s.draw(canvas, w, h);
+        else document.title = "no such picture";
+      }
+
+      // ---------- draw timings ----------
+      if (params.has("bench")) {
+        const pre = document.getElementById("bench");
+        pre.hidden = false;
+        const base = fixtures["field-impact"];
+        // about 40 items: the struck field kubbs and their debris, plus a
+        // full turn's lying batons and kubbs scattered over the near half
+        const items = [...base.scene.items];
+        let n = 0;
+        while (items.length < 40) {
+          n++;
+          const a = (n * 2.39996) % (2 * Math.PI);
+          const baton = n % 2 === 0;
+          const yaw = a * 1.7;
+          items.push({
+            id: "bench" + n,
+            kind: baton ? "baton" : "kubb",
+            x: -2 + ((n * 0.73) % 4),
+            y: 4.3 + ((n * 0.41) % 3.2),
+            z: baton ? 0.022 : 0.035,
+            // lying: a quarter turn about x (the long axis, local z, along
+            // the ground), then turned by yaw about the vertical
+            qw: Math.cos(yaw / 2) * Math.SQRT1_2,
+            qx: Math.cos(yaw / 2) * Math.SQRT1_2,
+            qy: Math.sin(yaw / 2) * Math.SQRT1_2,
+            qz: Math.sin(yaw / 2) * Math.SQRT1_2,
+            toppled: true,
+            team: baton ? null : n % 3 ? "B" : "A",
+          });
+        }
+        const scene = { ...base.scene, items };
+        const cams = [fixtures["field-turn"].camera, base.camera];
+        const canvas = document.createElement("canvas");
+        canvas.style.width = "640px";
+        document.querySelector("main").append(canvas);
+        const W = 1280,
+          H = 768,
+          dpr = 2;
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+        const ctx = canvas.getContext("2d");
+        const view = { width: W, height: H, dpr };
+        const lines = [
+          `${items.length} items (+6 stakes), ${W}x${H} CSS px at dpr ${dpr}`,
+        ];
+        for (const [ci, cam] of cams.entries()) {
+          for (let i = 0; i < 20; i++) drawWorld(ctx, view, cam, scene);
+          ctx.getImageData(0, 0, 1, 1);
+          const times = [];
+          for (let i = 0; i < 200; i++) {
+            const t = performance.now();
+            drawWorld(ctx, view, cam, scene);
+            times.push(performance.now() - t);
+            if (i % 10 === 9) ctx.getImageData(0, 0, 1, 1);
+          }
+          // with the GPU's share: a read back every frame forces the draw to finish
+          const t2 = performance.now();
+          for (let i = 0; i < 60; i++) {
+            drawWorld(ctx, view, cam, scene);
+            ctx.getImageData(0, 0, 1, 1);
+          }
+          const flushed = (performance.now() - t2) / 60;
+          times.sort((a, b) => a - b);
+          const mean = times.reduce((a, b) => a + b, 0) / times.length;
+          lines.push(
+            `${ci === 0 ? "first person" : "impact"}: drawWorld ${mean.toFixed(2)} ms mean, ${times[Math.floor(times.length * 0.5)].toFixed(2)} median, ${times[Math.floor(times.length * 0.95)].toFixed(2)} p95; with a read back each draw ${flushed.toFixed(2)} ms`,
+          );
+        }
+        // frames through requestAnimationFrame: the impact view redrawn each
+        // frame, against the same loop drawing nothing (the browser's own rate)
+        const loop = (draw) =>
+          new Promise((done) => {
+            const frames = [];
+            let last = performance.now();
+            let k = 0;
+            function frame(now) {
+              if (draw) drawWorld(ctx, view, cams[1], scene);
+              frames.push(now - last);
+              last = now;
+              if (++k < 120) requestAnimationFrame(frame);
+              else {
+                frames.shift();
+                done(frames.reduce((a, b) => a + b, 0) / frames.length);
+              }
+            }
+            requestAnimationFrame(frame);
+          });
+        const empty = await loop(false);
+        const full = await loop(true);
+        lines.push(
+          `requestAnimationFrame: drawing ${full.toFixed(2)} ms a frame (${(1000 / full).toFixed(1)} fps); the empty loop ${empty.toFixed(2)} ms (${(1000 / empty).toFixed(1)} fps)`,
+        );
+        pre.textContent = lines.join("\n");
+        window.__bench = lines;
+      }
+
+      // ---------- the gallery ----------
+      if (!only && !params.has("bench")) {
+        const root = document.getElementById("gallery");
+        let group = null,
+          grid = null;
+        for (const s of all) {
+          if (s.group !== group) {
+            group = s.group;
+            const h = document.createElement("h2");
+            h.textContent = group;
+            root.append(h);
+            grid = document.createElement("div");
+            grid.className = "grid";
+            root.append(grid);
+          }
+          const fig = document.createElement("figure");
+          if (s.square) fig.className = "square";
+          const a = document.createElement("a");
+          a.href = `?only=${s.name}`;
+          const c = document.createElement("canvas");
+          a.append(c);
+          const cap = document.createElement("figcaption");
+          cap.textContent = s.title;
+          if (s.notes) {
+            const sm = document.createElement("small");
+            sm.textContent = s.notes;
+            cap.append(sm);
+          }
+          fig.append(a, cap);
+          grid.append(fig);
+          const w = grid.clientWidth > 420 ? 400 : grid.clientWidth;
+          s.draw(c, w, s.square ? w : (w * 3) / 5);
+        }
+      }
+      window.__pictures = all.map((s) => s.name);
+      window.__ready = true;
+    </script>
+  </body>
+</html>
