@@ -7,8 +7,8 @@
     "delivery": "kubb-xyz-delivery"
   },
   "productionUrl": "https://kubb.thingelstad.xyz/",
-  "wsRoute": false,
-  "githubRepositoryId": "",
+  "wsRoute": true,
+  "githubRepositoryId": "1459352238",
   "siteBucket": "kubb-xyz-site-web-999153317627",
   "codeBucket": "kubb-xyz-site-code-999153317627",
   "distributionId": "E3T39LIDR2ADLL",
