@@ -1,0 +1,31 @@
+{
+  "name": "kubb.thingelstad.xyz",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Kubb: Throwing Wood on the web, the multiplayer game at kubb.thingelstad.xyz.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "vendor:sync": "node tools/vendor.mjs sync",
+    "vendor:check": "node tools/vendor.mjs check"
+  },
+  "dependencies": {
+    "wasmoon": "1.16.0"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "3.1152.0",
+    "@aws-sdk/client-cloudformation": "3.1152.0",
+    "@aws-sdk/client-cloudfront": "3.1152.0",
+    "@aws-sdk/client-dynamodb": "3.1152.0",
+    "@aws-sdk/client-lambda": "3.1152.0",
+    "@aws-sdk/client-s3": "3.1152.0",
+    "@aws-sdk/client-sts": "3.1152.0",
+    "@aws-sdk/lib-dynamodb": "3.1152.0",
+    "esbuild": "0.25.10",
+    "playwright": "^1.64.1",
+    "prettier": "3.9.10",
+    "ws": "8.18.3"
+  }
+}
