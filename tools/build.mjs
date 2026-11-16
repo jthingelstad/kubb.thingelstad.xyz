@@ -154,7 +154,7 @@ export async function buildSite({
     "dist/llms.txt",
     `# ${SITE_TITLE}
 
-> Kubb, the lawn game of wooden blocks and batons, played in the browser: the Playdate game Kubb: Throwing Wood running on the web. ${GAME_READY ? "Start a pitch, send the link, and friends join on their own screens; or play the computer, or practice." : "The game is still being built: the pages are up, the pitch is not playable yet."}
+> Kubb, the lawn game of wooden blocks and batons, played in the browser: the Playdate game Kubb: Throwing Wood running on the web. ${GAME_READY ? "Practice, or play the computer. Starting a pitch and sending the link so friends join on their own screens is coming next." : "The game is still being built: the pages are up, the pitch is not playable yet."}
 
 ## Pages
 

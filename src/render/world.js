@@ -12,7 +12,7 @@
 // stakes, as on the Playdate), the pieces in depth order, the planned arc in
 // the air.
 import {
-  frameScale,
+  viewFit,
   frameBounds,
   project,
   projectPoly,
@@ -73,6 +73,7 @@ export const tune = {
   // marks in CSS px
   markWidth: 2.5,
   arcDash: [7, 6],
+  arcStopShort: 0.45, // m: the arc in the air ends this far (along the ground) before it lands
 };
 
 // Sizes (DESIGN 4.1; core/body.lua): half extents along local x, y, z.
@@ -764,12 +765,43 @@ function drawArcTrack(ctx, cam, kx, arc) {
   ctx.setLineDash([]);
 }
 
+// The arc in the air stops short of where it comes down (tune.arcStopShort
+// metres along the ground from its last point), so the dashes drawn over the
+// pieces never hide the kubb it is aimed at; the trace on the ground still
+// runs to the end.
+export function arcInAir(arc, stop = tune.arcStopShort) {
+  const n = arc.length;
+  if (n < 2 || !(stop > 0)) return arc;
+  const [ex, ey] = arc[n - 1];
+  const far = (q) => Math.hypot(q[0] - ex, q[1] - ey);
+  let i = n - 1;
+  while (i > 0 && far(arc[i - 1]) <= stop) i--;
+  if (i === 0) return [];
+  // arc[i - 1] is beyond the cut, arc[i] within it: end on the cut
+  const a = arc[i - 1],
+    b = arc[i];
+  const da = far(a),
+    db = far(b);
+  const t = da - db > 1e-9 ? (da - stop) / (da - db) : 0;
+  return arc
+    .slice(0, i)
+    .concat([
+      [
+        a[0] + (b[0] - a[0]) * t,
+        a[1] + (b[1] - a[1]) * t,
+        a[2] + (b[2] - a[2]) * t,
+      ],
+    ]);
+}
+
 function drawArc(ctx, cam, kx, arc) {
+  const air = arcInAir(arc);
+  if (air.length < 2) return;
   ctx.setLineDash(tune.arcDash.map((v) => v / kx));
   strokeTwice(
     ctx,
     kx,
-    () => arcPath(ctx, cam, arc, false),
+    () => arcPath(ctx, cam, air, false),
     AIM.arcEdge,
     AIM.arc,
     2.5,
@@ -1488,8 +1520,9 @@ function drawBaton(ctx, cam, kx, s) {
 export function drawWorld(ctx, view, camera, scene) {
   const { width, height } = view;
   const dpr = view.dpr || 1;
-  const { k, ox, oy } = frameScale(width, height);
-  const B = frameBounds(width, height);
+  const fit = viewFit(view);
+  const { k, ox, oy } = fit;
+  const B = frameBounds(width, height, fit);
   const G = groundOf(scene.surface);
   const set = setOf(scene.set);
   const cam = camera;

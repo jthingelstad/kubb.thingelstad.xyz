@@ -19,10 +19,18 @@ export function frameScale(width, height) {
   return { k, ox: (width - SCREEN_W * k) / 2, oy: (height - SCREEN_H * k) / 2 };
 }
 
+// The mapping a view uses: its own `fit` ({ k, ox, oy }, a client's framing
+// for a tall canvas, docs/CLIENT.md) or the scale rule. Everything that maps
+// between the frame and the view goes through it, so drawing and the pointer
+// always agree.
+export function viewFit(view) {
+  return view.fit || frameScale(view.width, view.height);
+}
+
 // The part of the frame the canvas shows (frame coordinates; wider than
-// 0..400 x 0..240 on a canvas of another shape).
-export function frameBounds(width, height) {
-  const { k, ox, oy } = frameScale(width, height);
+// 0..400 x 0..240 on a canvas of another shape). fit: as viewFit.
+export function frameBounds(width, height, fit = null) {
+  const { k, ox, oy } = fit || frameScale(width, height);
   return {
     left: -ox / k,
     top: -oy / k,
@@ -62,13 +70,13 @@ export function project(c, x, y, z) {
 export function projectView(view, c, x, y, z) {
   const p = project(c, x, y, z);
   if (!p) return null;
-  const { k, ox, oy } = frameScale(view.width, view.height);
+  const { k, ox, oy } = viewFit(view);
   return [ox + k * p[0], oy + k * p[1], p[2]];
 }
 
 // A view (CSS px) point back to the frame.
 export function viewToFrame(view, vx, vy) {
-  const { k, ox, oy } = frameScale(view.width, view.height);
+  const { k, ox, oy } = viewFit(view);
   return [(vx - ox) / k, (vy - oy) / k];
 }
 

@@ -40,11 +40,18 @@ bars and never a stretch:
 - **Portrait** (a phone, 390 x 844): k = 0.975 by width; the frame is a 234 px band in the
   middle and sky shows above it, the near pitch below, where the dial and minimap sit. The pieces
   are small, as on a Playdate held at arm's length; the impact and plan cameras are the ones
-  that read best there.
+  that read best there. The game client does not leave a tall canvas there: it passes its own
+  mapping (below).
+
+**view.fit.** A view may carry `fit: { k, ox, oy }`, a mapping chosen by the caller in place of
+the scale rule (`viewFit(view)` returns it, or the rule's when there is none). The game client
+uses it on tall canvases to zoom in and pan (docs/CLIENT.md "Framing"). `projectView`,
+`unprojectView`, `drawWorld` and `frameBounds(width, height, fit)` all read the same mapping, so
+a pointer always un-projects through what is drawn.
 
 ### drawWorld(ctx, view, camera, scene)
 
-`view` is `{ width, height, dpr }` (CSS px and the device pixel ratio; the canvas backing store
+`view` is `{ width, height, dpr, fit? }` (CSS px and the device pixel ratio; the canvas backing store
 is `width * dpr` by `height * dpr`). `drawWorld` sets its own transform inside save/restore, so
 the caller's transform does not matter and is left alone. It is a pure function of its inputs;
 its only module state is a cache of the rough's texture points per surface.
@@ -58,7 +65,7 @@ its only module state is a cache of the rough's texture points per surface.
 | `items`      | `world.bodies` as the session sends them: `{ id, kind, x, y, z, qw, qx, qy, qz, toppled, team }`, `kind` one of `kubb`, `king`, `baton`, `stake`. When no stakes are given, the pitch's six are drawn. |
 | `advantageY` | The advantage line's y, or null.                                                                                                                                                                       |
 | `marker`     | `{ x, y, r }`: the target circle and its cross.                                                                                                                                                        |
-| `arc`        | `[[x, y, z], ...]`: the planned throw, drawn dashed in the air with its trace on the ground.                                                                                                           |
+| `arc`        | `[[x, y, z], ...]`: the planned throw, drawn dashed in the air (stopping `tune.arcStopShort`, 0.45 m, short of where it lands, so it never covers the kubb it aims at) with its trace on the ground.   |
 | `thrower`    | `{ x, y }`: the thrower's ring and arrow.                                                                                                                                                              |
 | `keepOut`    | `[{ x, y, r }]`: circles a punishment kubb may not land in.                                                                                                                                            |
 | `footprints` | `[{ x, y, angle, allowed, chosen }]`: where a raised kubb would stand.                                                                                                                                 |

@@ -440,8 +440,7 @@ body.game {
 #ui > * {
   pointer-events: auto;
 }
-.noscript,
-.placeholder {
+.noscript {
   position: fixed;
   inset: 0;
   z-index: 3;
@@ -452,14 +451,9 @@ body.game {
   background: var(--paper);
   text-align: center;
 }
-.noscript p,
-.placeholder p {
+.noscript p {
   margin: 0 auto;
   max-width: 34rem;
-}
-.placeholder .button {
-  justify-self: center;
-  margin-top: 0.8rem;
 }
 
 @media (max-width: 40rem) {

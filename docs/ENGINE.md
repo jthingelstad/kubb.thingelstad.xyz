@@ -319,7 +319,7 @@ with its reason in a comment. `tune.apply()` runs once when the session loads.
 - **core/swing**: `swingStartDps` 300 (core 200: a pointer let down by hand drifts back
   at 300 to 400 deg/s), `speedWindow` 3 frames (core 2: at 60 fps two frames are 33 ms and
   one empty coalesced pointer frame would read as a stop), `releaseStopDps` 150 (kept),
-  `fullFlickDps` 1500 (core 1000: a pointer flicks faster than a crank), `pullFrames` 3
+  `fullFlickDps` 1200 (core 1000: a pointer flicks faster than a crank; 1500 at first, lowered after the browser sweeps in docs/CLIENT.md), `pullFrames` 3
   (the same 50 ms as the core's 2 device frames), `roughFull` 4.0 (core 3.0: coalesced
   events make an honest drag look rough), `maxSamples` 600 (10 s at 60 fps).
 - **core/autothrow**: its `flickDps` and `softDps` are remapped linearly from the core's

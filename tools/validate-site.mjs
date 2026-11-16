@@ -132,7 +132,9 @@ assert.match(
 // published, and the bare AWS account id in the repository's Markdown.
 const EMAIL =
   /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/;
-const HOME = /\/Users\/[a-z]|\/home\/[a-z]/;
+// (/home/web_user is Emscripten's virtual file system in wasmoon's glue, not
+// anyone's home.)
+const HOME = /\/Users\/[a-z]|\/home\/(?!web_user\b)[a-z]/;
 const ACCOUNT = /\b\d{12}\b/;
 const TEXT = [".html", ".txt", ".xml", ".css", ".js", ".json", ".map"];
 for (const file of files.filter((f) => TEXT.includes(path.extname(f)))) {

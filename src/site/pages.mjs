@@ -51,7 +51,7 @@ export const RULES = [
 ];
 
 const BUILDING = GAME_READY
-  ? ""
+  ? `<p class="notice">Practice and the computer are ready. Playing friends on a link is next: until it lands, a pitch link offers the computer.</p>`
   : `<p class="notice">The game is still being built. Until it is, a pitch only says so.</p>`;
 
 function home({ tinylytics }) {
@@ -127,8 +127,8 @@ function rules({ tinylytics }) {
     <tbody>
       <tr><th scope="row">Drag the circle on the pitch, or the arrow keys</th><td>Aim: the circle is where the throw should land</td></tr>
       <tr><th scope="row">Drag the thrower, or A and D, W and S</th><td>Walk along the line, or back from it</td></tr>
-      <tr><th scope="row">The buttons beside the dial</th><td>Plan the throw: a higher or lower arc, a baton’s tilt or a kubb’s spin</td></tr>
-      <tr><th scope="row">Plan view</th><td>Hold the camera out over your shoulder to see the arc</td></tr>
+      <tr><th scope="row">The buttons beside the dial, or R and F, Q and E</th><td>Plan the throw: a higher or lower arc, a baton’s tilt or a kubb’s spin</td></tr>
+      <tr><th scope="row">Plan view: hold it (or Shift or B), or tap it on a phone</th><td>Take the camera out over your shoulder to see the arc</td></tr>
     </tbody>
   </table>
   <p>Touch nothing but the dial and the throw is a sensible one at the nearest kubb. Wind into the power mark, let go at the release mark, and see what falls.</p>
@@ -174,7 +174,7 @@ function game(mode) {
           : "A pitch of Kubb: Throwing Wood. Open the link to join the match.",
       config: { ...config, mode },
       script: assets.main,
-      styles: assets.css ? [assets.css] : [],
+      styles: ["/game.css", ...(assets.css ? [assets.css] : [])],
       // A pitch is one person's link: never indexed. Practice is a page.
       noindex: mode !== "practice",
       tinylytics,

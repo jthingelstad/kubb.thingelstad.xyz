@@ -41,9 +41,12 @@ tune.swing = {
 	-- below any real swing.
 	releaseStopDps = 150,
 	-- Core 1000. The flick speed for all of the backswing's power: a pointer
-	-- flicks faster than a crank, so a full-power flick asks for a quick one
-	-- (an easy 900 deg/s drag gives about 70 % of it at minFlickFrac 0.2).
-	fullFlickDps = 1500,
+	-- flicks faster than a crank. First fit 1500; measured 2026-11-15 by
+	-- scripted sweeps in the browser (docs/CLIENT.md "Swing feel"): at 1500
+	-- an even 1000 deg/s sweep was SLOW and fell short and only 1400 and up
+	-- read ON, so a comfortable flick lost its power. 1200 puts ON at about
+	-- a 1100 deg/s sweep (210 degrees in a fifth of a second).
+	fullFlickDps = 1200,
 	-- Core 2 frames: "still speeding up into the stop" over the last 2
 	-- frames of about 41 ms. Three 1/60 s frames are the same 50 ms or so.
 	pullFrames = 3,
