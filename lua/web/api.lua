@@ -57,6 +57,9 @@ end
 function M.new(a) S = session.new(a or {}); return S:view() end
 function M.restore(text, raw) S = session.restore(raw); return S:view() end
 function M.view() return need():view() end
+-- The view in the thrower's frame even while the wide view is on: what a report
+-- records, so tools/reports.mjs can compare it with a replay (not in WIDE).
+function M.frameView() return need():view() end
 function M.need() return need():need() end
 function M.aim() local s = need(); return { aim = s:aimView(), camera = s.ts.aimCam } end
 function M.frame(a) return need():frame(a or {}) end

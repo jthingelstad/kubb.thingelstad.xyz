@@ -406,6 +406,36 @@ test("room member ids are swapped for member1, member2 everywhere, and it still 
   assert.equal(out.whole.same, true);
 });
 
+test("a report from the wide view keeps the thrower's frame, so it still replays in place", async () => {
+  // far enough in for Team B to be the one throwing
+  let game = null;
+  for (const n of [3, 4, 5, 6, 8]) {
+    game = await soloGame(n);
+    game.engine.setWide({ left: 0, top: 0, right: 400, bottom: 240 });
+    if (game.engine.view().need.side === "B") break;
+  }
+  const wideItems = game.engine.view().items;
+  const state = captureReport({
+    game,
+    mode: "watch",
+    config: CONFIG,
+    win: WIN,
+  });
+  const far = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const kubb = wideItems.find(
+    (it) => it.kind !== "stake" && Math.abs(it.y) > 1,
+  );
+  const same = state.pieces.find((p) => p.id === kubb.id);
+  assert.ok(
+    far(kubb, same) > 1,
+    "the wide view turned the pitch, the report did not",
+  );
+  const engine = await Engine.create({ sources });
+  const out = replayReport(engine, { t: 1, report: state });
+  assert.equal(out.same, true);
+  assert.ok(out.drift.max < 1e-3, "the pieces where the replay has them");
+});
+
 test("a shared pitch's report names the room and the version", async () => {
   const game = await soloGame(1);
   const pitch = {

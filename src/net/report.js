@@ -89,7 +89,8 @@ export function captureReport({
   let view = null;
   let rec = null;
   try {
-    view = engine.view();
+    // the thrower's frame, also in the wide view: the replay compares in it
+    view = engine.frameView ? engine.frameView() : engine.view();
   } catch {
     view = null;
   }
