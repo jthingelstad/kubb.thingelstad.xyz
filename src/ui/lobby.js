@@ -1,6 +1,7 @@
 // The lobby on a pitch link (docs/MULTIPLAYER.md): your name and level, the
 // two teams with who is on them, who is connected and who is host, who is
-// watching, the link to share, the host's match options and START. Built
+// watching, the link to share, who can join (open or invite only), the host's
+// match options and START. Built
 // once; update(state) changes only what changed, so typing a name is never
 // interrupted by someone else joining.
 import { h, button, clear } from "./dom.js";
@@ -15,10 +16,18 @@ import {
 
 const LEVEL_LABELS = { beginner: "Beginner", club: "Club", pro: "Pro" };
 const TEAM_LABEL = { A: "Team A", B: "Team B" };
+export const ACCESS = [
+  ["invite", "Invite only"],
+  ["open", "Open"],
+];
+export const ACCESS_NOTE = {
+  invite: "Only people with the link can join.",
+  open: "Listed under Open games on the home page: anyone can join.",
+};
 
 export class Lobby {
-  // hooks: { name(text), level(v), team(side|null), option(key, v), start(),
-  //          share(), home() }
+  // hooks: { name(text), level(v), team(side|null), option(key, v),
+  //          access(open), start(), share(), home() }
   constructor(cards, game, hooks, { code, name, level }) {
     this.cards = cards;
     this.game = game;
@@ -194,10 +203,27 @@ export class Lobby {
     this.sitOut.hidden = !mySide;
 
     // the options: the host's to set, everyone else's to read
-    const key = JSON.stringify([isHost, l.options]);
+    const key = JSON.stringify([isHost, l.options, l.open]);
     if (key !== this.optKey) {
       this.optKey = key;
       clear(this.optionsBox);
+      const access = l.open ? "open" : "invite";
+      this.optionsBox.append(
+        h(
+          "div.opt",
+          { "data-test": "lobby-access" },
+          h("span.opt-label", "Who can join"),
+          isHost
+            ? seg(
+                ACCESS,
+                access,
+                (v) => this.hooks.access?.(v === "open"),
+                "access",
+              ).el
+            : h("span.opt-value", l.open ? "Open" : "Invite only"),
+        ),
+        h("p.access-note", ACCESS_NOTE[access]),
+      );
       this.optionsBox.append(h("h3", "The match"));
       for (const [k, label, choices] of MATCH_OPTIONS) {
         this.optionsBox.append(

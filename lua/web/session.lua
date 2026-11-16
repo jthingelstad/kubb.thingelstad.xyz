@@ -31,6 +31,8 @@ import "core/swing"
 import "core/throwplan"
 import "core/camera"
 import "core/names"
+import "core/notation"
+import "core/gamefile"
 import "web/json"
 import "web/tune"
 import "web/throw"
@@ -38,6 +40,7 @@ import "web/throw"
 local cmatch, cards, save, autothrow, wind = tw.match, tw.cards, tw.save, tw.autothrow, tw.wind
 local raising, frame, pitch, quat, swing, plan = tw.raising, tw.frame, tw.pitch, tw.quat, tw.swing, tw.plan
 local camera = tw.camera
+local notation, gamefile = tw.notation, tw.gamefile
 local json, wtune, throw = tw.web.json, tw.web.tune, tw.web.throw
 
 local fmt, upper = string.format, string.upper
@@ -376,6 +379,34 @@ function Session:over()
 	}
 	local text, name = cmatch.file(self.m, finish, "web " .. session.version)
 	self.overInfo.file = { text = text, name = name }
+end
+
+-- The score sheet (docs/CLIENT.md "The score sheet"): the game file as it stands, in
+-- Planet Kubb Notation. Mid-match it is the turns so far, with no End, Duration or Win
+-- (core/notation writes Win only once there is a winner); once the match is over it is
+-- the finished file (Session:over). `shown` is each line as a screen shows it, without
+-- the positions on the pitch (core/gamefile.shown); `text` keeps them.
+function Session:sheet()
+	if self.kind ~= "match" then return nil end
+	local text, name
+	if self.phase == "over" and self.overInfo and self.overInfo.file then
+		text, name = self.overInfo.file.text, self.overInfo.file.name
+	else
+		local m = self.m
+		local levels = {}
+		for _, side in ipairs { "A", "B" } do
+			for _, e in ipairs(m.lineup and m.lineup[side] or {}) do
+				if e.level then levels[#levels + 1] = e.id .. " " .. e.level end
+			end
+		end
+		text = notation.render(m.game, { start = m.start, version = "web " .. session.version, mode = m.mode,
+			levels = levels })
+		local start = m.start or self.opts.start
+		name = start and notation.filename(start, m.game.teams.A.name, m.game.teams.B.name) or "kubb-game.txt"
+	end
+	local shown = {}
+	for line in text:gmatch("([^\n]*)\n") do shown[#shown + 1] = gamefile.shown(line) end
+	return { text = text, name = name, shown = shown, done = self.phase == "over" }
 end
 
 -- ---------- what the client asks ----------

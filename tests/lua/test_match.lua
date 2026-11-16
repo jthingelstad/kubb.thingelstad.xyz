@@ -58,6 +58,11 @@ test("the computer against the computer, to a winner, with the game file", funct
 	expect.truthy(#n.how > 0)
 	expect.truthy(n.file.text:find("North") and n.file.text:find("South"), "the game file names the teams")
 	expect.truthy(n.file.name:match("%.txt$"))
+	-- the score sheet at the end is the game file itself
+	local sh = s:sheet()
+	expect.eq(sh.text, n.file.text)
+	expect.eq(sh.name, n.file.name)
+	expect.eq(sh.done, true)
 	print(string.format("      %d throws, %d turns, %s; snapshot mean %d max %d bytes", throws, n.turn, n.how,
 		sizes.sum // sizes.n, sizes.max))
 end)
@@ -192,4 +197,29 @@ test("the computer against itself runs to a winner with nobody acting", function
 	local n = s:need()
 	expect.truthy(n.winner.winner == "A" or n.winner.winner == "B")
 	expect.truthy(n.file.text:find("North") and n.file.text:find("South"), "the game file")
+end)
+
+test("the score sheet so far: header and turns, each line also without positions", function()
+	local s = session.new { mode = "match", cpu = "both", seed = 7, teams = teams(1, 1), start = START,
+		maxTurns = 40 }
+	expect.truthy(s:sheet().text:find('%[Team A "North"%]'), "before a throw: the header")
+	local positions = false
+	for _ = 1, 30 do
+		if s:need().kind == "over" then break end
+		cpuThrow(s)
+		local sh = s:sheet()
+		expect.eq(sh.done, false)
+		local lines = {}
+		for line in sh.text:gmatch("([^\n]*)\n") do lines[#lines + 1] = line end
+		expect.eq(#sh.shown, #lines)
+		for i, line in ipairs(lines) do
+			expect.truthy(not sh.shown[i]:find("(@", 1, true), "shown without positions")
+			if line:find("(@", 1, true) then positions = true end
+		end
+		if positions then break end
+	end
+	expect.truthy(positions, "a kubb fell, so the file has positions")
+	expect.eq(s:sheet().name, "2026-11-15-1000-north-v-south.txt")
+	local practice = session.new { mode = "practice" }
+	expect.eq(practice:sheet(), nil)
 end)

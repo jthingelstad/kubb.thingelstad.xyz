@@ -28,6 +28,10 @@ Arriving on the link joins the room (`config.roomsUrl`) under this browser's mem
   someone.
 - **Watching**: everyone in the room on neither team.
 - **SHARE THE LINK**: `navigator.share` where there is one, else the clipboard.
+- **Who can join**: Invite only ("Only people with the link can join.", the default) or
+  Open ("Listed under Open games on the home page: anyone can join."). The host picks;
+  everyone else reads it. Starting a pitch from the home page with Open picked arrives as
+  `/p/<code>?open=1`, and the new pitch's host (at `v` 0) writes it open.
 - **The match** options: surface, opening, raising, wind, kubb set. The host sets them
   (and the host's choices are remembered as `kubb:pitchOptions` for their next pitch);
   everyone else reads them.
@@ -48,6 +52,7 @@ reducers in `src/net/lobby.js`:
   v: 1,
   teams:   { A: [memberId, ...], B: [...] },   // throwing order, 0 to 6 each
   options: { surface, opening, raising, wind, set },
+  open:    false | true,                        // listed under Open games (docs/ROOMS.md section 9)
   started: false | true,
   n:       0,                                   // matches started on this pitch
   match:   null | {
@@ -66,6 +71,13 @@ A room's document is `null` until someone writes it, and an expired room (48 hou
 its last write) comes back empty: both read as a fresh lobby. The snapshot is carried as
 the text the engine gave: it is never `JSON.parse`d and written back (that would turn
 `3.0` into `3` and change the hash).
+
+**Open games**: while the document says `open`, the host's browser tells the room server
+what to list (`Pitch.publishOpen`, on every tick): `{ players, seats: 12, state }` from
+`openListing` in `src/net/lobby.js` (`players` is the members connected, `state` is
+`waiting`, `playing` or `over`), sent when it changes and again every 5 minutes so the
+entry (15 minutes to live) stays; `null` when the host makes it invite only. A new host
+sends it afresh. The home page's list and the server's rules are docs/ROOMS.md section 9.
 
 **START** (the host): the lineup is the lobby's teams with each member's name and level;
 an empty side is the computer. The host's browser makes the match

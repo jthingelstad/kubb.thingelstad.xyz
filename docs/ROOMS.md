@@ -17,7 +17,8 @@ protocol, the client library, the limits, the cost, and what is not protected.
 | -------------------------------------- | ----------------------------------------------------------------------- |
 | Room logic (pure, both servers run it) | `backend/rooms/core.mjs`                                                |
 | AWS Lambda handler, DynamoDB store     | `backend/rooms/handler.mjs`, `backend/rooms/dynamo-store.mjs`           |
-| The recorder (every version, to S3)    | `backend/rooms/recorder.mjs`, `tools/games.mjs`                         |
+| The recorder (every version, to S3)    | `backend/rooms/recorder.mjs`, `src/net/record.js`, `tools/games.mjs`    |
+| Open games (the home page's list)      | `backend/rooms/core.mjs`, `public/js/open-games.js`, `src/net/pitch.js` |
 | Reports (to S3)                        | `backend/rooms/reports.mjs`, `src/net/report.js`, `tools/reports.mjs`   |
 | In-memory store (dev server, tests)    | `backend/rooms/memory-store.mjs`                                        |
 | Local server                           | `tools/rooms-dev.mjs` (`node tools/rooms-dev.mjs`, ws://127.0.0.1:8788) |
@@ -122,6 +123,8 @@ when they last connected or disconnected.
   false and drops it while not connected. Casts are never stored and never replayed.
 - `caster(ms = 150)`: a throttled `cast` (see `throttle`). Use it for aim.
 - `claimHost()`: ask to become host (rules in section 2.4).
+- `setOpen(open)`: the host lists the room under Open games (`{ players, seats, state }`)
+  or takes it off (`null`); section 9. False while not connected.
 - `leave()`: leave the room for good (the member is forgotten there) and close.
 - `close()`: close without leaving: the member shows as disconnected and keeps their place.
 
@@ -184,9 +187,12 @@ document, about 9 parts.
 | `leave`  |                                            | leave for good                                                     |
 | `ping`   |                                            | keep-alive; answered with `pong`, needs no join                    |
 | `report` | `id?`, `r`                                 | a player's report (section 8); needs no join                       |
+| `game`   | `id?`, `g`                                 | a match played in one browser (section 7); needs no join           |
+| `list`   | `id?`                                      | the open games (section 9); needs no join                          |
+| `open`   | `open`                                     | the host lists the room, or `null` takes it off (section 9)        |
 
-`join` must be the first message on a connection (anything else but `ping` and `report`
-answers `not-joined`).
+`join` must be the first message on a connection (anything else but `ping`, `report`,
+`game` and `list` answers `not-joined`).
 A connection joins one room as one member; a second `join` on the same connection for
 the same room and member is a rejoin, for anything else it is `already-joined`.
 
@@ -204,6 +210,8 @@ the same room and member is a rejoin, for anything else it is `already-joined`.
 | `cast`     | `from`, `d`                                                                        | another member's cast                                                                                |
 | `pong`     | `now`                                                                              | answer to `ping`                                                                                     |
 | `reported` | `id`                                                                               | your `report` is kept                                                                                |
+| `recorded` | `id`                                                                               | your `game` is kept                                                                                  |
+| `list`     | `id`, `now`, `games`                                                               | the open games: `[{ room, made, players, seats, state }]`, newest first (section 9)                  |
 | `error`    | `code`, `message`, `re?`, `id?`                                                    | `re` = the `t` that failed; `id` = the `set` id                                                      |
 
 - `doc` is omitted from `joined` when the joiner sent `v` equal to the current version
@@ -260,31 +268,36 @@ castRate, castBurst, hostGraceMs }`.
 `bad-room`, `bad-member`, `bad-message` (not JSON, unknown `t`, a bad part, a bad field),
 `already-joined`, `not-joined` (no join yet, or this connection was replaced), `full`,
 `busy` (the room record kept changing under the server; try again), `replaced`,
-`too-big`, `rate`, `host-present`, `host-recent`, `not-next`; for `report` also
-`too-many` (more than 3 on one connection), `failed` (it could not be written) and
-`unavailable` (this server keeps no reports).
+`too-big`, `rate`, `host-present`, `host-recent`, `not-next`, `not-host` (an `open` from
+anyone but the host); for `report` and `game` also `too-many` (more than 3 on one
+connection), `failed` (it could not be written) and `unavailable` (this server keeps
+none).
 
 ## 3. Limits
 
 All in `LIMITS` in `backend/rooms/core.mjs`, the one place to change them.
 
-| Limit                  | Value                                                              |
-| ---------------------- | ------------------------------------------------------------------ |
-| members a room         | 16                                                                 |
-| document               | 256 KB as ASCII JSON (non-ASCII characters count 6 bytes each)     |
-| `with` payload         | 4 KB                                                               |
-| a cast message         | 2 KB                                                               |
-| a member's `me` fields | 512 B                                                              |
-| frame (either way)     | 30 000 B; API Gateway's quota is 32 KB                             |
-| parts a message        | 16; a reassembled message at most 300 KB                           |
-| cast rate              | 10 a second a connection, burst 20                                 |
-| host grace             | 15 s                                                               |
-| room and document TTL  | 48 h after the last write                                          |
-| connection record TTL  | 3 h (API Gateway closes every connection at 2 h)                   |
-| unfinished upload      | 10 min                                                             |
-| room code              | 8 to 24 of `23456789abcdefghjkmnpqrstuvwxyz` (the client makes 10) |
-| member id              | 8 to 40 of `A-Za-z0-9_-`                                           |
-| a report               | 64 KB as ASCII JSON; each answer 1000 characters; 3 a connection   |
+| Limit                   | Value                                                                   |
+| ----------------------- | ----------------------------------------------------------------------- |
+| members a room          | 16                                                                      |
+| document                | 256 KB as ASCII JSON (non-ASCII characters count 6 bytes each)          |
+| `with` payload          | 4 KB                                                                    |
+| a cast message          | 2 KB                                                                    |
+| a member's `me` fields  | 512 B                                                                   |
+| frame (either way)      | 30 000 B; API Gateway's quota is 32 KB                                  |
+| parts a message         | 16; a reassembled message at most 300 KB                                |
+| cast rate               | 10 a second a connection, burst 20                                      |
+| host grace              | 15 s                                                                    |
+| room and document TTL   | 48 h after the last write                                               |
+| connection record TTL   | 3 h (API Gateway closes every connection at 2 h)                        |
+| unfinished upload       | 10 min                                                                  |
+| room code               | 8 to 24 of `23456789abcdefghjkmnpqrstuvwxyz` (the client makes 10)      |
+| member id               | 8 to 40 of `A-Za-z0-9_-`                                                |
+| a report                | 64 KB as ASCII JSON; each answer 1000 characters; 3 a connection        |
+| a one-browser match     | 256 KB as ASCII JSON; 4000 actions; 3 a connection                      |
+| open games listed       | 20, newest first, read from at most 60 entries; made in the last 24 h   |
+| an open game's entry    | 15 min after its room last changed (the host says it again every 5 min) |
+| seats an open game says | 1 to 16 (the game says 12: six a side)                                  |
 
 Fixed by API Gateway (not ours): 10 minutes idle and 2 hours total per connection (the
 client pings every 4 minutes and reconnects on its own), 500 new connections a second
@@ -297,7 +310,8 @@ One stack, deployed by the deploy tool (not by hand): an API Gateway WebSocket A
 arm64, 256 MB, 10 s timeout, `index.handler` from the esbuild bundle of
 `backend/rooms/handler.mjs` with `@aws-sdk/*` external), its own log group (30 days),
 an execution role that can only use the rooms table, write that log group, post to
-this API's connections and put objects under `games/` and `reports/` in the games bucket,
+this API's connections and put objects under `games/` (rooms and one-browser matches)
+and `reports/` in the games bucket,
 one DynamoDB
 table (on demand, TTL on `exp`), and the private games bucket (section 7).
 
@@ -315,6 +329,7 @@ The table (`pk`, `sk`, both strings):
 | `room#<code>` | `doc`            | `v`, `doc` (ASCII JSON text), `by`, `sid`, `exp`                          |
 | `conn#<id>`   | `conn`           | `room`, `member`, `exp`                                                   |
 | `conn#<id>`   | `part#<msg>#<i>` | `d`, `exp`: one part of an upload                                         |
+| `open`        | `<made>#<code>`  | `room`, `made`, `players`, `seats`, `state`, `exp`: an open game's entry  |
 
 The room is one item, so a relay costs one read; the document is its own item under the
 same key, so relays do not pay to read it. Every write that depends on a read is
@@ -323,6 +338,9 @@ parallel. A `set` reads the room after writing the document and a `join` reads t
 document after writing the room, so a joiner always gets either the new document or its
 broadcast. Parts of one upload are stored, then each invocation queries them; the one
 that sees all of them wins a conditional delete of part 0 and handles the message.
+The open games share one partition, `open`, sorted by when each was made (epoch ms, 13
+digits, then the code), so the list is one Query read newest first, never a scan
+(section 9).
 
 ## 5. What an evening costs
 
@@ -360,16 +378,29 @@ By design, friends on a link:
 - **The Origin check is a light filter**, not authentication: a non-browser client can
   send any Origin. The stage throttle and the size limits bound what such a client can do.
 - **The cast rate cap is best effort** on AWS (per Lambda instance).
+- **An open game can be joined by anyone who sees it on the home page.** Its entry shows
+  only how many are on the pitch, whether it has started and how long ago it was made,
+  with its link; no names. The host chooses open; invite only is the default. Anyone may
+  ask for the list without joining a room, and a script can open many rooms to crowd it:
+  the list shows the 20 newest, an entry goes when its room is full, its match is over,
+  nobody is connected or the host stops saying so, and the stage throttle bounds the rest.
+  A listed code is a key like any shared link: whoever has it can join.
+- **One-browser matches are taken as sent.** The server checks the shape and the size of
+  a `game` message, not that the match was really played; a made-up match is only noise
+  in the test data.
 - No accounts and no personal data beyond the name a player types; rooms vanish 48 hours
   after their last write. Lambda logs carry connection ids and error names, not
-  documents or names. The games bucket keeps every document version, names included
-  (section 7), and every report, with what the player typed (section 8).
+  documents or names. The games bucket keeps every document version, names included,
+  every match played in one browser (section 7), and every report, with what the player
+  typed (section 8).
 
 ## 7. Recording
 
 Every committed version of a room's document is kept for good, so that real play can be
 run through the engine again (Jamie, 2026-11-15: "all games should be recorded so that we
-can use it to test and improve the game").
+can use it to test and improve the game"). So is every match played in one browser,
+against the computer or watching it (Jamie, 2026-11-16: "watch mode should record ... All
+games recorded").
 
 - **What.** After a `set` wins its compare-and-set, the core hands `{ room, v, t, by, doc,
 with }` to `record` (`backend/rooms/recorder.mjs`), which writes one gzipped JSON object:
@@ -396,6 +427,30 @@ with }` to `record` (`backend/rooms/recorder.mjs`), which writes one gzipped JSO
   version (too big to ride along, or a version is missing). After anything but `same` the
   replay takes the recorded snapshot and carries on. A record does not name the build
   that played it: its time `t` against the deploy history does.
+- **One-browser matches.** A match against the computer (`?solo=1`) or watching it
+  (`?watch=1`) has no room. When it ends (a winner, or a resignation; an abandoned match
+  is not sent) the browser sends it once, on a socket of its own like a report:
+  `{ "t": "game", "id": 1, "g": { ... } }`, answered `{ "t": "recorded", "id": 1 }`.
+  `g` is `src/net/record.js`'s: `mode` (`solo` or `watch`), `at` (the browser's clock),
+  `build` (version, commit, the Lua bundle's file name, the vendored core's commit),
+  `options` (the first snapshot's: seed, teams, names typed, opening, ...), `start` (the
+  first snapshot, opaque text), `actions` (every action since), `hashes` (the engine's
+  hash after each), `end` (`over`, `winner`, `how`, `text`, the last `hash`), `file` and
+  `name` (the Planet Kubb Notation game file, positions included). Over 256 KB the
+  browser drops, in order, `hashes`, `file`, then `start` and `actions` (`start` becomes
+  `"-"`), and lists them in `g.dropped`; a watch match is about 20 to 70 KB. The server
+  requires `mode`, `start` and `actions` (objects, at most 4000), `hashes` one an action
+  when present, `file` text when present, and keeps `{ t, game }` at
+  `games/browser/<yyyy-mm-dd>/<epoch ms, 13 digits>-<8 random>.json.gz`. `browser` can
+  never be a room code (codes have no `o`). Nothing names the sender: no connection id,
+  member id, address or browser string. 3 a connection (a best effort), `failed` and
+  `unavailable` as for reports. In the browser a failed send is a console warning and
+  nothing else; the match goes on to the next.
+- **Replaying them.** `games:pull` copies them to `build/games/browser/<day>/`, and
+  `games:replay` plays each from its start: every action is `same` or `differs` against
+  its hash, and after the first that differs (or is refused) the rest are `unjudged`,
+  since no snapshot was kept to go on from. The local server writes them to
+  `build/games-dev/browser/` (`games:replay -- --dir build/games-dev`).
 
 ## 8. Reports
 
@@ -430,3 +485,40 @@ either: it checks the shape and the size, keeps the report and acknowledges it.
   (`tools/reports.mjs`). The local server (`node tools/rooms-dev.mjs`) writes them to
   `build/reports-dev/` in the same shape; `startRoomsServer({ report })` takes any
   reporter (the tests use `memoryReporter`), and without one reports are `unavailable`.
+
+## 9. Open games
+
+A host can make a pitch open, and it is listed on the home page under Open games so
+anyone can join by showing up (Jamie, 2026-11-16: "allow a game to be created open so it
+can be joined by anyone ... Open and invite only are both supported"). Invite only, the
+link and nothing else, is the default.
+
+- **The choice.** The document's `open` (`docs/MULTIPLAYER.md`): set by the host in the
+  lobby (Who can join: Invite only, Open), or from the home page (Start a pitch with Open
+  picked goes to `/p/<code>?open=1`, and the new pitch's host writes `open: true`). The
+  link works the same either way.
+- **The listing.** The room server knows nothing of the document, so the host's browser
+  says it: `{ "t": "open", "open": { "players": 2, "seats": 12, "state": "waiting" } }`
+  (`players`: members connected; `seats`: 12; `state`: `waiting` in the lobby, `playing`
+  during a match, `over` once it has ended), or `"open": null` when it is invite only
+  again. Only the host may (`not-host`). It is sent when any of it changes and again
+  every 5 minutes. The server keeps it in the room record as `open` (with `made`, the
+  time it was first opened) and, after every write of the room, puts or deletes the
+  entry `open | <made>#<code>` with a TTL of 15 minutes.
+- **Listed while** the host says open and the state is `waiting` or `playing`, `players`
+  is under `seats`, the room has fewer than 16 members and someone is connected. A full
+  room, a finished match, an empty room or invite only takes the entry off at once; a
+  host who vanishes without a word lets it expire. A rematch lists it again.
+- **The list.** `{ "t": "list", "id": 1 }` on any connection, answered
+  `{ "t": "list", "id": 1, "now": <ms>, "games": [{ "room", "made", "players", "seats",
+"state" }] }`: one Query of the `open` partition, newest first, at most 60 entries
+  read, those made in the last 24 hours, expired ones skipped, the first 20 kept. No
+  names or member ids. A read that fails answers an empty list.
+- **The page.** `public/js/open-games.js` on the home page asks on a socket of its own
+  when the page opens and every 30 seconds while it is in view, and shows each game as
+  "2 of 12 on the pitch · waiting to start · made 4 min ago" with JOIN, the pitch's link.
+  Without a rooms server in the build the section is left out.
+- **Old clients.** A browser built before this ignores the document's `open` (it is
+  dropped when that browser rewrites the lobby, so the host's next lobby write may close
+  the game again until the host's page is reloaded), never sends `open` and never asks
+  for the list; everything else works as before.

@@ -8,6 +8,9 @@
 //     v: 1,
 //     teams:   { A: [memberId, ...], B: [...] },   in throwing order, 0 to 6 each
 //     options: { surface, opening, raising, wind, set },
+//     open:    false | true,     the host's choice: true lists the pitch under
+//                                OPEN GAMES on the home page (docs/ROOMS.md
+//                                section 9); false (invite only) does not
 //     started: false | true,
 //     n:       0,                                  matches started on this pitch
 //     match:   null | {
@@ -26,6 +29,8 @@
 
 export const DOC_VERSION = 1;
 export const TEAM_MAX = 6;
+// An open game's places, as the home page's list shows them: both teams full.
+export const SEATS = 2 * TEAM_MAX;
 export const SIDES = ["A", "B"];
 export const NAME_MAX = 16;
 
@@ -117,6 +122,7 @@ export function lobbyOf(doc) {
     v: DOC_VERSION,
     teams,
     options: cleanOptions(d.options),
+    open: d.open === true,
     started: !!d.started,
     n: Number.isInteger(d.n) ? d.n : 0,
     match: d.match && typeof d.match === "object" ? d.match : null,
@@ -156,6 +162,29 @@ export function setOptions(doc, options) {
     return undefined;
   l.options = next;
   return l;
+}
+
+// The host's choice: open (anyone may join from the home page's list) or invite
+// only (the link is the only way in). Between matches or during one.
+export function setAccess(doc, open) {
+  const l = lobbyOf(doc);
+  if (doc && l.open === !!open) return undefined;
+  l.open = !!open;
+  return l;
+}
+
+// What the host tells the room server about an open pitch, for the home page's list
+// (backend/rooms/core.mjs checkOpen), or null while it is invite only. `members`: the
+// room's members; `over`: the match on screen has ended.
+export function openListing(doc, members, { over = false } = {}) {
+  const l = lobbyOf(doc);
+  if (!l.open) return null;
+  const here = members.filter((m) => m.connected !== false).length;
+  return {
+    players: Math.min(here, SEATS),
+    seats: SEATS,
+    state: !l.started ? "waiting" : over ? "over" : "playing",
+  };
 }
 
 // Forget members who left the room for good (`present`: the ids still in

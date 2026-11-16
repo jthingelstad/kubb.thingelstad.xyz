@@ -18,9 +18,11 @@ import {
 } from "./browser.mjs";
 import { startRoomsServer } from "../../tools/rooms-dev.mjs";
 import { memoryReporter } from "../../backend/rooms/reports.mjs";
+import { memoryGameRecorder } from "../../backend/rooms/recorder.mjs";
 import { Engine } from "../../src/engine/index.js";
 import { bundleLua } from "../../tools/lua-bundle.mjs";
 import { replayReport } from "../../tools/reports.mjs";
+import { browserMatch, replayBrowser } from "../../tools/games.mjs";
 
 let available = false;
 try {
@@ -177,7 +179,36 @@ browserTest(
 browserTest(
   "watching the computer: both sides throw, in a hidden tab too, and the next match starts by itself",
   async () => {
-    const page = await open(env, "/p/abcdefgh?watch=1");
+    const recordGame = memoryGameRecorder();
+    const rooms = await startRoomsServer({ port: 0, recordGame });
+    try {
+      await watchMatches(recordGame, rooms);
+    } finally {
+      await rooms.close();
+    }
+  },
+);
+
+const resignAndSkip = async (page, side) => {
+  await page.evaluate((s) => window.__kubb.game.resign(s), side);
+  // playback skipped until the match is over
+  await page.waitForFunction(
+    () => {
+      const g = window.__kubb.game;
+      if (g.phase === "play") g.skip();
+      return g.need?.kind === "over";
+    },
+    null,
+    { timeout: 30000, polling: 100 },
+  );
+};
+
+async function watchMatches(recordGame, rooms) {
+  {
+    const page = await open(
+      env,
+      `/p/abcdefgh?watch=1&rooms=${encodeURIComponent(rooms.url)}`,
+    );
     assert.equal(await page.locator("[data-test=options]").count(), 0);
     // the calm pace: the computer stands a while before its first throw
     const pace = await page.evaluate(() => {
@@ -274,8 +305,209 @@ browserTest(
     const next = await page.evaluate(() => window.__kubb.game.need);
     assert.equal(next.kind, "throw");
     assert.equal(next.turn, 1, "a new match");
+
+    // the finished match was sent once and kept, enough to replay it
+    await page.waitForFunction(() => window.__kubb.recorded.length === 1);
+    assert.equal(
+      await page.evaluate(() => window.__kubb.recorded[0]),
+      true,
+      "the server kept it",
+    );
+    assert.equal(recordGame.kept.length, 1);
+    assert.match(
+      recordGame.kept[0].key,
+      /^games\/browser\/\d{4}-\d{2}-\d{2}\//,
+    );
+    const kept = JSON.parse(recordGame.kept[0].text);
+    assert.equal(kept.game.mode, "watch");
+    assert.deepEqual(
+      [kept.game.options.teams.A.name, kept.game.options.teams.B.name],
+      ["North", "South"],
+    );
+    assert.equal(kept.game.end.over, true);
+    assert.match(kept.game.file, /\[Team A "North"\]/);
+    assert.ok(!recordGame.kept[0].text.includes("HeadlessChrome"));
+    const match = browserMatch(kept);
+    const r = replayBrowser(
+      await Engine.create({ sources: await bundleLua() }),
+      match,
+    );
+    assert.equal(r.same, match.actions.length, "replays here as it was played");
+    assert.equal(r.end, "same");
+
+    // the next one ends in a hidden tab: it is sent there too, once
+    await page.evaluate(() => {
+      window.__kubb.watchTune.nextMs = 60000;
+      Object.defineProperty(document, "hidden", {
+        configurable: true,
+        get: () => true,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await resignAndSkip(page, "B");
+    await page.waitForFunction(
+      () => window.__kubb.recorded.length === 2,
+      null,
+      {
+        timeout: 15000,
+      },
+    );
+    await page.waitForTimeout(300);
+    assert.equal(recordGame.kept.length, 2);
+    assert.equal(JSON.parse(recordGame.kept[1].text).game.end.over, true);
+    await page.evaluate(() => {
+      delete document.hidden;
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    // the score sheet from the winner card: the whole match
+    await page.click("[data-test=winner-sheet]");
+    await page.waitForSelector("[data-test=sheet-card]");
+    assert.match(
+      await page.textContent("[data-test=sheet-card]"),
+      /The whole match\./,
+    );
+    await page.click("[data-test=sheet-back]");
+    assert.equal(await page.locator("[data-test=sheet-card]").count(), 0);
+    assert.equal(recordGame.kept.length, 2, "not sent again");
     assert.deepEqual(page.errors, []);
     await page.context().close();
+  }
+}
+
+browserTest(
+  "a match that cannot be kept goes on as if nothing happened",
+  async () => {
+    // a room server that keeps no matches answers `unavailable`
+    const rooms = await startRoomsServer({ port: 0 });
+    try {
+      const page = await open(
+        env,
+        `/p/abcdefgh?watch=1&rooms=${encodeURIComponent(rooms.url)}`,
+      );
+      await page.waitForFunction(() => window.__kubb.game.need?.cpu, null, {
+        timeout: 10000,
+      });
+      await page.evaluate(() => (window.__kubb.watchTune.nextMs = 1500));
+      await resignAndSkip(page, "A");
+      await page.waitForFunction(() => window.__kubb.recorded.length === 1);
+      assert.equal(
+        await page.evaluate(() => window.__kubb.recorded[0]),
+        false,
+        "not kept, and nothing else happened",
+      );
+      await page.waitForSelector("[data-test=winner]", {
+        state: "detached",
+        timeout: 5000,
+      });
+      assert.equal(
+        (await page.evaluate(() => window.__kubb.game.need)).turn,
+        1,
+        "the next match started",
+      );
+      assert.deepEqual(page.errors, []);
+      await page.context().close();
+    } finally {
+      await rooms.close();
+    }
+  },
+);
+
+browserTest(
+  "the score sheet on a phone: the match so far, positions on request, copy and download",
+  async () => {
+    const page = await open(env, "/p/abcdefgh?solo=1&nohowto=1", "portrait");
+    await page.click("[data-test=start]");
+    await page.waitForSelector("[data-test=handoff]");
+    await page.click("[data-test=handoff-go]");
+    await waitPhase(page, "aim", 10000);
+    await throwOnce(page, { touch: true });
+    await waitPhase(page, "play", 5000);
+    await page.evaluate(() => window.__kubb.game.skip());
+    await page.waitForFunction(
+      () => window.__kubb.game.trail?.actions.length >= 1,
+    );
+
+    await page.click("[data-test=menu]");
+    await page.click("[data-test=menu-sheet]");
+    await page.waitForSelector("[data-test=sheet-card]");
+    assert.equal(await page.evaluate(() => window.__kubb.game.modal > 0), true);
+    const card = await page.textContent("[data-test=sheet-card]");
+    assert.match(card, /Score sheet/);
+    assert.match(card, /The match so far\./);
+    const shown = await page.textContent("[data-test=sheet-text]");
+    assert.match(shown, /\[Team A "/);
+    assert.match(shown, /\[Team B "Computer"\]/);
+    const file = await page.evaluate(() => window.__kubb.engine.sheet().text);
+    // on screen without the positions (" (@ x,y ...)"); the file keeps them
+    assert.equal(shown, file.replace(/\n$/, "").replace(/ ?\(@[^()]*\)/g, ""));
+    assert.ok(!shown.includes("(@"), "positions hidden");
+    await page.click("[data-test=sheet-positions]");
+    assert.equal(
+      await page.textContent("[data-test=sheet-text]"),
+      file.replace(/\n$/, ""),
+    );
+    assert.equal(
+      await page.getAttribute("[data-test=sheet-positions]", "aria-pressed"),
+      "true",
+    );
+    // readable at phone width: nothing wider than the screen
+    const fit = await page.evaluate(() => {
+      const c = document.querySelector("[data-test=sheet-card]");
+      const t = document.querySelector("[data-test=sheet-text]");
+      return {
+        card: c.getBoundingClientRect().right,
+        width: window.innerWidth,
+        overflow: t.scrollWidth - t.clientWidth,
+      };
+    });
+    assert.ok(fit.card <= fit.width, "the card fits the screen");
+    assert.ok(fit.overflow <= 1, "lines wrap");
+    const link = await page.getAttribute(".sheet-note a", "href");
+    assert.equal(
+      link,
+      "https://thingelstad.xyz/things/planet-kubb-score/?ref=kubb-sheet",
+    );
+
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.click("[data-test=sheet-download]"),
+    ]);
+    assert.match(
+      download.suggestedFilename(),
+      /^\d{4}-\d{2}-\d{2}-\d{4}-.+-v-computer\.txt$/,
+    );
+    const saved = await download.path();
+    assert.equal(
+      fs.readFileSync(saved, "utf8"),
+      file,
+      "the whole file, positions too",
+    );
+
+    await page.click("[data-test=sheet-copy]");
+    await page.waitForFunction(
+      () =>
+        document.querySelector("[data-test=sheet-status]").textContent !== "" &&
+        !/^Saved/.test(
+          document.querySelector("[data-test=sheet-status]").textContent,
+        ),
+    );
+    assert.match(
+      await page.textContent("[data-test=sheet-status]"),
+      /^(Copied the game file\.|Could not copy\. The file is selected to copy\.)$/,
+    );
+    await page.keyboard.press("Escape");
+    assert.equal(await page.locator("[data-test=sheet-card]").count(), 0);
+    assert.equal(await page.evaluate(() => window.__kubb.game.modal), 0);
+    // a solo match in progress is not sent; practice has no SCORE SHEET
+    assert.equal(await page.evaluate(() => window.__kubb.recorded.length), 0);
+    assert.deepEqual(page.errors, []);
+    await page.context().close();
+
+    const practice = await open(env, "/practice/?nohowto=1");
+    await waitPhase(practice, "aim", 10000);
+    await practice.click("[data-test=menu]");
+    assert.equal(await practice.locator("[data-test=menu-sheet]").count(), 0);
+    await practice.context().close();
   },
 );
 

@@ -23,7 +23,8 @@
 // the parts that only help are dropped in this order (and listed in `r.dropped`): the
 // match's start and actions (or practice's ops), the pieces, the snapshot after. The typed
 // answers, the snapshot before and the last action are never cut.
-import { asciiJson, toFrames } from "./room.js";
+import { asciiJson } from "./room.js";
+import { ask } from "./ask.js";
 
 // Kept in step with backend/rooms/core.mjs LIMITS (tests/net/report.test.mjs checks).
 export const REPORT_LIMITS = Object.freeze({
@@ -230,68 +231,12 @@ export function reportReady({ happened = "", should = "" }) {
   return Boolean(String(happened).trim() || String(should).trim());
 }
 
-export class ReportError extends Error {
-  constructor(code, message) {
-    super(message);
-    this.code = code;
-  }
-}
+// The error a send rejects with (src/net/ask.js): `code` is the server's error code, or
+// timeout, closed, unavailable.
+export { AskError as ReportError } from "./ask.js";
 
 // Open a socket, send the report (in parts when it is longer than a frame), wait for the
 // server's `reported` (or an error, or the timeout), close. Resolves true.
-export function sendReport({
-  url,
-  message,
-  WebSocket = globalThis.WebSocket,
-  timeoutMs = 15000,
-  frame = 30000,
-}) {
-  return new Promise((resolve, reject) => {
-    if (!url || !WebSocket) {
-      reject(new ReportError("unavailable", "Reports cannot be sent here."));
-      return;
-    }
-    let ws;
-    let settled = false;
-    const finish = (error) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      try {
-        ws?.close();
-      } catch {
-        // already closed
-      }
-      if (error) reject(error);
-      else resolve(true);
-    };
-    const timer = setTimeout(
-      () => finish(new ReportError("timeout", "No answer from the server.")),
-      timeoutMs,
-    );
-    try {
-      ws = new WebSocket(url);
-    } catch {
-      finish(new ReportError("closed", "Could not reach the server."));
-      return;
-    }
-    ws.onopen = () => {
-      for (const f of toFrames(asciiJson(message), frame)) ws.send(f);
-    };
-    ws.onmessage = (e) => {
-      let m;
-      try {
-        m = JSON.parse(typeof e.data === "string" ? e.data : "");
-      } catch {
-        return;
-      }
-      if (m.t === "reported" && m.id === message.id) finish();
-      else if (m.t === "error" && m.re === "report")
-        finish(new ReportError(m.code || "error", m.message || "Refused."));
-    };
-    ws.onerror = () =>
-      finish(new ReportError("closed", "Could not reach the server."));
-    ws.onclose = () =>
-      finish(new ReportError("closed", "The connection closed."));
-  });
+export function sendReport(opts) {
+  return ask({ ...opts, done: "reported", re: "report" });
 }

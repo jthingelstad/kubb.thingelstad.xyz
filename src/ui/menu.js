@@ -1,6 +1,6 @@
 // The menu, from the button in the top corner: resign, sound, level, how to
-// throw, report a throw, the rules and home; on the practice pitch also the
-// surface.
+// throw, the score sheet (in a match), report a throw, the rules and home; on
+// the practice pitch also the surface.
 import { h, button, clear } from "./dom.js";
 
 const LEVELS = [
@@ -15,7 +15,7 @@ const SURFACES = [
 ];
 
 export class Menu {
-  // hooks: { game, sound, howto, home, resign?, surface?, report?, mode }
+  // hooks: { game, sound, howto, home, resign?, surface?, sheet?, report?, mode }
   constructor(root, hooks) {
     this.hooks = hooks;
     this.btn = h(
@@ -96,6 +96,17 @@ export class Menu {
                 },
                 "",
                 { disabled: !!n.resignPending },
+              )
+            : null,
+          this.hooks.sheet && game.mode === "match"
+            ? button(
+                "SCORE SHEET",
+                () => {
+                  this.close();
+                  this.hooks.sheet();
+                },
+                "",
+                { "data-test": "menu-sheet" },
               )
             : null,
           this.hooks.report
