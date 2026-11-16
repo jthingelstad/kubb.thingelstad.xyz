@@ -22,10 +22,34 @@ const PREFIX = "games/";
 // Records (any order) as matches: [{ room, n, start, steps: [record], players, cpu }].
 // A match is the run of versions of one room that share doc.match.n, from the version
 // that started it (seq 0). Versions in the lobby belong to no match.
-export function matchesOf(records) {
-  const sorted = [...records].sort(
+//
+// Order is the document version, not the time: invocations stamp their records as they
+// finish, so two close versions can carry times the wrong way round. Time only tells one
+// life of a room code from the next (a room is gone 48 hours after its last write, and a
+// code used again starts at v 1): a silence of more than REUSE_GAP_MS starts a new life.
+export const REUSE_GAP_MS = 24 * 3600 * 1000;
+
+export function inOrder(records) {
+  const byTime = [...records].sort(
     (a, b) => a.room.localeCompare(b.room) || a.t - b.t || a.v - b.v,
   );
+  const sorted = [];
+  let life = [];
+  const close = () => {
+    sorted.push(...life.sort((a, b) => a.v - b.v || a.t - b.t));
+    life = [];
+  };
+  for (const r of byTime) {
+    const last = life.at(-1);
+    if (last && (last.room !== r.room || r.t - last.t > REUSE_GAP_MS)) close();
+    life.push(r);
+  }
+  close();
+  return sorted;
+}
+
+export function matchesOf(records) {
+  const sorted = inOrder(records);
   const matches = [];
   let open = null;
   for (const r of sorted) {

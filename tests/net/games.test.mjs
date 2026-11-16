@@ -122,6 +122,34 @@ test("a replay says which actions differ and carries on from what was played", a
   assert.equal(engine.need().kind, "over");
 });
 
+test("versions order a room's records; time only parts one life of a code from the next", () => {
+  const rec = (v, t, seq) => ({
+    room: ROOM,
+    v,
+    t,
+    by: "m",
+    with: null,
+    doc: { started: true, n: 1, match: { n: 1, seq, snap: "{}", hash: "x" } },
+  });
+  const DAY = 24 * 3600 * 1000;
+  // v 2 was stamped before v 1 (its invocation finished first); the code is used again
+  // three days later and starts at v 1.
+  const matches = matchesOf([
+    rec(2, 1000, 1),
+    rec(1, 1004, 0),
+    rec(3, 1010, 2),
+    rec(1, 1000 + 3 * DAY, 0),
+    rec(2, 1005 + 3 * DAY, 1),
+  ]);
+  assert.deepEqual(
+    matches.map((m) => [Boolean(m.start), m.steps.map((s) => s.doc.match.seq)]),
+    [
+      [true, [1, 2]],
+      [true, [1]],
+    ],
+  );
+});
+
 test("two matches in one room, and a match whose start was missed", () => {
   const rec = (v, doc) => ({
     room: ROOM,
