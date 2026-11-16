@@ -1429,13 +1429,20 @@ function drawBaton(ctx, cam, kx, s) {
   cap(p1, r1, c1);
   cap(p2, r2, c2);
   ctx.fill();
-  // the bands
+  // the bands, painted round the wood: each edge is the near half of the
+  // cross-section's ellipse, which bulges toward the end that faces away
+  // (like the rim of a can seen from above). With the ellipse rotated by
+  // `ang`, angles 0..PI run on the p1 side and PI..2PI on the p2 side.
   ctx.fillStyle = BATON_BAND;
+  const a1 = Math.abs(c1),
+    a2 = Math.abs(c2);
   const at = (t) => [
     p1[0] + (p2[0] - p1[0]) * t,
     p1[1] + (p2[1] - p1[1]) * t,
     r1 + (r2 - r1) * t,
+    Math.max(0.01, a1 + (a2 - a1) * t),
   ];
+  const s0 = c2 > c1 ? 0 : Math.PI;
   for (const [t0, t1] of [
     [tune.batonBandAt, tune.batonBandAt + tune.batonBand],
     [1 - tune.batonBandAt - tune.batonBand, 1 - tune.batonBandAt],
@@ -1443,10 +1450,8 @@ function drawBaton(ctx, cam, kx, s) {
     const A = at(t0),
       B = at(t1);
     ctx.beginPath();
-    ctx.moveTo(A[0] + px * A[2], A[1] + py * A[2]);
-    ctx.lineTo(B[0] + px * B[2], B[1] + py * B[2]);
-    ctx.lineTo(B[0] - px * B[2], B[1] - py * B[2]);
-    ctx.lineTo(A[0] - px * A[2], A[1] - py * A[2]);
+    ctx.ellipse(A[0], A[1], A[2], A[2] * A[3], ang, s0, s0 + Math.PI);
+    ctx.ellipse(B[0], B[1], B[2], B[2] * B[3], ang, s0 + Math.PI, s0, true);
     ctx.closePath();
     ctx.fill();
   }
