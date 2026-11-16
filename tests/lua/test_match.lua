@@ -72,7 +72,9 @@ test("raising and punishment by hand", function()
 		local n = s:need()
 		if n.card and n.card.kind == "settle" then settleCard = settleCard + 1 end
 		if n.kind == "throw" then
-			s:apply(scriptedAction(s, r, (n.setup.kind == "toss") and 4 or 1))
+			-- wild tosses, to earn a punishment kubb: four times a baton's mistakes, whatever
+			-- the computer's own drill is scaled to (autothrow.tune.drillScale)
+			s:apply(scriptedAction(s, r, (n.setup.kind == "toss") and 4 / autothrow.tune.drillScale or 1))
 		elseif n.kind == "raise" then
 			expect.truthy(#n.choices >= 1)
 			expect.truthy(n.default >= 1 and n.default <= #n.choices)
