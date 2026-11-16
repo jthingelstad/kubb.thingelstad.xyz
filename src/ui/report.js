@@ -2,7 +2,8 @@
 // happened and what should have happened, sent with the game as it stood when the card
 // opened (src/net/report.js). While it is open the game is modal, as under the menu: no
 // input reaches the pitch and a throw being aimed here waits, but a throw already playing
-// back, the computer's turn and an unattended match (watching the computer) go on.
+// back, the computer's turn and an unattended match (watching the computer) go on. The
+// rest of the root is inert until it closes, so a card shown under it takes no focus.
 import { h, button, clear } from "./dom.js";
 import {
   REPORT_LIMITS,
@@ -73,6 +74,7 @@ export function openReport(root, opts) {
     if (closed) return;
     closed = true;
     scrim.remove();
+    for (const el of quieted) el.inert = false;
     window.removeEventListener("keydown", esc);
     game.modal = Math.max(0, game.modal - 1);
   }
@@ -121,6 +123,10 @@ export function openReport(root, opts) {
   }
   editing();
   root.append(scrim);
+  // Everything else under the root is inert while the card is open: a card that appears
+  // under it (the winner card of a watch match) can take neither focus nor a key.
+  const quieted = [...root.children].filter((el) => el !== scrim && !el.inert);
+  for (const el of quieted) el.inert = true;
   window.addEventListener("keydown", esc);
   requestAnimationFrame(() => happened.focus({ preventScroll: true }));
   return { close, state };
