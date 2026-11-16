@@ -4,7 +4,8 @@
 //
 // Environment: TABLE (the DynamoDB table), ALLOWED_ORIGINS (comma separated; an origin
 // without a port allows any port), GAMES_BUCKET (where recorder.mjs keeps every committed
-// document version; nothing is recorded without it). Sends go back to the API the event came from
+// document version, and reports.mjs keeps players' reports under reports/; without it
+// nothing is recorded and reports are refused). Sends go back to the API the event came from
 // (https://<domainName>/<stage>) unless SEND_ENDPOINT says otherwise.
 
 import {
@@ -18,6 +19,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { createRooms, originAllowed, parseOrigins } from "./core.mjs";
 import { dynamoStore } from "./dynamo-store.mjs";
 import { s3Recorder } from "./recorder.mjs";
+import { s3Reporter } from "./reports.mjs";
 
 const gone = (error) =>
   error?.name === "GoneException" || error?.$metadata?.httpStatusCode === 410;
@@ -73,6 +75,7 @@ export function handler(event) {
   const { domainName, stage } = event.requestContext;
   const endpoint =
     process.env.SEND_ENDPOINT || `https://${domainName}/${stage}`;
+  const s3 = process.env.GAMES_BUCKET ? new S3Client({ maxAttempts: 2 }) : null;
   ready ??= makeHandler({
     rooms: createRooms({
       store: dynamoStore({
@@ -80,11 +83,11 @@ export function handler(event) {
         table: process.env.TABLE,
       }),
       ...gatewayAdapters(new ApiGatewayManagementApiClient({ endpoint })),
-      record: process.env.GAMES_BUCKET
-        ? s3Recorder({
-            client: new S3Client({ maxAttempts: 2 }),
-            bucket: process.env.GAMES_BUCKET,
-          })
+      record: s3
+        ? s3Recorder({ client: s3, bucket: process.env.GAMES_BUCKET })
+        : null,
+      report: s3
+        ? s3Reporter({ client: s3, bucket: process.env.GAMES_BUCKET })
         : null,
     }),
     origins: parseOrigins(process.env.ALLOWED_ORIGINS),

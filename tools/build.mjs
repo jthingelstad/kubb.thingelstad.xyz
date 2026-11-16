@@ -63,6 +63,16 @@ export async function roomsUrl(production) {
   return deployment.rooms.webSocketUrl;
 }
 
+// The vendored core's commit (vendor/core.json): a report names the core it ran.
+async function coreCommit() {
+  try {
+    const core = JSON.parse(await fs.readFile("vendor/core.json", "utf8"));
+    return typeof core.commit === "string" ? core.commit : null;
+  } catch {
+    return null;
+  }
+}
+
 // A file under dist/assets/, named <name>-<hash><ext>.
 async function hashedAsset(from, name) {
   const bytes = await fs.readFile(from);
@@ -124,6 +134,7 @@ export async function buildSite({
     roomsUrl: await roomsUrl(production),
     wasmUrl: await hashedAsset("node_modules/wasmoon/dist/glue.wasm", "glue"),
     luaUrl: luaFile ? await hashedAsset(luaFile, "lua-sources") : null,
+    core: await coreCommit(),
     sounds: "/sounds/",
   };
 

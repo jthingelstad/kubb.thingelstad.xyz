@@ -37,7 +37,8 @@ A failure to start shows a plain error card with RELOAD and HOME. The HOW TO THR
 | `src/net/pitch.js`                        | `Pitch`: the shared pitch's controller: joins the room, runs the lobby, drives the Game through the seam, aim casts, shouts, host hand-over.                              |
 | `src/net/lobby.js`, `seats.js`, `sync.js` | Pure: the room document's reducers, who acts, and how a browser stays in step (tests in `tests/net/`).                                                                    |
 | `src/net/room.js`                         | The room client (docs/ROOMS.md).                                                                                                                                          |
-| `src/ui/menu.js`                          | `Menu`: level, surface (practice), sound, how to throw, resign (a match), rules, home.                                                                                    |
+| `src/ui/menu.js`                          | `Menu`: level, surface (practice), sound, how to throw, resign (a match), report a throw, rules, home.                                                                    |
+| `src/ui/report.js`, `src/net/report.js`   | The report card, and what a report carries and how it is sent (below, and docs/ROOMS.md section 8).                                                                       |
 | `src/ui/howto.js`                         | The HOW TO THROW overlay.                                                                                                                                                 |
 | `src/ui/dom.js`                           | `h()` and `button()`.                                                                                                                                                     |
 | `public/game.css`                         | The game pages' styles, linked by `src/site/pages.mjs` after the site's.                                                                                                  |
@@ -149,7 +150,37 @@ only for this browser's throws) show, and the rest distance in practice.
   keep-out circles and a refused spot says why (TOO NEAR A STAKE); PLACE IT when allowed.
 - **The winner**: REMATCH (back to the options; on a shared pitch the host's only, back to
   the lobby with the same teams) and HOME.
-- **The menu**: level, sound, how to throw, resign, rules, home; Escape closes it.
+- **The menu**: level, sound, how to throw, resign, report a throw, rules, home; Escape
+  closes it.
+
+## Reports
+
+MENU, REPORT A THROW (shown in every mode whenever the build has a rooms address) closes
+the menu and opens the report card: "What happened?" and "What should have happened?"
+(1000 characters each; SEND with both blank asks for one), the sentence "This sends what
+you typed with this game as it stands (its options, names and throws), so the throw can be
+played again and tested. It is kept privately and not published.", SEND and CANCEL
+(Escape cancels). SEND shows "Sending...", then "Sent, thank you." with BACK TO THE PITCH,
+or "The report was not sent." with the reason, and the answers stay to send again.
+
+- **The game while it is open**: modal, as under the menu. Nothing typed or pressed
+  reaches the pitch, and a throw this browser is aiming waits (the dial and the circle
+  hold). A throw already playing back finishes, the computer's turn goes on, a shared
+  pitch carries on with everyone else, and watching the computer keeps playing, its next
+  match included.
+- **What is sent** is read when the card opens, so a throw that plays on underneath does
+  not replace the one reported. `game.trail` (src/game/game.js) is kept for it: a match's
+  snapshot at its start (or at its last adopt) and every action applied in this browser
+  since, with the snapshots before and after the last one; practice's options and every
+  throw, RESET, DRILL and surface change since the pitch was set out. With them go the
+  mode, the build (`config.version`, `commit`, the hashed Lua bundle's name, and
+  `config.core`, the vendored core's commit), the viewport, the browser's clock, the turn
+  and phase, the last throw's action and result, the pieces where they stand, and on a
+  shared pitch the room code, `v` and the match's `n` and `seq`. Never the user agent or
+  the member id. `reportMessage` holds it to 64 KB, dropping the history, then the
+  pieces, then the snapshot after (listed in `r.dropped`); never the answers.
+- `tests/net/reports.test.mjs` covers the payload and the replay; `client.test.mjs` sends
+  one from a solo match, practice and watching, against `tools/rooms-dev.mjs`.
 
 ## Swing feel
 

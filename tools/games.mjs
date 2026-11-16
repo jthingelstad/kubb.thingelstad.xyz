@@ -154,7 +154,9 @@ async function readRecords(dir, room) {
   return records;
 }
 
-async function pull({ room, since, dir }) {
+// The games bucket as the cloud-engineer identity, after checking the account
+// (tools/reports.mjs uses it too).
+export async function openGamesBucket() {
   const { S3Client, ListObjectsV2Command, GetObjectCommand } =
     await import("@aws-sdk/client-s3");
   const { STSClient, GetCallerIdentityCommand } =
@@ -170,6 +172,12 @@ async function pull({ room, since, dir }) {
   if (identity.Account !== config.account)
     throw new Error(`Unexpected AWS account ${identity.Account}`);
   const s3 = new S3Client(settings);
+  return { s3, bucket, ListObjectsV2Command, GetObjectCommand };
+}
+
+async function pull({ room, since, dir }) {
+  const { s3, bucket, ListObjectsV2Command, GetObjectCommand } =
+    await openGamesBucket();
   const after = since ? Date.parse(since) : 0;
   if (Number.isNaN(after)) throw new Error(`--since ${since} is not a date`);
   let token;

@@ -21,6 +21,11 @@
 //   game.aimState()           this browser's aim, to send while aiming
 //   game.whoActs(need)        optional { text, mine } for the HUD (a shared
 //                             pitch, src/net/pitch.js)
+//   game.trail                what a report replays from (src/net/report.js):
+//                             a match's starting snapshot and every action
+//                             applied here since, the snapshot before the
+//                             last one; practice's options and every throw
+//                             and pitch change since it was set out
 //
 // Solo is only this: the local seat owns team A and runs the computer, B.
 // The computer against itself: the seat owns no side and runs the computer,
@@ -112,6 +117,7 @@ export class Game {
     this.dpr = 1;
     this.onNeed = null; // (need) => void: main shows the winner card etc.
     this.whoActs = null; // (need) => { text, mine } | null: a shared pitch's HUD line
+    this.trail = null; // see the seam above; reset by newPractice, newMatch, adopt
 
     this.hud = new Hud(ui, {
       arc: (s) => this.planStep("arc", s),
@@ -129,6 +135,11 @@ export class Game {
     this.mode = "practice";
     const v = this.engine.newPractice({ level: this.level, ...opts });
     this.engine.setLevel(this.level);
+    this.trail = {
+      kind: "practice",
+      opts: { level: this.level, drill: false, ...opts },
+      ops: [],
+    };
     this.enter(this.engine.view() || v);
   }
 
@@ -136,6 +147,7 @@ export class Game {
     this.mode = "match";
     this.engine.newMatch(opts);
     this.engine.setControl(this.seat);
+    this.startTrail();
     this.shownCards.clear();
     this.result = null;
     this.enter(this.engine.view());
@@ -170,6 +182,7 @@ export class Game {
     }
     const r = this.engine.apply(action);
     if (r && r.ok === false) return r;
+    this.track(action);
     this.remote = null;
     if (r.recording) this.startPlayback(r.recording, false);
     else this.enter(this.engine.view());
@@ -181,20 +194,46 @@ export class Game {
     this.engine.restore(snapshotText);
     this.mode = "match";
     this.engine.setControl(this.seat);
+    this.startTrail(snapshotText);
     this.queue.length = 0;
     this.play = null;
     this.enter(this.engine.view());
   }
 
   emit(action) {
-    if (!this.onAction || !action) return;
-    let snap = null,
-      hash = null;
-    if (this.mode === "match") {
-      snap = this.engine.snapshot();
-      hash = this.engine.hash().hash;
-    }
+    if (!action) return;
+    const snap = this.track(action);
+    if (!this.onAction) return;
+    const hash = this.mode === "match" ? this.engine.hash().hash : null;
     this.onAction(action, snap, hash);
+  }
+
+  // ---------- the trail (what a report replays from) ----------
+
+  startTrail(snapshotText = this.engine.snapshot()) {
+    this.trail = {
+      kind: "match",
+      start: snapshotText,
+      actions: [],
+      before: null,
+      now: snapshotText,
+    };
+  }
+
+  // An action applied to the engine (here or elsewhere). Returns a match's
+  // snapshot after it.
+  track(action) {
+    const t = this.trail;
+    if (!t) return null;
+    if (t.kind === "practice") {
+      t.ops.push(action);
+      return null;
+    }
+    const snap = this.engine.snapshot();
+    t.actions.push(action);
+    t.before = t.now;
+    t.now = snap;
+    return snap;
   }
 
   mayAct(need = this.need) {
@@ -571,9 +610,12 @@ export class Game {
 
   // ---------- practice ----------
 
-  practiceDo(fn) {
+  // op: what fn does, for the trail ({ type: "reset" }, { type: "drill", on },
+  // { type: "surface", surface }).
+  practiceDo(fn, op = null) {
     if (this.mode !== "practice" || this.phase !== "aim") return;
     const v = fn();
+    if (op && this.trail?.kind === "practice") this.trail.ops.push(op);
     this.result = null;
     this.enter(v && v.need ? v : this.engine.view());
   }

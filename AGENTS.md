@@ -90,6 +90,33 @@ page says that matches are recorded. The practice pitch has no room and is not r
   says which actions end on another hash than the players' browsers committed. After a
   physics change in `vendor/core/` those are the throws that now go differently.
 
+## Reports
+
+A player can say a throw looked wrong (Jamie, 2026-11-16: "Is it worth allowing,
+particularly on the web, a specific 'report' action that the player can type what
+happened and what should have happened so we can analyze? I think yes." and "Approved:
+build the web report action in kubb.thingelstad.xyz with a private store on AWS for the
+typed reports"). MENU, REPORT A THROW, in every mode (practice, solo, watch, a shared
+pitch), opens a card with "What happened?" and "What should have happened?" (1000
+characters each, at least one), SEND and CANCEL. The browser sends the answers with the
+game as it stood when the card opened, enough to play the reported moment again here
+(`src/net/report.js` says exactly what; no name field, no user agent, no member id). It
+goes as one `report` message on a socket of its own to the rooms server
+(`docs/ROOMS.md` section 8), which writes one gzipped object to the private games bucket
+under `reports/<yyyy-mm-dd>/`, kept for good like the games.
+
+- Limits: 64 KB a report as ASCII JSON (history, then pieces, then the snapshot after
+  are dropped to fit; the answers, the snapshot before and the last action never), 3
+  reports a connection (best effort, per Lambda instance), the stage throttle.
+- `npm run reports:pull` (as `cloud-engineer`; `--since <date>`) copies new reports to
+  `build/reports/` (never in git) and prints each: when, mode, the two answers, where the
+  replayable state is. `npm run reports:show` prints those already pulled.
+- `npm run reports:replay -- <file>` plays the report's last action from the snapshot
+  before it through this checkout's engine (and the whole match from its start when the
+  report carries it; practice from its options and steps), says whether it ends where the
+  player's browser did, and prints the last throw's result and where the pieces lie.
+- `npm run dev`'s local rooms server keeps reports as files in `build/reports-dev/`.
+
 ## Watch the computer
 
 `/p/<code>?watch=1` (home page: "Watch the computer", added 2026-11-16 on Jamie's ask: "I

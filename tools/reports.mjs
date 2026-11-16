@@ -1,0 +1,286 @@
+// Players' reports (MENU, REPORT A THROW; backend/rooms/reports.mjs): fetch them, read
+// them, and play the reported moment again through this checkout's engine.
+//
+//   node tools/reports.mjs pull [--since 2026-11-16] [--dir build/reports]
+//       copies new reports from the games bucket to build/reports/<yyyy-mm-dd>/ (never in
+//       git: they carry what players typed) and prints each new one. Run as the
+//       cloud-engineer identity.
+//   node tools/reports.mjs show [--dir build/reports] [file ...]
+//       prints reports already pulled (all of them, or the files named).
+//   node tools/reports.mjs replay <file>
+//       a match: restores the snapshot before the last action and applies it, and says
+//       whether this engine ends on the reported snapshot; with the whole history, also
+//       replays the match from its start. Practice: sets the pitch out with the report's
+//       options and runs its throws and changes again. Prints the last throw's result and
+//       where the pieces lie, beside where the player's browser had them.
+//
+// The pure parts (describeReport, replayReport) are tested in tests/net/reports.test.mjs.
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseRecord, openGamesBucket } from "./games.mjs";
+
+const PREFIX = "reports/";
+const KEY = /^(\d{4}-\d{2}-\d{2})\/(\d{13}-[2-9a-hjkmnp-z]{4,16}\.json\.gz)$/;
+
+const when = (t) =>
+  Number.isFinite(t)
+    ? new Date(t).toISOString().slice(0, 19).replace("T", " ") + " UTC"
+    : "?";
+
+// A pulled report ({ t, report }) as lines to print. `file` is where it lies.
+export function describeReport(obj, file = "") {
+  const r = obj.report ?? {};
+  const lines = [];
+  const where = r.room ? ` room ${r.room} v ${r.v ?? "?"}` : "";
+  lines.push(`${when(obj.t)}  ${r.mode ?? "?"}${where}  ${file}`);
+  const text = (label, s) => {
+    const body = String(s ?? "").trim();
+    lines.push(`  ${label}: ${body ? body.replace(/\s*\n\s*/g, " / ") : "-"}`);
+  };
+  text("What happened", r.happened);
+  text("What should have happened", r.should);
+  const n = r.need ?? {};
+  const turn =
+    n.turn !== undefined ? `turn ${n.turn}, throw ${n.throws ?? "?"}` : "";
+  lines.push(
+    `  At: ${[r.phase, n.kind, n.side && `side ${n.side}`, turn].filter(Boolean).join(", ")}`,
+  );
+  const lt = r.lastThrow;
+  if (lt)
+    lines.push(
+      `  Last throw: ${lt.action?.how ?? "?"}${lt.result?.flag ? `, ${lt.result.flag}` : ""}${lt.action?.scripted ? " (the computer)" : ""}`,
+    );
+  const state = [];
+  if (r.snapshots?.before && r.last) state.push("before + last action");
+  if (r.snapshots?.start && r.actions)
+    state.push(`start + ${r.actions.length} actions`);
+  if (r.practice?.ops) state.push(`practice + ${r.practice.ops.length} steps`);
+  if (r.room) state.push(`recorded game: games/${r.room}/ (v ${r.v ?? "?"})`);
+  lines.push(`  Replay: ${state.join("; ") || "nothing replayable"}`);
+  if (r.dropped) lines.push(`  Dropped to fit: ${r.dropped.join(", ")}`);
+  lines.push(
+    `  Build: ${r.build?.version ?? "?"} ${String(r.build?.commit ?? "?").slice(0, 10)}, ${r.build?.lua ?? "?"}, core ${String(r.build?.core ?? "?").slice(0, 10)}; ${r.viewport?.w ?? "?"}x${r.viewport?.h ?? "?"}`,
+  );
+  return lines;
+}
+
+function piecesNow(engine) {
+  return (engine.view().items || []).filter((it) => it.kind !== "stake");
+}
+
+// How far the pieces here are from the report's (metres, the largest), by id.
+function drift(here, reported) {
+  if (!reported) return null;
+  const by = new Map(reported.map((p) => [p.id, p]));
+  let max = 0;
+  let missing = 0;
+  for (const p of here) {
+    const q = by.get(p.id);
+    if (!q) {
+      missing++;
+      continue;
+    }
+    max = Math.max(max, Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z));
+  }
+  return { max, missing };
+}
+
+// One report through `engine`. Returns { kind, steps: [...], last, pieces, drift } or
+// { kind: null, why } when it carries nothing to replay.
+export function replayReport(engine, obj) {
+  const r = obj.report ?? obj;
+  const out = { kind: null, notes: [] };
+  if (r.practice) {
+    if (!r.practice.ops)
+      return { ...out, why: "the practice steps were dropped" };
+    out.kind = "practice";
+    engine.newPractice({ ...r.practice.opts });
+    if (r.practice.opts?.level) engine.setLevel(r.practice.opts.level);
+    for (const op of r.practice.ops) {
+      if (op.type === "throw") engine.apply(op);
+      else if (op.type === "reset") engine.reset();
+      else if (op.type === "drill") engine.setDrill(op.on);
+      else if (op.type === "surface") engine.setSurface(op.surface);
+      else out.notes.push(`skipped ${op.type}`);
+    }
+  } else if (r.snapshots?.before && r.last) {
+    out.kind = "match";
+    if (r.snapshots.start && r.actions) {
+      engine.restore(r.snapshots.start);
+      let refused = 0;
+      for (const a of r.actions) {
+        const res = engine.apply(a);
+        if (res && res.ok === false) refused++;
+      }
+      const whole = engine.hash().hash;
+      out.whole = { actions: r.actions.length, refused, hash: whole };
+    }
+    let expect = null;
+    if (r.snapshots.now) {
+      engine.restore(r.snapshots.now);
+      expect = engine.hash().hash;
+    }
+    engine.restore(r.snapshots.before);
+    const res = engine.apply(r.last);
+    out.applied = res && res.ok !== false;
+    const got = engine.hash().hash;
+    out.same = expect === null ? null : got === expect;
+    if (out.whole)
+      out.whole.same = expect === null ? null : out.whole.hash === expect;
+  } else {
+    return { ...out, why: "no snapshot and action, and no practice steps" };
+  }
+  const rec = engine.recording();
+  out.last = rec?.result
+    ? {
+        flag: rec.result.flag ?? null,
+        rest: rec.result.restText ?? null,
+        ruling: rec.result.ruling?.text ?? null,
+        how: rec.projectile?.how ?? null,
+      }
+    : null;
+  const pieces = piecesNow(engine);
+  out.pieces = pieces.map((p) => ({
+    id: p.id,
+    kind: p.kind,
+    x: Math.round(p.x * 1000) / 1000,
+    y: Math.round(p.y * 1000) / 1000,
+    toppled: !!p.toppled,
+  }));
+  out.drift = drift(
+    pieces,
+    r.pieces?.filter((p) => p.kind !== "stake"),
+  );
+  return out;
+}
+
+async function readReport(file) {
+  return parseRecord(await fs.readFile(file));
+}
+
+async function listFiles(dir) {
+  const out = [];
+  let days;
+  try {
+    days = (await fs.readdir(dir)).sort();
+  } catch {
+    return out;
+  }
+  for (const day of days) {
+    let names;
+    try {
+      names = (await fs.readdir(path.join(dir, day))).sort();
+    } catch {
+      continue;
+    }
+    for (const n of names)
+      if (/\.json(\.gz)?$/.test(n)) out.push(path.join(dir, day, n));
+  }
+  return out;
+}
+
+async function show(files) {
+  for (const file of files) {
+    console.log(describeReport(await readReport(file), file).join("\n"));
+    console.log("");
+  }
+}
+
+async function pull({ since, dir }) {
+  const { s3, bucket, ListObjectsV2Command, GetObjectCommand } =
+    await openGamesBucket();
+  const after = since ? Date.parse(since) : 0;
+  if (Number.isNaN(after)) throw new Error(`--since ${since} is not a date`);
+  let token;
+  const got = [];
+  let had = 0;
+  do {
+    const page = await s3.send(
+      new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: PREFIX,
+        ContinuationToken: token,
+      }),
+    );
+    for (const { Key } of page.Contents ?? []) {
+      const m = KEY.exec(Key.slice(PREFIX.length));
+      if (!m) continue;
+      if (Number(m[2].slice(0, 13)) < after) continue;
+      const file = path.join(dir, m[1], m[2]);
+      try {
+        await fs.access(file);
+        had++;
+        continue;
+      } catch {
+        // not here yet
+      }
+      const object = await s3.send(
+        new GetObjectCommand({ Bucket: bucket, Key }),
+      );
+      await fs.mkdir(path.dirname(file), { recursive: true });
+      await fs.writeFile(file, await object.Body.transformToByteArray());
+      got.push(file);
+    }
+    token = page.NextContinuationToken;
+  } while (token);
+  console.log(`${got.length} new reports in ${dir} (${had} already here)\n`);
+  await show(got);
+}
+
+async function replay(file) {
+  if (!file) throw new Error("Usage: npm run reports:replay -- <file>");
+  const { Engine } = await import("../src/engine/index.js");
+  const { bundleLua } = await import("./lua-bundle.mjs");
+  const obj = await readReport(file);
+  console.log(describeReport(obj, file).join("\n"));
+  const engine = await Engine.create({ sources: await bundleLua() });
+  const out = replayReport(engine, obj);
+  if (!out.kind) {
+    console.log(`\nNothing to replay: ${out.why}.`);
+    return;
+  }
+  console.log("");
+  if (out.whole)
+    console.log(
+      `Whole match: ${out.whole.actions} actions from the start, ${out.whole.refused} refused, ${out.whole.same === null ? "no snapshot to compare" : out.whole.same ? "same" : "differs"}`,
+    );
+  if (out.kind === "match")
+    console.log(
+      `Last action from the snapshot before it: ${out.applied ? "applied" : "refused"}, ${out.same === null ? "no snapshot after to compare" : out.same ? "same as the player's browser" : "differs from the player's browser"}`,
+    );
+  if (out.last)
+    console.log(
+      `Last throw: ${out.last.how ?? "?"}${out.last.flag ? `, ${out.last.flag}` : ""}${out.last.rest ? `, ${out.last.rest}` : ""}${out.last.ruling ? ` (${out.last.ruling})` : ""}`,
+    );
+  if (out.drift)
+    console.log(
+      `Pieces against the report: ${out.drift.max.toFixed(4)} m at most${out.drift.missing ? `, ${out.drift.missing} not in the report` : ""}`,
+    );
+  for (const n of out.notes) console.log(`Note: ${n}`);
+  console.log("Pieces (thrower's view frame, metres):");
+  for (const p of out.pieces)
+    console.log(
+      `  ${String(p.id).padEnd(6)} ${p.kind.padEnd(5)} x ${p.x.toFixed(3).padStart(7)} y ${p.y.toFixed(3).padStart(6)}${p.toppled ? "  down" : ""}`,
+    );
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const [mode, ...rest] = process.argv.slice(2);
+  const flag = (name) => {
+    const i = rest.indexOf(`--${name}`);
+    return i < 0 ? undefined : rest[i + 1];
+  };
+  const dir = flag("dir") ?? "build/reports";
+  const files = rest.filter(
+    (x, i) => !x.startsWith("--") && !rest[i - 1]?.startsWith("--"),
+  );
+  if (mode === "pull") await pull({ since: flag("since"), dir });
+  else if (mode === "show")
+    await show(files.length ? files : await listFiles(dir));
+  else if (mode === "replay") await replay(files[0]);
+  else
+    throw new Error(
+      "Usage: node tools/reports.mjs pull [--since <date>] | show [file ...] | replay <file>",
+    );
+}

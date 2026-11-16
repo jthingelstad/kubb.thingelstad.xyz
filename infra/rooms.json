@@ -161,9 +161,14 @@
                   "Sid": "RecordGames",
                   "Effect": "Allow",
                   "Action": "s3:PutObject",
-                  "Resource": {
-                    "Fn::Sub": "${GamesBucket.Arn}/games/*"
-                  }
+                  "Resource": [
+                    {
+                      "Fn::Sub": "${GamesBucket.Arn}/games/*"
+                    },
+                    {
+                      "Fn::Sub": "${GamesBucket.Arn}/reports/*"
+                    }
+                  ]
                 },
                 {
                   "Sid": "Logs",
