@@ -317,6 +317,7 @@ function Session:advance()
 	self.phase = "throw"
 	local ts = self.ts
 	throw.prepare(ts, setup)
+	self.frameSide = setup.side -- the frame ts is in now (lua/web/wide)
 	ts.level = setup.thrower and setup.thrower.level or nil
 	ts.watching = isCpu(self, setup.side)
 	ts.scripted = false
@@ -737,6 +738,8 @@ function Session:applyThrow(a)
 		assert(I(a.seq) == self.throws, "throw out of step: seq " .. tostring(a.seq) .. ", expected " .. self.throws)
 	end
 	local ts = self.ts
+	-- the frame this throw's recording is in (lua/web/wide)
+	self.recSide = self.kind == "match" and self.setup.side or nil
 	local st, tg = a.stance or {}, a.target or {}
 	ts.playerX, ts.playerY, ts.stanceSet = F(st.x), F(st.y), st.set and true or false
 	ts.markerX, ts.markerY, ts.markerSet, ts.markerOnId = F(tg.x), F(tg.y), tg.set and true or false, tg.on

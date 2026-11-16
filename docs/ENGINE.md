@@ -119,6 +119,14 @@ aim { x0, y0, x1, y1 }, advY, lineY, wind }`.
 | `frame(input)` | `{ dial, camera, aim, event?, action?, recording?, need? }`. `input = { dt, arm, plan, move: {dx, dy}, walk: {dx, dy} }`. |
 | `showAt(t)`    | `{ t, done, speed, camera, items, burst, dial }`: the last throw at `t` seconds after the release.                        |
 
+**The wide view** (docs/CLIENT.md "The wide view"): `setWide(box)` with a box `{ left,
+top, right, bottom }` in frame px fits one fixed camera to it and returns `{ camera, kind,
+farPx }` (`kind` "side" or "end"; `farPx` the smallest base kubb's height in frame px).
+From then on every call's `camera` is that camera, and what a call gives in Team B's view
+frame (items, aim, minimap, a recording's bursts) comes un-turned into the world frame,
+with `wide` set to the kind. `setWide(null)` turns it off. The setting outlasts `new` and
+`restore`.
+
 `arm` is the pointer on the dial as **forward degrees from 6 o'clock** in (-180, 180]:
 0 at the bottom, negative up the left side (the backswing: 7 o'clock is -30, 9 is -90,
 12 is -180), positive up the right (the throw: 5 is +30, 3 is +90). Leave it out (or

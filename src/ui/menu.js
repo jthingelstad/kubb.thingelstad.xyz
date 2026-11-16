@@ -1,12 +1,17 @@
 // The menu, from the button in the top corner: resign, sound, level, how to
 // throw, the score sheet (in a match), report a throw, the rules and home; on
-// the practice pitch also the surface.
+// the practice pitch also the surface; watching the computer, the view.
 import { h, button, clear } from "./dom.js";
 
 const LEVELS = [
   ["beginner", "Beginner"],
   ["club", "Club"],
   ["pro", "Pro"],
+];
+// watching the computer (src/main.js watchView)
+const VIEWS = [
+  ["wide", "Wide"],
+  ["thrower", "Thrower's"],
 ];
 const SURFACES = [
   ["grass", "Grass"],
@@ -15,7 +20,8 @@ const SURFACES = [
 ];
 
 export class Menu {
-  // hooks: { game, sound, howto, home, resign?, surface?, sheet?, report?, mode }
+  // hooks: { game, sound, howto, home, resign?, surface?, sheet?, report?, view?, mode }
+  // view: { get() -> "wide" | "thrower", set(v) }
   constructor(root, hooks) {
     this.hooks = hooks;
     this.btn = h(
@@ -61,6 +67,17 @@ export class Menu {
             render();
           }),
         ),
+        this.hooks.view
+          ? h(
+              "div.opt",
+              { "data-test": "menu-view" },
+              h("span.opt-label", "View"),
+              seg(VIEWS, this.hooks.view.get(), (v) => {
+                this.hooks.view.set(v);
+                render();
+              }),
+            )
+          : null,
         game.mode === "practice" && this.hooks.surface
           ? h(
               "div.opt",

@@ -44,7 +44,14 @@ import {
   unprojectView,
   project,
 } from "./draw.js";
-import { layoutFor, worldFit, panFor, isTall, stillFit } from "./layout.js";
+import {
+  layoutFor,
+  worldFit,
+  panFor,
+  isTall,
+  stillFit,
+  wideBox,
+} from "./layout.js";
 import { settleItems, raiseCamera, punishCamera, poseItem } from "./scenes.js";
 import { Hud } from "./hud.js";
 import { prefs } from "./prefs.js";
@@ -63,6 +70,8 @@ export const tune = {
   holdFeed: 1 / 30 - 0.002, // s: a held pointer's arm is fed again after this
   hiddenEvery: 1, // s between steps of an unattended game in a hidden tab
   hiddenCatchUp: 90, // s of missed time one such step makes up, at most
+  wideMinPx: 6, // CSS px: the wide view only where its smallest base kubb is this tall
+  wideBurst: 0.16, // the wide view's bursts, of the window's short side (else 0.3)
 };
 
 const ZERO = { dx: 0, dy: 0 };
@@ -122,6 +131,13 @@ export class Game {
     this.onNeed = null; // (need) => void: main shows the winner card etc.
     this.whoActs = null; // (need) => { text, mine } | null: a shared pitch's HUD line
     this.trail = null; // see the seam above; reset by newPractice, newMatch, adopt
+    // The wide view (docs/CLIENT.md "The wide view"): wanted (watching the
+    // computer, by the viewer's choice), and shown when the window is big
+    // enough for it: { kind, key } while the engine hands out its camera.
+    this.wideWanted = false;
+    this.wide = null;
+    this.engineWide = false; // the engine hands out the wide camera
+    this.onWide = null; // () => void: main's control follows what is shown
 
     this.hud = new Hud(ui, {
       arc: (s) => this.planStep("arc", s),
@@ -161,6 +177,72 @@ export class Game {
     this.seat = seat;
     if (this.mode === "match") this.engine.setControl(seat);
     this.enter(this.engine.view());
+  }
+
+  // ---------- the wide view ----------
+
+  // Ask for the wide view (watching) or the thrower's view. What shows also
+  // depends on the window: see applyWide.
+  setWide(on) {
+    this.wideWanted = !!on;
+    this.applyWide();
+  }
+
+  // Tell the engine the box the wide camera fills (the window as the frame
+  // sees it, less the HUD's margins), or turn it off. Called on every resize.
+  // The engine gives every camera and the pitch in its fixed view from then
+  // on (lua/web/wide.lua); what this Game already holds is fetched again.
+  applyWide() {
+    let next = null;
+    if (this.wideWanted && this.W > 0) {
+      const box = wideBox(this.W, this.H, this.L?.safe);
+      const key = [box.left, box.top, box.right, box.bottom]
+        .map((v) => v.toFixed(2))
+        .join(",");
+      if (this.wide && this.wide.key === key) return;
+      const r = this.engine.setWide(box);
+      this.engineWide = true;
+      // a window too small for it (a phone held upright) keeps the thrower's
+      if (r.farPx * box.k >= tune.wideMinPx) next = { kind: r.kind, key };
+    }
+    if (!next && this.engineWide) {
+      this.engine.setWide(null);
+      this.engineWide = false;
+    }
+    const was = this.wide;
+    this.wide = next;
+    if (was?.key !== next?.key) this.refetch();
+    this.onWide?.(this);
+  }
+
+  // What is shown now, the wide view or the thrower's: "wide" | "thrower".
+  get viewName() {
+    return this.wide ? "wide" : "thrower";
+  }
+
+  // Fetch again what this Game holds from the engine in one view's frame
+  // and camera: the aim and the pieces, and a throw playing back's bursts.
+  refetch() {
+    if (!this.mode) return;
+    let v;
+    try {
+      v = this.engine.view();
+    } catch {
+      return; // no session yet
+    }
+    if (this.out) this.out = { ...this.out, aim: v.aim, camera: v.camera };
+    const p = this.play;
+    if (p) {
+      const rec = this.engine.recording();
+      const bs = rec?.timeline?.bursts || [];
+      p.bursts.forEach((b, i) => {
+        if (bs[i]?.anchor) b.anchor = bs[i].anchor;
+      });
+      p.last = this.engine.showAt(p.t);
+    } else {
+      this.viewData = v;
+      this.items = v.items || [];
+    }
   }
 
   // ---------- the seam ----------
@@ -696,6 +778,7 @@ export class Game {
       left: inset("--safe-left"),
     });
     this.fit = worldFit(W, H, this.panX);
+    if (this.engine) this.applyWide();
   }
 
   resizeIfNeeded() {
@@ -711,7 +794,7 @@ export class Game {
 
   // Pan a tall view after frame x fx (eased; frozen while dragging).
   pan(fx, dt, center = false) {
-    if (!isTall(this.W, this.H)) {
+    if (this.wide || !isTall(this.W, this.H)) {
       this.fit = null;
       return;
     }
@@ -736,15 +819,20 @@ export class Game {
   drawAim(aim, camera, dial, may, dt) {
     if (this.quiet) return;
     const v = this.viewData || {};
-    const marker = aim.marker && aim.marker.shown !== false ? aim.marker : null;
+    const wide = !!this.wide;
+    // the wide view leaves out the thrower's tools: the circle, the arc, the
+    // dial and the minimap (the whole pitch is in view)
+    const marker =
+      !wide && aim.marker && aim.marker.shown !== false ? aim.marker : null;
     if (marker) {
       const p = project(camera, marker.x, marker.y, 0);
       this.pan(p ? p[0] : 200, dt);
     } else this.pan(200, dt, true);
     this.begin();
-    const arc = Array.isArray(aim.arc)
-      ? aim.arc.map((q) => (Array.isArray(q) ? q : [q.x, q.y, q.z]))
-      : null;
+    const arc =
+      !wide && Array.isArray(aim.arc)
+        ? aim.arc.map((q) => (Array.isArray(q) ? q : [q.x, q.y, q.z]))
+        : null;
     drawWorld(this.ctx, this.view, camera, {
       surface: v.surface,
       set: v.set,
@@ -752,14 +840,18 @@ export class Game {
       advantageY: aim.advY ?? null,
       marker: marker ? { x: marker.x, y: marker.y, r: marker.r } : null,
       arc,
-      thrower: aim.thrower ? { x: aim.thrower.x, y: aim.thrower.y } : null,
+      thrower: aim.thrower
+        ? { x: aim.thrower.x, y: aim.thrower.y, facing: aim.thrower.facing }
+        : null,
     });
     this.css();
-    this.drawMap(aim, this.viewData?.minimap?.pieces || this.items);
     const watching = !may || !!aim.watching;
-    const st = { ...dial, grabbed: this.ptr?.kind === "dial" };
-    if (watching && !st.prompt) st.prompt = "WATCH";
-    drawDial(this.ctx, this.L.dial, st);
+    if (!wide) {
+      this.drawMap(aim, this.viewData?.minimap?.pieces || this.items);
+      const st = { ...dial, grabbed: this.ptr?.kind === "dial" };
+      if (watching && !st.prompt) st.prompt = "WATCH";
+      drawDial(this.ctx, this.L.dial, st);
+    }
     const res =
       this.result && this.result.age < tune.flagFor ? this.result : null;
     this.hud.update({
@@ -775,6 +867,7 @@ export class Game {
       restText: res && res.restText,
       layout: this.L,
       who: this.whoActs?.(this.need) ?? null,
+      wide,
     });
   }
 
@@ -805,16 +898,21 @@ export class Game {
       advantageY: this.out?.aim?.advY ?? null,
     });
     this.css();
-    const pid = p.rec.projectile && p.rec.projectile.id;
-    const proj = s.items.find((it) => it.id === pid);
-    this.drawMap(null, s.items, {
-      baton: proj ? { x: proj.x, y: proj.y } : null,
-      advantageY: this.out?.aim?.advY ?? null,
-      wind: this.out?.aim?.wind || null,
-    });
-    if (s.dial) drawDial(this.ctx, this.L.dial, { ...s.dial, prompt: null });
-    // the bursts at their anchors, in real time
-    const size = Math.max(90, Math.min(this.W, this.H) * 0.3);
+    const wide = !!this.wide;
+    if (!wide) {
+      const pid = p.rec.projectile && p.rec.projectile.id;
+      const proj = s.items.find((it) => it.id === pid);
+      this.drawMap(null, s.items, {
+        baton: proj ? { x: proj.x, y: proj.y } : null,
+        advantageY: this.out?.aim?.advY ?? null,
+        wind: this.out?.aim?.wind || null,
+      });
+      if (s.dial) drawDial(this.ctx, this.L.dial, { ...s.dial, prompt: null });
+    }
+    // the bursts at their anchors, in real time (smaller over the whole pitch)
+    const size = wide
+      ? Math.max(70, Math.min(this.W, this.H) * tune.wideBurst)
+      : Math.max(90, Math.min(this.W, this.H) * 0.3);
     for (const b of p.bursts) {
       if (!(b.realAt > 0)) continue;
       const pt = projectView(
@@ -840,6 +938,7 @@ export class Game {
       verdicts: res && res.verdicts,
       restText: res && res.restText,
       layout: this.L,
+      wide,
     });
   }
 
@@ -910,6 +1009,7 @@ export class Game {
       practice: this.mode === "practice",
       layout: this.L,
       who: this.whoActs?.(n) ?? null,
+      wide: !!this.wide,
     });
   }
 

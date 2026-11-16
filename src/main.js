@@ -119,6 +119,8 @@ async function boot() {
     },
     sheet,
     report,
+    // watching: WIDE VIEW or THROWER'S VIEW (startWatch sets it)
+    view: null,
   });
 
   if (testing) {
@@ -150,7 +152,7 @@ async function boot() {
       },
     };
     if (mode === "solo") startSolo(game, cards, env);
-    else startWatch(game, cards, env);
+    else startWatch(game, cards, { ...env, menu });
   } else {
     pitch = startPitch({
       game,
@@ -275,11 +277,12 @@ export const watchTune = {
 // the card holds it there. The options are the solo card's, as last saved.
 // The Game runs unattended: a timer steps it while the tab is hidden. Each
 // match is sent to be recorded once, when it ends, hidden tab or not.
-function startWatch(game, cards, { sheet, record }) {
+function startWatch(game, cards, { sheet, record, menu }) {
   game.seat = { sides: [], cpu: true };
   game.localSide = null;
   game.unattended = true;
   game.zen = watchTune.zen;
+  watchView(game, menu);
   let first = "A";
   let timer = null;
   const play = () => {
@@ -328,6 +331,48 @@ function startWatch(game, cards, { sheet, record }) {
     timer = setTimeout(play, watchTune.nextMs);
   };
   play();
+}
+
+// The view while watching (Jamie, 2026-11-16: "It'd be fun to actually do
+// more with the camera on the web version because we could zoom out. We have
+// a lot more screen. We could see a lot more."): the wide view, the whole
+// pitch from the sideline (the default), or the thrower's view, the cameras
+// a match is played with. A button by the menu, MENU's View, and the V key;
+// remembered as the "watchView" pref. The button names the view it switches
+// to, as DRILL / BATONS does on the practice pitch. A window too small for
+// the wide view (a phone held upright) shows the thrower's view whatever is
+// chosen, and the button is hidden there (MENU's View still says what is
+// chosen, for when the window grows).
+export const VIEWS = { wide: "WIDE VIEW", thrower: "THROWER'S VIEW" };
+
+function watchView(game, menu) {
+  const chosen = () =>
+    prefs.get("watchView", "wide") === "thrower" ? "thrower" : "wide";
+  const choose = (v) => {
+    prefs.set("watchView", v);
+    game.setWide(v === "wide");
+  };
+  const toggle = () => choose(chosen() === "wide" ? "thrower" : "wide");
+  const btn = button(VIEWS.thrower, toggle, "small", {
+    "data-test": "view",
+    title: "Switch the view (V)",
+  });
+  const tray = h("div.tray.view-tray", btn);
+  ui.append(tray);
+  game.onWide = () => {
+    const label = game.wide ? VIEWS.thrower : VIEWS.wide;
+    if (btn.textContent !== label) btn.textContent = label;
+    tray.hidden = chosen() === "wide" && !game.wide;
+  };
+  menu.hooks.view = { get: chosen, set: choose };
+  window.addEventListener("keydown", (e) => {
+    if (e.code !== "KeyV" || e.repeat || game.modal) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target instanceof HTMLInputElement) return;
+    e.preventDefault();
+    toggle();
+  });
+  game.setWide(chosen() === "wide");
 }
 
 // ---------- a shared pitch ----------

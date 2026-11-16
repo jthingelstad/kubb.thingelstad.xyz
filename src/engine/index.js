@@ -133,6 +133,14 @@ export class Engine {
     return this.call("showAt", { t });
   }
 
+  // ---- the wide view (lua/web/wide.lua) ----
+  // box { left, top, right, bottom } in frame px turns it on: every camera
+  // after this is the wide one and the pitch comes in the world frame.
+  // null turns it off. Returns { camera, kind, farPx } or {}.
+  setWide(box, kind) {
+    return this.call("setWide", box ? { box, kind } : {});
+  }
+
   // ---- aiming ----
   setTarget(x, y, snap = false) {
     return this.call("setTarget", { x, y, snap });

@@ -6,8 +6,9 @@
 import "core/tw"
 import "web/json"
 import "web/session"
+import "web/wide"
 
-local json, session = tw.web.json, tw.web.session
+local json, session, wide = tw.web.json, tw.web.session, tw.web.wide
 
 local api = {}
 local S = nil
@@ -18,6 +19,40 @@ local function need()
 end
 
 local M = {}
+
+-- The wide view (lua/web/wide.lua): while it is on, the calls that hand JS a
+-- camera hand it the wide one, and what is in Team B's view frame comes out
+-- in the world frame. It belongs to this Lua state, not to a session: a new
+-- match or a restore keeps it.
+local wideBox, wideCam = nil, nil
+local WIDE = { view = true, aim = true, frame = true, showAt = true, apply = true, recording = true,
+	showAim = true, setTarget = true, nudgeTarget = true, setStance = true, stepArc = true, setArc = true,
+	stepSide = true, freshPlan = true, setLevel = true, setDrill = true, reset = true, setSurface = true,
+	new = true, restore = true }
+
+-- { box = { left, top, right, bottom } } turns it on (frame px; kind "side"
+-- or "end" to choose the framing, else by the box's shape), {} turns it off.
+-- Returns { camera, kind, farPx } (farPx: the smallest base kubb's height in
+-- frame px) or {}.
+function M.setWide(a)
+	if a and a.box then
+		local b = a.box
+		wideBox = { left = b.left + 0, top = b.top + 0, right = b.right + 0, bottom = b.bottom + 0 }
+		wideCam = wide.camera(wideBox, a.kind)
+		return { camera = wideCam, kind = wideCam.kind, farPx = wide.smallest(wideCam) }
+	end
+	wideBox, wideCam = nil, nil
+	return json.object()
+end
+
+local function wideOut(method, r)
+	if not wideCam or not S or not WIDE[method] or type(r) ~= "table" then return r end
+	if method == "showAt" then return wide.out(r, wideCam, S.recSide, S.recSide) end
+	if method == "recording" then
+		return (r.timeline and wide.recording(S.recSide, r)) or r
+	end
+	return wide.out(r, wideCam, S.frameSide, S.recSide)
+end
 
 function M.new(a) S = session.new(a or {}); return S:view() end
 function M.restore(text, raw) S = session.restore(raw); return S:view() end
@@ -51,9 +86,9 @@ local function call(method, arg)
 	local f = M[method]
 	if not f then error("unknown call " .. tostring(method), 0) end
 	local a = nil
-	if method == "restore" then return json.encode(f(nil, arg)) end
+	if method == "restore" then return json.encode(wideOut(method, f(nil, arg))) end
 	if arg and arg ~= "" then a = json.decode(arg) end
-	local r = f(a)
+	local r = wideOut(method, f(a))
 	if r == nil then r = json.object() end
 	return json.encode(r)
 end

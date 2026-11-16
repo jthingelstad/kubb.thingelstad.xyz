@@ -683,10 +683,13 @@ function drawThrower(ctx, cam, kx, t) {
       2.5,
     );
   }
+  // the arrow points down the pitch: toward +y in the thrower's frame;
+  // t.facing -1 (the wide view's world frame, Team B throwing) toward -y
+  const f = t.facing === -1 ? -1 : 1;
   const head = projectPoly(
     cam,
     [t.x, t.x - 0.12, t.x + 0.12],
-    [t.y + 0.42, t.y + 0.24, t.y + 0.24],
+    [t.y + 0.42 * f, t.y + 0.24 * f, t.y + 0.24 * f],
     null,
     3,
   );

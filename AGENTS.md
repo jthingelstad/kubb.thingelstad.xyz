@@ -21,6 +21,8 @@ game is the sibling checkout `../../playdate-kubb` (private; its `docs/DESIGN.md
   JavaScript draws, listens and talks to the network. JS and Lua exchange JSON strings in
   a few coarse calls a frame.
 - **The thrower's view frame everywhere** (core/frame): JS never flips the pitch.
+  The wide view (watching the computer) shows the world frame instead: Lua un-turns Team
+  B's output before JS sees it (`lua/web/wide.lua`), so JS still flips nothing.
 - Dev servers bind to 127.0.0.1 and are stopped when the work is done.
 - No italics on sans-serif type. Type and tokens come from `../shared/`.
 
@@ -138,6 +140,16 @@ first. It uses the solo card's saved options; teams are North and South; `maxTur
 is a safety net. In a hidden tab a timer steps it without drawing (`Game.background`,
 docs/CLIENT.md "The loop"), at the match's own pace with no pauses. Every match is recorded like a solo one (above), the hidden
 tab's too, and its score sheet is on the menu and the winner card.
+
+It is watched in the **wide view** by default (Jamie, 2026-11-16: "It'd be fun to
+actually do more with the camera on the web version because we could zoom out. We have a
+lot more screen. We could see a lot more."): one fixed camera high on the sideline (high
+behind Team A's baseline on a tall window) with the whole pitch filling the window, for
+the whole match. The session keeps Team B's throws in its turned view frame; in the wide
+view `lua/web/wide.lua` un-turns them into the world frame in Lua, so JS still never
+flips anything. THROWER'S VIEW / WIDE VIEW by MENU, MENU's View and the V key switch it
+(the `watchView` pref); a phone held upright falls back to the thrower's view. Played
+matches keep the thrower's view. docs/CLIENT.md "The wide view".
 
 ## Open games
 
