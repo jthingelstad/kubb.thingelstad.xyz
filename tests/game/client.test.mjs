@@ -407,6 +407,16 @@ browserTest(
       await watch.waitForFunction((n) => window.__throws.length > n, n0, {
         timeout: 30000,
       });
+      // above the winner card and the panels, which can appear under it
+      assert.ok(
+        await watch.evaluate(() => {
+          const z = (sel) =>
+            Number(getComputedStyle(document.querySelector(sel)).zIndex) || 0;
+          return (
+            z(".report-scrim") > Math.max(z(".card-layer"), z(".panel-host"))
+          );
+        }),
+      );
       await watch.fill("[data-test=report-happened]", "Watch report");
       await watch.click("[data-test=report-send]");
       await watch.waitForSelector(".report[data-sent='1']", { timeout: 10000 });
