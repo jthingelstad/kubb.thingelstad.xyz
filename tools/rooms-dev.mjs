@@ -31,6 +31,7 @@ export async function startRoomsServer({
   ),
   limits = LIMITS,
   now = Date.now,
+  record = null,
   log = () => {},
 } = {}) {
   const sockets = new Map(); // conn -> ws
@@ -39,6 +40,7 @@ export async function startRoomsServer({
     store,
     now,
     limits,
+    record,
     async send(conn, text) {
       const ws = sockets.get(conn);
       if (!ws || ws.readyState !== ws.OPEN) return false;

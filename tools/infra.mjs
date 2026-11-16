@@ -12,7 +12,8 @@
 // A and AAAA alias records, the access log and the bucket for the rooms
 // function's code; with "wsRoute": true in infra/deployment.json it also
 // sends /ws on to the rooms WebSocket API. The rooms stack (infra/rooms.json)
-// is the WebSocket API, its function and its table: its code is
+// is the WebSocket API, its function, its table and the private bucket the
+// games are recorded in: its code is
 // backend/rooms/handler.mjs bundled and zipped by tools/rooms-bundle.mjs,
 // uploaded to the code bucket under its hash. The delivery stack owns the
 // GitHub OIDC role that publishes main. Each apply rewrites
@@ -151,6 +152,7 @@ function roomsFrom(out) {
   const url = new URL(out.WebSocketUrl);
   return {
     functionName: out.FunctionName || null,
+    gamesBucket: out.GamesBucket || null,
     webSocketUrl: out.WebSocketUrl,
     apiDomain: url.hostname,
     stage: url.pathname.replace(/^\/|\/$/g, ""),

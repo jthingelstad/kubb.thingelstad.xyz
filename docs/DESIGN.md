@@ -201,6 +201,8 @@ Bursts (TOK!, KLAK KLAK!, KING!) and the recorded knocks carry over.
 - Rooms: one API Gateway WebSocket API, one Lambda, one DynamoDB table (on demand, TTL).
   Throttled and capped (members a room, message size, document size) so it stays a hobby
   backend. No accounts, no personal data beyond the name a player types for the match.
+  Every match is recorded to a private bucket, names included, to test the game against
+  real play (`docs/ROOMS.md` section 7).
 - Merging to `main` deploys. Tinylytics on the production hostname only.
 
 ## 8. Not in the first version

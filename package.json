@@ -21,6 +21,8 @@
     "dev": "node tools/dev.mjs",
     "images": "node tools/render-images.mjs",
     "rooms:bundle": "node tools/rooms-bundle.mjs",
+    "games:pull": "node tools/games.mjs pull",
+    "games:replay": "node tools/games.mjs replay",
     "infra:plan": "node tools/infra.mjs plan",
     "infra:apply": "node tools/infra.mjs apply",
     "deploy": "node tools/deploy.mjs"

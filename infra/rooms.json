@@ -1,6 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "kubb.thingelstad.xyz rooms: API Gateway WebSocket API, one Lambda function and one DynamoDB table for multiplayer rooms",
+  "Description": "kubb.thingelstad.xyz rooms: API Gateway WebSocket API, one Lambda function, one DynamoDB table for multiplayer rooms and the bucket their games are recorded in",
   "Parameters": {
     "CodeBucket": {
       "Type": "String",
@@ -44,6 +44,70 @@
         "TimeToLiveSpecification": {
           "AttributeName": "exp",
           "Enabled": true
+        }
+      }
+    },
+    "GamesBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "BucketName": {
+          "Fn::Sub": "${AWS::StackName}-games-${AWS::AccountId}"
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        },
+        "OwnershipControls": {
+          "Rules": [
+            {
+              "ObjectOwnership": "BucketOwnerEnforced"
+            }
+          ]
+        }
+      }
+    },
+    "GamesBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "GamesBucket"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "RequireTls",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": [
+                {
+                  "Fn::GetAtt": ["GamesBucket", "Arn"]
+                },
+                {
+                  "Fn::Sub": "${GamesBucket.Arn}/*"
+                }
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              }
+            }
+          ]
         }
       }
     },
@@ -91,6 +155,14 @@
                   ],
                   "Resource": {
                     "Fn::GetAtt": ["RoomsTable", "Arn"]
+                  }
+                },
+                {
+                  "Sid": "RecordGames",
+                  "Effect": "Allow",
+                  "Action": "s3:PutObject",
+                  "Resource": {
+                    "Fn::Sub": "${GamesBucket.Arn}/games/*"
                   }
                 },
                 {
@@ -148,6 +220,9 @@
           "Variables": {
             "TABLE": {
               "Ref": "RoomsTable"
+            },
+            "GAMES_BUCKET": {
+              "Ref": "GamesBucket"
             },
             "ALLOWED_ORIGINS": {
               "Ref": "AllowedOrigins"
@@ -272,6 +347,12 @@
     "FunctionName": {
       "Value": {
         "Ref": "RoomsFunction"
+      }
+    },
+    "GamesBucket": {
+      "Description": "Every committed room document version, kept for good",
+      "Value": {
+        "Ref": "GamesBucket"
       }
     }
   }

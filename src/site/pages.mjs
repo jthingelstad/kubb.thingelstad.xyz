@@ -80,6 +80,7 @@ function home({ tinylytics }) {
     <li><strong>Throw wood.</strong> Everyone watches every throw. Knock down their kubbs, then the king.</li>
   </ol>
   <p>No one to play with? Play the computer on a pitch of your own, or throw batons on the practice pitch.</p>
+  <p>Matches are recorded, with the names typed, so the game can be tested against real play. They are not published.</p>
 </section>
 <section class="frame about" aria-labelledby="about">
   <h2 class="display" id="about">The Playdate game, on the web</h2>

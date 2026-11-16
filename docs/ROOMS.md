@@ -17,6 +17,7 @@ protocol, the client library, the limits, the cost, and what is not protected.
 | -------------------------------------- | ----------------------------------------------------------------------- |
 | Room logic (pure, both servers run it) | `backend/rooms/core.mjs`                                                |
 | AWS Lambda handler, DynamoDB store     | `backend/rooms/handler.mjs`, `backend/rooms/dynamo-store.mjs`           |
+| The recorder (every version, to S3)    | `backend/rooms/recorder.mjs`, `tools/games.mjs`                         |
 | In-memory store (dev server, tests)    | `backend/rooms/memory-store.mjs`                                        |
 | Local server                           | `tools/rooms-dev.mjs` (`node tools/rooms-dev.mjs`, ws://127.0.0.1:8788) |
 | Browser client                         | `src/net/room.js`                                                       |
@@ -288,8 +289,9 @@ One stack, deployed by the deploy tool (not by hand): an API Gateway WebSocket A
 `$connect`, `$disconnect` and `$default` routed to one Lambda function (Node.js 24,
 arm64, 256 MB, 10 s timeout, `index.handler` from the esbuild bundle of
 `backend/rooms/handler.mjs` with `@aws-sdk/*` external), its own log group (30 days),
-an execution role that can only use the rooms table, write that log group and post to
-this API's connections, and one DynamoDB table (on demand, TTL on `exp`).
+an execution role that can only use the rooms table, write that log group, post to
+this API's connections and put objects under `games/` in the games bucket, one DynamoDB
+table (on demand, TTL on `exp`), and the private games bucket (section 7).
 
 Throttling on the `prod` stage: **50 messages a second, burst 100** for every route,
 and **5 a second, burst 20** for `$connect`. One room in play sends about 7 a second
@@ -352,4 +354,37 @@ By design, friends on a link:
 - **The cast rate cap is best effort** on AWS (per Lambda instance).
 - No accounts and no personal data beyond the name a player types; rooms vanish 48 hours
   after their last write. Lambda logs carry connection ids and error names, not
-  documents or names.
+  documents or names. The games bucket keeps every document version, names included
+  (section 7).
+
+## 7. Recording
+
+Every committed version of a room's document is kept for good, so that real play can be
+run through the engine again (Jamie, 2026-11-15: "all games should be recorded so that we
+can use it to test and improve the game").
+
+- **What.** After a `set` wins its compare-and-set, the core hands `{ room, v, t, by, doc,
+with }` to `record` (`backend/rooms/recorder.mjs`), which writes one gzipped JSON object:
+  `games/<room>/<epoch ms, 13 digits>-<v, 6 digits>.json.gz`. `doc` and `with` go in as
+  the ASCII JSON text the room stored, so a snapshot's hash still matches. For the game
+  that is the lobby as it fills, the match's start (seq 0) and the snapshot after every
+  action with the action itself. Casts (aim, shouts) and the practice pitch are not
+  recorded.
+- **Where.** The stack's `GamesBucket`: private, encrypted, TLS only, no lifecycle rule,
+  kept when the stack is deleted. The function may only `PutObject` under `games/`. The
+  local server records nothing unless `startRoomsServer({ record })` is given one.
+- **Failure.** A record that cannot be written is logged (`record failed`) and the move
+  stands: recording never costs a room its game. It adds one S3 put to a `set`, run
+  beside the broadcast. A snapshot is about 8 to 13 KB before gzip, so a long match is
+  well under a megabyte.
+- **Names.** The document carries the names players typed, and member ids. The bucket is
+  never served; `tools/games.mjs pull` copies records to `build/games/`, which git
+  ignores. The home page says that matches are recorded.
+- **Reading them.** `npm run games:pull`, then `npm run games:replay`: each match is
+  restored at its start and every recorded action applied to this checkout's engine.
+  `same` means the engine ends on the hash the players' browsers committed; `differs`
+  means this engine plays that action another way (expected after the physics changed,
+  and the list of throws to look at); `adopted` means no action was recorded for that
+  version (too big to ride along, or a version is missing). After anything but `same` the
+  replay takes the recorded snapshot and carries on. A record does not name the build
+  that played it: its time `t` against the deploy history does.

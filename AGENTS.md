@@ -60,7 +60,8 @@ address or home path in `dist/`, no account id in Markdown).
   them: 8 to 24 of `abcdefghjkmnpqrstuvwxyz23456789`). It also owns the bucket for the
   rooms function's code, and, with `"wsRoute": true` in `infra/deployment.json`, the `/ws`
   route that sends the WebSocket on to the rooms API under the same web ACL.
-- `infra/rooms.json` (stack `kubb-xyz-rooms`): the WebSocket API, its function and table.
+- `infra/rooms.json` (stack `kubb-xyz-rooms`): the WebSocket API, its function and table,
+  and the private games bucket (below).
   `npm run infra:apply -- rooms` bundles `backend/rooms/handler.mjs` (esbuild, one ESM
   file, AWS SDK left out), zips it the same way every time and uploads it as
   `rooms/<sha256>.zip`.
@@ -73,6 +74,21 @@ address or home path in `dist/`, no account id in Markdown).
   address, analytics), `tools/deploy.mjs` uploads, invalidates, compares the live bytes and
   the wasm content type, and updates the rooms function's code when its bundle changed.
   Roll back by reverting. The same script publishes by hand as `cloud-engineer`.
+
+## Recorded games
+
+Every match is recorded (Jamie, 2026-11-15: "all games should be recorded so that we can
+use it to test and improve the game"). The rooms function writes every committed version
+of a room's document, with the action that made it, to the private games bucket for good
+(`backend/rooms/recorder.mjs`, `docs/ROOMS.md` section 7). The names players typed are in
+them: records are pulled to `build/games/` (never in git) and never published. The home
+page says that matches are recorded. The practice pitch has no room and is not recorded.
+
+- `npm run games:pull` (as `cloud-engineer`) fetches new records; `--room <code>`,
+  `--since <date>`.
+- `npm run games:replay` plays every recorded match through this checkout's engine and
+  says which actions end on another hash than the players' browsers committed. After a
+  physics change in `vendor/core/` those are the throws that now go differently.
 
 ## Analytics
 
