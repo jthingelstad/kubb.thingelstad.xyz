@@ -108,6 +108,9 @@ export class Game {
     this.raiseSel = null;
     this.punishAt = null;
     this.running = false;
+    this.zen = null; // a calm pace for watching (main's watchTune.zen), or null
+    this.zenPause = 0; // s still to wait before the computer's next throw
+    this.zenLast = null;
     this.unattended = false; // nobody plays here: keep going while hidden
     this.quiet = false; // stepping without drawing (a hidden tab)
     this.hiddenTimer = null;
@@ -260,6 +263,7 @@ export class Game {
     const n = this.need;
     if (n.kind === "throw") {
       this.phase = "aim";
+      this.zenPause = this.zenPauseFor(n);
       if (this.mode === "match" && this.mayAct())
         this.engine.setLevel(this.level);
     } else if (n.kind === "raise") {
@@ -277,6 +281,23 @@ export class Game {
     this.cards?.tick?.(this);
     this.showCard();
     this.onNeed?.(n, this);
+  }
+
+  // Watching at a calm pace: how long the computer stands before this throw.
+  // A person looks, steps up and settles; longer when the turn changes hands
+  // (the walk to the other baseline) and when the kubbs are in and the batons
+  // come out. Nothing here touches the match: only when the throw is shown.
+  zenPauseFor(n) {
+    const z = this.zen;
+    if (!z || !n.cpu) return 0;
+    const proj = n.setup?.projectile ?? null;
+    const last = this.zenLast;
+    this.zenLast = { side: n.side, proj };
+    const between = (a) => a[0] + Math.random() * (a[1] - a[0]);
+    let t = between(z.before);
+    if (!last || last.side !== n.side) t += between(z.turn);
+    else if (last.proj !== proj) t += between(z.change);
+    return t;
   }
 
   // The engine's cards (hand-off, pass, settle), each shown once.
@@ -387,6 +408,14 @@ export class Game {
   aimFrame(dt, now) {
     const may = this.mayAct();
     const input = { dt };
+    if (this.zenPause > 0) {
+      // a hidden tab keeps the match's pace for the data, not the watcher's
+      if (this.quiet || !this.zen) this.zenPause = 0;
+      else {
+        this.zenPause -= dt;
+        input.dt = 0;
+      }
+    }
     if (!this.modal && may) {
       if (this.ptr?.kind === "dial") input.arm = this.dialArm;
       input.plan = this.planHeld || this.planToggle;
@@ -521,7 +550,8 @@ export class Game {
       const burstsLive = p.bursts.some(
         (b) => b.realAt > 0 && (now - b.realAt) / 1000 < burstLength(b.kind),
       );
-      if (p.hold >= tune.holdAfter && !burstsLive) return this.endPlayback();
+      if (p.hold >= (this.zen?.holdAfter ?? tune.holdAfter) && !burstsLive)
+        return this.endPlayback();
     }
     const s = p.last;
     if (s && !this.quiet) this.drawPlay(s, now);

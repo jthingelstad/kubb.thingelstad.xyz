@@ -233,7 +233,16 @@ function startSolo(game, cards) {
 // ---------- the computer against itself ----------
 
 export const watchTune = {
-  nextMs: 10000, // the winner card stays up this long before the next match
+  nextMs: 20000, // the winner card stays up this long before the next match
+  // The pace (Jamie, 2026-11-16: "slow it down. Think more like Zen
+  // screensaver ... more natural player like pauses"): seconds, each a range
+  // drawn from evenly. Shown only; a hidden tab plays at the match's pace.
+  zen: {
+    before: [1.5, 4], // the thrower stands before every throw
+    turn: [4, 7], // more when the other team steps up
+    change: [2, 4], // more between the kubbs and the batons
+    holdAfter: 2.4, // the pitch rests after a throw (a match: 0.8)
+  },
   maxTurns: 60, // a safety net: matches end in 5 to 30 turns
 };
 
@@ -247,6 +256,7 @@ function startWatch(game, cards) {
   game.seat = { sides: [], cpu: true };
   game.localSide = null;
   game.unattended = true;
+  game.zen = watchTune.zen;
   let first = "A";
   let timer = null;
   const play = () => {
