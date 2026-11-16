@@ -68,43 +68,49 @@ test("the computer against the computer, to a winner, with the game file", funct
 end)
 
 test("raising and punishment by hand", function()
-	local s = session.new { mode = "match", seed = 11, teams = teams(1, 1), start = START, raising = "hand" }
-	local r = autothrow.rng(99)
+	-- A match plays out differently on another Lua build (floats), so a seed whose
+	-- match ends before a punishment kubb goes on to the next seed.
 	local raised, placed, refused, settleCard = 0, 0, 0, 0
-	local guard = 0
-	while s:need().kind ~= "over" and guard < 600 and (raised < 2 or placed < 1) do
-		guard = guard + 1
-		local n = s:need()
-		if n.card and n.card.kind == "settle" then settleCard = settleCard + 1 end
-		if n.kind == "throw" then
-			-- wild tosses, to earn a punishment kubb: four times a baton's mistakes, whatever
-			-- the computer's own drill is scaled to (autothrow.tune.drillScale)
-			s:apply(scriptedAction(s, r, (n.setup.kind == "toss") and 4 / autothrow.tune.drillScale or 1))
-		elseif n.kind == "raise" then
-			expect.truthy(#n.choices >= 1)
-			expect.truthy(n.default >= 1 and n.default <= #n.choices)
-			for _, e in ipairs(n.ends) do
-				if not e.ok then expect.truthy(e.why == "THAT END IS OUT" or e.why == "THAT END IS BLOCKED") end
+	local seed, s, r, guard = 10, nil, nil, 0
+	while (raised < 2 or placed < 1) and seed < 20 do
+		if not s or s:need().kind == "over" or guard >= 600 then
+			seed, guard = seed + 1, 0
+			s = session.new { mode = "match", seed = seed, teams = teams(1, 1), start = START, raising = "hand" }
+			r = autothrow.rng(88 + seed)
+		else
+			guard = guard + 1
+			local n = s:need()
+			if n.card and n.card.kind == "settle" then settleCard = settleCard + 1 end
+			if n.kind == "throw" then
+				-- wild tosses, to earn a punishment kubb: four times a baton's mistakes, whatever
+				-- the computer's own drill is scaled to (autothrow.tune.drillScale)
+				s:apply(scriptedAction(s, r, (n.setup.kind == "toss") and 4 / autothrow.tune.drillScale or 1))
+			elseif n.kind == "raise" then
+				expect.truthy(#n.choices >= 1)
+				expect.truthy(n.default >= 1 and n.default <= #n.choices)
+				for _, e in ipairs(n.ends) do
+					if not e.ok then expect.truthy(e.why == "THAT END IS OUT" or e.why == "THAT END IS BLOCKED") end
+				end
+				local o = s:apply { type = "raise", choice = #n.choices }
+				expect.eq(o.ok, true)
+				raised = raised + 1
+			elseif n.kind == "punish" then
+				expect.truthy(#n.keepOut >= 1)
+				-- the king's keep-out circle refuses a spot
+				local king
+				for _, k in ipairs(n.keepOut) do if k.kind == "king" then king = k end end
+				local c = s:checkPunish(king.x, king.y - 0.1)
+				expect.eq(c.ok, false)
+				expect.eq(c.label, "TOO NEAR THE KING")
+				local bad = s:apply { type = "punish", x = king.x, y = king.y - 0.1 }
+				expect.eq(bad.ok, false)
+				refused = refused + 1
+				local good = s:checkPunish(n.cursor.x, n.cursor.y)
+				expect.eq(good.ok, true)
+				local o = s:apply { type = "punish", x = n.cursor.x, y = n.cursor.y }
+				expect.eq(o.ok, true)
+				placed = placed + 1
 			end
-			local o = s:apply { type = "raise", choice = #n.choices }
-			expect.eq(o.ok, true)
-			raised = raised + 1
-		elseif n.kind == "punish" then
-			expect.truthy(#n.keepOut >= 1)
-			-- the king's keep-out circle refuses a spot
-			local king
-			for _, k in ipairs(n.keepOut) do if k.kind == "king" then king = k end end
-			local c = s:checkPunish(king.x, king.y - 0.1)
-			expect.eq(c.ok, false)
-			expect.eq(c.label, "TOO NEAR THE KING")
-			local bad = s:apply { type = "punish", x = king.x, y = king.y - 0.1 }
-			expect.eq(bad.ok, false)
-			refused = refused + 1
-			local good = s:checkPunish(n.cursor.x, n.cursor.y)
-			expect.eq(good.ok, true)
-			local o = s:apply { type = "punish", x = n.cursor.x, y = n.cursor.y }
-			expect.eq(o.ok, true)
-			placed = placed + 1
 		end
 	end
 	expect.truthy(raised >= 2, "raised by hand: " .. raised)
