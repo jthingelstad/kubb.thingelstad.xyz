@@ -337,6 +337,10 @@ body.game {
 #ui .card-layer {
   z-index: 4;
 }
+/* the report card stays above the winner card and the panels, which go on under it */
+#ui .report-scrim {
+  z-index: 5;
+}
 .panel-host > *,
 .card-layer > * {
   pointer-events: auto;
