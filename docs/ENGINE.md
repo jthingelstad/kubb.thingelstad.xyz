@@ -69,12 +69,13 @@ are plain objects. Angles are degrees unless named otherwise; times are seconds.
 
 ### Reading
 
-| Call          | Returns                                                                                                           |
-| ------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `view()`      | `{ need, items, minimap, aim, camera, dial, surface, set }`: everything the screen needs when nothing plays back. |
-| `need()`      | What happens next (below).                                                                                        |
-| `aim()`       | `{ aim, camera }`.                                                                                                |
-| `recording()` | The last throw's recording (below), or `{}`.                                                                      |
+| Call          | Returns                                                                                                                                                        |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `view()`      | `{ need, items, minimap, aim, camera, dial, surface, set }`: everything the screen needs when nothing plays back.                                              |
+| `frameView()` | The same view, in the thrower's view frame even while the wide view is on: what a report records (`src/net/report.js`), so its replay compares like with like. |
+| `need()`      | What happens next (below).                                                                                                                                     |
+| `aim()`       | `{ aim, camera }`.                                                                                                                                             |
+| `recording()` | The last throw's recording (below), or `{}`.                                                                                                                   |
 
 **need** is one of:
 

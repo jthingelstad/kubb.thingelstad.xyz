@@ -104,6 +104,10 @@ export class Engine {
   view() {
     return this.call("view");
   }
+  // The view in the thrower's frame even in the wide view (reports).
+  frameView() {
+    return this.call("frameView");
+  }
   need() {
     return this.call("need");
   }
