@@ -26,6 +26,8 @@ function fakeClient() {
     if (expr === "attribute_exists(pk)") ok = Boolean(item);
     else if (expr === "attribute_not_exists(pk) OR #exp < :now")
       ok = !item || item[names["#exp"]] < values[":now"];
+    else if (expr === "attribute_not_exists(pk) OR #rev < :rev")
+      ok = !item || item[names["#rev"]] < values[":rev"];
     else if (expr === "#attr = :expected")
       ok = Boolean(item) && item[names["#attr"]] === values[":expected"];
     else throw new Error(`fake does not know ${expr}`);
@@ -65,13 +67,16 @@ function fakeClient() {
           const pk = v[":pk"];
           if (input.KeyConditionExpression === "pk = :pk AND sk >= :since") {
             // the open games list: newest first, Limit before the filter
-            assert.equal(input.FilterExpression, "#exp > :now");
+            assert.equal(
+              input.FilterExpression,
+              "#exp > :now AND listed = :yes",
+            );
             assert.equal(input.ScanIndexForward, false);
             const Items = [...items.values()]
               .filter((i) => i.pk === pk && i.sk >= v[":since"])
               .sort((a, b) => (a.sk < b.sk ? 1 : -1))
               .slice(0, input.Limit)
-              .filter((i) => i.exp > v[":now"])
+              .filter((i) => i.exp > v[":now"] && i.listed === v[":yes"])
               .map((i) => structuredClone(i));
             return { Items };
           }
@@ -343,6 +348,8 @@ test("open games: listed in one partition, read newest first by one Query", asyn
   const store = dynamoStore({ client, table: "rooms", now: () => T0 });
   const entry = (made, extra = {}) => ({
     made,
+    rev: 1,
+    listed: true,
     players: 2,
     seats: 12,
     state: "waiting",
@@ -377,13 +384,35 @@ test("open games: listed in one partition, read newest first by one Query", asyn
     "seats",
     "state",
   ]);
-  await store.delListing("bbbbbbbb", T0 - 1000);
+  // a stale write (same or older rev) is refused; a newer one replaces it
+  assert.equal(
+    await store.putListing("aaaaaaaa", entry(T0 - 5000, { state: "over" })),
+    false,
+  );
+  assert.equal(
+    (await store.listOpen({ since: 0, limit: 10, now: T0 / 1000 }))[1].state,
+    "waiting",
+  );
+  // taken off: an unlisted entry with a newer rev, which an older put cannot undo
+  assert.equal(
+    await store.putListing("bbbbbbbb", {
+      made: T0 - 1000,
+      rev: 3,
+      listed: false,
+      exp: T0 / 1000 + 900,
+    }),
+    true,
+  );
+  assert.equal(
+    await store.putListing("bbbbbbbb", entry(T0 - 1000, { rev: 2 })),
+    false,
+  );
   // Limit counts before the expiry filter: a short list, never a long one
   const one = await store.listOpen({ since: 0, limit: 1, now: T0 / 1000 });
   assert.deepEqual(one, []);
-  const three = await store.listOpen({ since: 0, limit: 3, now: T0 / 1000 });
+  const four = await store.listOpen({ since: 0, limit: 4, now: T0 / 1000 });
   assert.deepEqual(
-    three.map((r) => r.room),
+    four.map((r) => r.room),
     ["aaaaaaaa", "dddddddd"],
   );
 });

@@ -323,13 +323,13 @@ a misbehaving client can cost. API Gateway drops throttled messages; the client'
 
 The table (`pk`, `sk`, both strings):
 
-| pk            | sk               | Holds                                                                     |
-| ------------- | ---------------- | ------------------------------------------------------------------------- |
-| `room#<code>` | `room`           | `rev`, `exp`, `json` (host and members, with each member's connection id) |
-| `room#<code>` | `doc`            | `v`, `doc` (ASCII JSON text), `by`, `sid`, `exp`                          |
-| `conn#<id>`   | `conn`           | `room`, `member`, `exp`                                                   |
-| `conn#<id>`   | `part#<msg>#<i>` | `d`, `exp`: one part of an upload                                         |
-| `open`        | `<made>#<code>`  | `room`, `made`, `players`, `seats`, `state`, `exp`: an open game's entry  |
+| pk            | sk               | Holds                                                                                     |
+| ------------- | ---------------- | ----------------------------------------------------------------------------------------- |
+| `room#<code>` | `room`           | `rev`, `exp`, `json` (host and members, with each member's connection id)                 |
+| `room#<code>` | `doc`            | `v`, `doc` (ASCII JSON text), `by`, `sid`, `exp`                                          |
+| `conn#<id>`   | `conn`           | `room`, `member`, `exp`                                                                   |
+| `conn#<id>`   | `part#<msg>#<i>` | `d`, `exp`: one part of an upload                                                         |
+| `open`        | `<made>#<code>`  | `room`, `made`, `rev`, `listed`, `players`, `seats`, `state`, `exp`: an open game's entry |
 
 The room is one item, so a relay costs one read; the document is its own item under the
 same key, so relays do not pay to read it. Every write that depends on a read is
@@ -503,16 +503,21 @@ link and nothing else, is the default.
   during a match, `over` once it has ended), or `"open": null` when it is invite only
   again. Only the host may (`not-host`). It is sent when any of it changes and again
   every 5 minutes. The server keeps it in the room record as `open` (with `made`, the
-  time it was first opened) and, after every write of the room, puts or deletes the
-  entry `open | <made>#<code>` with a TTL of 15 minutes.
+  time it was first opened) and, after every write of the room, writes the entry
+  `open | <made>#<code>` with a TTL of 15 minutes: `listed` true with the counts, or
+  `listed` false to take it off. Each write carries the room's `rev` and is conditional
+  on being newer than the entry's, so invocations that finish out of order cannot list
+  a room again after a later write took it off.
 - **Listed while** the host says open and the state is `waiting` or `playing`, `players`
-  is under `seats`, the room has fewer than 16 members and someone is connected. A full
+  is under `seats`, a newcomer could get in (fewer than 16 members, or one of them is
+  away and not the host, whose place `join` would give up) and someone is connected. A full
   room, a finished match, an empty room or invite only takes the entry off at once; a
   host who vanishes without a word lets it expire. A rematch lists it again.
 - **The list.** `{ "t": "list", "id": 1 }` on any connection, answered
   `{ "t": "list", "id": 1, "now": <ms>, "games": [{ "room", "made", "players", "seats",
 "state" }] }`: one Query of the `open` partition, newest first, at most 60 entries
-  read, those made in the last 24 hours, expired ones skipped, the first 20 kept. No
+  read, those made in the last 24 hours, expired and unlisted ones skipped (they count
+  toward the 60, so the list can come back short, never long), the first 20 kept. No
   names or member ids. A read that fails answers an empty list.
 - **The page.** `public/js/open-games.js` on the home page asks on a socket of its own
   when the page opens and every 30 seconds while it is in view, and shows each game as

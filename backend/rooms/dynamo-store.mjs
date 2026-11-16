@@ -157,35 +157,38 @@ export function dynamoStore({ client, table, now = Date.now }) {
     // are one Query away (no scan). Entries expire 15 minutes after their room last
     // changed; the read skips those TTL has not swept yet. Limit counts before that
     // filter, so a list may come back a little short, never long.
+    // Kept only when newer than what is there (by the room's rev); false when stale.
     async putListing(code, entry) {
-      await client.send(
-        new PutCommand({
-          TableName: table,
-          Item: {
-            pk: "open",
-            sk: listingKey(code, entry.made),
-            room: code,
-            ...entry,
-          },
-        }),
-      );
-    },
-    async delListing(code, made) {
-      await client.send(
-        new DeleteCommand({
-          TableName: table,
-          Key: { pk: "open", sk: listingKey(code, made) },
-        }),
-      );
+      try {
+        await client.send(
+          new PutCommand({
+            TableName: table,
+            Item: {
+              pk: "open",
+              sk: listingKey(code, entry.made),
+              room: code,
+              ...entry,
+            },
+            ConditionExpression: "attribute_not_exists(pk) OR #rev < :rev",
+            ExpressionAttributeNames: { "#rev": "rev" },
+            ExpressionAttributeValues: { ":rev": entry.rev },
+          }),
+        );
+        return true;
+      } catch (error) {
+        if (error?.name === "ConditionalCheckFailedException") return false;
+        throw error;
+      }
     },
     async listOpen({ since, limit, now: at = seconds() }) {
       const { Items = [] } = await client.send(
         new QueryCommand({
           TableName: table,
           KeyConditionExpression: "pk = :pk AND sk >= :since",
-          FilterExpression: "#exp > :now",
+          FilterExpression: "#exp > :now AND listed = :yes",
           ExpressionAttributeNames: { "#exp": "exp" },
           ExpressionAttributeValues: {
+            ":yes": true,
             ":pk": "open",
             ":since": String(since).padStart(13, "0"),
             ":now": at,

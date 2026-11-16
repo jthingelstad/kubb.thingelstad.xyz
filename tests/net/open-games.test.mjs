@@ -79,7 +79,11 @@ test("the host opens a room; anyone may list it without joining", async () => {
   // invite only again: gone from the list
   await h.say("c1", { t: "open", open: null });
   assert.deepEqual((await h.list()).games, []);
-  assert.equal(h.store.listings.size, 0);
+  // kept unlisted with the room's rev until it expires, so a late write cannot undo it
+  assert.deepEqual(
+    [...h.store.listings.values()].map((e) => e.listed),
+    [false],
+  );
 });
 
 test("only the host opens; bad descriptions are refused", async () => {
@@ -139,6 +143,41 @@ test("a room with as many members as it allows is not listed", async () => {
   await h.join("c2", "abcdefgh", "guest-member");
   // the room changed (a join): the listing follows it
   assert.deepEqual((await h.list()).games, []);
+  // the guest goes: a newcomer could now take their place, so it is listed again
+  await h.rooms.disconnect("c2");
+  await h.say("c1", { t: "open", open: OPEN });
+  assert.equal((await h.list()).games.length, 1);
+  await h.join("c3", "abcdefgh", "third-member");
+  assert.equal(h.last("c3", "error"), undefined, "the newcomer got in");
+});
+
+test("a listing write that finishes late cannot list a room taken off since", async () => {
+  // Two invocations: the first commits an open room, then pauses before its listing
+  // write; the second makes it invite only and takes the listing off. The first's write
+  // lands last and must not put it back.
+  let hold = null;
+  const h = harness({
+    store: (o) => {
+      const s = memoryStore(o);
+      const put = s.putListing.bind(s);
+      s.putListing = async (code, entry) => {
+        if (entry.listed && hold) await hold.promise;
+        return put(code, entry);
+      };
+      return s;
+    },
+  });
+  await h.join("c1", "abcdefgh", "host-member");
+  let release;
+  hold = { promise: new Promise((r) => (release = r)) };
+  const opening = h.say("c1", { t: "open", open: OPEN });
+  await new Promise((r) => setImmediate(r));
+  hold = null;
+  await h.say("c1", { t: "open", open: { ...OPEN, players: 1 } });
+  await h.say("c1", { t: "open", open: null });
+  release();
+  await opening;
+  assert.deepEqual((await h.list()).games, []);
 });
 
 test("entries expire; old games are not listed; the list is capped, newest first", async () => {
@@ -178,7 +217,6 @@ test("a store without listings lists nothing; a failing read is an empty list", 
     store: (o) => {
       const s = memoryStore(o);
       delete s.putListing;
-      delete s.delListing;
       delete s.listOpen;
       return s;
     },
