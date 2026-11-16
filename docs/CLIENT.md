@@ -10,12 +10,12 @@ the engine's.
 
 `src/main.js` shows the title while wasmoon and the Lua load (`data-test=loading`), then:
 
-| Page                | What it is                                                                                                                                                                                                                               |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/practice/`        | The open practice pitch: batons or the kubb drill, surface, reset and level.                                                                                                                                                             |
-| `/p/<code>?solo=1`  | A match against the computer. The options card first (name, level, surface, opening, raising, wind, kubb set; remembered), then START.                                                                                                   |
-| `/p/<code>?watch=1` | The computer against itself, match after match: no options card, the solo card's saved options, North against South. The winner card stays up 10 s (NEXT MATCH, STOP, HOME), then the next match starts by itself, the other team first. |
-| `/p/<code>`         | A shared pitch: the lobby (name, level, Team A or B or watching, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md.                                                                        |
+| Page                | What it is                                                                                                                                                                                                                                                                                          |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/practice/`        | The open practice pitch: batons or the kubb drill, surface, reset and level.                                                                                                                                                                                                                        |
+| `/p/<code>?solo=1`  | A match against the computer. The options card first (name, level, surface, opening, raising, wind, kubb set; remembered), then START.                                                                                                                                                              |
+| `/p/<code>?watch=1` | The computer against itself, match after match: no options card, the solo card's saved options, North against South. The winner card stays up 10 s (NEXT MATCH, STOP, HOME), then the next match starts by itself, the other team first. Seen in the wide view by default ("The wide view", below). |
+| `/p/<code>`         | A shared pitch: the lobby (name, level, Team A or B or watching, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md.                                                                                                                                   |
 
 A failure to start shows a plain error card with RELOAD and HOME. The HOW TO THROW overlay
 (four steps, an animated dial) shows on the first visit and from the menu; `?nohowto` skips it.
@@ -27,7 +27,7 @@ A failure to start shows a plain error card with RELOAD and HOME. The HOW TO THR
 | `src/main.js`                             | Boot, the routes above, the practice tray, the solo flow; hands `/p/<code>` to `src/net/pitch.js`.                                                                        |
 | `src/game/game.js`                        | `Game`: the loop, input, playback, the raise and punishment scenes, framing. The seam.                                                                                    |
 | `src/game/hud.js`                         | `Hud`: the rail (who throws, what, the counts), the verdict flag and chips, the rest distance, SLOW MOTION and WATCH, the advantage, the plan buttons.                    |
-| `src/game/layout.js`                      | Pure: where the dial and minimap go, and the tall-canvas framing (`worldFit`, `stillFit`, `panFor`).                                                                      |
+| `src/game/layout.js`                      | Pure: where the dial and minimap go, the tall-canvas framing (`worldFit`, `stillFit`, `panFor`), and the wide view's box (`wideBox`).                                     |
 | `src/game/scenes.js`                      | The client's own cameras for raising and punishment, and the pieces in them.                                                                                              |
 | `src/game/sound.js`                       | `Sound`: the knocks and the king's chord through Web Audio; unlock on the first pointer down; mute remembered.                                                            |
 | `src/game/prefs.js`                       | `prefs`: localStorage, wrapped so a blocked store only forgets.                                                                                                           |
@@ -129,6 +129,53 @@ through the same `view.fit`, so a finger lands where it points (tested in
 
 The raise and punishment cameras are the client's own (`src/game/scenes.js`): across the
 lying kubb from the defender's side, and high over the defender's baseline.
+
+## The wide view
+
+Watching the computer is seen from one fixed place by default (Jamie, 2026-11-16: "It'd be
+fun to actually do more with the camera on the web version because we could zoom out. We
+have a lot more screen. We could see a lot more."): the whole pitch, both baselines, the
+six stakes, the king and every kubb, with each throw watched from there, from the
+thrower's end through the flight to what falls, and no aim, follow or impact cuts. It is
+meant to be left running (Jamie: "Think more like Zen screensaver ... I'm just watching
+some Kubb being played"), so the camera never moves.
+
+- **Where it stands.** On a landscape window, a broadcast camera high on the sideline
+  (6.5 m out, 7 m up), square to the middle of the pitch: the pitch's 8 m run across the
+  window, Team A's baseline on the left and Team B's on the right, the same size, so
+  neither team is nearer. On a tall window (box width under 1.05 times its height) it
+  stands high behind Team A's baseline with the pitch running up the screen.
+  `lua/web/wide.lua` `wide.tune`.
+- **Filling the window.** The client passes `engine.setWide(box)` the whole window as the
+  400 x 240 frame's coordinates see it, less the HUD's margins (`layout.js` `wideBox`:
+  70 px at the top for the rail, 132 on a tall window, 16 elsewhere). Lua fits the
+  camera's lens and centre to that box so the pitch, a baton at the top of its flight
+  (1.95 m) and the throwers' ground fill it. The frame stays only as the coordinate system:
+  the ground, the rough, the pieces, the bursts and every un-projection go through the
+  same camera and the same scale rule, so nothing is letterboxed. It is fitted again on
+  every resize.
+- **One view for both teams.** The session keeps Team B's throws in Team B's view frame
+  (the pitch turned 180 degrees, core/frame). In the wide view `lua/web/api.lua` passes
+  every result through `wide.out`, which puts in the wide camera and un-turns the pieces,
+  the aim, the minimap and the bursts' anchors into the world frame (Team A's) whenever
+  the session's frame (`Session.frameSide`) or its last recording's (`Session.recSide`)
+  is Team B's. JavaScript still never flips anything: it draws what Lua gives it. The
+  thrower's arrow takes `facing = -1` for Team B there. Turning only the camera would show
+  the same pitch, but the light and the rough are fixed in the drawn frame, so the shadows
+  would swing round at every change of ends.
+- **What shows.** The rail (who throws, `TURN n · BATON n OF n`, the counts), the result
+  flag, SLOW MOTION, and the thrower's ring with its arrow. No dial, target circle, arc,
+  minimap or advantage label: they are a thrower's tools. The bursts are drawn at 16% of
+  the window's short side (30% in the thrower's view). The calm pacing and the hidden tab
+  are unchanged.
+- **Switching.** A button beside MENU names the other view (THROWER'S VIEW while the wide
+  view shows, WIDE VIEW otherwise), MENU has View (Wide, Thrower's), and V toggles. The
+  choice is remembered as the `watchView` pref; wide is the default. Played matches
+  (solo, a shared pitch, practice) always use the thrower's view and have no switch.
+- **Too small.** Where the smallest base kubb would stand under 6 CSS px (`tune.wideMinPx`;
+  a phone held upright, about 4.5 px), the thrower's view shows whatever is chosen and the
+  button is hidden; it comes back when the window grows. A phone on its side keeps the wide
+  view.
 
 ## Playback
 
@@ -250,7 +297,9 @@ so `client.test.mjs` doubles the flick speed to make up for the 30 Hz stepping.
   mouse swing throws and returns to aiming; dragging the circle changes the engine's aim; a
   solo match plays our throws, the computer's WATCH turn and a hand-off back; watching the
   computer throws for both sides with no card, keeps going with `document.hidden` faked,
-  and starts the next match by itself after the winner card; a portrait
+  and starts the next match by itself after the winner card; watching starts in the wide
+  view, switches by the button and V (remembered over a reload), keeps one camera through
+  both teams' throws and plays to a winner, while a solo match has no switch; a portrait
   phone (isMobile, touch) throws by touch. `multiplayer.test.mjs` runs `tools/rooms-dev.mjs`
   on a free port too and plays a shared pitch (docs/MULTIPLAYER.md "Tests"). Both are
   skipped with a notice when Chromium is not installed (`npx playwright install chromium`).

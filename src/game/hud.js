@@ -83,7 +83,7 @@ export class Hud {
   }
 
   // st: { aim, need, phase, playing, slow, watching, plan, practice, flag,
-  //       verdicts, restText, layout, who: { text, mine } | null }
+  //       verdicts, restText, layout, who: { text, mine } | null, wide }
   update(st) {
     const aim = st.aim || {};
     const rail = aim.rail || {};
@@ -95,6 +95,8 @@ export class Hud {
       w = rail.n && rail.of ? `${kind} ${rail.n} OF ${rail.of}` : kind;
     }
     if (st.practice) w = aim.drill ? "DRILLING" : "BATONS";
+    // the wide view's rail says the turn too: the whole match at a glance
+    if (st.wide && st.need?.turn && w) w = `TURN ${st.need.turn}  ·  ${w}`;
     this.text(what, w);
     this.text(counts, [rail.r1, rail.r2].filter(Boolean).join("  ·  "));
     this.show(this.rail, !!(rail.name || w));
@@ -136,7 +138,8 @@ export class Hud {
       this.status.classList.toggle("mine", cls === "mine");
       this.status.classList.toggle("theirs", cls === "theirs");
     }
-    this.text(this.adv, st.aiming ? aim.advText || "" : "");
+    // the advantage line's words are the thrower's; the wide view draws the line
+    this.text(this.adv, st.aiming && !st.wide ? aim.advText || "" : "");
 
     const showPlans = !!st.aiming && st.mayAct;
     this.show(this.plans, showPlans);

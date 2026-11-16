@@ -189,6 +189,102 @@ browserTest(
   },
 );
 
+browserTest(
+  "watching in the wide view: the default, switched by the button and V, remembered, and played to a winner",
+  async () => {
+    // the finished match is sent to a rooms server, as every watched one is
+    const rooms = await startRoomsServer({
+      port: 0,
+      recordGame: memoryGameRecorder(),
+    });
+    try {
+      await watchWide(rooms);
+    } finally {
+      await rooms.close();
+    }
+  },
+);
+
+async function watchWide(rooms) {
+  {
+    const page = await open(
+      env,
+      `/p/abcdefgh?watch=1&rooms=${encodeURIComponent(rooms.url)}`,
+    );
+    await page.evaluate(() => (window.__kubb.game.zen = null));
+    await page.waitForFunction(() => window.__kubb.game.need?.kind === "throw");
+    const view = () =>
+      page.evaluate(() => {
+        const g = window.__kubb.game;
+        return {
+          name: g.viewName,
+          kind: g.wide?.kind ?? null,
+          camera: JSON.stringify(g.out?.camera ?? null),
+          label: document.querySelector("[data-test=view]")?.textContent,
+          pref: localStorage.getItem("kubb:watchView"),
+        };
+      });
+    const v0 = await view();
+    assert.equal(v0.name, "wide", "the wide view is the default");
+    assert.equal(v0.kind, "side", "a landscape window: the sideline view");
+    assert.equal(v0.label, "THROWER'S VIEW", "the button names the other view");
+    // the button: the thrower's view, remembered
+    await page.click("[data-test=view]");
+    const v1 = await view();
+    assert.equal(v1.name, "thrower");
+    assert.equal(v1.label, "WIDE VIEW");
+    assert.equal(v1.pref, '"thrower"');
+    assert.notEqual(v1.camera, v0.camera, "another camera");
+    // the V key: back to the wide view
+    await page.keyboard.press("KeyV");
+    const v2 = await view();
+    assert.equal(v2.name, "wide");
+    assert.equal(v2.pref, '"wide"');
+    // the wide camera stays put through both teams' throws
+    const cams = new Set();
+    const sides = new Set();
+    const deadline = Date.now() + 90000;
+    while (Date.now() < deadline && sides.size < 2) {
+      const s = await page.evaluate(() => {
+        const g = window.__kubb.game;
+        const cam = JSON.stringify(g.play?.last?.camera ?? g.out?.camera);
+        if (g.phase === "play") g.skip();
+        return { side: g.need?.side, cam };
+      });
+      if (s.side) sides.add(s.side);
+      cams.add(s.cam);
+      await page.waitForTimeout(100);
+    }
+    assert.equal(sides.size, 2, "both teams throw");
+    assert.equal(cams.size, 1, "one camera for both teams");
+    // and the match still plays to a winner
+    await resignAndSkip(page, "A");
+    await page.waitForSelector("[data-test=winner]");
+    assert.ok(await page.evaluate(() => window.__kubb.game.need.winner));
+    // a reload keeps the choice: the thrower's view
+    await page.evaluate(() =>
+      localStorage.setItem("kubb:watchView", '"thrower"'),
+    );
+    await page.reload();
+    await page.waitForSelector("body[data-ready='1']");
+    await page.waitForFunction(() => window.__kubb.game.need?.kind === "throw");
+    assert.equal((await view()).name, "thrower");
+    assert.deepEqual(page.errors, []);
+    await page.context().close();
+
+    // a played match keeps the thrower's view, with no switch
+    const solo = await open(env, "/p/abcdefgh?solo=1&nohowto=1");
+    await solo.click("[data-test=start]");
+    await solo.waitForFunction(() => window.__kubb.game.need?.kind === "throw");
+    assert.equal(
+      await solo.evaluate(() => window.__kubb.game.viewName),
+      "thrower",
+    );
+    assert.equal(await solo.locator("[data-test=view]").count(), 0);
+    await solo.context().close();
+  }
+}
+
 const resignAndSkip = async (page, side) => {
   await page.evaluate((s) => window.__kubb.game.resign(s), side);
   // playback skipped until the match is over

@@ -21,6 +21,12 @@ export const tune = {
   stillAt: 0.42, // a tall canvas's raise and punishment scenes
   margin: 14, // px from the edges (plus the safe area)
   railH: 46,
+  // the wide view's box (wideBox): CSS px kept clear at the top for the rail,
+  // the status pill and the menu (more on a tall screen, where the pill sits
+  // under the rail), and at the other edges
+  wideTop: 70,
+  wideTopTall: 132,
+  wideEdge: 16,
 };
 
 export function isTall(W, H) {
@@ -100,4 +106,24 @@ export function layoutFor(W, H, safe = {}) {
     side = "left";
   }
   return { W, H, safe: s, tall, phone, dial, minimap, side };
+}
+
+// The wide view's box: where the whole pitch is fitted (lua/web/wide.lua), in
+// frame coordinates by the renderer's scale rule (k = min(W / 400, H / 240),
+// centred; the canvas shows the world beyond the 400 x 240 frame, so the box
+// is the whole window less the HUD's margins). With k, for sizes in CSS px.
+export function wideBox(W, H, safe = {}) {
+  const s = { top: 0, right: 0, bottom: 0, left: 0, ...safe };
+  const k = Math.min(W / 400, H / 240);
+  const ox = (W - 400 * k) / 2,
+    oy = (H - 240 * k) / 2;
+  const e = tune.wideEdge;
+  const top = (isTall(W, H) ? tune.wideTopTall : tune.wideTop) + s.top;
+  return {
+    left: (s.left + e - ox) / k,
+    right: (W - s.right - e - ox) / k,
+    top: (top - oy) / k,
+    bottom: (H - s.bottom - e - oy) / k,
+    k,
+  };
 }
