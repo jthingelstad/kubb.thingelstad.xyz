@@ -21,7 +21,7 @@
     "webSocketUrl": "wss://x3wdf2kum4.execute-api.us-east-1.amazonaws.com/prod",
     "apiDomain": "x3wdf2kum4.execute-api.us-east-1.amazonaws.com",
     "stage": "prod",
-    "codeKey": "rooms/af5a3f80945ae8257dfe783918912a6a001295dba9f9ccfb72985b25c3d1bf0f.zip"
+    "codeKey": "rooms/bd37b736c848ece91223149d5c02c06ad9d9f401eef707b7f8f5db4ac016e1b8.zip"
   },
   "stackTags": {
     "Application": "Thingelstad",
