@@ -1,6 +1,6 @@
 {
   "source": "playdate-kubb source/core",
-  "commit": "04e6accecebbfd836da362b858b96f71eed8f500",
+  "commit": "da4ab1cedf05d2355ffdd4f1baf6efba011f174c",
   "files": {
     "autothrow.lua": "bd27e12c622f3cd72e79bb86e919532acab600013251e80ed5d0e45ed53b94ea",
     "bench.lua": "6ba368490121e4b1835ea6d8f20785911c71634f192ef742416f024023fba790",
@@ -41,6 +41,6 @@
     "tw.lua": "d3bb3a81977440239e9024e243aa3b3dce2ba418b19d87075b8268b73aeff167",
     "vec.lua": "16ed8c29ccd68dcc7cff60892b5b2e767aaf01635e7fad30e593f09247326393",
     "wind.lua": "9cc17b9ef6792d396666b1fe3bb8c0b4c9b8d7084c95e8d292f126536bcdcad1",
-    "world.lua": "d83aa15a53597326c296daba19bd2a77a74bded07172ce4e3333bbf5bebc4584"
+    "world.lua": "0a708e0d6c304e2cb46981d6723027793c206b1fa032a113e19de29127aaaa91"
   }
 }
