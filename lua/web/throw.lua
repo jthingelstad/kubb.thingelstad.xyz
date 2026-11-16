@@ -824,7 +824,7 @@ function throw.cpuLaunch(s, a)
 		s.markerX, s.markerY, s.markerOnId = d.markerX, s.lineY + d.markerY, nil
 		if d.noseDown then
 			L.speed, L.loft, L.swivel, L.tilt, L.tumble, L.legal = a.speed, a.loftDeg, a.swivel, 0, 0, true
-			L.noseDown, L.rollLand, L.spin, L.wobble, L.digGain = d.noseDown, d.rollLand, d.spin, d.wobble, d.digGain
+			L.noseDown, L.rollLand, L.spin, L.wobble = d.noseDown, d.rollLand, d.spin, d.wobble
 		else
 			s.stanceSet, s.arcSet, s.tilt, s.spin = false, false, 0, 0
 			s.projectile, s.drill = "kubb", true
@@ -921,7 +921,7 @@ function throw.fire(s, L, how, info)
 	if kubb then
 		if drilling then
 			b = phys.launchDrill(w, id, s.playerX, s.playerY, L.swivel, L.loft, L.speed, L.noseDown, L.rollLand,
-				L.spin, L.wobble, L.digGain)
+				L.spin, L.wobble)
 		else
 			b = phys.launchKubb(w, id, s.playerX, s.playerY, L.swivel, L.loft, L.speed, tumble)
 		end

@@ -717,7 +717,7 @@ function Session:throwAction(L, how, info)
 		launch = {
 			speed = L.speed, loft = L.loft, swivel = L.swivel, tilt = L.tilt or 0, tumble = L.tumble or 0,
 			legal = L.legal ~= false,
-			noseDown = L.noseDown, rollLand = L.rollLand, spin = L.spin, wobble = L.wobble, digGain = L.digGain,
+			noseDown = L.noseDown, rollLand = L.rollLand, spin = L.spin, wobble = L.wobble,
 		},
 		stance = { x = ts.playerX, y = ts.playerY, set = ts.stanceSet },
 		target = { x = ts.markerX, y = ts.markerY, set = ts.markerSet, on = ts.markerOnId },
@@ -749,7 +749,6 @@ function Session:applyThrow(a)
 		speed = F(l.speed), loft = F(l.loft), swivel = F(l.swivel), tilt = F(l.tilt or 0), tumble = F(l.tumble or 0),
 		legal = l.legal ~= false,
 		noseDown = F(l.noseDown), rollLand = F(l.rollLand), spin = F(l.spin), wobble = F(l.wobble),
-		digGain = F(l.digGain),
 	}
 	local how = a.how
 	local verdicts = nil
