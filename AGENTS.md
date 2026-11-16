@@ -80,15 +80,20 @@ address or home path in `dist/`, no account id in Markdown).
 Every match is recorded (Jamie, 2026-11-15: "all games should be recorded so that we can
 use it to test and improve the game"). The rooms function writes every committed version
 of a room's document, with the action that made it, to the private games bucket for good
-(`backend/rooms/recorder.mjs`, `docs/ROOMS.md` section 7). The names players typed are in
-them: records are pulled to `build/games/` (never in git) and never published. The home
-page says that matches are recorded. The practice pitch has no room and is not recorded.
+(`backend/rooms/recorder.mjs`, `docs/ROOMS.md` section 7). Solo and watch matches have no
+room: the browser sends each once when it ends (`src/net/record.js`, Jamie 2026-11-16:
+"watch mode should record ... All games recorded"), kept under
+`games/browser/<yyyy-mm-dd>/`. The names players typed are in them: records are pulled to
+`build/games/` (never in git) and never published. The home page says what is recorded.
+Practice is not recorded.
 
 - `npm run games:pull` (as `cloud-engineer`) fetches new records; `--room <code>`,
   `--since <date>`.
 - `npm run games:replay` plays every recorded match through this checkout's engine and
   says which actions end on another hash than the players' browsers committed. After a
   physics change in `vendor/core/` those are the throws that now go differently.
+  One-browser matches replay from their start against the hash after each action; after
+  the first that differs the rest are unjudged.
 
 ## Reports
 
@@ -131,9 +136,25 @@ after a throw; shown only, the match itself is the same); the winner card stays 
 `watchTune.nextMs` (20 s) with NEXT MATCH, STOP and HOME, then the next match starts with the other team
 first. It uses the solo card's saved options; teams are North and South; `maxTurns` 60
 is a safety net. In a hidden tab a timer steps it without drawing (`Game.background`,
-docs/CLIENT.md "The loop"), at the match's own pace with no pauses. Like a solo match it has no room, so it is not recorded:
-its test data is the game file in the `over` need (`need.file`), which the page does not
-show or save, and `tests/lua/test_match.lua` runs the same match on the desktop.
+docs/CLIENT.md "The loop"), at the match's own pace with no pauses. Every match is recorded like a solo one (above), the hidden
+tab's too, and its score sheet is on the menu and the winner card.
+
+## Open games
+
+A host can make a pitch open (Jamie, 2026-11-16: "allow a game to be created open so it
+can be joined by anyone ... Open and invite only are both supported"): the lobby's "Who
+can join" (Invite only, the default, or Open), or Open on the home page's start step
+(`?open=1`). The home page lists open games under "Open games" (`public/js/open-games.js`):
+counts, state and age only, never names, the 20 newest, refreshed every 30 s. The host's
+browser tells the room server what to list (`docs/MULTIPLAYER.md`), and the server keeps
+it in the rooms table's `open` partition with a 15 minute TTL: no new AWS resources, no
+scans (`docs/ROOMS.md` section 9).
+
+## Score sheet
+
+MENU, SCORE SHEET (any match, not practice) and SCORE SHEET on the winner card show the
+match's Planet Kubb Notation game file, positions hidden until SHOW POSITIONS, with COPY,
+DOWNLOAD (`.txt`) and a link to the notation page (`src/ui/sheet.js`, docs/CLIENT.md).
 
 ## Analytics
 

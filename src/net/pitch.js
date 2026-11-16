@@ -19,6 +19,8 @@ import {
   cleanName,
   cleanOptions,
   sideOf,
+  setAccess,
+  openListing,
 } from "./lobby.js";
 import {
   controlFor,
@@ -41,6 +43,7 @@ export const tune = {
   shoutGapMs: 700, // this browser's shouts at most this often
   stuckMs: 8000, // still not connected after this: say so
   watchNoteMs: 7000,
+  openEveryMs: 5 * 60 * 1000, // an open pitch's host says so again this often (listing TTL 15 min)
 };
 
 export const SHOUTS = ["NICE!", "OOH!", "TOK!", "UNLUCKY"];
@@ -52,7 +55,8 @@ export function startPitch(env) {
 }
 
 export class Pitch {
-  // env: { game, cards, ui, config, code, home, roomsUrl, WebSocket? }
+  // env: { game, cards, ui, config, code, home, roomsUrl, sheet?, WebSocket? }
+  // sheet: () => void, opens the score sheet (the winner card's SCORE SHEET)
   constructor(env) {
     Object.assign(this, env);
     this.mode = "lobby"; // lobby | match | gone
@@ -115,6 +119,7 @@ export class Pitch {
         level: (v) => this.setLevel(v),
         team: (side) => this.pickTeam(side),
         option: (k, v) => this.setOption(k, v),
+        access: (open) => this.setAccess(open),
         start: () => this.start(),
         share: () => this.share(),
         home: this.home,
@@ -156,10 +161,15 @@ export class Pitch {
     const room = this.room;
     if (this.lobby.note.textContent.startsWith("Still trying"))
       this.lobby.say("");
-    // the host's own options go in on a new pitch
+    // the host's own options go in on a new pitch, and OPEN from the home page
+    // (/p/<code>?open=1) makes it an open game
     if (room.isHost() && room.v === 0) {
       const o = cleanOptions(prefs.get("pitchOptions", {}));
-      this.write((doc) => setOptions(doc, o) ?? lobbyOf(doc));
+      const open = new URLSearchParams(location.search).get("open") === "1";
+      this.write((doc) => {
+        const d = setOptions(doc, o) ?? lobbyOf(doc);
+        return open ? (setAccess(d, true) ?? d) : d;
+      });
     }
     this.resync();
   }
@@ -251,6 +261,31 @@ export class Pitch {
       [k]: v,
     });
     this.write((d) => setOptions(d, { [k]: v }));
+  }
+
+  // The host: open (listed on the home page) or invite only.
+  setAccess(open) {
+    if (!this.room.isHost()) return;
+    this.write((d) => setAccess(d, open));
+  }
+
+  // The host keeps the room server's listing in step with the document: on every
+  // change, and again every tune.openEveryMs while open. Anyone else sends nothing.
+  publishOpen(at = Date.now()) {
+    const room = this.room;
+    if (!room || !room.isHost() || room.status !== "open") return;
+    const info = openListing(room.doc, room.members, {
+      over: this.mode === "match" && this.game.need?.kind === "over",
+    });
+    if (info) this.sawOpen = true;
+    else if (!this.sawOpen) return; // never open here: nothing to take off
+    const key = JSON.stringify(info);
+    if (key === this.openKey && (!info || at - this.openAt < tune.openEveryMs))
+      return;
+    if (room.setOpen(info)) {
+      this.openKey = key;
+      this.openAt = at;
+    }
   }
 
   async share() {
@@ -564,6 +599,7 @@ export class Pitch {
     const host = this.room.isHost();
     this.cards.winner(need, {
       rematch: host ? () => this.rematch() : null,
+      sheet: this.sheet,
       home: this.home,
       note: host ? null : `${this.nameOf(this.room.host)} can start a rematch.`,
     });
@@ -606,12 +642,17 @@ export class Pitch {
 
   onStatus() {
     const s = this.room.status;
+    this.openKey = null; // a new connection (or a new host) says it again
     if (s === "replaced") return this.joinFailed(new RoomError("replaced", ""));
     this.renderNet();
     this.renderLobby();
   }
 
   onMembers() {
+    if (this.room.host !== this.openHost) {
+      this.openHost = this.room.host;
+      this.openKey = null;
+    }
     const host = this.room.members.find((m) => m.id === this.room.host);
     if (host && host.connected) this.hostGoneAt = null;
     this.refreshSeat();
@@ -631,6 +672,7 @@ export class Pitch {
     this.refreshSeat();
     this.castAim();
     this.checkHost();
+    this.publishOpen();
     this.renderNet();
   }
 
@@ -759,6 +801,8 @@ export class Pitch {
       hash: g.mode === "match" ? g.engine.hash().hash : null,
       phase: g.phase,
       side: sideOf(this.room?.doc, this.you),
+      open: lobbyOf(this.room?.doc).open,
+      members: this.room?.members.length ?? 0,
       playing: this.mode === "match" ? playingSide(this.ctx(), this.you) : null,
       control: this.control,
       mayAct: this.mode === "match" ? g.mayAct() : false,

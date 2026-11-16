@@ -61,8 +61,25 @@ function fakeClient() {
           return {};
         }
         case "QueryCommand": {
-          const pk = input.ExpressionAttributeValues[":pk"];
-          const prefix = input.ExpressionAttributeValues[":sk"];
+          const v = input.ExpressionAttributeValues;
+          const pk = v[":pk"];
+          if (input.KeyConditionExpression === "pk = :pk AND sk >= :since") {
+            // the open games list: newest first, Limit before the filter
+            assert.equal(input.FilterExpression, "#exp > :now");
+            assert.equal(input.ScanIndexForward, false);
+            const Items = [...items.values()]
+              .filter((i) => i.pk === pk && i.sk >= v[":since"])
+              .sort((a, b) => (a.sk < b.sk ? 1 : -1))
+              .slice(0, input.Limit)
+              .filter((i) => i.exp > v[":now"])
+              .map((i) => structuredClone(i));
+            return { Items };
+          }
+          assert.equal(
+            input.KeyConditionExpression,
+            "pk = :pk AND begins_with(sk, :sk)",
+          );
+          const prefix = v[":sk"];
           const Items = [...items.values()]
             .filter((i) => i.pk === pk && i.sk.startsWith(prefix))
             .map((i) => structuredClone(i));
@@ -319,4 +336,54 @@ test("handler: origin filter on $connect, routes, and Gone sends", async () => {
   await close("c1"); // quiet
   const ok = gatewayAdapters({ send: async () => ({}) });
   assert.equal(await ok.send("c1", "hi"), true);
+});
+
+test("open games: listed in one partition, read newest first by one Query", async () => {
+  const client = fakeClient();
+  const store = dynamoStore({ client, table: "rooms", now: () => T0 });
+  const entry = (made, extra = {}) => ({
+    made,
+    players: 2,
+    seats: 12,
+    state: "waiting",
+    exp: T0 / 1000 + 900,
+    ...extra,
+  });
+  await store.putListing("aaaaaaaa", entry(T0 - 5000));
+  await store.putListing("bbbbbbbb", entry(T0 - 1000, { state: "playing" }));
+  await store.putListing("cccccccc", entry(T0 - 3000, { exp: T0 / 1000 - 1 }));
+  await store.putListing("dddddddd", entry(T0 - 99_000_000));
+  assert.ok(
+    client.items.has(`open|${String(T0 - 5000).padStart(13, "0")}#aaaaaaaa`),
+  );
+  client.calls.length = 0;
+  const rows = await store.listOpen({
+    since: T0 - 60_000,
+    limit: 10,
+    now: T0 / 1000,
+  });
+  assert.deepEqual(client.calls, ["QueryCommand"], "one read, no scan");
+  assert.deepEqual(
+    rows.map((r) => [r.room, r.state]),
+    [
+      ["bbbbbbbb", "playing"],
+      ["aaaaaaaa", "waiting"],
+    ],
+  );
+  assert.deepEqual(Object.keys(rows[0]).sort(), [
+    "made",
+    "players",
+    "room",
+    "seats",
+    "state",
+  ]);
+  await store.delListing("bbbbbbbb", T0 - 1000);
+  // Limit counts before the expiry filter: a short list, never a long one
+  const one = await store.listOpen({ since: 0, limit: 1, now: T0 / 1000 });
+  assert.deepEqual(one, []);
+  const three = await store.listOpen({ since: 0, limit: 3, now: T0 / 1000 });
+  assert.deepEqual(
+    three.map((r) => r.room),
+    ["aaaaaaaa", "dddddddd"],
+  );
 });

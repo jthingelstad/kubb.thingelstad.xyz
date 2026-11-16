@@ -4,6 +4,8 @@
 //   room#<code>  doc             { v, doc, by, sid, exp } the shared document, JSON text
 //   conn#<id>    conn            { room, member, exp }    which member a connection is
 //   conn#<id>    part#<msg>#<i>  { d, exp }               one part of a message being uploaded
+//   open         <made>#<code>   { room, made, players, seats, state, exp }
+//                                                        an open game's listing (made: epoch ms, 13 digits)
 //
 // A room is ONE item, connections included, so a relay costs one read. The document is its
 // own item under the same key so that relays do not pay to read it.
@@ -22,6 +24,8 @@ import {
   QueryCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
+
+import { listingKey } from "./core.mjs";
 
 const lost = (error) => error?.name === "ConditionalCheckFailedException";
 
@@ -147,6 +151,56 @@ export function dynamoStore({ client, table, now = Date.now }) {
           Key: { pk: `conn#${conn}`, sk: "conn" },
         }),
       );
+    },
+
+    // The open games list: one partition, sorted by when each game was made, so the newest
+    // are one Query away (no scan). Entries expire 15 minutes after their room last
+    // changed; the read skips those TTL has not swept yet. Limit counts before that
+    // filter, so a list may come back a little short, never long.
+    async putListing(code, entry) {
+      await client.send(
+        new PutCommand({
+          TableName: table,
+          Item: {
+            pk: "open",
+            sk: listingKey(code, entry.made),
+            room: code,
+            ...entry,
+          },
+        }),
+      );
+    },
+    async delListing(code, made) {
+      await client.send(
+        new DeleteCommand({
+          TableName: table,
+          Key: { pk: "open", sk: listingKey(code, made) },
+        }),
+      );
+    },
+    async listOpen({ since, limit, now: at = seconds() }) {
+      const { Items = [] } = await client.send(
+        new QueryCommand({
+          TableName: table,
+          KeyConditionExpression: "pk = :pk AND sk >= :since",
+          FilterExpression: "#exp > :now",
+          ExpressionAttributeNames: { "#exp": "exp" },
+          ExpressionAttributeValues: {
+            ":pk": "open",
+            ":since": String(since).padStart(13, "0"),
+            ":now": at,
+          },
+          ScanIndexForward: false,
+          Limit: limit,
+        }),
+      );
+      return Items.map((item) => ({
+        room: item.room,
+        made: item.made,
+        players: item.players,
+        seats: item.seats,
+        state: item.state,
+      }));
     },
 
     // The parts of one message arrive in parallel invocations, in any order. Each stores its

@@ -2,16 +2,22 @@
 // through the engine.
 //
 //   node tools/games.mjs pull [--room <code>] [--since 2026-11-15]
-//       copies new records from the games bucket to build/games/<room>/ (never in git:
-//       they carry the names players typed). Run as the cloud-engineer identity.
+//       copies new records from the games bucket to build/games/<room>/, and the matches
+//       played in one browser (solo, watching the computer) to build/games/browser/<day>/
+//       (never in git: they carry the names players typed). Run as the cloud-engineer
+//       identity. --room <code> pulls only that room.
 //   node tools/games.mjs replay [--room <code>] [--dir build/games] [--throws]
 //       restores every recorded match at its start and applies each recorded action to
 //       the engine of THIS checkout, comparing its hash with the one the players'
 //       browsers committed. "same" means this engine plays that action exactly as it was
 //       played; "differs" is expected after the physics changed, and is the list of
-//       throws to look at. --throws prints every throw's result.
+//       throws to look at. --throws prints every throw's result. A shared pitch's match
+//       is judged action by action (each version carries the snapshot to go on from); a
+//       one-browser match carries only its start, so it is judged up to the first action
+//       that goes another way, and the rest are "unjudged".
 //
-// The pure parts (matchesOf, replayMatch) are tested in tests/net/games.test.mjs.
+// The pure parts (matchesOf, replayMatch, browserMatch, replayBrowser) are tested in
+// tests/net/games.test.mjs.
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -122,12 +128,119 @@ export function replayMatch(engine, match) {
   return out;
 }
 
+// A one-browser match's record (backend/rooms/recorder.mjs: { t, game }, game as
+// src/net/record.js sends it) as { mode, t, start, actions, hashes, end, name }, or null
+// when it carries no history to replay (dropped to fit).
+export function browserMatch(record) {
+  const g = record?.game;
+  if (!g || typeof g.start !== "string" || g.start === "-") return null;
+  if (!Array.isArray(g.actions)) return null;
+  return {
+    mode: g.mode ?? null,
+    t: record.t ?? g.at ?? 0,
+    start: g.start,
+    actions: g.actions,
+    hashes:
+      Array.isArray(g.hashes) && g.hashes.length === g.actions.length
+        ? g.hashes
+        : null,
+    end: g.end ?? null,
+    name: g.name ?? null,
+  };
+}
+
+// One one-browser match through `engine`: from its start, each action in turn. Returns
+// { steps: [{ seq, type, outcome, how, flag, why }], same, differs, refused, unjudged,
+// unchecked }. With no hashes every applied action is "unchecked" and only the last hash
+// is compared with the end's. After the first action that differs or is refused the rest
+// are "unjudged": no snapshot was recorded to go on from.
+export function replayBrowser(engine, match) {
+  const out = {
+    steps: [],
+    same: 0,
+    differs: 0,
+    refused: 0,
+    unjudged: 0,
+    unchecked: 0,
+    end: null,
+  };
+  engine.restore(match.start);
+  let lost = false;
+  match.actions.forEach((action, i) => {
+    const step = { seq: i + 1, type: action?.type ?? null };
+    if (lost) {
+      step.outcome = "unjudged";
+    } else {
+      let res;
+      try {
+        res = engine.apply(action);
+      } catch (error) {
+        res = { ok: false, why: error.message };
+      }
+      if (!res || res.ok === false) {
+        step.outcome = "refused";
+        step.why = res?.why ?? null;
+        lost = true;
+      } else {
+        step.how = res.recording?.projectile?.how ?? null;
+        step.flag = res.recording?.result?.flag ?? null;
+        if (!match.hashes) step.outcome = "unchecked";
+        else {
+          step.outcome =
+            String(engine.hash().hash) === String(match.hashes[i])
+              ? "same"
+              : "differs";
+          if (step.outcome === "differs") lost = true;
+        }
+      }
+    }
+    out[step.outcome]++;
+    out.steps.push(step);
+  });
+  if (!lost && match.end?.hash != null)
+    out.end =
+      String(engine.hash().hash) === String(match.end.hash)
+        ? "same"
+        : "differs";
+  return out;
+}
+
 export function parseRecord(buffer) {
   const text =
     buffer[0] === 0x1f && buffer[1] === 0x8b
       ? gunzipSync(buffer).toString("utf8")
       : buffer.toString("utf8");
   return JSON.parse(text);
+}
+
+// Where one-browser matches are kept, under games/ in the bucket and under the pull
+// directory here. "browser" can never be a room code (it has an "o").
+export const BROWSER_DIR = "browser";
+
+async function readBrowserRecords(dir) {
+  const records = [];
+  let days;
+  try {
+    days = (await fs.readdir(path.join(dir, BROWSER_DIR))).sort();
+  } catch {
+    return records;
+  }
+  for (const day of days) {
+    let names;
+    try {
+      names = await fs.readdir(path.join(dir, BROWSER_DIR, day));
+    } catch {
+      continue;
+    }
+    for (const name of names.sort())
+      if (/\.json(\.gz)?$/.test(name))
+        records.push(
+          parseRecord(
+            await fs.readFile(path.join(dir, BROWSER_DIR, day, name)),
+          ),
+        );
+  }
+  return records;
 }
 
 async function readRecords(dir, room) {
@@ -139,6 +252,7 @@ async function readRecords(dir, room) {
     return records;
   }
   for (const code of rooms) {
+    if (code === BROWSER_DIR) continue;
     let names;
     try {
       names = await fs.readdir(path.join(dir, code));
@@ -193,11 +307,22 @@ async function pull({ room, since, dir }) {
     );
     for (const { Key } of page.Contents ?? []) {
       const rest = Key.slice(PREFIX.length).split("/");
-      if (rest.length !== 2 || !/^\d{13}-\d{6}\.json\.gz$/.test(rest[1]))
+      const name = rest.at(-1);
+      if (
+        rest.length === 3 &&
+        rest[0] === BROWSER_DIR &&
+        /^\d{4}-\d{2}-\d{2}$/.test(rest[1]) &&
+        /^\d{13}-[a-z0-9]{8}\.json\.gz$/.test(name)
+      ) {
+        // a one-browser match: games/browser/<day>/<ms>-<random>.json.gz
+      } else if (
+        rest.length !== 2 ||
+        !/^\d{13}-\d{6}\.json\.gz$/.test(name) ||
+        !/^[2-9a-hjkmnp-z]{8,24}$/.test(rest[0])
+      )
         continue;
-      if (!/^[2-9a-hjkmnp-z]{8,24}$/.test(rest[0])) continue;
-      if (Number(rest[1].slice(0, 13)) < after) continue;
-      const file = path.join(dir, rest[0], rest[1]);
+      if (Number(name.slice(0, 13)) < after) continue;
+      const file = path.join(dir, ...rest);
       try {
         await fs.access(file);
         had++;
@@ -221,11 +346,18 @@ async function replay({ room, dir, throws }) {
   const { Engine } = await import("../src/engine/index.js");
   const { bundleLua } = await import("./lua-bundle.mjs");
   const matches = matchesOf(await readRecords(dir, room));
-  if (!matches.length) {
+  const browser = room
+    ? []
+    : (await readBrowserRecords(dir)).map(browserMatch).filter(Boolean);
+  if (!matches.length && !browser.length) {
     console.log(`No recorded matches in ${dir}. npm run games:pull first.`);
     return;
   }
   const engine = await Engine.create({ sources: await bundleLua() });
+  const line = (s) =>
+    console.log(
+      `  ${String(s.seq).padStart(4)} ${s.how ?? s.type ?? "?"} ${s.outcome}${s.flag ? ` ${s.flag}` : ""}${s.why ? ` (${s.why})` : ""}`,
+    );
   const total = { same: 0, differs: 0, refused: 0, adopted: 0 };
   for (const match of matches) {
     const r = replayMatch(engine, match);
@@ -240,13 +372,33 @@ async function replay({ room, dir, throws }) {
           ? s.type === "throw" || s.outcome !== "same"
           : s.outcome !== "same"
       )
-        console.log(
-          `  ${String(s.seq).padStart(4)} ${s.how ?? s.type ?? "?"} ${s.outcome}${s.flag ? ` ${s.flag}` : ""}${s.why ? ` (${s.why})` : ""}`,
-        );
+        line(s);
   }
-  console.log(
-    `${matches.length} matches: ${total.same} same, ${total.differs} differ, ${total.refused} refused, ${total.adopted} adopted`,
-  );
+  if (matches.length)
+    console.log(
+      `${matches.length} matches: ${total.same} same, ${total.differs} differ, ${total.refused} refused, ${total.adopted} adopted`,
+    );
+  const one = { same: 0, differs: 0, refused: 0, unjudged: 0, unchecked: 0 };
+  for (const match of browser) {
+    const r = replayBrowser(engine, match);
+    for (const k of Object.keys(one)) one[k] += r[k];
+    const when = new Date(match.t).toISOString().slice(0, 16).replace("T", " ");
+    console.log(
+      `${match.mode} ${match.name ?? ""} (${when} UTC): ${r.steps.length} actions, ${r.same} same, ${r.differs} differ, ${r.refused} refused, ${r.unjudged} unjudged${r.unchecked ? `, ${r.unchecked} unchecked` : ""}${r.end ? `; the end ${r.end}` : ""}`,
+    );
+    for (const s of r.steps)
+      if (
+        throws
+          ? s.type === "throw" ||
+            (s.outcome !== "same" && s.outcome !== "unjudged")
+          : s.outcome === "differs" || s.outcome === "refused"
+      )
+        line(s);
+  }
+  if (browser.length)
+    console.log(
+      `${browser.length} one-browser matches: ${one.same} same, ${one.differs} differ, ${one.refused} refused, ${one.unjudged} unjudged`,
+    );
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

@@ -565,6 +565,15 @@ export class Room {
     return throttle((d) => this.cast(d), ms);
   }
 
+  /**
+   * The host lists the room under OPEN GAMES, or takes it off (null): `open` is
+   * { players, seats, state } (docs/ROOMS.md section 9). Sent again from time to time
+   * while open, or the listing expires. False while not connected.
+   */
+  setOpen(open) {
+    return this._joined && this._sendNow({ t: "open", open: open ?? null });
+  }
+
   /** Take over as host when the host is gone (see docs/ROOMS.md). */
   claimHost() {
     return this._joined && this._sendNow({ t: "claim" });

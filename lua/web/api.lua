@@ -44,6 +44,7 @@ function M.apply(a) return need():apply(a) end
 function M.checkPunish(a) return need():checkPunish(a.x, a.y) end
 function M.hash() local text = need():snapshot(); return { hash = session.fnv(text), bytes = #text } end
 function M.recording() return need().recording or json.object() end
+function M.sheet() return need():sheet() or json.object() end
 
 local function call(method, arg)
 	if method == "snapshot" then return need():snapshot() end

@@ -2,11 +2,14 @@
 // contract as dynamo-store.mjs (see core.mjs), including the conditional writes and the
 // rule that an item past its `exp` (epoch seconds) is not there.
 
+import { listingKey } from "./core.mjs";
+
 export function memoryStore({ now = Date.now } = {}) {
   const rooms = new Map();
   const docs = new Map();
   const conns = new Map();
   const parts = new Map(); // "conn id" -> { exp, got: Map(i -> text) }
+  const listings = new Map(); // "<made 13>#<code>" -> { room, made, players, seats, state, exp }
 
   const live = (item) => (item && item.exp * 1000 > now() ? item : null);
   const copy = (item) => (item ? structuredClone(item) : null);
@@ -16,6 +19,7 @@ export function memoryStore({ now = Date.now } = {}) {
     docs,
     conns,
     parts,
+    listings,
 
     async getRoom(code) {
       return copy(live(rooms.get(code)));
@@ -50,6 +54,22 @@ export function memoryStore({ now = Date.now } = {}) {
       conns.delete(conn);
       for (const key of parts.keys())
         if (key.startsWith(`${conn} `)) parts.delete(key);
+    },
+
+    async putListing(code, entry) {
+      listings.set(listingKey(code, entry.made), { room: code, ...entry });
+    },
+    async delListing(code, made) {
+      listings.delete(listingKey(code, made));
+    },
+    async listOpen({ since, limit, now: seconds }) {
+      return [...listings.entries()]
+        .filter(([key]) => key >= String(since).padStart(13, "0"))
+        .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+        .slice(0, limit)
+        .map(([, item]) => item)
+        .filter((item) => item.exp > seconds)
+        .map((item) => structuredClone(item));
     },
 
     async addChunk(conn, id, i, n, text, exp) {

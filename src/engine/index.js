@@ -113,6 +113,12 @@ export class Engine {
   recording() {
     return this.call("recording");
   }
+  // The score sheet: { text, name, shown: [line, ...], done } for a match ({} in
+  // practice). text is the game file in Planet Kubb Notation, positions included;
+  // shown is each line without them, as the screen shows it.
+  sheet() {
+    return this.call("sheet");
+  }
 
   // ---- each frame ----
   frame(input = {}) {

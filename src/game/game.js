@@ -23,7 +23,8 @@
 //                             pitch, src/net/pitch.js)
 //   game.trail                what a report replays from (src/net/report.js):
 //                             a match's starting snapshot and every action
-//                             applied here since, the snapshot before the
+//                             applied here since (with the engine's hash
+//                             after each), the snapshot before the
 //                             last one; practice's options and every throw
 //                             and pitch change since it was set out
 //
@@ -207,7 +208,10 @@ export class Game {
     if (!action) return;
     const snap = this.track(action);
     if (!this.onAction) return;
-    const hash = this.mode === "match" ? this.engine.hash().hash : null;
+    const hash =
+      this.mode === "match"
+        ? (this.trail?.hashes?.at(-1) ?? this.engine.hash().hash)
+        : null;
     this.onAction(action, snap, hash);
   }
 
@@ -218,6 +222,7 @@ export class Game {
       kind: "match",
       start: snapshotText,
       actions: [],
+      hashes: [],
       before: null,
       now: snapshotText,
     };
@@ -234,6 +239,7 @@ export class Game {
     }
     const snap = this.engine.snapshot();
     t.actions.push(action);
+    t.hashes.push(this.engine.hash().hash);
     t.before = t.now;
     t.now = snap;
     return snap;

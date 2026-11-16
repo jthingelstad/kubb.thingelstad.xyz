@@ -19,6 +19,8 @@ import { showHowto, shouldShowHowto } from "./ui/howto.js";
 import { h, button } from "./ui/dom.js";
 import { startPitch } from "./net/pitch.js";
 import { openReport } from "./ui/report.js";
+import { openSheet } from "./ui/sheet.js";
+import { recordMatch } from "./net/record.js";
 
 const config = readConfig();
 const ui = document.getElementById("ui");
@@ -95,6 +97,13 @@ async function boot() {
           url: roomsUrl(),
         })
     : null;
+  const sheet = () => openSheet(ui, { game });
+  // A solo or watch match, when it ends, goes to the room server to be kept
+  // (src/net/record.js); a shared pitch's room records itself.
+  const record = () =>
+    roomsUrl()
+      ? recordMatch({ game, mode, config, url: roomsUrl() })
+      : Promise.resolve(false);
   const menu = new Menu(ui, {
     game,
     sound,
@@ -108,6 +117,7 @@ async function boot() {
         surface: s,
       });
     },
+    sheet,
     report,
   });
 
@@ -122,16 +132,25 @@ async function boot() {
       pitch: null,
       watchTune,
       report,
+      sheet,
+      recorded: [],
     };
   }
   loading.remove();
 
   if (mode === "practice") {
     startPractice(game, cards);
-  } else if (mode === "solo") {
-    startSolo(game, cards);
-  } else if (mode === "watch") {
-    startWatch(game, cards);
+  } else if (mode === "solo" || mode === "watch") {
+    const env = {
+      sheet,
+      // the test hook keeps each send's outcome
+      record: () => {
+        const sent = record();
+        if (testing) window.__kubb.recorded.push(sent);
+      },
+    };
+    if (mode === "solo") startSolo(game, cards, env);
+    else startWatch(game, cards, env);
   } else {
     pitch = startPitch({
       game,
@@ -140,6 +159,7 @@ async function boot() {
       code,
       home,
       roomsUrl: roomsUrl(),
+      sheet,
     });
     if (testing) window.__kubb.pitch = pitch;
   }
@@ -181,7 +201,7 @@ function startPractice(game, cards) {
 
 // ---------- a match against the computer ----------
 
-function startSolo(game, cards) {
+function startSolo(game, cards, { sheet, record }) {
   game.seat = { sides: ["A"], cpu: true };
   game.localSide = "A";
   const options = () =>
@@ -219,8 +239,10 @@ function startSolo(game, cards) {
   game.onNeed = (need) => {
     cards.tick(game);
     if (need.kind === "over") {
+      record();
       cards.winner(need, {
         rematch: () => options(),
+        sheet,
         home,
       });
     }
@@ -251,8 +273,9 @@ export const watchTune = {
 // side). When a match ends the winner card stays up for watchTune.nextMs and
 // the next match starts by itself, the other team throwing first; STOP on
 // the card holds it there. The options are the solo card's, as last saved.
-// The Game runs unattended: a timer steps it while the tab is hidden.
-function startWatch(game, cards) {
+// The Game runs unattended: a timer steps it while the tab is hidden. Each
+// match is sent to be recorded once, when it ends, hidden tab or not.
+function startWatch(game, cards, { sheet, record }) {
   game.seat = { sides: [], cpu: true };
   game.localSide = null;
   game.unattended = true;
@@ -290,9 +313,11 @@ function startWatch(game, cards) {
   game.onNeed = (need) => {
     cards.tick(game);
     if (need.kind !== "over") return;
+    record();
     cards.winner(need, {
       rematch: play,
       again: "NEXT MATCH",
+      sheet,
       note: `The next match starts in ${Math.round(watchTune.nextMs / 1000)} seconds.`,
       stop: () => {
         clearTimeout(timer);

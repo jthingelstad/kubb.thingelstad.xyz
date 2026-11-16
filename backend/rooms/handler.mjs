@@ -4,8 +4,8 @@
 //
 // Environment: TABLE (the DynamoDB table), ALLOWED_ORIGINS (comma separated; an origin
 // without a port allows any port), GAMES_BUCKET (where recorder.mjs keeps every committed
-// document version, and reports.mjs keeps players' reports under reports/; without it
-// nothing is recorded and reports are refused). Sends go back to the API the event came from
+// document version and every match played in one browser, and reports.mjs keeps players'
+// reports under reports/; without it nothing is recorded and reports are refused). Sends go back to the API the event came from
 // (https://<domainName>/<stage>) unless SEND_ENDPOINT says otherwise.
 
 import {
@@ -18,7 +18,7 @@ import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { S3Client } from "@aws-sdk/client-s3";
 import { createRooms, originAllowed, parseOrigins } from "./core.mjs";
 import { dynamoStore } from "./dynamo-store.mjs";
-import { s3Recorder } from "./recorder.mjs";
+import { s3GameRecorder, s3Recorder } from "./recorder.mjs";
 import { s3Reporter } from "./reports.mjs";
 
 const gone = (error) =>
@@ -88,6 +88,9 @@ export function handler(event) {
         : null,
       report: s3
         ? s3Reporter({ client: s3, bucket: process.env.GAMES_BUCKET })
+        : null,
+      recordGame: s3
+        ? s3GameRecorder({ client: s3, bucket: process.env.GAMES_BUCKET })
         : null,
     }),
     origins: parseOrigins(process.env.ALLOWED_ORIGINS),

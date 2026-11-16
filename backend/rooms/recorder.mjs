@@ -9,9 +9,20 @@
 // typed are in the document, so the bucket is private and nothing here is ever served.
 // A room code used again after its room expired starts at v 1 again: the time in the key
 // keeps the two apart.
+//
+// A match played in one browser (against the computer, or watching the computer play
+// itself) has no room. The browser sends it whole when it ends (a `game` message,
+// docs/ROOMS.md section 7) and it is kept beside the rooms' records:
+//
+//   games/browser/<yyyy-mm-dd>/<epoch ms, 13 digits>-<8 random>.json.gz
+//
+// holding { t, game }: the server's time and the match as the browser sent it
+// (src/net/record.js). "browser" cannot be a room code (room codes are 8 to 24
+// characters and have no "o"), so the two never meet. Nothing names the sender.
 
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { gzipSync } from "node:zlib";
+import { randomTail } from "./reports.mjs";
 
 export const RECORD_PREFIX = "games/";
 
@@ -38,4 +49,44 @@ export function s3Recorder({ client, bucket }) {
       }),
     );
   };
+}
+
+export const BROWSER_PREFIX = `${RECORD_PREFIX}browser/`;
+
+export function browserGameKey({ t, tail = randomTail() }) {
+  const day = new Date(t).toISOString().slice(0, 10);
+  return `${BROWSER_PREFIX}${day}/${String(t).padStart(13, "0")}-${tail}.json.gz`;
+}
+
+// `game` arrives as ASCII JSON text and goes in as it is (its snapshots are opaque text).
+export function browserGameText({ t, game }) {
+  return `{"t":${Number(t)},"game":${game}}`;
+}
+
+export function s3GameRecorder({ client, bucket }) {
+  return async function recordGame(entry) {
+    const key = browserGameKey(entry);
+    await client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: gzipSync(browserGameText(entry)),
+        ContentType: "application/json",
+        ContentEncoding: "gzip",
+      }),
+    );
+    return key;
+  };
+}
+
+// For the tests: keeps { key, t, text } in `kept`.
+export function memoryGameRecorder() {
+  const kept = [];
+  async function recordGame(entry) {
+    const key = browserGameKey(entry);
+    kept.push({ key, t: entry.t, text: browserGameText(entry) });
+    return key;
+  }
+  recordGame.kept = kept;
+  return recordGame;
 }

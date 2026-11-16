@@ -77,7 +77,17 @@ export class Cards {
 
   // again: the rematch button's words; stop: a STOP button that calls it and
   // takes itself and the note away (the computer against itself).
-  winner(need, { rematch, again = "REMATCH", home, note = null, stop = null }) {
+  winner(
+    need,
+    {
+      rematch,
+      again = "REMATCH",
+      home,
+      note = null,
+      stop = null,
+      sheet = null,
+    },
+  ) {
     const w = need.winner || {};
     const stats = [`${w.turns} ${w.turns === 1 ? "turn" : "turns"}`];
     if (w.minutes != null)
@@ -124,6 +134,9 @@ export class Cards {
             })
           : null,
         stopBtn,
+        sheet
+          ? button("SCORE SHEET", sheet, "", { "data-test": "winner-sheet" })
+          : null,
         button("HOME", home, rematch ? "" : "go", {
           "data-default": !rematch,
         }),

@@ -39,6 +39,8 @@ A failure to start shows a plain error card with RELOAD and HOME. The HOW TO THR
 | `src/net/room.js`                         | The room client (docs/ROOMS.md).                                                                                                                                          |
 | `src/ui/menu.js`                          | `Menu`: level, surface (practice), sound, how to throw, resign (a match), report a throw, rules, home.                                                                    |
 | `src/ui/report.js`, `src/net/report.js`   | The report card, and what a report carries and how it is sent (below, and docs/ROOMS.md section 8).                                                                       |
+| `src/ui/sheet.js`                         | The score sheet card (below).                                                                                                                                             |
+| `src/net/record.js`, `src/net/ask.js`     | What a solo or watch match's record carries and how it is sent; `ask`, the one-message socket reports and records share.                                                  |
 | `src/ui/howto.js`                         | The HOW TO THROW overlay.                                                                                                                                                 |
 | `src/ui/dom.js`                           | `h()` and `button()`.                                                                                                                                                     |
 | `public/game.css`                         | The game pages' styles, linked by `src/site/pages.mjs` after the site's.                                                                                                  |
@@ -149,9 +151,38 @@ only for this browser's throws) show, and the rest distance in practice.
 - **Punishment**: drag or tap the kubb in the defender's half; the stakes and the king carry
   keep-out circles and a refused spot says why (TOO NEAR A STAKE); PLACE IT when allowed.
 - **The winner**: REMATCH (back to the options; on a shared pitch the host's only, back to
-  the lobby with the same teams) and HOME.
-- **The menu**: level, sound, how to throw, resign, report a throw, rules, home; Escape
-  closes it.
+  the lobby with the same teams), SCORE SHEET and HOME.
+- **The menu**: level, sound, how to throw, score sheet (a match), resign, report a throw,
+  rules, home; Escape closes it.
+
+## Score sheet
+
+MENU, SCORE SHEET during a match (solo, watch or a shared pitch; not practice), or SCORE
+SHEET on the winner card, opens a card titled "Score sheet": "The match so far." or "The
+whole match.", a link "How to read it" to the Planet Kubb Notation page
+(thingelstad.xyz/things/planet-kubb-score/, `?ref=kubb-sheet`), the game file the
+engine writes (`engine.sheet()`, `Session:sheet()` in lua/web/session.lua: the core's
+score sheet as it stands), SHOW POSITIONS / HIDE POSITIONS, COPY, DOWNLOAD and BACK.
+
+- Positions (the `{...}` lines after each turn) are hidden by default; the toggle shows
+  them. COPY and DOWNLOAD always take the whole file, positions included: COPY says
+  "Copied the game file." (or "Could not copy. The file is selected to copy."), DOWNLOAD
+  saves the game file under its notation file name (a `.txt`) and says "Saved <file name>.".
+- The text is monospaced and wraps, in a box that scrolls on its own, so it reads at
+  phone width without sideways scrolling.
+- Modal like the report card; Escape, BACK or a tap outside closes it. The game goes on
+  underneath (watching the computer keeps playing).
+- The file's header says `[Location "Playdate"]`: the core's default, left as is.
+
+## Recording
+
+Every solo and watch match is recorded when it ends (a winner or a resignation), the way
+a shared pitch's versions are (docs/ROOMS.md section 7): `recordMatch` in
+`src/net/record.js` sends one `game` message with the mode, the build, the options, the
+match's first snapshot, every action and the engine's hash after each, how it ended and
+the game file. Once a match (`game.trail.recorded`), including from a hidden tab while
+watching; a failure is a console warning and nothing else. No user agent, address or
+member id. Practice is not recorded. A build without a rooms address records nothing.
 
 ## Reports
 

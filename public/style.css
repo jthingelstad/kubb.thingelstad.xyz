@@ -480,3 +480,62 @@ body.game {
 main > section.intro + section {
   padding-top: 0.5rem;
 }
+
+/* The home page's choice beside START A PITCH (public/js/start.js) */
+.access {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.access legend {
+  margin-bottom: 0.2rem;
+  padding: 0;
+}
+.access label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-weight: 600;
+}
+.access input {
+  accent-color: var(--grass);
+}
+
+/* Open games (public/js/open-games.js) */
+.open-games > p {
+  max-width: var(--jt-measure);
+}
+.open-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.8rem;
+  max-width: var(--jt-measure);
+}
+.open-list:empty {
+  display: none;
+}
+.open-game {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+.open-game__text {
+  font-weight: 700;
+}
+.open-game__join {
+  font-size: 1.1rem;
+  padding: 0.45rem 1rem;
+}
+.open-status:empty {
+  display: none;
+}

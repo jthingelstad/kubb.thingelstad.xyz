@@ -37,7 +37,12 @@ after(async () => {
 const SHOTS = process.env.KUBB_MP_SHOTS; // a directory: also take screenshots
 
 // A player: their own context (own member id), on the pitch's lobby.
-async function join(code, name, kind = "desktop", { lobby = true } = {}) {
+async function join(
+  code,
+  name,
+  kind = "desktop",
+  { lobby = true, query = "" } = {},
+) {
   const ctx = await env.browser.newContext(VIEWPORTS[kind]);
   // a name remembered from before, for a browser that skips the lobby
   if (!lobby)
@@ -51,7 +56,7 @@ async function join(code, name, kind = "desktop", { lobby = true } = {}) {
     if (m.type() === "error") page.errors.push(m.text());
   });
   page.on("pageerror", (e) => page.errors.push(e.message));
-  const url = `${env.base}/p/${code}?nohowto=1&rooms=${encodeURIComponent(rooms.url)}`;
+  const url = `${env.base}/p/${code}?nohowto=1&rooms=${encodeURIComponent(rooms.url)}${query}`;
   await page.goto(url);
   await page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
   if (lobby) {
@@ -387,6 +392,124 @@ browserTest("the lobby on a phone, as a guest", async () => {
   assert.ok(await land.locator("[data-test=waiting]").isVisible());
   for (const p of [host, guest, land]) await p.context().close();
 });
+
+browserTest(
+  "an open game: listed on the home page, joined from the list, taken off by the host",
+  async () => {
+    const code = makeRoomCode();
+    const host = await join(code, "Hanna", "desktop", { query: "&open=1" });
+    const access = () =>
+      host.evaluate(
+        () =>
+          document.querySelector("[data-test=lobby-access] [aria-checked=true]")
+            ?.textContent,
+      );
+    await waitFor(host, () => window.__kubb.pitch.state().open === true);
+    assert.equal(await access(), "Open");
+
+    // the home page, as someone passing by
+    const ctx = await env.browser.newContext(VIEWPORTS.portrait);
+    const home = await ctx.newPage();
+    home.errors = [];
+    home.on("console", (m) => {
+      if (m.type() === "error") home.errors.push(m.text());
+    });
+    const look = async () => {
+      await home.goto(`${env.base}/?rooms=${encodeURIComponent(rooms.url)}`);
+      await home.waitForFunction(
+        () =>
+          document.querySelector("[data-open-list]").children.length ||
+          /No open games/.test(
+            document.querySelector("[data-open-status]").textContent,
+          ),
+        null,
+        { timeout: 10000 },
+      );
+      return home.evaluate(() =>
+        [...document.querySelectorAll(".open-game")].map((li) => ({
+          text: li.querySelector(".open-game__text").textContent,
+          href: li.querySelector("a").getAttribute("href"),
+        })),
+      );
+    };
+    // the host says so on its next tick: look until it shows
+    let rows = [];
+    let mine = null;
+    for (let i = 0; i < 20 && !mine; i++) {
+      if (i) await home.waitForTimeout(250);
+      rows = await look();
+      mine = rows.find((r) => r.href.startsWith(`/p/${code}`));
+    }
+    assert.ok(mine, JSON.stringify(rows));
+    assert.match(
+      mine.text,
+      /^1 of 12 on the pitch · waiting to start · made just now$/,
+    );
+    assert.ok(!mine.text.includes("Hanna"), "no names");
+
+    // JOIN from the list: the guest lands in the lobby, which says it is open
+    await home.click(`a[href^="/p/${code}"]`);
+    await home.waitForSelector("[data-test=lobby]", { timeout: 30000 });
+    await waitFor(home, () => window.__kubb.pitch?.state().status === "open");
+    assert.match(
+      await home.textContent("[data-test=lobby-access]"),
+      /Who can join\s*Open/,
+    );
+    await waitFor(host, () => window.__kubb.pitch.state().members === 2);
+    const guestPage = home;
+    const ctx2 = await env.browser.newContext(VIEWPORTS.desktop);
+    const passer = await ctx2.newPage();
+    const lookAgain = async () => {
+      await passer.goto(`${env.base}/?rooms=${encodeURIComponent(rooms.url)}`);
+      await passer.waitForFunction(
+        () =>
+          document.querySelector("[data-open-list]").children.length ||
+          /No open games/.test(
+            document.querySelector("[data-open-status]").textContent,
+          ),
+        null,
+        { timeout: 10000 },
+      );
+      return passer.evaluate(() =>
+        [...document.querySelectorAll(".open-game")].map((li) =>
+          li.querySelector("a").getAttribute("href"),
+        ),
+      );
+    };
+    // two on the pitch now
+    let count = "";
+    for (let i = 0; i < 20 && !/^2 of 12/.test(count); i++) {
+      if (i) await passer.waitForTimeout(250);
+      await lookAgain();
+      count = await passer.evaluate(
+        (c) =>
+          document.querySelector(`.open-game:has(a[href^="/p/${c}"])`)
+            ?.textContent ?? "",
+        code,
+      );
+    }
+    assert.match(count, /^2 of 12 on the pitch/);
+
+    // the host makes it invite only: off the list
+    await host.click("[data-test=lobby-access] [data-value=invite]");
+    await waitFor(host, () => window.__kubb.pitch.state().open === false);
+    assert.equal(await access(), "Invite only");
+    for (let i = 0; i < 20; i++) {
+      if (i) await passer.waitForTimeout(250);
+      rows = await lookAgain();
+      if (!rows.some((h) => h.startsWith(`/p/${code}`))) break;
+    }
+    assert.ok(!rows.some((h) => h.startsWith(`/p/${code}`)));
+    await waitFor(guestPage, () =>
+      /Invite only/.test(
+        document.querySelector("[data-test=lobby-access]")?.textContent,
+      ),
+    );
+    assert.deepEqual(host.errors, []);
+    assert.deepEqual(guestPage.errors, []);
+    for (const c of [host.context(), ctx, ctx2]) await c.close();
+  },
+);
 
 browserTest("a bad pitch code and a missing room server say so", async () => {
   const ctx = await env.browser.newContext(VIEWPORTS.desktop);

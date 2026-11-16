@@ -21,6 +21,16 @@
 //   report(entry)    -> optional: keeps a player's report for good (reports.mjs).
 //                       entry = { t, report }; report is JSON text. Without it a `report`
 //                       message is answered `unavailable`.
+//   recordGame(entry) -> optional: keeps a match played in one browser (solo, watching
+//                       the computer) for good (recorder.mjs). entry = { t, game }; game
+//                       is JSON text. Without it a `game` message is answered `unavailable`.
+//
+// The open games list (docs/ROOMS.md section 9) uses three more store methods; a store
+// without them lists nothing:
+//   putListing(code, entry)  entry = { made, players, seats, state, exp }
+//   delListing(code, made)
+//   listOpen({ since, limit, now }) -> [{ room, made, players, seats, state }], newest
+//                       first, made at or after `since`, unexpired
 //
 // Invocations for one room run in parallel (one Lambda per message), so nothing here holds
 // state between calls except the cast rate buckets, which are only ever a best effort.
@@ -43,7 +53,27 @@ export const LIMITS = Object.freeze({
   reportBytes: 64 * 1024, // a whole `report` message, as ASCII JSON
   reportChars: 1000, // each of a report's two typed answers, in characters
   reportsPerConn: 3, // reports one connection may send
+  gameBytes: 256 * 1024, // a whole `game` message (a match played in one browser)
+  gameActions: 4000, // the actions one such match may carry
+  gamesPerConn: 3, // `game` messages one connection may send
+  listMax: 20, // open games a `list` answers with, newest first
+  listRead: 60, // listing entries one `list` reads, at most
+  listTtl: 15 * 60, // seconds an open game stays listed after its room last changed
+  listAgeMs: 24 * 3600 * 1000, // an open game made longer ago than this is not listed
+  seatsMax: 16, // the most seats an open game may say it has
 });
+
+// An open game's listing entry's sort key: when it was made (epoch ms, 13 digits), then
+// the room, so the newest sort last and one Query reads them newest first.
+export const listingKey = (code, made) =>
+  `${String(made).padStart(13, "0")}#${code}`;
+
+// What a recorded one-browser match says it was (src/net/record.js).
+export const GAME_MODES = Object.freeze(["solo", "watch"]);
+
+// What the host of an open game says it is doing (src/net/pitch.js). Only waiting and
+// playing games are listed.
+export const OPEN_STATES = Object.freeze(["waiting", "playing", "over"]);
 
 // What a report says it came from (src/net/report.js).
 export const REPORT_MODES = Object.freeze([
@@ -157,17 +187,79 @@ export function checkReport(msg, bytes, limits = LIMITS) {
   return r;
 }
 
+// A `game` message checked: { t: "game", id?, g: { mode, start, actions, hashes?, ... } }.
+// `bytes` is the message's size. Throws a RoomError, or returns the game object.
+export function checkGame(msg, bytes, limits = LIMITS) {
+  const id = msg.id ?? null;
+  const fail = (code, message) => {
+    throw new RoomError(code, message, { id });
+  };
+  if (bytes > limits.gameBytes)
+    fail(
+      "too-big",
+      `A recorded match is limited to ${limits.gameBytes} bytes.`,
+    );
+  const g = msg.g;
+  if (!isObject(g)) fail("bad-message", "`g` must be the match.");
+  if (!GAME_MODES.includes(g.mode))
+    fail(
+      "bad-message",
+      "The match's `mode` is not one that is recorded this way.",
+    );
+  if (typeof g.start !== "string" || !g.start)
+    fail("bad-message", "`start` must be the match's first snapshot.");
+  if (!Array.isArray(g.actions) || !g.actions.every(isObject))
+    fail("bad-message", "`actions` must be a list of actions.");
+  if (g.actions.length > limits.gameActions)
+    fail(
+      "too-big",
+      `A recorded match is limited to ${limits.gameActions} actions.`,
+    );
+  if (g.hashes !== undefined && g.hashes !== null) {
+    if (
+      !Array.isArray(g.hashes) ||
+      g.hashes.length !== g.actions.length ||
+      !g.hashes.every((x) => typeof x === "number" || typeof x === "string")
+    )
+      fail("bad-message", "`hashes` must be one hash an action.");
+  }
+  if (g.file !== undefined && g.file !== null && typeof g.file !== "string")
+    fail("bad-message", "`file` must be text.");
+  return g;
+}
+
+// An `open` message's description of the game, checked; null turns the listing off.
+export function checkOpen(open, limits = LIMITS) {
+  if (open === null || open === false) return null;
+  const count = (x, lo) =>
+    Number.isInteger(x) && x >= lo && x <= limits.seatsMax;
+  if (
+    !isObject(open) ||
+    !count(open.players, 0) ||
+    !count(open.seats, 1) ||
+    !OPEN_STATES.includes(open.state)
+  )
+    throw new RoomError(
+      "bad-message",
+      "`open` must be { players, seats, state } or null.",
+    );
+  return { players: open.players, seats: open.seats, state: open.state };
+}
+
 export function createRooms({
   store,
   send,
   close = async () => {},
   record = null,
   report: keepReport = null,
+  recordGame = null,
   now = Date.now,
   limits = LIMITS,
 }) {
   const buckets = new Map(); // conn -> { tokens, t, warned }
   const reported = new Map(); // conn -> reports kept (best effort, like the buckets)
+  const recorded = new Map(); // conn -> one-browser matches kept (the same)
+  const listing = typeof store.putListing === "function";
 
   const expiry = (seconds) => Math.floor(now() / 1000) + seconds;
 
@@ -231,9 +323,93 @@ export function createRooms({
       const prev = current ? current.rev : 0;
       out.room.rev = prev + 1;
       out.room.exp = expiry(limits.roomTtl);
-      if (await store.putRoom(code, out.room, prev)) return out;
+      if (await store.putRoom(code, out.room, prev)) {
+        await syncListing(code, current, out.room);
+        return out;
+      }
     }
     throw new RoomError("busy", "The room is busy. Try again.");
+  }
+
+  // ---------- the open games list ----------
+
+  // A room is listed while its host says it is open and waiting or playing, someone is
+  // connected, it has a free seat and the room is not full.
+  function listable(room) {
+    const o = room?.open;
+    if (!o || o.state === "over" || o.players >= o.seats) return false;
+    const members = Object.values(room.members);
+    if (members.length >= limits.members) return false;
+    return members.some((m) => m.conn);
+  }
+
+  // After every room write: the listing entry follows the room. A listing that cannot be
+  // written is logged and the room carries on (it expires by itself).
+  async function syncListing(code, before, after) {
+    if (!listing || (!before?.open && !after?.open)) return;
+    try {
+      if (listable(after)) {
+        const o = after.open;
+        await store.putListing(code, {
+          made: o.made,
+          players: o.players,
+          seats: o.seats,
+          state: o.state,
+          exp: expiry(limits.listTtl),
+        });
+      } else if (before?.open && listable(before)) {
+        await store.delListing(code, before.open.made);
+      }
+    } catch (error) {
+      console.error("listing failed", error?.name, error?.message);
+    }
+  }
+
+  // The host says whether the room is listed, and how it stands. Sent again from time to
+  // time while it is open, which keeps the entry from expiring.
+  async function setOpen(conn, who, msg) {
+    const open = checkOpen(msg.open, limits);
+    const t = now();
+    await mutate(who.room, (room) => {
+      member(room, who, conn);
+      if (room.host !== who.member)
+        throw new RoomError("not-host", "Only the host opens a game.");
+      if (!open) {
+        if (!room.open) return { room: null };
+        delete room.open;
+      } else {
+        room.open = { made: room.open?.made ?? t, ...open };
+      }
+      return { room };
+    });
+  }
+
+  async function list(conn, msg) {
+    const t = now();
+    let games = [];
+    if (listing) {
+      let rows = [];
+      try {
+        rows = await store.listOpen({
+          since: t - limits.listAgeMs,
+          limit: limits.listRead,
+          now: Math.floor(t / 1000),
+        });
+      } catch (error) {
+        console.error("list failed", error?.name, error?.message);
+      }
+      games = rows.slice(0, limits.listMax).map((r) => ({
+        room: r.room,
+        made: r.made,
+        players: r.players,
+        seats: r.seats,
+        state: r.state,
+      }));
+    }
+    await post(
+      conn,
+      asciiJson({ t: "list", id: msg.id ?? null, now: t, games }),
+    );
   }
 
   // A connection went away (a $disconnect, or a send that came back Gone).
@@ -610,6 +786,32 @@ export function createRooms({
     await post(conn, asciiJson({ t: "reported", id }));
   }
 
+  // A match played in one browser (solo, watching the computer): any connection, joined
+  // to a room or not. Kept, then acknowledged.
+  async function game(conn, msg, bytes) {
+    const id = msg.id ?? null;
+    const g = checkGame(msg, bytes, limits);
+    if (!recordGame)
+      throw new RoomError("unavailable", "Matches are not kept here.", { id });
+    const count = recorded.get(conn) ?? 0;
+    if (count >= limits.gamesPerConn)
+      throw new RoomError(
+        "too-many",
+        `A connection may send ${limits.gamesPerConn} matches.`,
+        { id },
+      );
+    if (recorded.size > 5000) recorded.clear();
+    recorded.set(conn, count + 1);
+    try {
+      await recordGame({ t: now(), game: asciiJson(g) });
+    } catch (error) {
+      recorded.set(conn, count);
+      console.error("game record failed", error?.name, error?.message);
+      throw new RoomError("failed", "The match could not be kept.", { id });
+    }
+    await post(conn, asciiJson({ t: "recorded", id }));
+  }
+
   async function handle(conn, text) {
     const bytes = Buffer.byteLength(text);
     if (bytes > limits.messageBytes)
@@ -627,6 +829,8 @@ export function createRooms({
       return void (await post(conn, asciiJson({ t: "pong", now: now() })));
     try {
       if (msg.t === "report") return await report(conn, msg, bytes);
+      if (msg.t === "game") return await game(conn, msg, bytes);
+      if (msg.t === "list") return await list(conn, msg);
       if (msg.t === "join") return await join(conn, msg);
       const who = await store.getConn(conn);
       if (!who) throw new RoomError("not-joined", "Join the room first.");
@@ -641,6 +845,8 @@ export function createRooms({
           return await claim(conn, who);
         case "leave":
           return await leave(conn, who);
+        case "open":
+          return await setOpen(conn, who, msg);
         default:
           throw new RoomError(
             "bad-message",
@@ -694,6 +900,7 @@ export function createRooms({
     const who = await store.getConn(conn);
     buckets.delete(conn);
     reported.delete(conn);
+    recorded.delete(conn);
     if (who) await dropped(who.room, who.member, conn);
   }
 

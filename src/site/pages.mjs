@@ -56,13 +56,30 @@ const BUILDING = GAME_READY
   ? ""
   : `<p class="notice">The game is still being built. Until it is, a pitch only says so.</p>`;
 
-function home({ tinylytics }) {
+// The home page's list of open games (public/js/open-games.js asks the rooms
+// server for it): only when this build has a rooms server.
+function openGames(roomsUrl) {
+  if (!roomsUrl) return "";
+  return `<section class="frame open-games" aria-labelledby="open-games" data-rooms="${esc(roomsUrl)}" hidden>
+  <h2 class="display" id="open-games">Open games</h2>
+  <p>Pitches whose host made them open. Join one and pick a side.</p>
+  <ul class="open-list" data-open-list></ul>
+  <p class="open-status" data-open-status role="status">Looking for open games...</p>
+</section>`;
+}
+
+function home({ tinylytics, config = {} }) {
   const body = `<section class="hero">
   <div class="frame hero__inner">
     <h1 class="hero__title"><span class="hero__kubb">Kubb</span><span class="hero__band">Throwing Wood</span></h1>
     <p class="lede">The lawn game of wooden blocks and batons, in your browser. Friends on one pitch, each on their own screen.</p>
     <div class="actions">
-      <a class="button button--start" href="/p/" data-pitch="">Start a pitch</a>
+      <a class="button button--start" href="/p/" data-pitch="" data-start>Start a pitch</a>
+      <fieldset class="access" data-access hidden>
+        <legend class="label">Who can join</legend>
+        <label><input type="radio" name="access" value="invite" checked> Invite only: whoever has the link</label>
+        <label><input type="radio" name="access" value="open"> Open: listed below so anyone can join</label>
+      </fieldset>
       <div class="actions__more">
         <a class="button" href="/p/?solo=1" data-pitch="?solo=1">Play the computer</a>
         <a class="button" href="/p/?watch=1" data-pitch="?watch=1">Watch the computer</a>
@@ -73,15 +90,16 @@ function home({ tinylytics }) {
   </div>
   ${heroScene()}
 </section>
+${openGames(config.roomsUrl)}
 <section class="frame how" aria-labelledby="how">
   <h2 class="display" id="how">How it works</h2>
   <ol class="steps">
     <li><strong>Start a pitch.</strong> You get a pitch of your own at its own link.</li>
-    <li><strong>Send the link.</strong> Whoever opens it joins you, types a name and picks a team, up to six a side. An empty side is played by the computer.</li>
+    <li><strong>Send the link.</strong> Whoever opens it joins you, types a name and picks a team, up to six a side. An empty side is played by the computer. Make it open and it is listed here under Open games, so anyone can join.</li>
     <li><strong>Throw wood.</strong> Everyone watches every throw. Knock down their kubbs, then the king.</li>
   </ol>
   <p>No one to play with? Play the computer on a pitch of your own, or throw batons on the practice pitch. Or watch the computer play itself, one match after another.</p>
-  <p>Matches are recorded, with the names typed, so the game can be tested against real play. They are not published. A throw that looks wrong can be reported from the game’s menu; a report is kept the same way.</p>
+  <p>Every match is recorded, with the names typed, so the game can be tested against real play: matches with friends, against the computer, and the computer against itself. Practice is not. Records are kept privately and not published. An open game’s place in the list shows only how many are on the pitch and whether it has started, never names. A throw that looks wrong can be reported from the game’s menu; a report is kept the same way.</p>
 </section>
 <section class="frame about" aria-labelledby="about">
   <h2 class="display" id="about">The Playdate game, on the web</h2>
@@ -96,7 +114,10 @@ function home({ tinylytics }) {
     body,
     bodyClass: "home",
     tinylytics,
-    scripts: ["/js/start.js"],
+    scripts: [
+      "/js/start.js",
+      ...(config.roomsUrl ? ["/js/open-games.js"] : []),
+    ],
   });
 }
 

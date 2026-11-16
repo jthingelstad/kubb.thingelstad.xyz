@@ -14,6 +14,9 @@
 // build/reports-dev/<yyyy-mm-dd>/<ms>-<random>.json.gz, the bucket's shape, so
 // `npm run reports:replay -- <file>` reads them. startRoomsServer({ report }) takes any
 // reporter (backend/rooms/reports.mjs memoryReporter in the tests); none refuses reports.
+// Matches played in one browser (solo, watching the computer) go to
+// build/games-dev/browser/<yyyy-mm-dd>/..., so `npm run games:replay -- --dir build/games-dev`
+// plays them; startRoomsServer({ recordGame }) takes any recorder (none refuses them).
 
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
@@ -25,6 +28,11 @@ import {
   parseOrigins,
 } from "../backend/rooms/core.mjs";
 import { memoryStore } from "../backend/rooms/memory-store.mjs";
+import {
+  RECORD_PREFIX,
+  browserGameKey,
+  browserGameText,
+} from "../backend/rooms/recorder.mjs";
 import {
   REPORT_PREFIX,
   reportKey,
@@ -43,6 +51,7 @@ export async function startRoomsServer({
   now = Date.now,
   record = null,
   report = null,
+  recordGame = null,
   log = () => {},
 } = {}) {
   const sockets = new Map(); // conn -> ws
@@ -53,6 +62,7 @@ export async function startRoomsServer({
     limits,
     record,
     report,
+    recordGame,
     async send(conn, text) {
       const ws = sockets.get(conn);
       if (!ws || ws.readyState !== ws.OPEN) return false;
@@ -125,9 +135,18 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     console.log(new Date().toISOString(), "report kept", file);
     return key;
   };
+  const fileGameRecorder = async (entry) => {
+    const key = browserGameKey(entry);
+    const file = join("build/games-dev", key.slice(RECORD_PREFIX.length));
+    await mkdir(dirname(file), { recursive: true });
+    await writeFile(file, gzipSync(browserGameText(entry)));
+    console.log(new Date().toISOString(), "match kept", file);
+    return key;
+  };
   const server = await startRoomsServer({
     port,
     report: fileReporter,
+    recordGame: fileGameRecorder,
     log: (...a) => console.log(new Date().toISOString(), ...a),
   });
   console.log(`rooms: ${server.url} (Ctrl-C to stop)`);
