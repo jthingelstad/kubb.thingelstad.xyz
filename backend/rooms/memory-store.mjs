@@ -56,11 +56,13 @@ export function memoryStore({ now = Date.now } = {}) {
         if (key.startsWith(`${conn} `)) parts.delete(key);
     },
 
+    // Kept only when newer than what is there (by the room's rev); false when stale.
     async putListing(code, entry) {
-      listings.set(listingKey(code, entry.made), { room: code, ...entry });
-    },
-    async delListing(code, made) {
-      listings.delete(listingKey(code, made));
+      const key = listingKey(code, entry.made);
+      const had = listings.get(key);
+      if (had && had.rev >= entry.rev) return false;
+      listings.set(key, { room: code, ...entry });
+      return true;
     },
     async listOpen({ since, limit, now: seconds }) {
       return [...listings.entries()]
@@ -68,7 +70,7 @@ export function memoryStore({ now = Date.now } = {}) {
         .sort((a, b) => (a[0] < b[0] ? 1 : -1))
         .slice(0, limit)
         .map(([, item]) => item)
-        .filter((item) => item.exp > seconds)
+        .filter((item) => item.exp > seconds && item.listed)
         .map((item) => structuredClone(item));
     },
 

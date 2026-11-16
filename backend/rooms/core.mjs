@@ -27,8 +27,9 @@
 //
 // The open games list (docs/ROOMS.md section 9) uses three more store methods; a store
 // without them lists nothing:
-//   putListing(code, entry)  entry = { made, players, seats, state, exp }
-//   delListing(code, made)
+//   putListing(code, entry)  entry = { made, rev, listed, players?, seats?, state?, exp },
+//                       kept only when no entry for (code, made) has this rev or a later
+//                       one; listed false takes the game off (until it expires)
 //   listOpen({ since, limit, now }) -> [{ room, made, players, seats, state }], newest
 //                       first, made at or after `since`, unexpired
 //
@@ -334,17 +335,25 @@ export function createRooms({
   // ---------- the open games list ----------
 
   // A room is listed while its host says it is open and waiting or playing, someone is
-  // connected, it has a free seat and the room is not full.
+  // connected, it has a free seat and a newcomer could get in (as join() decides: a full
+  // room still admits one by dropping a member who is away, never the host).
   function listable(room) {
     const o = room?.open;
     if (!o || o.state === "over" || o.players >= o.seats) return false;
-    const members = Object.values(room.members);
-    if (members.length >= limits.members) return false;
-    return members.some((m) => m.conn);
+    const members = Object.entries(room.members);
+    if (
+      members.length >= limits.members &&
+      !members.some(([id, m]) => !m.conn && id !== room.host)
+    )
+      return false;
+    return members.some(([, m]) => m.conn);
   }
 
-  // After every room write: the listing entry follows the room. A listing that cannot be
-  // written is logged and the room carries on (it expires by itself).
+  // After every room write: the listing entry follows the room. Each write carries the
+  // room's rev and the store keeps only a newer one, so invocations that finish out of
+  // order cannot list a room again after a later write took it off; taking it off writes
+  // an unlisted entry (it expires by itself) rather than deleting, so that rev stays.
+  // A listing that cannot be written is logged and the room carries on.
   async function syncListing(code, before, after) {
     if (!listing || (!before?.open && !after?.open)) return;
     try {
@@ -352,13 +361,20 @@ export function createRooms({
         const o = after.open;
         await store.putListing(code, {
           made: o.made,
+          rev: after.rev,
+          listed: true,
           players: o.players,
           seats: o.seats,
           state: o.state,
           exp: expiry(limits.listTtl),
         });
       } else if (before?.open && listable(before)) {
-        await store.delListing(code, before.open.made);
+        await store.putListing(code, {
+          made: before.open.made,
+          rev: after.rev,
+          listed: false,
+          exp: expiry(limits.listTtl),
+        });
       }
     } catch (error) {
       console.error("listing failed", error?.name, error?.message);
