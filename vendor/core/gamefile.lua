@@ -39,6 +39,9 @@ function gamefile.parse(text)
 				local batons = 0
 				-- a note (# ...) says what the tokens cannot: not throws
 				rest = rest:gsub("%s*#.*$", "")
+				-- comments in parentheses, positions "(@ 1.32,5.87)" among
+				-- them, belong to the token before them: not tokens
+				rest = rest:gsub("%b()", " ")
 				for tok in rest:gmatch("%S+") do
 					local t = tok:match("^[%w_]+:(.+)$") or tok
 					if not t:match("^%d+A$") and not isInkast(t) then
@@ -71,6 +74,13 @@ function gamefile.parse(text)
 	local _, mo, d = (h["Start"] or ""):match("^(%d+)-(%d+)-(%d+)")
 	s.date = mo and (MONTHS[tonumber(mo)] .. " " .. tonumber(d)) or ""
 	return s
+end
+
+-- A game file's line as the score sheet shows it on screen: without the
+-- positions on the pitch (" (@ 4.39,4.61 4.34,5.21)"), which are for readers
+-- that draw the pitch and would fill the 400 px screen. Other comments stay.
+function gamefile.shown(line)
+	return (line:gsub(" ?%(@[^()]*%)", ""))
 end
 
 -- A team's hit rate as a whole percent, or nil when it threw no batons.
