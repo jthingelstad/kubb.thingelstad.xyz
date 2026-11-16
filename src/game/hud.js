@@ -48,12 +48,19 @@ export class Hud {
       "aria-label": "Plan view",
       "data-test": "plan-view",
     });
+    // WALK is the Playdate's held A: while it is on, a drag on the pitch
+    // walks the thrower (left and right along the line, down to step back)
+    this.walk = button("WALK", null, "plan walk", {
+      "aria-label": "Walk the thrower",
+      "data-test": "walk",
+    });
     this.plans = h(
       "div.plans",
       { "data-test": "plans" },
       h("div.plan-col", this.arcUp, this.arcDown),
       h("div.plan-col", this.sideL, this.sideR),
       this.planView,
+      this.walk,
     );
     this.skip = button("SKIP", () => a.skip(), "small skip-btn", {
       "data-test": "skip",
@@ -160,6 +167,7 @@ export class Hud {
       this.sideL.setAttribute("aria-label", `${sideWord} left`);
       this.sideR.setAttribute("aria-label", `${sideWord} right`);
       this.planView.classList.toggle("on", !!st.plan);
+      this.walk.classList.toggle("on", !!st.walk);
       this.place(st.layout);
     }
     this.show(this.skip, !!st.playing);

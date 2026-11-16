@@ -24,7 +24,7 @@ const STEPS = [
   },
   {
     title: "Aim if you like",
-    text: "Drag the target circle on the pitch, or walk the thrower. ARC and TILT sit beside the dial. Or just throw: the circle starts on a good target.",
+    text: "Drag the target circle on the pitch. WALK, then drag on the pitch, moves the thrower along the line or back (keys: WASD). ARC and TILT sit beside the dial. Or just throw: the circle starts on a good target.",
     arm: () => 0,
   },
 ];
