@@ -50,8 +50,10 @@ export const RULES = [
   },
 ];
 
+// Everything the page promises is playable once the game is in place: a
+// pitch link with friends, the computer and practice. No notice then.
 const BUILDING = GAME_READY
-  ? `<p class="notice">Practice and the computer are ready. Playing friends on a link is next: until it lands, a pitch link offers the computer.</p>`
+  ? ""
   : `<p class="notice">The game is still being built. Until it is, a pitch only says so.</p>`;
 
 function home({ tinylytics }) {

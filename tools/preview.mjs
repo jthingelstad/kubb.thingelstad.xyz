@@ -32,10 +32,14 @@ export function cloudfrontRequest(url) {
   return { uri: decodeURIComponent(url.pathname), querystring };
 }
 
+// Preview only: any local port, so a test can run its own room server
+// (tools/rooms-dev.mjs on a free port, passed to the page as ?rooms=).
 const CSP = contentSecurityPolicy([
   "'self'",
   DEV_ROOMS_URL,
   "ws://localhost:8788",
+  "ws://127.0.0.1:*",
+  "ws://localhost:*",
 ]);
 
 export async function startPreview({ port = 4322, root = "dist" } = {}) {

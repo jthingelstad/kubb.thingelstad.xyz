@@ -387,8 +387,9 @@ local function plainSetup(setup)
 		n = setup.n, of = setup.of, label = setup.label, kingShot = setup.kingShot or false,
 		rethrow = setup.rethrow or false, lineY = setup.lineY, forwardY = setup.forwardY, advY = setup.advY,
 		targets = setup.targets, batonId = setup.batonId,
+		-- key: the lineup's key for the player (on the web, the room member it belongs to)
 		thrower = setup.thrower and { id = setup.thrower.id, name = setup.thrower.name,
-			level = setup.thrower.level } or nil,
+			level = setup.thrower.level, key = setup.thrower.key } or nil,
 		settled = setup.settled,
 	}
 end

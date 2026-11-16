@@ -83,7 +83,7 @@ export class Hud {
   }
 
   // st: { aim, need, phase, playing, slow, watching, plan, practice, flag,
-  //       verdicts, restText, layout }
+  //       verdicts, restText, layout, who: { text, mine } | null }
   update(st) {
     const aim = st.aim || {};
     const rail = aim.rail || {};
@@ -123,10 +123,19 @@ export class Hud {
       verdicts.hidden = !vtext;
     }
 
+    // who acts, on a shared pitch (st.who from game.whoActs): YOUR THROW,
+    // or whose it is
+    const who = !st.slow && !st.playing ? st.who : null;
     this.text(
       this.status,
-      st.slow ? "SLOW MOTION" : st.watching ? "WATCH" : "",
+      st.slow ? "SLOW MOTION" : who ? who.text : st.watching ? "WATCH" : "",
     );
+    const cls = who ? (who.mine ? "mine" : "theirs") : "";
+    if (this.cache.get("statusCls") !== cls) {
+      this.cache.set("statusCls", cls);
+      this.status.classList.toggle("mine", cls === "mine");
+      this.status.classList.toggle("theirs", cls === "theirs");
+    }
     this.text(this.adv, st.aiming ? aim.advText || "" : "");
 
     const showPlans = !!st.aiming && st.mayAct;

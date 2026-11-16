@@ -1,7 +1,10 @@
 // The cards over the pitch, in the Playdate's words (render/cards.lua):
 // the hand-off before a team's turn, the pass inside a team, the settle
 // before a raise by hand, the winner; and the web's own: the solo options,
-// the multiplayer-is-coming card, and the raise and punishment panels.
+// a plain notice (a pitch that cannot be reached), and the raise and
+// punishment panels. On a shared pitch `cards.who(need)` (set by
+// src/net/pitch.js) says who acts: the engine's cards then name them, and a
+// browser that only watches gets a WATCH button and the card closes itself.
 import { h, button, clear } from "./dom.js";
 import { prefs } from "../game/prefs.js";
 import { drawMinimap } from "../render/minimap.js";
@@ -18,7 +21,7 @@ export class Cards {
   }
 
   // A card in the middle, over a dimmed pitch. Returns close().
-  show(card, game = null, { modal = true } = {}) {
+  show(card, game = null, { modal = true, onClose = null } = {}) {
     this.close();
     const scrim = h("div.scrim", card);
     this.layer.append(scrim);
@@ -30,6 +33,7 @@ export class Cards {
       scrim.remove();
       if (game && modal) game.modal = Math.max(0, game.modal - 1);
       if (this.open === close) this.open = null;
+      onClose?.();
     };
     this.open = close;
     const go = card.querySelector("[data-default]");
@@ -49,14 +53,29 @@ export class Cards {
     let close;
     const done = () => close();
     let el;
-    if (card.kind === "handoff") el = handoff(c, need, done);
+    const who = this.who?.(need);
+    if (card.kind === "handoff") el = handoff(c, need, done, who && !who.mine);
     else if (card.kind === "pass") el = pass(c, done);
     else if (card.kind === "settle") el = settle(c, done);
     else return;
+    if (who) {
+      el.prepend(
+        h(
+          `p.whose${who.mine ? ".mine" : ""}`,
+          { "data-test": "whose" },
+          who.text,
+        ),
+      );
+      if (!who.mine) {
+        const go = el.querySelector(".row .btn");
+        if (go) go.textContent = "WATCH";
+      }
+    }
     close = this.show(el, game);
+    if (who && !who.mine) setTimeout(done, tune.watchCardMs);
   }
 
-  winner(need, { rematch, home }) {
+  winner(need, { rematch, home, note = null }) {
     const w = need.winner || {};
     const stats = [`${w.turns} ${w.turns === 1 ? "turn" : "turns"}`];
     if (w.minutes != null)
@@ -78,10 +97,18 @@ export class Cards {
             ),
           )
         : null,
+      note ? h("p.waiting", note) : null,
       h(
         "div.row",
-        button("REMATCH", rematch, "go", { "data-default": true }),
-        button("HOME", home),
+        rematch
+          ? button("REMATCH", rematch, "go", {
+              "data-default": true,
+              "data-test": "rematch",
+            })
+          : null,
+        button("HOME", home, rematch ? "" : "go", {
+          "data-default": !rematch,
+        }),
       ),
     );
     return this.show(el);
@@ -134,25 +161,21 @@ export class Cards {
     return close;
   }
 
-  // ---------- the multiplayer seam's card ----------
+  // ---------- a plain notice (a pitch that cannot be reached) ----------
 
-  multiplayer(code, { solo, home }) {
+  // { kicker, title, text, actions: [[label, fn, kind?]], test }
+  notice({ kicker = null, title, text, actions = [], test = "notice" }) {
     const el = h(
-      "div.card.coming",
-      { "data-test": "coming" },
-      h("p.kicker", `PITCH ${code}`),
-      h("h2.display", "Multiplayer is coming"),
-      h(
-        "p",
-        "Friends on one pitch, each in their own browser, is the next thing being built. Until then, this link plays the computer.",
-      ),
+      "div.card.notice-card",
+      { "data-test": test, role: "alert" },
+      kicker ? h("p.kicker", kicker) : null,
+      h("h2.display", title),
+      text ? h("p", text) : null,
       h(
         "div.row",
-        button("PLAY THE COMPUTER", solo, "go", {
-          "data-default": true,
-          "data-test": "play-computer",
-        }),
-        button("HOME", home),
+        actions.map(([label, fn, kind = ""], i) =>
+          button(label, fn, kind, i === 0 ? { "data-default": true } : {}),
+        ),
       ),
     );
     return this.show(el);
@@ -192,6 +215,10 @@ export class Cards {
     clear(this.panel);
   }
 }
+
+export const tune = {
+  watchCardMs: 2500, // a card for a turn this browser only watches
+};
 
 export const SOLO_DEFAULTS = {
   name: "You",
@@ -287,7 +314,8 @@ function segmented(key, choices, value) {
 
 // The Playdate's hand-off card: who it goes to, what the last turn took,
 // what this one throws, the bases, and the pitch from above.
-function handoff(c, need, done) {
+// theirs: this browser only watches the turn (a shared pitch)
+function handoff(c, need, done, theirs = false) {
   const took = c.took
     ? c.took.field || c.took.base
       ? `${c.fromName} just took ${[
@@ -302,7 +330,8 @@ function handoff(c, need, done) {
   if (c.kubbs) {
     lines.push(`${c.kubbs} ${c.kubbs === 1 ? "kubb" : "kubbs"} in`);
     lines.push(`then ${c.batons} batons`);
-  } else lines.push(`you throw ${c.batons} batons`);
+  } else
+    lines.push(`${theirs ? "they throw" : "you throw"} ${c.batons} batons`);
   if (c.thrower) lines.push(`${c.thrower} first`);
   const map = h("canvas.card-map", { width: 120, height: 200 });
   drawCardMap(map, c, need);

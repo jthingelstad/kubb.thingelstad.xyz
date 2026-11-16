@@ -80,7 +80,9 @@ are plain objects. Angles are degrees unless named otherwise; times are seconds.
 
 - `{ kind: "throw", side, setup, cpu, local, candidates?, wind, ... }`. `setup` is the
   throw (`kind`, `projectile` "baton" or "kubb", `n` of `of`, `label`, `kingShot`,
-  `rethrow`, `lineY`, `forwardY`, `advY`, `targets`, `thrower { id, name, level }`).
+  `rethrow`, `lineY`, `forwardY`, `advY`, `targets`, `thrower { id, name, level, key }`;
+  `key` is the lineup's key for that player, on a shared pitch the room member it
+  belongs to).
   `cpu`: the computer throws. `local`: this browser acts for it. `candidates`: the team's
   players when a human team has more than one (for the `thrower` action). Practice:
   `{ kind: "throw", practice: true, drill, surface, level, set }`.

@@ -19,6 +19,8 @@
 //   game.showRemoteAim(state) someone else's aim (their aimState())
 //   game.adopt(snapshotText)  take a committed snapshot as it is
 //   game.aimState()           this browser's aim, to send while aiming
+//   game.whoActs(need)        optional { text, mine } for the HUD (a shared
+//                             pitch, src/net/pitch.js)
 //
 // Solo is only this: the local seat owns team A and runs the computer, B.
 import {
@@ -102,6 +104,7 @@ export class Game {
     this.H = 0;
     this.dpr = 1;
     this.onNeed = null; // (need) => void: main shows the winner card etc.
+    this.whoActs = null; // (need) => { text, mine } | null: a shared pitch's HUD line
 
     this.hud = new Hud(ui, {
       arc: (s) => this.planStep("arc", s),
@@ -639,6 +642,7 @@ export class Game {
       verdicts: res && res.verdicts,
       restText: res && res.restText,
       layout: this.L,
+      who: this.whoActs?.(this.need) ?? null,
     });
   }
 
@@ -773,6 +777,7 @@ export class Game {
       watching: this.phase === "wait",
       practice: this.mode === "practice",
       layout: this.L,
+      who: this.whoActs?.(n) ?? null,
     });
   }
 

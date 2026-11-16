@@ -545,6 +545,261 @@ body.game {
   font-size: 18px;
 }
 
+/* ---------- a shared pitch: the lobby, whose throw, shouts ---------- */
+
+.lobby {
+  width: min(640px, 100%);
+}
+.lobby .name {
+  width: 100%;
+  min-width: 0;
+}
+.lobby-status {
+  color: #b3123f;
+}
+.teams {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+.team {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 10px 10px;
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  background: #fff;
+}
+.card .team-head {
+  margin: -8px -10px 2px;
+  padding: 6px 10px;
+  border-bottom: 3px solid var(--ink);
+  border-radius: 3px 3px 0 0;
+  font-size: 22px;
+}
+.team-a .team-head {
+  background: var(--marigold);
+  color: var(--ink);
+}
+.team-b .team-head {
+  background: var(--violet);
+  color: var(--paper);
+}
+.team-count {
+  float: right;
+  font-family: var(--jt-font-body);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 22px;
+}
+.roster {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.member {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  font-weight: 700;
+}
+.member {
+  flex-wrap: wrap;
+}
+.member-name {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: #2f9e44;
+}
+.member.away {
+  color: #6b6255;
+}
+.member.away .dot {
+  background: transparent;
+}
+.tag {
+  flex: none;
+  padding: 0 5px;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+.tag.you {
+  background: var(--ink);
+  color: var(--paper);
+}
+.card .team-empty {
+  margin: 0;
+  color: #5b4a2c;
+  font-size: 14px;
+}
+.team .btn {
+  margin-top: auto;
+}
+.watch-row,
+.share-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 10px;
+}
+.card .watchers {
+  flex: 1 1 14em;
+  margin: 0;
+}
+.watchers .who.away {
+  color: #6b6255;
+}
+.link-text {
+  min-width: 0;
+  font-family: var(--jt-font-mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.lobby-options {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 2px solid var(--ink);
+}
+.lobby-options h3 {
+  font-size: 22px;
+}
+.opt-value {
+  font-weight: 700;
+}
+.card .waiting {
+  flex: 1 1 12em;
+  margin: 0;
+  font-weight: 800;
+}
+/* START (or the wait for it) stays in reach while the lobby scrolls */
+.lobby .start-row {
+  position: sticky;
+  z-index: 1;
+  bottom: calc(-12px - var(--safe-bottom));
+  margin: 12px -20px -20px;
+  padding: 10px 20px calc(20px + var(--safe-bottom));
+  border-top: 2px solid var(--ink);
+  border-radius: 0 0 6px 6px;
+  background: var(--paper);
+}
+.card .lobby-note {
+  margin: 10px 0 0;
+  font-weight: 700;
+}
+
+.whose {
+  display: inline-block;
+  margin: 0 0 8px;
+  padding: 2px 10px 4px;
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  background: var(--paper);
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 20px;
+  line-height: 1.1;
+}
+.card .whose.mine {
+  background: var(--marigold);
+}
+.status.theirs {
+  background: var(--paper);
+}
+.status.mine {
+  background: var(--marigold);
+}
+
+.net {
+  position: absolute;
+  top: calc(var(--safe-top) + 48px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  padding: 3px 10px;
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  background: var(--paper);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-align: center;
+}
+.net.warn {
+  background: #e2483d;
+  color: var(--paper);
+}
+.shout-bar {
+  position: absolute;
+  left: calc(var(--safe-left) + 12px);
+  top: calc(var(--safe-top) + 92px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: calc(100% - 24px);
+}
+.shout-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.shouts {
+  position: absolute;
+  top: calc(var(--safe-top) + 146px);
+  left: calc(var(--safe-left) + 12px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+.shout {
+  padding: 2px 10px 4px;
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+  animation: shout-in 0.18s ease-out;
+}
+.shout-name {
+  margin-right: 6px;
+  font-size: 13px;
+  font-weight: 800;
+}
+.shout-word {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 20px;
+}
+@keyframes shout-in {
+  from {
+    transform: scale(0.6);
+  }
+}
+
 /* ---------- a tall screen (a phone held upright) ---------- */
 
 @media (max-aspect-ratio: 20/21) {
@@ -555,6 +810,20 @@ body.game {
   }
   .center {
     top: calc(var(--safe-top) + 128px);
+  }
+  /* the status pill goes under the rail and the menu */
+  .status {
+    top: calc(var(--safe-top) + 78px);
+    font-size: 19px;
+  }
+  .net {
+    top: calc(var(--safe-top) + 108px);
+  }
+  .shout-bar {
+    top: calc(var(--safe-top) + 120px);
+  }
+  .shouts {
+    top: calc(var(--safe-top) + 174px);
   }
   .adv {
     bottom: auto;
@@ -600,7 +869,8 @@ body.game {
     font-size: 30px;
   }
   /* START stays in reach while the options scroll */
-  .start-row {
+  .start-row,
+  .lobby .start-row {
     position: sticky;
     z-index: 1;
     /* to the screen's edge, past the scrim's padding */
@@ -621,8 +891,26 @@ body.game {
   }
 }
 
+@media (max-width: 420px) {
+  .teams {
+    gap: 6px;
+  }
+  .team {
+    padding: 8px 8px 10px;
+  }
+  .card .team-head {
+    margin: -8px -8px 2px;
+    padding: 6px 8px;
+    font-size: 20px;
+  }
+  .lobby .opt {
+    grid-template-columns: 5.5em 1fr;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .loading-text {
+  .loading-text,
+  .shout {
     animation: none;
   }
 }

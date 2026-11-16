@@ -6,17 +6,16 @@ export const HOST = new URL(ORIGIN).hostname;
 export const SITE_NAME = "Kubb: Throwing Wood";
 export const SITE_TITLE = "Kubb: Throwing Wood on the web";
 
-// Whether the game client is in place: practice and a match against the
-// computer are playable. While false, the home page says the game is still
-// being built. (Multiplayer is a separate matter: a pitch link says it is
-// coming and offers the computer until the room client lands.)
+// Whether the game client is in place: practice, a match against the
+// computer and a pitch shared on a link are playable. While false, the home
+// page says the game is still being built.
 export const GAME_READY = true;
 
 // Tinylytics' shared script, keyed by data-site, loaded only by the deploy
 // build (KUBB_PRODUCTION=true) and only on the production host. The id is the
 // embed id of this site in Tinylytics; null until the site is made there.
 export const TINYLYTICS_SCRIPT = "https://tinylytics.app/js/script.js";
-export const TINYLYTICS_SITE = null;
+export const TINYLYTICS_SITE = "gXy1ayRzgXUVfn_G3nvb";
 
 // Where the game's rooms are in a local build (tools/rooms-dev.mjs).
 export const DEV_ROOMS_URL = "ws://127.0.0.1:8788";

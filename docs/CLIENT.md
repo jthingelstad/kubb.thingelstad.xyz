@@ -10,33 +10,37 @@ the engine's.
 
 `src/main.js` shows the title while wasmoon and the Lua load (`data-test=loading`), then:
 
-| Page               | What it is                                                                                                                                            |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/practice/`       | The open practice pitch: batons or the kubb drill, surface, reset and level.                                                                          |
-| `/p/<code>?solo=1` | A match against the computer. The options card first (name, level, surface, opening, raising, wind, kubb set; remembered), then START.                |
-| `/p/<code>`        | **The multiplayer seam.** Until the room client lands, a card says multiplayer is coming and offers PLAY THE COMPUTER (the same link with `?solo=1`). |
+| Page               | What it is                                                                                                                                                        |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/practice/`       | The open practice pitch: batons or the kubb drill, surface, reset and level.                                                                                      |
+| `/p/<code>?solo=1` | A match against the computer. The options card first (name, level, surface, opening, raising, wind, kubb set; remembered), then START.                            |
+| `/p/<code>`        | A shared pitch: the lobby (name, level, Team A or B or watching, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md. |
 
 A failure to start shows a plain error card with RELOAD and HOME. The HOW TO THROW overlay
 (four steps, an animated dial) shows on the first visit and from the menu; `?nohowto` skips it.
 
 ## Files
 
-| File                 | What it does                                                                                                                                           |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/main.js`        | Boot, the routes above, the practice tray, the solo flow, the multiplayer card.                                                                        |
-| `src/game/game.js`   | `Game`: the loop, input, playback, the raise and punishment scenes, framing. The seam.                                                                 |
-| `src/game/hud.js`    | `Hud`: the rail (who throws, what, the counts), the verdict flag and chips, the rest distance, SLOW MOTION and WATCH, the advantage, the plan buttons. |
-| `src/game/layout.js` | Pure: where the dial and minimap go, and the tall-canvas framing (`worldFit`, `stillFit`, `panFor`).                                                   |
-| `src/game/scenes.js` | The client's own cameras for raising and punishment, and the pieces in them.                                                                           |
-| `src/game/sound.js`  | `Sound`: the knocks and the king's chord through Web Audio; unlock on the first pointer down; mute remembered.                                         |
-| `src/game/prefs.js`  | `prefs`: localStorage, wrapped so a blocked store only forgets.                                                                                        |
-| `src/game/draw.js`   | The renderer's functions the game uses, in one place.                                                                                                  |
-| `src/ui/cards.js`    | `Cards`: the engine's hand-off, pass and settle cards, the winner, solo options, the multiplayer card, and the raise and punishment panels.            |
-| `src/ui/menu.js`     | `Menu`: level, surface (practice), sound, how to throw, resign (a match), rules, home.                                                                 |
-| `src/ui/howto.js`    | The HOW TO THROW overlay.                                                                                                                              |
-| `src/ui/dom.js`      | `h()` and `button()`.                                                                                                                                  |
-| `public/game.css`    | The game pages' styles, linked by `src/site/pages.mjs` after the site's.                                                                               |
-| `tests/game/`        | `layout.test.mjs` (pure) and `client.test.mjs` (Playwright); `browser.mjs` is their helper.                                                            |
+| File                                      | What it does                                                                                                                                                              |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/main.js`                             | Boot, the routes above, the practice tray, the solo flow; hands `/p/<code>` to `src/net/pitch.js`.                                                                        |
+| `src/game/game.js`                        | `Game`: the loop, input, playback, the raise and punishment scenes, framing. The seam.                                                                                    |
+| `src/game/hud.js`                         | `Hud`: the rail (who throws, what, the counts), the verdict flag and chips, the rest distance, SLOW MOTION and WATCH, the advantage, the plan buttons.                    |
+| `src/game/layout.js`                      | Pure: where the dial and minimap go, and the tall-canvas framing (`worldFit`, `stillFit`, `panFor`).                                                                      |
+| `src/game/scenes.js`                      | The client's own cameras for raising and punishment, and the pieces in them.                                                                                              |
+| `src/game/sound.js`                       | `Sound`: the knocks and the king's chord through Web Audio; unlock on the first pointer down; mute remembered.                                                            |
+| `src/game/prefs.js`                       | `prefs`: localStorage, wrapped so a blocked store only forgets.                                                                                                           |
+| `src/game/draw.js`                        | The renderer's functions the game uses, in one place.                                                                                                                     |
+| `src/ui/cards.js`                         | `Cards`: the engine's hand-off, pass and settle cards (naming who acts on a shared pitch), the winner, solo options, a plain notice, and the raise and punishment panels. |
+| `src/ui/lobby.js`                         | `Lobby`: the shared pitch's lobby card.                                                                                                                                   |
+| `src/net/pitch.js`                        | `Pitch`: the shared pitch's controller: joins the room, runs the lobby, drives the Game through the seam, aim casts, shouts, host hand-over.                              |
+| `src/net/lobby.js`, `seats.js`, `sync.js` | Pure: the room document's reducers, who acts, and how a browser stays in step (tests in `tests/net/`).                                                                    |
+| `src/net/room.js`                         | The room client (docs/ROOMS.md).                                                                                                                                          |
+| `src/ui/menu.js`                          | `Menu`: level, surface (practice), sound, how to throw, resign (a match), rules, home.                                                                                    |
+| `src/ui/howto.js`                         | The HOW TO THROW overlay.                                                                                                                                                 |
+| `src/ui/dom.js`                           | `h()` and `button()`.                                                                                                                                                     |
+| `public/game.css`                         | The game pages' styles, linked by `src/site/pages.mjs` after the site's.                                                                                                  |
+| `tests/game/`                             | `layout.test.mjs` (pure), `client.test.mjs` and `multiplayer.test.mjs` (Playwright); `browser.mjs` is their helper.                                                       |
 
 ## The multiplayer seam
 
@@ -61,12 +65,16 @@ const game = new Game({ engine, canvas, ui, sound, cards, seat, onAction });
 - **`game.adopt(snapshotText)`**: take a committed match snapshot as it is (a reconnect, a
   disagreement on the hash).
 - **`game.aimState()`**: this browser's aim, for the room to send while aiming.
+- **`game.whoActs(need)`** and **`cards.who(need)`** (optional): `{ text, mine }`, who acts
+  for this need. The HUD's status pill shows the text (marigold when it is this browser's),
+  and the engine's cards name them; a card for someone else's turn has a WATCH button and
+  closes itself after 2.5 s.
 
 Solo is only this seam with no network: `seat = { sides: ["A"], cpu: true }`, the local
 player owns team A and this browser runs the computer as B (`src/main.js` `startSolo`).
-The room client replaces `startPitch()` in `src/main.js`, marked `MULTIPLAYER SEAM`: it
-joins the room, builds the seat from the lobby, passes `onAction` to the room and calls the
-three methods as messages arrive.
+A shared pitch is the same seam with the room behind it: `src/net/pitch.js` joins the
+room, builds the seat from the match's teams, passes `onAction` to the room and calls the
+three methods as documents and casts arrive. docs/MULTIPLAYER.md has the rules.
 
 ## The loop
 
@@ -134,7 +142,8 @@ only for this browser's throws) show, and the rest distance in practice.
   END 1, END 2, AUTOMATIC.
 - **Punishment**: drag or tap the kubb in the defender's half; the stakes and the king carry
   keep-out circles and a refused spot says why (TOO NEAR A STAKE); PLACE IT when allowed.
-- **The winner**: REMATCH (back to the options) and HOME.
+- **The winner**: REMATCH (back to the options; on a shared pitch the host's only, back to
+  the lobby with the same teams) and HOME.
 - **The menu**: level, sound, how to throw, resign, rules, home; Escape closes it.
 
 ## Swing feel
@@ -170,15 +179,16 @@ so `client.test.mjs` doubles the flick speed to make up for the 30 Hz stepping.
   127.0.0.1 port and drives Playwright's Chromium: practice loads with no console errors; a
   mouse swing throws and returns to aiming; dragging the circle changes the engine's aim; a
   solo match plays our throws, the computer's WATCH turn and a hand-off back; a portrait
-  phone (isMobile, touch) throws by touch. Skipped with a notice when Chromium is not
-  installed (`npx playwright install chromium`).
-- `window.__kubb` (engine, game, sound, cards, menu, config) exists only with `?test=1` or
-  on 127.0.0.1 or localhost.
+  phone (isMobile, touch) throws by touch. `multiplayer.test.mjs` runs `tools/rooms-dev.mjs`
+  on a free port too and plays a shared pitch (docs/MULTIPLAYER.md "Tests"). Both are
+  skipped with a notice when Chromium is not installed (`npx playwright install chromium`).
+- `window.__kubb` (engine, game, sound, cards, menu, config, and on a shared pitch `pitch`)
+  exists only with `?test=1` or on 127.0.0.1 or localhost. There too, `?rooms=ws://...`
+  points a pitch at another room server.
 - Screenshots at 1280 x 768, 390 x 844 and 844 x 390 go to `build/client-shots/`
-  (gitignored).
+  (gitignored); `KUBB_MP_SHOTS=build/mp-shots` makes the multiplayer test take the lobby's.
 
 ## Not done yet
 
-- Multiplayer: the room client (`src/net`) and the lobby.
 - Portrait zoom crops the outer kubbs of the far baseline; the pan follows the target.
 - `public/game.css` is linked by a plain path, not a hashed asset name.

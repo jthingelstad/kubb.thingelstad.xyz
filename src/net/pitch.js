@@ -1,0 +1,775 @@
+// A shared pitch (docs/MULTIPLAYER.md): /p/<code> without ?solo=1. Joins
+// the room (src/net/room.js), shows the lobby, and once the host starts,
+// drives the Game through its seam (docs/CLIENT.md): the seat says who may
+// act here, onAction commits what was done here, applyRemote plays what was
+// done elsewhere, adopt takes the room's snapshot when this browser is out of
+// step. The rules of who acts are src/net/seats.js; the document's reducers
+// src/net/lobby.js; the in-step decision src/net/sync.js.
+import { connect, memberId, RoomError } from "./room.js";
+import {
+  lobbyOf,
+  joinTeam,
+  setOptions,
+  pruneTeams,
+  lineup,
+  matchOptions,
+  startMatch,
+  commitAction,
+  backToLobby,
+  cleanName,
+  cleanOptions,
+  sideOf,
+} from "./lobby.js";
+import {
+  controlFor,
+  sameControl,
+  mayAct,
+  shownActor,
+  playingSide,
+  nextHost,
+} from "./seats.js";
+import { decide, rider, aimKey } from "./sync.js";
+import { Lobby } from "../ui/lobby.js";
+import { prefs } from "../game/prefs.js";
+import { h, button } from "../ui/dom.js";
+
+export const tune = {
+  tickMs: 200, // the controller's clock: aim casts (5 a second), drain, host check
+  hostGoneMs: 16000, // a host away this long is replaced (the room allows 15 s)
+  claimEveryMs: 5000,
+  shoutMs: 2600, // a shout stays up this long
+  shoutGapMs: 700, // this browser's shouts at most this often
+  stuckMs: 8000, // still not connected after this: say so
+  watchNoteMs: 7000,
+};
+
+export const SHOUTS = ["NICE!", "OOH!", "TOK!", "UNLUCKY"];
+
+export function startPitch(env) {
+  const p = new Pitch(env);
+  p.begin();
+  return p;
+}
+
+export class Pitch {
+  // env: { game, cards, ui, config, code, home, roomsUrl, WebSocket? }
+  constructor(env) {
+    Object.assign(this, env);
+    this.mode = "lobby"; // lobby | match | gone
+    this.local = { n: null, seq: 0 }; // the match and action this browser holds
+    this.match = null; // doc.match's players and cpu, for the seats
+    this.queue = []; // remote actions waiting for a playback to end
+    this.pending = 0; // our own commits in flight
+    this.control = null;
+    this.lastAim = "";
+    this.lastShout = 0;
+    this.hostGoneAt = null;
+    this.lastClaim = 0;
+    this.watchNoteUntil = 0;
+    this.log = []; // what happened, for the test hook and debugging
+  }
+
+  get you() {
+    return this.room?.you;
+  }
+
+  // ---------- starting ----------
+
+  begin() {
+    const { game, cards } = this;
+    game.newPractice({ surface: prefs.get("pitchOptions", {}).surface });
+    if (!this.roomsUrl) {
+      cards.notice({
+        kicker: `PITCH ${this.code}`,
+        title: "No rooms here",
+        text: "This copy of the game has no room server, so friends cannot join this pitch. You can still play the computer.",
+        actions: [
+          ["PLAY THE COMPUTER", () => this.solo(), "go"],
+          ["HOME", this.home],
+        ],
+        test: "no-rooms",
+      });
+      return;
+    }
+    const name = cleanName(prefs.get("name", prefs.get("solo", {}).name));
+    this.name = name;
+    try {
+      this.room = connect({
+        url: this.roomsUrl,
+        room: this.code,
+        member: memberId(),
+        me: { name, level: game.level },
+        ...(this.WebSocket ? { WebSocket: this.WebSocket } : {}),
+      });
+    } catch (err) {
+      this.joinFailed(err);
+      return;
+    }
+    const room = this.room;
+
+    this.lobby = new Lobby(
+      cards,
+      game,
+      {
+        name: (t) => this.setName(t),
+        level: (v) => this.setLevel(v),
+        team: (side) => this.pickTeam(side),
+        option: (k, v) => this.setOption(k, v),
+        start: () => this.start(),
+        share: () => this.share(),
+        home: this.home,
+      },
+      { code: this.code, name, level: game.level },
+    );
+
+    this.buildHud();
+    game.seat = this.seatFor({ sides: [], cpu: false });
+    game.onAction = (a, snap, hash) => this.onAction(a, snap, hash);
+    game.onNeed = (need) => this.onNeed(need);
+    game.whoActs = (need) => this.who(need);
+    cards.who = (need) => this.who(need);
+
+    room.on("status", () => this.onStatus());
+    room.on("state", () => this.resync());
+    room.on("members", () => this.onMembers());
+    room.on("host", () => this.onMembers());
+    room.on("left", () => this.pruneLater());
+    room.on("doc", (e) => this.onDoc(e));
+    room.on("cast", (e) => this.onCast(e));
+    room.on("error", (e) => this.note("room", e.code));
+
+    this.lobby.show();
+    this.renderLobby();
+    room.ready.then(
+      () => this.onReady(),
+      (err) => this.joinFailed(err),
+    );
+    this.stuckTimer = setTimeout(() => {
+      if (room.status === "connecting")
+        this.lobby.say("Still trying to reach the pitch...");
+    }, tune.stuckMs);
+    this.timer = setInterval(() => this.tick(), tune.tickMs);
+  }
+
+  onReady() {
+    clearTimeout(this.stuckTimer);
+    const room = this.room;
+    if (this.lobby.note.textContent.startsWith("Still trying"))
+      this.lobby.say("");
+    // the host's own options go in on a new pitch
+    if (room.isHost() && room.v === 0) {
+      const o = cleanOptions(prefs.get("pitchOptions", {}));
+      this.write((doc) => setOptions(doc, o) ?? lobbyOf(doc));
+    }
+    this.resync();
+  }
+
+  joinFailed(err) {
+    clearTimeout(this.stuckTimer);
+    clearInterval(this.timer);
+    this.mode = "gone";
+    this.lobby?.hide();
+    const code = err instanceof RoomError ? err.code : "error";
+    const text = {
+      full: "Sixteen people are on this pitch already, every one of them connected. Start a pitch of your own, or try again when someone leaves.",
+      "bad-room":
+        "That is not a pitch's link. Pitch links come from the home page.",
+      replaced: "This pitch is open in another tab or window of this browser.",
+    }[code];
+    this.cards.notice({
+      kicker: `PITCH ${this.code}`,
+      title:
+        code === "full"
+          ? "This pitch is full"
+          : code === "bad-room"
+            ? "No such pitch"
+            : code === "replaced"
+              ? "Open somewhere else"
+              : "Could not join",
+      text:
+        text ||
+        `Something went wrong joining the pitch (${String(err?.message || err)}).`,
+      actions: [
+        code === "replaced"
+          ? ["USE IT HERE", () => location.reload(), "go"]
+          : ["START A PITCH", () => (location.href = "/p/"), "go"],
+        ["HOME", this.home],
+      ],
+      test: `join-${code}`,
+    });
+  }
+
+  solo() {
+    const u = new URL(location.href);
+    u.searchParams.set("solo", "1");
+    location.href = u.toString();
+  }
+
+  // ---------- writing the document ----------
+
+  // room.update with the errors turned into a word in the lobby; resolves
+  // the result or null.
+  async write(fn, opts) {
+    try {
+      return await this.room.update(fn, opts);
+    } catch (err) {
+      this.note("write", err.code);
+      if (err.code === "uncertain" || err.code === "busy") this.resync();
+      else if (this.lobby?.shown) this.lobby.say(plainError(err));
+      return null;
+    }
+  }
+
+  // ---------- the lobby ----------
+
+  setName(text) {
+    const name = cleanName(text);
+    if (name === this.name) return;
+    this.name = name;
+    prefs.set("name", name);
+    this.room.setMe({ name });
+  }
+
+  setLevel(v) {
+    this.game.setLevel(v);
+    this.room?.setMe({ level: v });
+  }
+
+  async pickTeam(side) {
+    this.setName(this.lobby.nameInput.value);
+    const doc = this.room.doc;
+    const full = side && lobbyOf(doc).teams[side].length >= 6;
+    const r = await this.write((d) => joinTeam(d, this.you, side));
+    if (!r && full) this.lobby.say(`Team ${side} is full.`);
+    this.renderLobby();
+  }
+
+  setOption(k, v) {
+    if (!this.room.isHost()) return;
+    prefs.set("pitchOptions", {
+      ...prefs.get("pitchOptions", {}),
+      [k]: v,
+    });
+    this.write((d) => setOptions(d, { [k]: v }));
+  }
+
+  async share() {
+    const url = location.origin + location.pathname;
+    const btn = this.lobby.shareBtn;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Kubb: Throwing Wood", url });
+        return;
+      }
+    } catch (err) {
+      if (err && err.name === "AbortError") return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      btn.textContent = "LINK COPIED";
+    } catch {
+      btn.textContent = "COPY FAILED";
+      this.lobby.say(`The link is ${url}`);
+    }
+    setTimeout(() => (btn.textContent = "SHARE THE LINK"), 2000);
+  }
+
+  nameOf(id) {
+    if (!id) return "";
+    const m = this.room?.members.find((x) => x.id === id);
+    const n = cleanName(m?.me?.name);
+    if (n) return n;
+    for (const s of ["A", "B"]) {
+      const p = this.match?.players?.[s]?.find((x) => x.id === id);
+      if (p) return p.name;
+    }
+    return "Someone";
+  }
+
+  renderLobby() {
+    if (!this.lobby || this.mode !== "lobby") return;
+    const r = this.room;
+    this.lobby.update({
+      you: r.you,
+      host: r.host,
+      members: r.members,
+      doc: r.doc,
+      status: r.status,
+      nameOf: (id) => this.nameOf(id),
+    });
+  }
+
+  // The host forgets members who left the room for good, between matches.
+  pruneLater() {
+    clearTimeout(this.pruneTimer);
+    this.pruneTimer = setTimeout(() => {
+      if (!this.room.isHost() || this.mode !== "lobby") return;
+      const ids = this.room.members.map((m) => m.id);
+      this.write((d) => pruneTeams(d, ids));
+    }, 300);
+  }
+
+  // START (the host): the match is made here, then committed.
+  async start() {
+    const room = this.room;
+    if (!room.isHost() || this.mode !== "lobby") return;
+    this.setName(this.lobby.nameInput.value);
+    const doc = room.doc;
+    const lu = lineup(doc, room.members);
+    if (!lu) {
+      this.lobby.say("Nobody is on a team yet.");
+      return;
+    }
+    const now = new Date();
+    const opts = matchOptions(doc, lu, {
+      seed: Math.floor(Math.random() * 2 ** 31),
+      start: {
+        year: now.getFullYear(),
+        month: now.getMonth() + 1,
+        day: now.getDate(),
+        hour: now.getHours(),
+        min: now.getMinutes(),
+      },
+    });
+    const n = lobbyOf(doc).n + 1;
+    this.match = { players: lu.players, cpu: lu.cpu };
+    this.local = { n, seq: 0 };
+    this.mode = "match";
+    this.lobby.hide();
+    this.control = controlFor(this.ctx(), this.you);
+    this.game.seat = this.seatFor(this.control);
+    this.game.newMatch(opts);
+    const snap = this.game.engine.snapshot();
+    const hash = this.game.engine.hash().hash;
+    this.pending++;
+    const r = await this.write((d) =>
+      startMatch(d, {
+        snap,
+        hash,
+        players: lu.players,
+        cpu: lu.cpu,
+        host: room.you,
+      }),
+    );
+    this.pending--;
+    if (!r) this.resync();
+    this.afterEnter();
+  }
+
+  // REMATCH (the host): back to the lobby with the same teams.
+  rematch() {
+    this.write((d) => backToLobby(d, this.local.n));
+  }
+
+  // ---------- the match ----------
+
+  ctx() {
+    const r = this.room;
+    return {
+      players: this.match?.players || { A: [], B: [] },
+      cpu: this.match?.cpu ?? null,
+      host: r?.host,
+      connected: new Set(
+        (r?.members || []).filter((m) => m.connected).map((m) => m.id),
+      ),
+    };
+  }
+
+  seatFor(control) {
+    return {
+      sides: control.sides,
+      cpu: control.cpu,
+      mayAct: (need) =>
+        this.mode === "match" && mayAct(need, this.ctx(), this.you),
+    };
+  }
+
+  // Seats are recomputed when members or the host change, and on the
+  // controller's clock; never in the middle of a playback.
+  refreshSeat() {
+    const game = this.game;
+    if (this.mode !== "match" || game.phase === "play") return;
+    const c = controlFor(this.ctx(), this.you);
+    game.localSide = playingSide(this.ctx(), this.you);
+    if (!sameControl(c, this.control)) {
+      const gotCpu = c.cpu && !this.control?.cpu;
+      this.control = c;
+      game.setSeat(this.seatFor(c));
+      // the new host takes over a computer's throw the old host was holding
+      if (gotCpu && game.need?.cpu && !this.busy())
+        game.adopt(game.engine.snapshot());
+      return;
+    }
+    // a raise or punishment kubb that has become (or stopped being) ours
+    if (["wait", "raise", "punish"].includes(game.phase)) {
+      const may = game.mayAct();
+      if (may !== (game.phase !== "wait")) game.enter(game.engine.view());
+    }
+  }
+
+  busy() {
+    return this.pending > 0 || this.queue.length > 0;
+  }
+
+  // An action taken here: commit the snapshot after it, the action riding
+  // along for the others to watch.
+  onAction(action, snap, hash) {
+    if (this.mode !== "match" || snap == null) return;
+    const n = this.local.n;
+    const seq = this.local.seq + 1;
+    this.local.seq = seq;
+    this.pending++;
+    const w = rider(n, seq, action, this.room.limits?.withBytes ?? 4096);
+    if (!w) this.note("too-big-for-with", action.type);
+    this.room
+      .update(
+        (d) => commitAction(d, { n, seq, snap, hash }),
+        w ? { with: w } : {},
+      )
+      .then(
+        (r) => {
+          this.pending--;
+          this.note("commit", seq, r ? "ok" : "lost");
+          // lost: someone else acted first; their document is already here
+          if (!r) this.resync();
+        },
+        (err) => {
+          this.pending--;
+          this.note("commit", seq, err.code);
+          this.resync();
+        },
+      );
+  }
+
+  onDoc({ doc, with: w, mine }) {
+    this.handleDoc(doc, w, mine);
+  }
+
+  // Look at the room's document as it is now.
+  resync() {
+    if (!this.room || this.mode === "gone") return;
+    this.handleDoc(this.room.doc, undefined, false);
+    this.onMembers();
+  }
+
+  handleDoc(doc, w, mine) {
+    if (this.mode === "gone") return;
+    const d = decide(this.local, doc, w, mine);
+    switch (d.kind) {
+      case "lobby":
+        if (this.mode === "match") this.toLobby();
+        this.renderLobby();
+        return;
+      case "start":
+        return this.enterMatch(d.match);
+      case "old":
+        return;
+      case "same":
+        if (!this.busy() && this.game.engine.hash().hash !== d.match.hash) {
+          this.note("adopt", d.match.seq, "hash");
+          this.adoptMatch(d.match);
+        }
+        return;
+      case "apply":
+        this.queue.push({
+          seq: d.match.seq,
+          action: d.action,
+          hash: d.match.hash,
+          snap: d.match.snap,
+        });
+        this.local.seq = d.match.seq;
+        this.drain();
+        return;
+      case "adopt":
+        this.note("adopt", d.match.seq, d.why);
+        this.adoptMatch(d.match);
+        return;
+    }
+  }
+
+  // Play the queued actions, one playback at a time; each must end on the
+  // committed hash, or the committed snapshot is taken.
+  drain() {
+    const game = this.game;
+    while (this.queue.length && game.phase !== "play") {
+      const e = this.queue.shift();
+      let r;
+      try {
+        r = game.applyRemote(e.action);
+      } catch (err) {
+        r = { ok: false, why: String(err?.message || err) };
+      }
+      const ok = r && r.ok !== false && game.engine.hash().hash === e.hash;
+      this.note("apply", e.seq, ok ? "ok" : "adopt");
+      if (!ok) {
+        this.queue.length = 0;
+        game.adopt(e.snap);
+        this.local.seq = e.seq;
+      }
+    }
+  }
+
+  enterMatch(m) {
+    this.mode = "match";
+    this.match = { players: m.players, cpu: m.cpu };
+    this.local = { n: m.n, seq: m.seq };
+    this.queue.length = 0;
+    this.lobby?.hide();
+    this.cards.close();
+    this.game.shownCards.clear();
+    this.control = controlFor(this.ctx(), this.you);
+    this.game.seat = this.seatFor(this.control);
+    this.game.localSide = playingSide(this.ctx(), this.you);
+    this.game.adopt(m.snap);
+    this.note("start", m.n, m.seq);
+    if (!this.game.localSide) {
+      this.watchNoteUntil = Date.now() + tune.watchNoteMs;
+    }
+    this.afterEnter();
+  }
+
+  afterEnter() {
+    this.shoutBar.hidden = false;
+    this.lastAim = "";
+  }
+
+  adoptMatch(m) {
+    this.queue.length = 0;
+    this.local.seq = m.seq;
+    this.game.adopt(m.snap);
+  }
+
+  toLobby() {
+    this.mode = "lobby";
+    this.match = null;
+    this.local = { n: null, seq: 0 };
+    this.queue.length = 0;
+    this.control = null;
+    this.cards.close();
+    this.cards.clearPanel();
+    this.game.seat = this.seatFor({ sides: [], cpu: false });
+    this.game.newPractice({ surface: lobbyOf(this.room.doc).options.surface });
+    this.shoutBar.hidden = true;
+    // the level may have changed from the menu during the match
+    this.lobby.setLevel(this.game.level);
+    this.room.setMe({ level: this.game.level });
+    this.lobby.show();
+    this.renderLobby();
+  }
+
+  onNeed(need) {
+    this.lastAim = "";
+    setTimeout(() => this.drain(), 0);
+    if (this.mode !== "match" || need.kind !== "over") return;
+    const host = this.room.isHost();
+    this.cards.winner(need, {
+      rematch: host ? () => this.rematch() : null,
+      home: this.home,
+      note: host ? null : `${this.nameOf(this.room.host)} can start a rematch.`,
+    });
+  }
+
+  // Who acts, for the HUD and the engine's cards.
+  who(need) {
+    if (this.mode !== "match" || !need || need.kind === "over") return null;
+    const ctx = this.ctx();
+    const actor = shownActor(need, ctx);
+    if (actor === "cpu") return { text: "COMPUTER THROWS", mine: false };
+    const mine = mayAct(need, ctx, this.you);
+    const up = (s) => s.toUpperCase();
+    if (need.kind === "throw") {
+      const owner = need.setup?.thrower?.key;
+      if (mine)
+        return {
+          text:
+            owner && owner !== this.you
+              ? `YOUR THROW FOR ${up(this.nameOf(owner))}`
+              : "YOUR THROW",
+          mine,
+        };
+      return { text: `${up(this.nameOf(actor))} THROWS`, mine };
+    }
+    const team = up(
+      need.team || need.teams?.[need.side] || `TEAM ${need.side}`,
+    );
+    const verb = need.kind === "raise" ? "RAISES" : "PLACES A KUBB";
+    if (mine)
+      return {
+        text: need.kind === "raise" ? "YOUR RAISE" : "PLACE YOUR KUBB",
+        mine,
+      };
+    const many = ctx.players[need.side]?.length > 1;
+    return { text: `${many ? team : up(this.nameOf(actor))} ${verb}`, mine };
+  }
+
+  // ---------- the room's news ----------
+
+  onStatus() {
+    const s = this.room.status;
+    if (s === "replaced") return this.joinFailed(new RoomError("replaced", ""));
+    this.renderNet();
+    this.renderLobby();
+  }
+
+  onMembers() {
+    const host = this.room.members.find((m) => m.id === this.room.host);
+    if (host && host.connected) this.hostGoneAt = null;
+    this.refreshSeat();
+    this.renderLobby();
+  }
+
+  onCast({ from, d }) {
+    if (!d || typeof d !== "object") return;
+    if (d.t === "aim" && this.mode === "match") this.game.showRemoteAim(d.s);
+    else if (d.t === "shout" && SHOUTS.includes(d.w)) this.showShout(from, d.w);
+  }
+
+  tick() {
+    const room = this.room;
+    if (!room || this.mode === "gone") return;
+    this.drain();
+    this.refreshSeat();
+    this.castAim();
+    this.checkHost();
+    this.renderNet();
+  }
+
+  // While it is this browser's throw: its aim, about 5 a second, when it changed.
+  castAim() {
+    const game = this.game;
+    if (
+      this.mode !== "match" ||
+      game.phase !== "aim" ||
+      game.need?.kind !== "throw" ||
+      !game.mayAct()
+    )
+      return;
+    let st;
+    try {
+      st = game.aimState();
+    } catch {
+      return;
+    }
+    const key = aimKey(st);
+    if (key === this.lastAim) return;
+    if (this.room.cast({ t: "aim", s: st })) this.lastAim = key;
+  }
+
+  // The host has been away a while: the next in line claims.
+  checkHost() {
+    const room = this.room;
+    if (room.status !== "open" || room.isHost()) return;
+    const host = room.members.find((m) => m.id === room.host);
+    if (host && host.connected) {
+      this.hostGoneAt = null;
+      return;
+    }
+    const now = Date.now();
+    this.hostGoneAt ??= now;
+    if (host && now - this.hostGoneAt < tune.hostGoneMs) return;
+    if (nextHost(room.members, room.host) !== room.you) return;
+    if (now - this.lastClaim < tune.claimEveryMs) return;
+    this.lastClaim = now;
+    this.note("claim");
+    room.claimHost();
+  }
+
+  // ---------- the HUD: connection, shouts ----------
+
+  buildHud() {
+    this.net = h("div.hud.net", { "data-test": "net", hidden: true });
+    this.shouts = h("ul.shouts", { "aria-live": "polite" });
+    const opts = h(
+      "div.shout-opts",
+      { hidden: true },
+      SHOUTS.map((w) =>
+        button(w, () => this.shout(w), "small", { "data-shout": w }),
+      ),
+    );
+    const toggle = button(
+      "SHOUT",
+      () => {
+        opts.hidden = !opts.hidden;
+        toggle.setAttribute("aria-expanded", String(!opts.hidden));
+      },
+      "small",
+      { "aria-expanded": "false", "data-test": "shout" },
+    );
+    this.shoutOpts = opts;
+    this.shoutBar = h("div.shout-bar", { hidden: true }, toggle, opts);
+    this.ui.append(this.net, this.shoutBar, this.shouts);
+  }
+
+  shout(w) {
+    const now = Date.now();
+    this.shoutOpts.hidden = true;
+    if (now - this.lastShout < tune.shoutGapMs) return;
+    this.lastShout = now;
+    this.room.cast({ t: "shout", w });
+    this.showShout(this.you, w);
+  }
+
+  showShout(from, w) {
+    const li = h(
+      "li.shout",
+      { "data-from": from },
+      h("span.shout-name", this.nameOf(from)),
+      h("span.shout-word", w),
+    );
+    this.shouts.append(li);
+    while (this.shouts.children.length > 4) this.shouts.firstChild.remove();
+    setTimeout(() => li.remove(), tune.shoutMs);
+  }
+
+  renderNet() {
+    const s = this.room?.status;
+    let text = "";
+    if (this.mode === "match") {
+      if (s === "reconnecting" || s === "connecting") text = "RECONNECTING";
+      else if (Date.now() < this.watchNoteUntil)
+        text =
+          "THE MATCH IS UNDER WAY: YOU ARE WATCHING. PICK A SIDE FOR THE NEXT ONE.";
+    }
+    if (this.net.textContent !== text) {
+      this.net.textContent = text;
+      this.net.hidden = !text;
+      this.net.classList.toggle("warn", text === "RECONNECTING");
+    }
+  }
+
+  note(...what) {
+    this.log.push([Date.now(), ...what]);
+    if (this.log.length > 200) this.log.shift();
+  }
+
+  // For tests (window.__kubb.pitch).
+  state() {
+    const g = this.game;
+    return {
+      mode: this.mode,
+      you: this.you,
+      host: this.room?.host,
+      status: this.room?.status,
+      local: { ...this.local },
+      pending: this.pending,
+      queued: this.queue.length,
+      v: this.room?.v,
+      docSeq: this.room?.doc?.match?.seq ?? null,
+      docHash: this.room?.doc?.match?.hash ?? null,
+      hash: g.mode === "match" ? g.engine.hash().hash : null,
+      phase: g.phase,
+      side: sideOf(this.room?.doc, this.you),
+      playing: this.mode === "match" ? playingSide(this.ctx(), this.you) : null,
+      control: this.control,
+      mayAct: this.mode === "match" ? g.mayAct() : false,
+      who: g.whoActs?.(g.need) ?? null,
+    };
+  }
+}
+
+function plainError(err) {
+  const c = err?.code;
+  if (c === "too-big") return "That was too big for the room.";
+  if (c === "closed") return "The connection to the pitch is closed.";
+  return "The pitch did not take that. Try again.";
+}

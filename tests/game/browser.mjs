@@ -2,6 +2,7 @@
 // screenshot and swing-feel runs: build dist once, serve it through
 // tools/preview.mjs on a free 127.0.0.1 port, and drive the game's dial with
 // a scripted pointer.
+import fs from "node:fs/promises";
 import { chromium, devices } from "playwright";
 import { buildSite } from "../../tools/build.mjs";
 import { startPreview } from "../../tools/preview.mjs";
@@ -26,9 +27,21 @@ export const VIEWPORTS = {
   },
 };
 
+// Each test file runs in its own process, so two may build at once: the build
+// runs under a lock, and each process serves its own copy of what it built
+// (build/test-dist-<pid>, removed on close), so another file's rebuild never
+// changes the files under a running test.
 export async function serve({ build = true } = {}) {
-  if (build) await buildSite({ quiet: true });
-  const server = await startPreview({ port: 0, root: "dist" });
+  let root = "dist";
+  if (build) {
+    root = `build/test-dist-${process.pid}`;
+    await withLock("build/dist.lock", async () => {
+      await buildSite({ quiet: true });
+      await fs.rm(root, { recursive: true, force: true });
+      await fs.cp("dist", root, { recursive: true });
+    });
+  }
+  const server = await startPreview({ port: 0, root });
   const base = `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch();
   return {
@@ -37,8 +50,30 @@ export async function serve({ build = true } = {}) {
     async close() {
       await browser.close();
       await new Promise((r) => server.close(r));
+      if (root !== "dist") await fs.rm(root, { recursive: true, force: true });
     },
   };
+}
+
+async function withLock(dir, fn, staleMs = 180000) {
+  await fs.mkdir("build", { recursive: true });
+  for (;;) {
+    try {
+      await fs.mkdir(dir);
+      break;
+    } catch (err) {
+      if (err.code !== "EEXIST") throw err;
+      const st = await fs.stat(dir).catch(() => null);
+      if (st && Date.now() - st.mtimeMs > staleMs)
+        await fs.rm(dir, { recursive: true, force: true });
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 }
 
 // A page on `path`, with its console errors collected in page.errors.

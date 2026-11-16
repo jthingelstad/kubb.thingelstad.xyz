@@ -45,7 +45,11 @@ export class Menu {
       clear(body);
       const n = game.need;
       const canResign =
-        game.mode === "match" && n && n.kind !== "over" && this.hooks.resign;
+        game.mode === "match" &&
+        n &&
+        n.kind !== "over" &&
+        game.localSide !== null &&
+        this.hooks.resign;
       body.append(
         h("h2.display", "Menu"),
         h(

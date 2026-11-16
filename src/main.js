@@ -4,10 +4,9 @@
 //
 //   /practice/         the open practice pitch
 //   /p/<code>?solo=1   a match against the computer on this pitch
-//   /p/<code>          MULTIPLAYER SEAM: the room client is not wired yet,
-//                      so this shows "multiplayer is coming" with PLAY THE
-//                      COMPUTER. The room client replaces startPitch() below
-//                      and drives the same Game through its seam.
+//   /p/<code>          a shared pitch: the lobby, then a match with friends
+//                      on the link (src/net/pitch.js, docs/MULTIPLAYER.md),
+//                      driving the same Game through its seam
 import { readConfig, pitchCode } from "./site/config.js";
 import { Engine } from "./engine/index.js";
 import { Game } from "./game/game.js";
@@ -17,6 +16,7 @@ import { Cards } from "./ui/cards.js";
 import { Menu } from "./ui/menu.js";
 import { showHowto, shouldShowHowto } from "./ui/howto.js";
 import { h, button } from "./ui/dom.js";
+import { startPitch } from "./net/pitch.js";
 
 const config = readConfig();
 const ui = document.getElementById("ui");
@@ -85,7 +85,7 @@ async function boot() {
   const code = pitchCode();
 
   if (testing) {
-    window.__kubb = { engine, game, sound, cards, menu, config };
+    window.__kubb = { engine, game, sound, cards, menu, config, pitch: null };
   }
   loading.remove();
 
@@ -94,7 +94,15 @@ async function boot() {
   } else if (params.get("solo") === "1") {
     startSolo(game, cards);
   } else {
-    startPitch(game, cards, code);
+    const pitch = startPitch({
+      game,
+      cards,
+      ui,
+      code,
+      home,
+      roomsUrl: roomsUrl(),
+    });
+    if (testing) window.__kubb.pitch = pitch;
   }
   game.start();
   document.body.dataset.ready = "1";
@@ -180,23 +188,14 @@ function startSolo(game, cards) {
   options();
 }
 
-// ---------- the multiplayer seam ----------
+// ---------- a shared pitch ----------
 
-// MULTIPLAYER SEAM. A pitch link without ?solo=1. The room client (src/net)
-// takes over here: it joins the room, builds the seat from the lobby,
-// passes onAction to the room, and calls game.applyRemote,
-// game.showRemoteAim and game.adopt as messages arrive. Until then the link
-// says so and offers the computer.
-function startPitch(game, cards, code) {
-  game.newPractice({ surface: "grass" });
-  cards.multiplayer(code, {
-    solo: () => {
-      const u = new URL(location.href);
-      u.searchParams.set("solo", "1");
-      location.href = u.toString();
-    },
-    home,
-  });
+// The room server's address: the build's, or, only when testing (127.0.0.1,
+// localhost or ?test=1), a ?rooms= override so a test can run its own.
+function roomsUrl() {
+  const o = params.get("rooms");
+  if (testing && o && /^wss?:\/\//.test(o)) return o;
+  return config.roomsUrl;
 }
 
 boot().catch(fail);
