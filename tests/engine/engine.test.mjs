@@ -64,7 +64,7 @@ test("two browsers play a whole match in step; a third joins mid-match", async (
   const actor = await Engine.create({ sources });
   const watcher = await Engine.create({ sources });
   actor.newMatch({
-    seed: 42,
+    seed: 5, // 42 ended on turn 3 once drills ran on (playdate-kubb #121)
     cpu: "B",
     start: START,
     wind: "light",
