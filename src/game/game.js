@@ -23,6 +23,8 @@
 //                             pitch, src/net/pitch.js)
 //
 // Solo is only this: the local seat owns team A and runs the computer, B.
+// The computer against itself: the seat owns no side and runs the computer,
+// and `unattended` is set, so the match goes on in a hidden tab too.
 import {
   drawWorld,
   drawDial,
@@ -53,6 +55,8 @@ export const tune = {
   flagFor: 6, // s a result flag stays up into the next aim
   keyMove: 1, // the move and walk axes from keys
   holdFeed: 1 / 30 - 0.002, // s: a held pointer's arm is fed again after this
+  hiddenEvery: 1, // s between steps of an unattended game in a hidden tab
+  hiddenCatchUp: 90, // s of missed time one such step makes up, at most
 };
 
 const ZERO = { dx: 0, dy: 0 };
@@ -99,6 +103,9 @@ export class Game {
     this.raiseSel = null;
     this.punishAt = null;
     this.running = false;
+    this.unattended = false; // nobody plays here: keep going while hidden
+    this.quiet = false; // stepping without drawing (a hidden tab)
+    this.hiddenTimer = null;
     this.lastT = 0;
     this.W = 0;
     this.H = 0;
@@ -253,7 +260,7 @@ export class Game {
       if (!this.running) return;
       this.raf = requestAnimationFrame(step);
       if (document.hidden) {
-        this.lastT = now;
+        if (!this.unattended) this.lastT = now;
         return;
       }
       const dt = Math.min(tune.maxDt, Math.max(0, (now - this.lastT) / 1000));
@@ -270,12 +277,55 @@ export class Game {
       // back from a hidden tab: start the clock again, never a huge dt
       this.lastT = performance.now();
       if (document.hidden) this.releaseAll();
+      this.background();
     });
+    this.background();
   }
 
   stop() {
     this.running = false;
     cancelAnimationFrame(this.raf);
+    this.background();
+  }
+
+  // A hidden tab gets no animation frames. An unattended game (the computer
+  // against itself) is stepped there by a timer instead, drawing nothing and
+  // skipping each throw's playback, so the match keeps its pace. Browsers run
+  // a hidden tab's timer about once a second, or once a minute after a few
+  // minutes; each step makes up the time since, up to tune.hiddenCatchUp.
+  background() {
+    const want = this.running && this.unattended && document.hidden;
+    if (want && !this.hiddenTimer) {
+      this.hiddenTimer = setInterval(
+        () => this.hiddenStep(),
+        tune.hiddenEvery * 1000,
+      );
+    } else if (!want && this.hiddenTimer) {
+      clearInterval(this.hiddenTimer);
+      this.hiddenTimer = null;
+    }
+  }
+
+  hiddenStep(now = performance.now()) {
+    let left = Math.min(
+      tune.hiddenCatchUp,
+      Math.max(0, (now - this.lastT) / 1000),
+    );
+    this.lastT = now;
+    this.quiet = true;
+    try {
+      while (left > 1e-6 && this.running) {
+        const dt = Math.min(tune.maxDt, left);
+        left -= dt;
+        this.tick(dt, now);
+      }
+    } catch (err) {
+      this.running = false;
+      this.background();
+      this.onError?.(err);
+    } finally {
+      this.quiet = false;
+    }
   }
 
   destroy() {
@@ -286,7 +336,7 @@ export class Game {
   }
 
   tick(dt, now) {
-    this.resizeIfNeeded();
+    if (!this.quiet) this.resizeIfNeeded();
     if (this.phase === "aim") this.aimFrame(dt, now);
     else if (this.phase === "play") this.playFrame(dt, now);
     else this.drawStill();
@@ -400,6 +450,7 @@ export class Game {
 
   playFrame(dt, now) {
     const p = this.play;
+    if (this.quiet && !p.skipped) this.skip();
     if (!p.done) {
       const s = this.engine.showAt(p.t);
       p.last = s;
@@ -434,7 +485,7 @@ export class Game {
       if (p.hold >= tune.holdAfter && !burstsLive) return this.endPlayback();
     }
     const s = p.last;
-    if (s) this.drawPlay(s, now);
+    if (s && !this.quiet) this.drawPlay(s, now);
   }
 
   endPlayback() {
@@ -603,6 +654,7 @@ export class Game {
   }
 
   drawAim(aim, camera, dial, may, dt) {
+    if (this.quiet) return;
     const v = this.viewData || {};
     const marker = aim.marker && aim.marker.shown !== false ? aim.marker : null;
     if (marker) {
@@ -713,7 +765,7 @@ export class Game {
 
   drawStill() {
     const n = this.need;
-    if (!n) return;
+    if (!n || this.quiet) return;
     const v = this.viewData || {};
     const still = n.kind === "raise" || n.kind === "punish";
     if (still)

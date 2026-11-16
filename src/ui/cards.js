@@ -75,13 +75,30 @@ export class Cards {
     if (who && !who.mine) setTimeout(done, tune.watchCardMs);
   }
 
-  winner(need, { rematch, home, note = null }) {
+  // again: the rematch button's words; stop: a STOP button that calls it and
+  // takes itself and the note away (the computer against itself).
+  winner(need, { rematch, again = "REMATCH", home, note = null, stop = null }) {
     const w = need.winner || {};
     const stats = [`${w.turns} ${w.turns === 1 ? "turn" : "turns"}`];
     if (w.minutes != null)
       stats.push(w.minutes < 1 ? "under a min" : `${w.minutes} min`);
     if (w.thrown)
       stats.push(`baton hits ${Math.round((100 * w.hits) / w.thrown)}%`);
+    const noteEl = note
+      ? h("p.waiting", { "data-test": "winner-note" }, note)
+      : null;
+    const stopBtn = stop
+      ? button(
+          "STOP",
+          () => {
+            stop();
+            noteEl?.remove();
+            stopBtn.remove();
+          },
+          "",
+          { "data-test": "stop" },
+        )
+      : null;
     const el = h(
       "div.card.winner",
       { "data-test": "winner" },
@@ -97,15 +114,16 @@ export class Cards {
             ),
           )
         : null,
-      note ? h("p.waiting", note) : null,
+      noteEl,
       h(
         "div.row",
         rematch
-          ? button("REMATCH", rematch, "go", {
+          ? button(again, rematch, "go", {
               "data-default": true,
               "data-test": "rematch",
             })
           : null,
+        stopBtn,
         button("HOME", home, rematch ? "" : "go", {
           "data-default": !rematch,
         }),

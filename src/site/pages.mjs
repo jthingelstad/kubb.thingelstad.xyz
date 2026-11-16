@@ -65,6 +65,7 @@ function home({ tinylytics }) {
       <a class="button button--start" href="/p/" data-pitch="">Start a pitch</a>
       <div class="actions__more">
         <a class="button" href="/p/?solo=1" data-pitch="?solo=1">Play the computer</a>
+        <a class="button" href="/p/?watch=1" data-pitch="?watch=1">Watch the computer</a>
         <a class="button" href="/practice/">Practice</a>
       </div>
     </div>
@@ -79,7 +80,7 @@ function home({ tinylytics }) {
     <li><strong>Send the link.</strong> Whoever opens it joins you, types a name and picks a team, up to six a side. An empty side is played by the computer.</li>
     <li><strong>Throw wood.</strong> Everyone watches every throw. Knock down their kubbs, then the king.</li>
   </ol>
-  <p>No one to play with? Play the computer on a pitch of your own, or throw batons on the practice pitch.</p>
+  <p>No one to play with? Play the computer on a pitch of your own, or throw batons on the practice pitch. Or watch the computer play itself, one match after another.</p>
   <p>Matches are recorded, with the names typed, so the game can be tested against real play. They are not published.</p>
 </section>
 <section class="frame about" aria-labelledby="about">
