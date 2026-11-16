@@ -15,7 +15,8 @@
 // one after (before + last replays the reported moment). For practice: its options and
 // every throw and pitch change since it was set out (they replay it from newPractice). On
 // a shared pitch also the room code and the document version `v`, which join the report to
-// the recorded game. No name field, no user agent, no member id: names are only what the
+// the recorded game. No name field, no user agent, no member id (each is swapped for
+// "member1", "member2", ... everywhere, snapshots included): names are only what the
 // match options and snapshots already carry.
 //
 // The whole message is held to LIMITS.reportBytes as ASCII JSON. When it would not fit,
@@ -150,7 +151,47 @@ export function captureReport({
     r.actions = trail.actions;
   }
   r.pieces = pieces(view?.items);
-  return r;
+  // A copy, never the trail's own arrays: the trail goes on growing while the card is
+  // open (the computer, the other players), and the report is the game as it stood.
+  return pseudonymise(structuredClone(r), memberIds({ pitch, trail }));
+}
+
+// Room member ids are kept in each browser (src/net/room.js memberId), so they would
+// name the browser; a match's players carry them as their `key`. A report swaps each
+// for "member1", "member2", ... in every place it appears, the snapshot strings too,
+// the same way throughout, so the report still replays.
+const MEMBER_ID = /^[A-Za-z0-9_-]{8,40}$/;
+
+function memberIds({ pitch, trail }) {
+  const ids = new Set();
+  const add = (id) =>
+    typeof id === "string" && MEMBER_ID.test(id) && ids.add(id);
+  for (const m of pitch?.room?.members ?? []) add(m?.id);
+  add(pitch?.room?.me?.id);
+  add(pitch?.room?.you);
+  if (trail?.kind === "match")
+    for (const snap of [trail.start, trail.before, trail.now]) {
+      let o = null;
+      try {
+        o = snap ? JSON.parse(snap).opts : null;
+      } catch {
+        o = null;
+      }
+      for (const t of Object.values(o?.teams ?? {}))
+        for (const p of t?.players ?? []) add(p?.key);
+    }
+  return [...ids];
+}
+
+export function pseudonymise(r, ids) {
+  if (!ids.length) return r;
+  let text = JSON.stringify(r);
+  ids
+    .sort((a, b) => b.length - a.length)
+    .forEach((id, i) => {
+      text = text.split(id).join(`member${i + 1}`);
+    });
+  return JSON.parse(text);
 }
 
 // The message for the server: the captured state with the answers, cut to fit.

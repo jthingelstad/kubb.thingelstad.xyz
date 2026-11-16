@@ -177,7 +177,10 @@ or "The report was not sent." with the reason, and the answers stay to send agai
   `config.core`, the vendored core's commit), the viewport, the browser's clock, the turn
   and phase, the last throw's action and result, the pieces where they stand, and on a
   shared pitch the room code, `v` and the match's `n` and `seq`. Never the user agent or
-  the member id. `reportMessage` holds it to 64 KB, dropping the history, then the
+  a member id: a match's players carry their member id as `key`, so `captureReport`
+  swaps every member id for `member1`, `member2`, ... throughout (the snapshot strings
+  too, the same way everywhere, so it still replays). It copies the history when the
+  card opens, so what is played while it is open is not in the report. `reportMessage` holds it to 64 KB, dropping the history, then the
   pieces, then the snapshot after (listed in `r.dropped`); never the answers.
 - `tests/net/reports.test.mjs` covers the payload and the replay; `client.test.mjs` sends
   one from a solo match, practice and watching, against `tools/rooms-dev.mjs`.

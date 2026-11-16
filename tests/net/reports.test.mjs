@@ -214,15 +214,15 @@ test("the S3 reporter writes one gzipped object under reports/", async () => {
 
 // A Game-shaped object over a real engine that tracks actions the way
 // src/game/game.js does (startTrail / track).
-async function soloGame(n = 3) {
+async function soloGame(n = 3, keys = {}) {
   const engine = await Engine.create({ sources });
   engine.newMatch({
     seed: 11,
     cpu: "both",
     start: { year: 2026, month: 11, day: 16, hour: 9, min: 0 },
     teams: {
-      A: { name: "North", players: [{ name: "Åsa" }] },
-      B: { name: "South", players: [{ name: "Bo" }] },
+      A: { name: "North", players: [{ name: "Åsa", key: keys.A }] },
+      B: { name: "South", players: [{ name: "Bo", key: keys.B }] },
     },
   });
   const start = engine.snapshot();
@@ -284,7 +284,7 @@ test("the payload carries the match, the build, the viewport, and no person", as
   assert.equal(r.options.surface, "grass");
   assert.equal(r.actions.length, 3);
   assert.equal(r.last.type, "throw");
-  assert.equal(r.lastThrow.action, r.last);
+  assert.deepEqual(r.lastThrow.action, r.last);
   assert.equal(typeof r.lastThrow.result, "object");
   assert.ok(r.lastThrow.result.legal !== undefined);
   assert.equal(typeof r.snapshots.before, "string");
@@ -351,6 +351,59 @@ test("answers are clipped, and a report too big drops history, then pieces, neve
   assert.deepEqual(tiny.r.dropped, ["history", "pieces", "after"]);
   assert.equal(typeof tiny.r.snapshots.before, "string", "never cut");
   assert.equal(tiny.r.last.type, "throw", "never cut");
+});
+
+test("the report is the game as the card opened, whatever is played after", async () => {
+  const game = await soloGame(2);
+  const state = captureReport({
+    game,
+    mode: "watch",
+    config: CONFIG,
+    win: WIN,
+  });
+  game.trail.actions.push({ type: "throw", later: true });
+  const practice = {
+    engine: game.engine,
+    trail: { kind: "practice", opts: { level: "club" }, ops: [] },
+  };
+  const p = captureReport({ game: practice, mode: "practice", win: WIN });
+  practice.trail.ops.push({ type: "reset" });
+  assert.equal(state.actions.length, 2);
+  assert.equal(p.practice.ops.length, 0);
+});
+
+test("room member ids are swapped for member1, member2 everywhere, and it still replays", async () => {
+  const A = "Kq3_xY7-abcdEFGH";
+  const B = "Zz9988776655aaBB";
+  const game = await soloGame(2, { A, B });
+  const pitch = {
+    room: {
+      code: ROOM,
+      v: 3,
+      you: A,
+      members: [{ id: A }, { id: B }, { id: "Other123member" }],
+      doc: {},
+    },
+  };
+  assert.ok(game.trail.now.includes(A), "the snapshot carries the key");
+  const state = captureReport({
+    game,
+    mode: "pitch",
+    config: CONFIG,
+    pitch,
+    win: WIN,
+  });
+  const text = asciiJson(reportMessage(state, { happened: "h" }));
+  assert.ok(!text.includes(A) && !text.includes(B));
+  assert.ok(!text.includes("Other123member"));
+  assert.match(text, /member\d/);
+  const names = state.options.teams;
+  assert.match(names.A.players[0].key, /^member\d$/);
+  assert.notEqual(names.A.players[0].key, names.B.players[0].key);
+  const engine = await Engine.create({ sources });
+  const out = replayReport(engine, { t: 1, report: state });
+  assert.equal(out.same, true);
+  assert.equal(out.whole.same, true);
 });
 
 test("a shared pitch's report names the room and the version", async () => {

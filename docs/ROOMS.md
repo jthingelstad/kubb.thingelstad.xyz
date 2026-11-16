@@ -416,7 +416,9 @@ either: it checks the shape and the size, keeps the report and acknowledges it.
 - **What is kept.** One gzipped JSON object a report in the games bucket:
   `reports/<yyyy-mm-dd>/<epoch ms, 13 digits>-<8 random>.json.gz`, holding
   `{ t, report }`: the server's time and `r` as it came. The server adds nothing that
-  names the sender: no connection id, member id, address or browser string. Kept for
+  names the sender: no connection id, member id, address or browser string (the
+  browser has already swapped the players' member ids for `member1`, `member2`, ...;
+  so a report joins its recorded game by `room` and `v`, not by member). Kept for
   good, like the games (no lifecycle rule on the bucket).
 - **Joining a recorded game.** A shared pitch's report carries `room` and the document
   version `v` it had, so it joins `games/<room>/` at that version instead of copying it.
