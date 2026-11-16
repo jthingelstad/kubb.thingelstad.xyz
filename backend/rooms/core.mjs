@@ -18,6 +18,9 @@
 //                       (recorder.mjs). entry = { room, v, t, by, doc, with }; doc and with
 //                       are JSON text (with: null when there was none). It may fail: the
 //                       failure is logged and the room carries on.
+//   report(entry)    -> optional: keeps a player's report for good (reports.mjs).
+//                       entry = { t, report }; report is JSON text. Without it a `report`
+//                       message is answered `unavailable`.
 //
 // Invocations for one room run in parallel (one Lambda per message), so nothing here holds
 // state between calls except the cast rate buckets, which are only ever a best effort.
@@ -37,7 +40,18 @@ export const LIMITS = Object.freeze({
   roomTtl: 48 * 3600, // seconds a room and its document outlive their last write
   connTtl: 3 * 3600, // seconds a connection record lives (connections last 2 hours)
   partTtl: 600, // seconds an unfinished upload is kept
+  reportBytes: 64 * 1024, // a whole `report` message, as ASCII JSON
+  reportChars: 1000, // each of a report's two typed answers, in characters
+  reportsPerConn: 3, // reports one connection may send
 });
+
+// What a report says it came from (src/net/report.js).
+export const REPORT_MODES = Object.freeze([
+  "practice",
+  "solo",
+  "watch",
+  "pitch",
+]);
 
 // Room codes are made by the client: 8 to 24 characters with no 0, 1, i, l or o.
 export const ROOM_CODE = /^[2-9a-hjkmnp-z]{8,24}$/;
@@ -114,15 +128,46 @@ export class RoomError extends Error {
 const isObject = (x) =>
   x !== null && typeof x === "object" && !Array.isArray(x);
 
+// A `report` message checked: { t: "report", id?, r: { mode, happened, should, ... } }.
+// `bytes` is the message's size. Throws a RoomError, or returns the report object.
+export function checkReport(msg, bytes, limits = LIMITS) {
+  const id = msg.id ?? null;
+  const fail = (code, message) => {
+    throw new RoomError(code, message, { id });
+  };
+  if (bytes > limits.reportBytes)
+    fail("too-big", `A report is limited to ${limits.reportBytes} bytes.`);
+  const r = msg.r;
+  if (!isObject(r)) fail("bad-message", "`r` must be the report.");
+  if (!REPORT_MODES.includes(r.mode))
+    fail("bad-message", "The report's `mode` is not one the game has.");
+  for (const k of ["happened", "should"]) {
+    if (typeof r[k] !== "string") fail("bad-message", `\`${k}\` must be text.`);
+    if ([...r[k]].length > limits.reportChars)
+      fail(
+        "too-big",
+        `Each answer is limited to ${limits.reportChars} characters.`,
+      );
+  }
+  if (!r.happened.trim() && !r.should.trim())
+    fail("bad-message", "Say what happened, or what should have happened.");
+  if (r.room !== undefined && r.room !== null)
+    if (typeof r.room !== "string" || !ROOM_CODE.test(r.room))
+      fail("bad-room", "That is not a room code.");
+  return r;
+}
+
 export function createRooms({
   store,
   send,
   close = async () => {},
   record = null,
+  report: keepReport = null,
   now = Date.now,
   limits = LIMITS,
 }) {
   const buckets = new Map(); // conn -> { tokens, t, warned }
+  const reported = new Map(); // conn -> reports kept (best effort, like the buckets)
 
   const expiry = (seconds) => Math.floor(now() / 1000) + seconds;
 
@@ -540,6 +585,31 @@ export function createRooms({
       );
   }
 
+  // A player's report: any connection, joined to a room or not. Kept, then acknowledged.
+  async function report(conn, msg, bytes) {
+    const id = msg.id ?? null;
+    const r = checkReport(msg, bytes, limits);
+    if (!keepReport)
+      throw new RoomError("unavailable", "Reports are not kept here.", { id });
+    const count = reported.get(conn) ?? 0;
+    if (count >= limits.reportsPerConn)
+      throw new RoomError(
+        "too-many",
+        `A connection may send ${limits.reportsPerConn} reports.`,
+        { id },
+      );
+    if (reported.size > 5000) reported.clear();
+    reported.set(conn, count + 1);
+    try {
+      await keepReport({ t: now(), report: asciiJson(r) });
+    } catch (error) {
+      reported.set(conn, count);
+      console.error("report failed", error?.name, error?.message);
+      throw new RoomError("failed", "The report could not be kept.", { id });
+    }
+    await post(conn, asciiJson({ t: "reported", id }));
+  }
+
   async function handle(conn, text) {
     const bytes = Buffer.byteLength(text);
     if (bytes > limits.messageBytes)
@@ -556,6 +626,7 @@ export function createRooms({
     if (msg.t === "ping")
       return void (await post(conn, asciiJson({ t: "pong", now: now() })));
     try {
+      if (msg.t === "report") return await report(conn, msg, bytes);
       if (msg.t === "join") return await join(conn, msg);
       const who = await store.getConn(conn);
       if (!who) throw new RoomError("not-joined", "Join the room first.");
@@ -622,6 +693,7 @@ export function createRooms({
   async function disconnect(conn) {
     const who = await store.getConn(conn);
     buckets.delete(conn);
+    reported.delete(conn);
     if (who) await dropped(who.room, who.member, conn);
   }
 

@@ -12,6 +12,7 @@
 //   wasmUrl:  "/assets/glue-<hash>.wasm",        wasmoon's Lua VM
 //   luaUrl:   "/assets/lua-sources-<hash>.json" | null,
 //             what tools/lua-bundle.mjs wrote; null when it has not run
+//   core:     "c11f533..." | null, the vendored core's playdate-kubb commit
 //   sounds:   "/sounds/",         knock-1.wav to knock-9.wav
 // }
 //

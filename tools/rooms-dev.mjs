@@ -9,6 +9,11 @@
 // ROOMS_ORIGINS (comma separated) is the Origin allow-list, default any port of
 // http://localhost and http://127.0.0.1. A connection with no Origin at all (Node's own
 // WebSocket in the tests, command-line tools) is let in here; API Gateway's handler refuses it.
+//
+// Reports (MENU, REPORT A THROW): run from the command line it keeps them as files,
+// build/reports-dev/<yyyy-mm-dd>/<ms>-<random>.json.gz, the bucket's shape, so
+// `npm run reports:replay -- <file>` reads them. startRoomsServer({ report }) takes any
+// reporter (backend/rooms/reports.mjs memoryReporter in the tests); none refuses reports.
 
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
@@ -20,6 +25,11 @@ import {
   parseOrigins,
 } from "../backend/rooms/core.mjs";
 import { memoryStore } from "../backend/rooms/memory-store.mjs";
+import {
+  REPORT_PREFIX,
+  reportKey,
+  reportText,
+} from "../backend/rooms/reports.mjs";
 
 export const FRAME_MAX = 32 * 1024; // API Gateway WebSocket frame size quota
 
@@ -32,6 +42,7 @@ export async function startRoomsServer({
   limits = LIMITS,
   now = Date.now,
   record = null,
+  report = null,
   log = () => {},
 } = {}) {
   const sockets = new Map(); // conn -> ws
@@ -41,6 +52,7 @@ export async function startRoomsServer({
     now,
     limits,
     record,
+    report,
     async send(conn, text) {
       const ws = sockets.get(conn);
       if (!ws || ws.readyState !== ws.OPEN) return false;
@@ -102,8 +114,20 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const i = process.argv.indexOf("--port");
   const port =
     i > 0 ? Number(process.argv[i + 1]) : Number(process.env.PORT ?? 8788);
+  const { mkdir, writeFile } = await import("node:fs/promises");
+  const { dirname, join } = await import("node:path");
+  const { gzipSync } = await import("node:zlib");
+  const fileReporter = async (entry) => {
+    const key = reportKey(entry);
+    const file = join("build/reports-dev", key.slice(REPORT_PREFIX.length));
+    await mkdir(dirname(file), { recursive: true });
+    await writeFile(file, gzipSync(reportText(entry)));
+    console.log(new Date().toISOString(), "report kept", file);
+    return key;
+  };
   const server = await startRoomsServer({
     port,
+    report: fileReporter,
     log: (...a) => console.log(new Date().toISOString(), ...a),
   });
   console.log(`rooms: ${server.url} (Ctrl-C to stop)`);

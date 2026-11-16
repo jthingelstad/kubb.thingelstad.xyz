@@ -18,6 +18,7 @@ protocol, the client library, the limits, the cost, and what is not protected.
 | Room logic (pure, both servers run it) | `backend/rooms/core.mjs`                                                |
 | AWS Lambda handler, DynamoDB store     | `backend/rooms/handler.mjs`, `backend/rooms/dynamo-store.mjs`           |
 | The recorder (every version, to S3)    | `backend/rooms/recorder.mjs`, `tools/games.mjs`                         |
+| Reports (to S3)                        | `backend/rooms/reports.mjs`, `src/net/report.js`, `tools/reports.mjs`   |
 | In-memory store (dev server, tests)    | `backend/rooms/memory-store.mjs`                                        |
 | Local server                           | `tools/rooms-dev.mjs` (`node tools/rooms-dev.mjs`, ws://127.0.0.1:8788) |
 | Browser client                         | `src/net/room.js`                                                       |
@@ -173,34 +174,37 @@ document, about 9 parts.
 
 ### 2.2 Client to server
 
-| `t`     | Fields                                     |                                                                    |
-| ------- | ------------------------------------------ | ------------------------------------------------------------------ |
-| `join`  | `room`, `member`, `me?` (or `name?`), `v?` | join (or rejoin) the room; `v` = the document version already held |
-| `me`    | `me`                                       | merge own fields; `null` removes a key                             |
-| `set`   | `id?`, `base`, `doc`, `with?`              | compare-and-set the document                                       |
-| `cast`  | `d`                                        | relay to everyone else                                             |
-| `claim` |                                            | ask to become host                                                 |
-| `leave` |                                            | leave for good                                                     |
-| `ping`  |                                            | keep-alive; answered with `pong`, needs no join                    |
+| `t`      | Fields                                     |                                                                    |
+| -------- | ------------------------------------------ | ------------------------------------------------------------------ |
+| `join`   | `room`, `member`, `me?` (or `name?`), `v?` | join (or rejoin) the room; `v` = the document version already held |
+| `me`     | `me`                                       | merge own fields; `null` removes a key                             |
+| `set`    | `id?`, `base`, `doc`, `with?`              | compare-and-set the document                                       |
+| `cast`   | `d`                                        | relay to everyone else                                             |
+| `claim`  |                                            | ask to become host                                                 |
+| `leave`  |                                            | leave for good                                                     |
+| `ping`   |                                            | keep-alive; answered with `pong`, needs no join                    |
+| `report` | `id?`, `r`                                 | a player's report (section 8); needs no join                       |
 
-`join` must be the first message on a connection (anything else answers `not-joined`).
+`join` must be the first message on a connection (anything else but `ping` and `report`
+answers `not-joined`).
 A connection joins one room as one member; a second `join` on the same connection for
 the same room and member is a rejoin, for anything else it is `already-joined`.
 
 ### 2.3 Server to client
 
-| `t`      | Fields                                                                             |                                                                                                      |
-| -------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `joined` | `room`, `you`, `host`, `rev`, `members`, `v`, `by`, `sid`, `now`, `limits`, `doc?` | the reply to `join`: the full room                                                                   |
-| `member` | `rev`, `member`, `isNew?`                                                          | a member joined, rejoined, disconnected, or changed `me` (to everyone; to others for one's own join) |
-| `left`   | `id`, `rev`                                                                        | a member left for good                                                                               |
-| `host`   | `host`, `rev`                                                                      | the host changed                                                                                     |
-| `doc`    | `v`, `by`, `with?`, `doc`                                                          | a new document version (to everyone but the writer)                                                  |
-| `ok`     | `id`, `v`                                                                          | your `set` landed as version `v`                                                                     |
-| `no`     | `id`, `v`, `by`, `sid`, `doc`                                                      | your `set` lost: here is the current version                                                         |
-| `cast`   | `from`, `d`                                                                        | another member's cast                                                                                |
-| `pong`   | `now`                                                                              | answer to `ping`                                                                                     |
-| `error`  | `code`, `message`, `re?`, `id?`                                                    | `re` = the `t` that failed; `id` = the `set` id                                                      |
+| `t`        | Fields                                                                             |                                                                                                      |
+| ---------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `joined`   | `room`, `you`, `host`, `rev`, `members`, `v`, `by`, `sid`, `now`, `limits`, `doc?` | the reply to `join`: the full room                                                                   |
+| `member`   | `rev`, `member`, `isNew?`                                                          | a member joined, rejoined, disconnected, or changed `me` (to everyone; to others for one's own join) |
+| `left`     | `id`, `rev`                                                                        | a member left for good                                                                               |
+| `host`     | `host`, `rev`                                                                      | the host changed                                                                                     |
+| `doc`      | `v`, `by`, `with?`, `doc`                                                          | a new document version (to everyone but the writer)                                                  |
+| `ok`       | `id`, `v`                                                                          | your `set` landed as version `v`                                                                     |
+| `no`       | `id`, `v`, `by`, `sid`, `doc`                                                      | your `set` lost: here is the current version                                                         |
+| `cast`     | `from`, `d`                                                                        | another member's cast                                                                                |
+| `pong`     | `now`                                                                              | answer to `ping`                                                                                     |
+| `reported` | `id`                                                                               | your `report` is kept                                                                                |
+| `error`    | `code`, `message`, `re?`, `id?`                                                    | `re` = the `t` that failed; `id` = the `set` id                                                      |
 
 - `doc` is omitted from `joined` when the joiner sent `v` equal to the current version
   (and it is not 0). `doc` is `null` while `v` is 0.
@@ -256,7 +260,9 @@ castRate, castBurst, hostGraceMs }`.
 `bad-room`, `bad-member`, `bad-message` (not JSON, unknown `t`, a bad part, a bad field),
 `already-joined`, `not-joined` (no join yet, or this connection was replaced), `full`,
 `busy` (the room record kept changing under the server; try again), `replaced`,
-`too-big`, `rate`, `host-present`, `host-recent`, `not-next`.
+`too-big`, `rate`, `host-present`, `host-recent`, `not-next`; for `report` also
+`too-many` (more than 3 on one connection), `failed` (it could not be written) and
+`unavailable` (this server keeps no reports).
 
 ## 3. Limits
 
@@ -278,6 +284,7 @@ All in `LIMITS` in `backend/rooms/core.mjs`, the one place to change them.
 | unfinished upload      | 10 min                                                             |
 | room code              | 8 to 24 of `23456789abcdefghjkmnpqrstuvwxyz` (the client makes 10) |
 | member id              | 8 to 40 of `A-Za-z0-9_-`                                           |
+| a report               | 64 KB as ASCII JSON; each answer 1000 characters; 3 a connection   |
 
 Fixed by API Gateway (not ours): 10 minutes idle and 2 hours total per connection (the
 client pings every 4 minutes and reconnects on its own), 500 new connections a second
@@ -290,7 +297,8 @@ One stack, deployed by the deploy tool (not by hand): an API Gateway WebSocket A
 arm64, 256 MB, 10 s timeout, `index.handler` from the esbuild bundle of
 `backend/rooms/handler.mjs` with `@aws-sdk/*` external), its own log group (30 days),
 an execution role that can only use the rooms table, write that log group, post to
-this API's connections and put objects under `games/` in the games bucket, one DynamoDB
+this API's connections and put objects under `games/` and `reports/` in the games bucket,
+one DynamoDB
 table (on demand, TTL on `exp`), and the private games bucket (section 7).
 
 Throttling on the `prod` stage: **50 messages a second, burst 100** for every route,
@@ -355,7 +363,7 @@ By design, friends on a link:
 - No accounts and no personal data beyond the name a player types; rooms vanish 48 hours
   after their last write. Lambda logs carry connection ids and error names, not
   documents or names. The games bucket keeps every document version, names included
-  (section 7).
+  (section 7), and every report, with what the player typed (section 8).
 
 ## 7. Recording
 
@@ -388,3 +396,35 @@ with }` to `record` (`backend/rooms/recorder.mjs`), which writes one gzipped JSO
   version (too big to ride along, or a version is missing). After anything but `same` the
   replay takes the recorded snapshot and carries on. A record does not name the build
   that played it: its time `t` against the deploy history does.
+
+## 8. Reports
+
+A player who saw a throw go wrong says so from the game's menu (REPORT A THROW), and the
+browser sends what they typed with the game as it stood, so the moment can be played again
+offline (Jamie, 2026-11-16; `AGENTS.md` "Reports"). The room server knows no Kubb here
+either: it checks the shape and the size, keeps the report and acknowledges it.
+
+- **The message.** `{ "t": "report", "id": 1, "r": { ... } }`, sent on any connection,
+  joined to a room or not. The browser opens a socket of its own for it, waits for the
+  answer (15 s at most) and closes, on a shared pitch too (the room's own socket may be
+  reconnecting). A report longer than a frame goes in parts (section 2.1). The server
+  requires `r.mode` (`practice`, `solo`, `watch` or `pitch`), `r.happened` and
+  `r.should` (text, 1000 characters each, at least one not blank), `r.room` a room code
+  when present, and the whole message at most 64 KB (`LIMITS.reportBytes`); everything
+  else in `r` is the browser's (`src/net/report.js` lists it). The answer is
+  `{ "t": "reported", "id": 1 }` or an `error` with `re: "report"` and the `id`.
+- **What is kept.** One gzipped JSON object a report in the games bucket:
+  `reports/<yyyy-mm-dd>/<epoch ms, 13 digits>-<8 random>.json.gz`, holding
+  `{ t, report }`: the server's time and `r` as it came. The server adds nothing that
+  names the sender: no connection id, member id, address or browser string. Kept for
+  good, like the games (no lifecycle rule on the bucket).
+- **Joining a recorded game.** A shared pitch's report carries `room` and the document
+  version `v` it had, so it joins `games/<room>/` at that version instead of copying it.
+  It also carries its own snapshots, so it replays without the records.
+- **Limits.** 3 reports a connection, counted in the Lambda instance (a best effort, as
+  the cast buckets are); the stage throttle is the hard cap. A report that cannot be
+  written is answered `failed` and does not count.
+- **Reading them.** `npm run reports:pull`, then `npm run reports:replay -- <file>`
+  (`tools/reports.mjs`). The local server (`node tools/rooms-dev.mjs`) writes them to
+  `build/reports-dev/` in the same shape; `startRoomsServer({ report })` takes any
+  reporter (the tests use `memoryReporter`), and without one reports are `unavailable`.

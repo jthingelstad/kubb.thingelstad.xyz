@@ -18,6 +18,7 @@ import { Menu } from "./ui/menu.js";
 import { showHowto, shouldShowHowto } from "./ui/howto.js";
 import { h, button } from "./ui/dom.js";
 import { startPitch } from "./net/pitch.js";
+import { openReport } from "./ui/report.js";
 
 const config = readConfig();
 const ui = document.getElementById("ui");
@@ -73,6 +74,27 @@ async function boot() {
   const game = new Game({ engine, canvas, ui, sound, cards });
   game.onError = fail;
   const howto = (onDone) => showHowto(ui, game, onDone);
+  const code = pitchCode();
+  const mode =
+    config.mode === "practice" || !code
+      ? "practice"
+      : params.get("solo") === "1"
+        ? "solo"
+        : watching
+          ? "watch"
+          : "pitch";
+  let pitch = null;
+  // A report goes to the room server: none in this build, no REPORT A THROW.
+  const report = roomsUrl()
+    ? () =>
+        openReport(ui, {
+          game,
+          mode,
+          config,
+          pitch,
+          url: roomsUrl(),
+        })
+    : null;
   const menu = new Menu(ui, {
     game,
     sound,
@@ -81,10 +103,13 @@ async function boot() {
     resign: () => game.resign(game.localSide || "A"),
     surface: (s) => {
       prefs.set("practiceSurface", s);
-      game.practiceDo(() => game.engine.setSurface(s));
+      game.practiceDo(() => game.engine.setSurface(s), {
+        type: "surface",
+        surface: s,
+      });
     },
+    report,
   });
-  const code = pitchCode();
 
   if (testing) {
     window.__kubb = {
@@ -96,18 +121,19 @@ async function boot() {
       config,
       pitch: null,
       watchTune,
+      report,
     };
   }
   loading.remove();
 
-  if (config.mode === "practice" || !code) {
+  if (mode === "practice") {
     startPractice(game, cards);
-  } else if (params.get("solo") === "1") {
+  } else if (mode === "solo") {
     startSolo(game, cards);
-  } else if (watching) {
+  } else if (mode === "watch") {
     startWatch(game, cards);
   } else {
-    const pitch = startPitch({
+    pitch = startPitch({
       game,
       cards,
       ui,
@@ -135,14 +161,17 @@ function startPractice(game, cards) {
       "aria-pressed": "false",
       "data-test": "drill",
     }),
-    button("RESET", () => game.practiceDo(() => game.engine.reset()), "small", {
-      "data-test": "reset",
-    }),
+    button(
+      "RESET",
+      () => game.practiceDo(() => game.engine.reset(), { type: "reset" }),
+      "small",
+      { "data-test": "reset" },
+    ),
   );
   const drillBtn = tray.firstChild;
   const toggleDrill = () => {
     const on = !(game.need && game.need.drill);
-    game.practiceDo(() => game.engine.setDrill(on));
+    game.practiceDo(() => game.engine.setDrill(on), { type: "drill", on });
     drillBtn.setAttribute("aria-pressed", String(!!game.need?.drill));
     drillBtn.textContent = game.need?.drill ? "BATONS" : "DRILL";
   };

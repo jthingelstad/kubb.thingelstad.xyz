@@ -23,6 +23,9 @@
     "rooms:bundle": "node tools/rooms-bundle.mjs",
     "games:pull": "node tools/games.mjs pull",
     "games:replay": "node tools/games.mjs replay",
+    "reports:pull": "node tools/reports.mjs pull",
+    "reports:show": "node tools/reports.mjs show",
+    "reports:replay": "node tools/reports.mjs replay",
     "infra:plan": "node tools/infra.mjs plan",
     "infra:apply": "node tools/infra.mjs apply",
     "deploy": "node tools/deploy.mjs"

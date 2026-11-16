@@ -16,6 +16,11 @@ import {
   watchThrows,
   dialGeometry,
 } from "./browser.mjs";
+import { startRoomsServer } from "../../tools/rooms-dev.mjs";
+import { memoryReporter } from "../../backend/rooms/reports.mjs";
+import { Engine } from "../../src/engine/index.js";
+import { bundleLua } from "../../tools/lua-bundle.mjs";
+import { replayReport } from "../../tools/reports.mjs";
 
 let available = false;
 try {
@@ -258,3 +263,160 @@ browserTest("a portrait phone throws by touch", async () => {
   assert.deepEqual(page.errors, []);
   await page.context().close();
 });
+
+browserTest(
+  "a solo match's report: the card holds the aim, and the report arrives with the throw to replay",
+  async () => {
+    const report = memoryReporter();
+    const rooms = await startRoomsServer({ port: 0, report });
+    try {
+      const page = await open(
+        env,
+        `/p/abcdefgh?solo=1&nohowto=1&rooms=${encodeURIComponent(rooms.url)}`,
+      );
+      await page.click("[data-test=start]");
+      await page.waitForSelector("[data-test=handoff]");
+      await page.click("[data-test=handoff-go]");
+      await waitPhase(page, "aim", 10000);
+      await throwOnce(page);
+      await waitPhase(page, "play", 5000);
+      await page.evaluate(() => window.__kubb.game.skip());
+      await waitPhase(page, "aim", 10000);
+
+      await page.click("[data-test=menu]");
+      await page.click("[data-test=report]");
+      await page.waitForSelector("[data-test=report-card]");
+      assert.equal(
+        await page.locator("[data-test=menu-card]").count(),
+        0,
+        "the menu closed",
+      );
+      assert.match(
+        await page.textContent("[data-test=report-card]"),
+        /kept privately and not published/,
+      );
+      // the game holds: modal, and typing reaches the card, not the pitch
+      const before = await page.evaluate(() => {
+        const g = window.__kubb.game;
+        return { modal: g.modal, marker: g.out?.aim?.marker };
+      });
+      assert.equal(before.modal, 1);
+      // SEND with nothing typed says what is wanted and sends nothing
+      await page.click("[data-test=report-send]");
+      assert.match(
+        await page.textContent("[data-test=report-status]"),
+        /Write what happened/,
+      );
+      await page.fill(
+        "[data-test=report-happened]",
+        "The baton went through the kubb. ÅÄÖ",
+      );
+      await page.keyboard.press("ArrowLeft");
+      await page.fill(
+        "[data-test=report-should]",
+        "It should have knocked it down.",
+      );
+      const held = await page.evaluate(
+        () => window.__kubb.game.out?.aim?.marker,
+      );
+      assert.deepEqual(
+        held,
+        before.marker,
+        "arrow keys in the card move no circle",
+      );
+      await page.click("[data-test=report-send]");
+      await page.waitForFunction(
+        () =>
+          document.querySelector("[data-test=report-status]")?.textContent ===
+          "Sent, thank you.",
+        null,
+        { timeout: 10000 },
+      );
+      await page.click("[data-test=report-done]");
+      assert.equal(await page.evaluate(() => window.__kubb.game.modal), 0);
+      assert.equal(await page.locator("[data-test=report-card]").count(), 0);
+
+      assert.equal(report.kept.length, 1);
+      const kept = JSON.parse(report.kept[0].text);
+      const r = kept.report;
+      assert.equal(r.mode, "solo");
+      assert.equal(r.happened, "The baton went through the kubb. ÅÄÖ");
+      assert.equal(r.should, "It should have knocked it down.");
+      assert.equal(r.options.cpu.join(), "B");
+      assert.ok(Number.isInteger(r.options.seed));
+      assert.equal(r.lastThrow.action.type, "throw");
+      assert.equal(r.actions.length, 1);
+      assert.ok(r.build.lua.startsWith("lua-sources-"));
+      assert.match(r.build.core, /^[0-9a-f]{40}$/);
+      assert.deepEqual(
+        { w: r.viewport.w, h: r.viewport.h },
+        { w: 1280, h: 768 },
+      );
+      assert.ok(!report.kept[0].text.includes("HeadlessChrome"));
+      // it replays to what this browser had
+      const engine = await Engine.create({ sources: await bundleLua() });
+      const out = replayReport(engine, kept);
+      assert.equal(out.same, true);
+      assert.equal(out.whole.same, true);
+      assert.deepEqual(page.errors, []);
+      await page.context().close();
+    } finally {
+      await rooms.close();
+    }
+  },
+);
+
+browserTest(
+  "reports from practice and from watching the computer, which goes on while the card is open",
+  async () => {
+    const report = memoryReporter();
+    const rooms = await startRoomsServer({ port: 0, report });
+    const q = `nohowto=1&rooms=${encodeURIComponent(rooms.url)}`;
+    try {
+      const send = async (page, text) => {
+        await page.click("[data-test=menu]");
+        await page.click("[data-test=report]");
+        await page.fill("[data-test=report-happened]", text);
+        await page.click("[data-test=report-send]");
+        await page.waitForSelector(".report[data-sent='1']", {
+          timeout: 10000,
+        });
+        await page.click("[data-test=report-done]");
+      };
+      // practice: a throw, then a report with the steps to replay it
+      const practice = await open(env, `/practice/?${q}`);
+      await waitPhase(practice, "aim", 10000);
+      await throwOnce(practice);
+      await waitPhase(practice, "play", 5000);
+      await practice.evaluate(() => window.__kubb.game.skip());
+      await waitPhase(practice, "aim", 10000);
+      await send(practice, "Practice report");
+      const p = JSON.parse(report.kept[0].text).report;
+      assert.equal(p.mode, "practice");
+      assert.equal(p.practice.ops.length, 1);
+      assert.equal(p.practice.ops[0].type, "throw");
+      assert.deepEqual(practice.errors, []);
+      await practice.context().close();
+
+      // watching: the computer keeps throwing under the card
+      const watch = await open(env, `/p/abcdefgh?watch=1&${q}`);
+      await watchThrows(watch);
+      await watch.click("[data-test=menu]");
+      await watch.click("[data-test=report]");
+      const n0 = await watch.evaluate(() => window.__throws.length);
+      await watch.waitForFunction((n) => window.__throws.length > n, n0, {
+        timeout: 30000,
+      });
+      await watch.fill("[data-test=report-happened]", "Watch report");
+      await watch.click("[data-test=report-send]");
+      await watch.waitForSelector(".report[data-sent='1']", { timeout: 10000 });
+      const w = JSON.parse(report.kept[1].text).report;
+      assert.equal(w.mode, "watch");
+      assert.deepEqual(w.options.cpu, ["A", "B"]);
+      assert.deepEqual(watch.errors, []);
+      await watch.context().close();
+    } finally {
+      await rooms.close();
+    }
+  },
+);
