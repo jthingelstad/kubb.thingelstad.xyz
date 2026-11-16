@@ -335,6 +335,11 @@ browserTest(
       await page.click("[data-test=report-done]");
       assert.equal(await page.evaluate(() => window.__kubb.game.modal), 0);
       assert.equal(await page.locator("[data-test=report-card]").count(), 0);
+      assert.equal(
+        await page.locator("[inert]").count(),
+        0,
+        "nothing left inert",
+      );
 
       assert.equal(report.kept.length, 1);
       const kept = JSON.parse(report.kept[0].text);
@@ -416,6 +421,14 @@ browserTest(
             z(".report-scrim") > Math.max(z(".card-layer"), z(".panel-host"))
           );
         }),
+      );
+      // and the rest is inert: a card shown under it takes no focus
+      assert.ok(
+        await watch.evaluate(() =>
+          [...document.querySelector(".report-scrim").parentElement.children]
+            .filter((el) => !el.classList.contains("report-scrim"))
+            .every((el) => el.inert),
+        ),
       );
       await watch.fill("[data-test=report-happened]", "Watch report");
       await watch.click("[data-test=report-send]");
