@@ -110,6 +110,7 @@ export class Hud {
           vs.power && `${VERDICT_TEXT.power.label} ${vs.power}`,
           vs.release && `${VERDICT_TEXT.release.label} ${vs.release}`,
           vs.steady,
+          vs.side,
         ]
           .filter(Boolean)
           .join("|")

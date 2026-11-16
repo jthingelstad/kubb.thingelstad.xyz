@@ -1,8 +1,8 @@
 {
   "source": "playdate-kubb source/core",
-  "commit": "388cdaa2648a24328e56e25b97ba3f25a426651f",
+  "commit": "e3970851fdd70ca796112bed211a31d56e904515",
   "files": {
-    "autothrow.lua": "3553da8551de4cf34caf7bdb993441560dc893e263f9e08377e21f86a5748b22",
+    "autothrow.lua": "4bf5a5c669f02fb58e56f3b2b64ca3ac4c282b8322912b63b9e65458dd1eb3d7",
     "bench.lua": "cf5ca56e9d907b5acff0ece2d926e1981270c1fa53f2ad189bd8986abbcdce38",
     "body.lua": "9a792b5342338db888d3d1b95885f707e30533edbe1dd8de1a53d019e3600d4c",
     "burstpick.lua": "2c3f468a44b041a4161f2f7db7f49efbba2d16c2585ec7ac5b2610af22a4ce10",
@@ -36,8 +36,8 @@
     "rules.lua": "aee22e986d435dc9d08bc4693be3d0f7ea6fabd5972065a763c9eeaa68dc72b1",
     "save.lua": "3a4b81f16cd5759914cdff5897e6bb5c4c74c8bd4f57ab18dfd02970b6beccd4",
     "swing.lua": "08a0da27d8b86bd8ff5e7b172576550ed97da477fd9f086d2f208022cf531361",
-    "throwplan.lua": "eb14950707a86c673ddb03affc08a2c84545c5df35d8ad6a4a83a52c842ad00f",
-    "trace.lua": "04fd5ec6bb96f1599feab4d2d4caf02cce4167dc426f9a36a337b5cd7535751f",
+    "throwplan.lua": "81468d2d825f15459b783d052edc5f9b1e0a6a1b370ed8ef5620b1bca6cae15a",
+    "trace.lua": "108ed10b3663f7c339d00c9bb5840c371442bc3430f69987a374483f1f07b204",
     "tw.lua": "d3bb3a81977440239e9024e243aa3b3dce2ba418b19d87075b8268b73aeff167",
     "vec.lua": "16ed8c29ccd68dcc7cff60892b5b2e767aaf01635e7fad30e593f09247326393",
     "wind.lua": "9cc17b9ef6792d396666b1fe3bb8c0b4c9b8d7084c95e8d292f126536bcdcad1",

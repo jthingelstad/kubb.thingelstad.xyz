@@ -726,7 +726,7 @@ function Session:throwAction(L, how, info)
 	if info.back then a.swing = { back = info.back, stop = info.stop } end
 	if info.verdicts then
 		a.verdicts = { powerV = info.verdicts.powerV, releaseV = info.verdicts.releaseV,
-			steady = info.verdicts.steady and true or false }
+			steady = info.verdicts.steady and true or false, sideV = info.verdicts.sideV }
 	end
 	return a
 end
@@ -754,7 +754,8 @@ function Session:applyThrow(a)
 	local how = a.how
 	local verdicts = nil
 	if a.verdicts then
-		verdicts = { powerV = I(a.verdicts.powerV), releaseV = I(a.verdicts.releaseV), steady = a.verdicts.steady }
+		verdicts = { powerV = I(a.verdicts.powerV), releaseV = I(a.verdicts.releaseV), steady = a.verdicts.steady,
+			sideV = a.verdicts.sideV and I(a.verdicts.sideV) or nil }
 	end
 	local sw = a.swing
 	local back, stop = sw and F(sw.back), sw and F(sw.stop)
