@@ -551,8 +551,9 @@ export class Game {
       const burstsLive = p.bursts.some(
         (b) => b.realAt > 0 && (now - b.realAt) / 1000 < burstLength(b.kind),
       );
-      if (p.hold >= (this.zen?.holdAfter ?? tune.holdAfter) && !burstsLive)
-        return this.endPlayback();
+      // the calm rest is for a watcher: a hidden tab keeps the match's
+      const rest = (!this.quiet && this.zen?.holdAfter) || tune.holdAfter;
+      if (p.hold >= rest && !burstsLive) return this.endPlayback();
     }
     const s = p.last;
     if (s && !this.quiet) this.drawPlay(s, now);
