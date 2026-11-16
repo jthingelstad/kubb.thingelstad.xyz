@@ -411,11 +411,11 @@ export class Game {
     if (this.zenPause > 0) {
       // a hidden tab keeps the match's pace for the data, not the watcher's
       if (this.quiet || !this.zen) this.zenPause = 0;
-      else {
-        this.zenPause -= dt;
-        input.dt = 0;
-      }
+      else this.zenPause -= dt;
     }
+    // the pause holds the engine still: a zero dt would not (the session
+    // reads it as a sixtieth), so the aim as it stands is drawn again
+    const paused = this.zenPause > 0;
     if (!this.modal && may) {
       if (this.ptr?.kind === "dial") input.arm = this.dialArm;
       input.plan = this.planHeld || this.planToggle;
@@ -430,7 +430,8 @@ export class Game {
     // would otherwise read as a stop-start, shaky swing. A pointer held still
     // sends nothing, so after `holdFeed` the same arm is fed again: the stop.
     let out;
-    if (this.modal && may) out = this.out;
+    if (paused) out = { ...this.out, event: undefined };
+    else if (this.modal && may) out = this.out;
     else if (input.arm != null) {
       this.dialAcc += dt;
       if (this.dialFresh || this.dialAcc >= tune.holdFeed) {

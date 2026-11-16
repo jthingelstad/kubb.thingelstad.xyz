@@ -182,10 +182,30 @@ browserTest(
     // the calm pace: the computer stands a while before its first throw
     const pace = await page.evaluate(() => {
       const g = window.__kubb.game;
-      const p = { zen: !!g.zen, pause: g.zenPause, hold: g.zen?.holdAfter };
-      g.zen = null; // the rest of this test at the match's pace
-      return p;
+      return { zen: !!g.zen, pause: g.zenPause, hold: g.zen?.holdAfter };
     });
+    // while it stands, the computer's arm does not move: no throw leaves
+    await page.evaluate(() => {
+      const g = window.__kubb.game;
+      g.zenPause = 3;
+      g.__mode0 = g.out?.dial?.phase;
+    });
+    await page.waitForTimeout(1800);
+    const held = await page.evaluate(() => {
+      const g = window.__kubb.game;
+      const r = {
+        phase: g.phase,
+        same: g.out?.dial?.phase === g.__mode0,
+        left: g.zenPause,
+        throws: window.__throws?.length ?? 0,
+      };
+      g.zen = null; // the rest of this test at the match's pace
+      return r;
+    });
+    assert.equal(held.phase, "aim");
+    assert.equal(held.same, true, "the dial holds through the pause");
+    assert.ok(held.left > 0 && held.left < 3);
+    assert.equal(held.throws, 0, "nothing is thrown during the pause");
     assert.equal(pace.zen, true);
     assert.ok(pace.pause > 1, "a pause before the throw");
     assert.ok(pace.hold > 1);
