@@ -301,7 +301,7 @@ What a throw did, for the renderer and for a replay:
   landing { x, y, T },
   result  { flag, legal, down, toppled [ids], hit, distance, landX, landY,
             restCm, restText, restX, restY,
-            verdicts { power, release, steady, powerV, releaseV }, back, stop,
+            verdicts { power, release, steady, side?, powerV, releaseV, sideV? }, back, stop,
             ruling { text, short } },     // ruling: matches
   timeline {
     firstContact { t, x, y, z, with }, firstHit { t, x, y, z, with },

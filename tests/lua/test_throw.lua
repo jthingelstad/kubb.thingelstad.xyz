@@ -11,6 +11,8 @@ local function cleanThrow(s)
 	local r = {}
 	for k, v in pairs(throw.CLEAN) do r[k] = v end
 	r.back, r.releaseAngle = ts.sol.back, ts.sol.release
+	-- the plan's clean throw: no nerves, unless the test asked for them
+	if ts.nerves == nil then ts.nerves = false end
 	local L, how = throw.playerLaunch(ts, r)
 	local a = json.decode(json.encode(s:throwAction(L, how, { back = r.back, stop = r.releaseAngle, verdicts = L })))
 	return s:apply(a), a
@@ -90,4 +92,37 @@ test("all base kubbs down stands the pitch up again", function()
 	local down = 0
 	for _, it in ipairs(s.ts.items) do if it.base and it.toppled then down = down + 1 end end
 	expect.eq(down, 0, "stood up after the last base kubb fell")
+end)
+
+test("the nerves: a clean swing goes off its line, the same way every time, and the verdict says which way", function()
+	local function one()
+		local s = session.new { mode = "practice" }
+		s.ts.nerves = true
+		local out, a = cleanThrow(s)
+		return out.recording, a
+	end
+	local rec, a = one()
+	local v = rec.result.verdicts
+	expect.truthy(a.verdicts.sideV == -1 or a.verdicts.sideV == 0 or a.verdicts.sideV == 1, "the action carries sideV")
+	expect.eq(v.sideV, a.verdicts.sideV)
+	local words = { [-1] = "PULLED LEFT", [0] = "STRAIGHT", [1] = "PULLED RIGHT" }
+	expect.eq(v.side, words[v.sideV])
+	-- seeded by the swing and the plan: the same swing draws the same nerves
+	local rec2, a2 = one()
+	expect.eq(a2.launch.swivel, a.launch.swivel)
+	expect.eq(a2.launch.speed, a.launch.speed)
+	-- and they moved the launch off the plan's own
+	local s0 = session.new { mode = "practice" }
+	local _, a0 = cleanThrow(s0)
+	expect.truthy(a0.launch.swivel ~= a.launch.swivel or a0.launch.speed ~= a.launch.speed, "the nerves moved the launch")
+end)
+
+test("a throw recorded before the nerves replays with no sideways verdict", function()
+	local s = session.new { mode = "practice" }
+	local _, a = cleanThrow(s)
+	a.verdicts.sideV = nil
+	local s2 = session.new { mode = "practice" }
+	local out = s2:apply(a)
+	expect.eq(out.recording.result.verdicts.side, nil)
+	expect.eq(out.recording.result.verdicts.power, "ON")
 end)

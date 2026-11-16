@@ -792,11 +792,22 @@ end
 
 -- ---------- the launch ----------
 
+-- The nerves (vendor/core/throwplan.lua plan.tune "Nerves", scenes/throw.lua
+-- nervesFor): the player's throws go off the planned line and length by
+-- seeded draws, as the computer's do. s.nerves (true or false) overrides
+-- throw.nerves; a test that wants the plan's clean throw turns them off.
+throw.nerves = true
+local function nervesFor(s)
+	if s.nerves ~= nil then return s.nerves end
+	return throw.nerves
+end
+
 -- The player's launch for swing result r (scenes/throw.lua launch, before
 -- fire): plan.launch against the solved plan. Returns L and how.
 function throw.playerLaunch(s, r)
 	local kubb = s.projectile == "kubb"
 	local o = { projectile = kubb and "kubb" or "baton", tilt = s.tilt, spin = s.spin, level = throw.levelFor(s) }
+	o.nerves = nervesFor(s) or nil
 	if s.planDirty or s.planLevel ~= o.level then replan(s) end
 	local L = plan.launch(s.sol, r, o, {})
 	return L, kubb and "drill" or "baton"
@@ -1040,9 +1051,12 @@ function throw.fire(s, L, how, info)
 	end
 	local verdicts = nil
 	if info.verdicts then
+		-- side (PULLED LEFT, STRAIGHT, PULLED RIGHT) only when the throw
+		-- recorded one: a match saved before the nerves has no sideV
 		local pw, rl, sd = plan.verdictText(info.verdicts)
+		local sideV = info.verdicts.sideV
 		verdicts = { power = pw, release = rl, steady = sd, powerV = info.verdicts.powerV,
-			releaseV = info.verdicts.releaseV }
+			releaseV = info.verdicts.releaseV, sideV = sideV, side = sideV and plan.sideText(sideV) or nil }
 	end
 	local rec = {
 		frameDt = wt.frameDt, frames = pb.frames, duration = pb.frames * wt.frameDt,
