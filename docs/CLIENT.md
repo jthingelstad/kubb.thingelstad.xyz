@@ -104,7 +104,7 @@ game page no text selection. A press is tried in this order: the dial, the targe
 - **The dial** (lower right on a wide screen, lower centre on a tall one): drag is the arm,
   letting go is the release. Pointing and throwing work touching only the dial.
 - **The target**: drag the circle, tap the pitch, or the arrow keys.
-- **Walking**: drag the thrower, or A/D and W/S.
+- **Walking**: WALK beside the dial (the Playdate's held A) turns a drag on the pitch into a stick: right walks right, up comes forward, down steps back, full pace 60 px out. Turned off by the swing. Or A/D and W/S, or drag the thrower where it is on screen.
 - **The plan**: ARC up and down and TILT (a baton) or SPIN (a kubb) left and right, each
   button labelled with its value; R/F and Q/E.
 - **Plan view**: held with a mouse, a toggle on touch; Shift or B held.

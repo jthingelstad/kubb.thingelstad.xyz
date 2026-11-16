@@ -103,7 +103,8 @@ body.game {
   padding: 4px 9px;
   background: var(--wood);
 }
-.btn.plan.view.on {
+.btn.plan.view.on,
+.btn.plan.walk.on {
   background: var(--ink);
   color: var(--paper);
 }
@@ -243,7 +244,8 @@ body.game {
   flex-direction: column;
   gap: 8px;
 }
-.plans > .btn.view {
+.plans > .btn.view,
+.plans > .btn.walk {
   grid-column: 1 / span 2;
 }
 .plans.split {
@@ -256,6 +258,10 @@ body.game {
 }
 .plans.split > .btn.view {
   grid-column: 1;
+  grid-row: 2;
+}
+.plans.split > .btn.walk {
+  grid-column: 3;
   grid-row: 2;
 }
 

@@ -67,6 +67,8 @@ export const tune = {
   remoteAimFresh: 1.5, // s a remote aim stays shown without news
   flagFor: 6, // s a result flag stays up into the next aim
   keyMove: 1, // the move and walk axes from keys
+  walkStick: 60, // px a WALK drag goes for full walking pace
+  walkDead: 8, // px a WALK drag goes before the thrower moves
   holdFeed: 1 / 30 - 0.002, // s: a held pointer's arm is fed again after this
   hiddenEvery: 1, // s between steps of an unattended game in a hidden tab
   hiddenCatchUp: 90, // s of missed time one such step makes up, at most
@@ -105,6 +107,7 @@ export class Game {
     this.keys = new Set();
     this.planHeld = false;
     this.planToggle = false;
+    this.walkOn = false; // WALK: a drag on the pitch walks the thrower
     this.ptr = null; // the pointer that is pressed: { id, kind, x, y, ... }
     this.dialArm = null;
     this.dialAcc = 0;
@@ -145,6 +148,7 @@ export class Game {
       skip: () => this.skip(),
     });
     this.bindPlanView(this.hud.planView);
+    this.bindWalk(this.hud.walk);
     this.bindInput();
     this.resize();
   }
@@ -511,6 +515,8 @@ export class Game {
       const w = this.keyAxes("KeyA", "KeyD", "KeyS", "KeyW");
       if (m.dx || m.dy) input.move = m;
       if (w.dx || w.dy) input.walk = w;
+      const s = this.ptr?.kind === "walk" ? this.walkAxes(this.ptr) : null;
+      if (s) input.walk = s;
     }
     // While the dial is held, the engine is fed once per pointer sample
     // (with the time since the last), not once per display frame: a pointer
@@ -556,6 +562,19 @@ export class Game {
     this.drawAim(aim, camera, dial, may, dt);
   }
 
+  // A WALK drag as a stick: right walks right, up comes forward, down
+  // steps back, at full pace `walkStick` px from where the press began.
+  walkAxes(p) {
+    const ax = (d) => {
+      if (Math.abs(d) <= tune.walkDead) return 0;
+      const v = (Math.abs(d) - tune.walkDead) / tune.walkStick;
+      return Math.sign(d) * Math.min(1, v);
+    };
+    const dx = ax(p.x - p.x0);
+    const dy = ax(p.y0 - p.y);
+    return dx || dy ? { dx, dy } : null;
+  }
+
   keyAxes(left, right, down, up) {
     const k = this.keys;
     const dx = (k.has(right) ? 1 : 0) - (k.has(left) ? 1 : 0);
@@ -591,6 +610,7 @@ export class Game {
     };
     this.phase = "play";
     this.planToggle = false;
+    this.walkOn = false;
     this.dialArm = null;
     if (this.ptr?.kind === "dial") this.ptr = null;
     this.result = null;
@@ -860,6 +880,7 @@ export class Game {
       aiming: !this.modal && !this.cards?.open,
       mayAct: may && !watching,
       plan: this.planHeld || this.planToggle,
+      walk: this.walkOn,
       practice: this.mode === "practice",
       watching,
       flag: res && res.flag,
@@ -1105,6 +1126,7 @@ export class Game {
       const g = dialGeometry(this.L.dial);
       const aim = this.out?.aim || {};
       if (hitTest(g, x, y)) kind = "dial";
+      else if (this.walkOn) kind = "walk";
       else if (
         this.near(aim.marker, x, y, touch ? tune.grabTouch : tune.grabMouse)
       )
@@ -1116,6 +1138,7 @@ export class Game {
         this.dialFresh = true;
         this.dialAcc = 0;
         this.planToggle = false;
+        this.walkOn = false;
       }
     } else if (this.phase === "raise" || this.phase === "punish") {
       kind = this.phase;
@@ -1247,6 +1270,15 @@ export class Game {
     } else if (code === "Space" && this.phase === "play") this.skip();
     else return;
     e.preventDefault();
+  }
+
+  // WALK: a toggle for every pointer (a mouse needs its button for the drag).
+  bindWalk(btn) {
+    btn.addEventListener("pointerdown", (e) => {
+      this.sound?.unlock();
+      e.preventDefault();
+      this.walkOn = !this.walkOn;
+    });
   }
 
   // PLAN VIEW: held with a mouse, a toggle on touch.
