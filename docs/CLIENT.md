@@ -10,11 +10,12 @@ the engine's.
 
 `src/main.js` shows the title while wasmoon and the Lua load (`data-test=loading`), then:
 
-| Page               | What it is                                                                                                                                                        |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/practice/`       | The open practice pitch: batons or the kubb drill, surface, reset and level.                                                                                      |
-| `/p/<code>?solo=1` | A match against the computer. The options card first (name, level, surface, opening, raising, wind, kubb set; remembered), then START.                            |
-| `/p/<code>`        | A shared pitch: the lobby (name, level, Team A or B or watching, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md. |
+| Page                | What it is                                                                                                                                                                                                                               |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/practice/`        | The open practice pitch: batons or the kubb drill, surface, reset and level.                                                                                                                                                             |
+| `/p/<code>?solo=1`  | A match against the computer. The options card first (name, level, surface, opening, raising, wind, kubb set; remembered), then START.                                                                                                   |
+| `/p/<code>?watch=1` | The computer against itself, match after match: no options card, the solo card's saved options, North against South. The winner card stays up 10 s (NEXT MATCH, STOP, HOME), then the next match starts by itself, the other team first. |
+| `/p/<code>`         | A shared pitch: the lobby (name, level, Team A or B or watching, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md.                                                                        |
 
 A failure to start shows a plain error card with RELOAD and HOME. The HOW TO THROW overlay
 (four steps, an animated dial) shows on the first visit and from the menu; `?nohowto` skips it.
@@ -82,7 +83,11 @@ One requestAnimationFrame loop (`Game.start`, `stop`, `destroy`). The canvas fil
 window at `devicePixelRatio` (capped at 3), is measured every frame so a resize or an
 orientation change is picked up at once, and the safe-area insets come in through CSS
 variables. The loop skips frames while the page is hidden and resets its clock when it
-comes back; `dt` is capped at 1/20 s.
+comes back; `dt` is capped at 1/20 s. An unattended game (`game.unattended`, the
+computer against itself) keeps going while hidden: requestAnimationFrame stops there, so
+a one-second timer steps it in 1/20 s steps over the time since (up to 90 s a step:
+browsers slow a hidden tab's timers to once a minute after a few minutes), drawing
+nothing and skipping each throw's playback.
 
 Phases (`game.phase`): `aim` (a throw is wanted: this browser's, or the computer's shown
 as WATCH), `play` (a recording playing back), `raise`, `punish`, `over`.
@@ -178,7 +183,9 @@ so `client.test.mjs` doubles the flick speed to make up for the 30 Hz stepping.
   `client.test.mjs` builds `dist/`, serves it through `tools/preview.mjs` on a free
   127.0.0.1 port and drives Playwright's Chromium: practice loads with no console errors; a
   mouse swing throws and returns to aiming; dragging the circle changes the engine's aim; a
-  solo match plays our throws, the computer's WATCH turn and a hand-off back; a portrait
+  solo match plays our throws, the computer's WATCH turn and a hand-off back; watching the
+  computer throws for both sides with no card, keeps going with `document.hidden` faked,
+  and starts the next match by itself after the winner card; a portrait
   phone (isMobile, touch) throws by touch. `multiplayer.test.mjs` runs `tools/rooms-dev.mjs`
   on a free port too and plays a shared pitch (docs/MULTIPLAYER.md "Tests"). Both are
   skipped with a notice when Chromium is not installed (`npx playwright install chromium`).

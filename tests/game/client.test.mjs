@@ -169,6 +169,81 @@ browserTest(
   },
 );
 
+browserTest(
+  "watching the computer: both sides throw, in a hidden tab too, and the next match starts by itself",
+  async () => {
+    const page = await open(env, "/p/abcdefgh?watch=1");
+    assert.equal(await page.locator("[data-test=options]").count(), 0);
+    await watchThrows(page);
+    await page.waitForFunction(() => window.__kubb.game.need?.cpu, null, {
+      timeout: 10000,
+    });
+    // a throw from each side with nobody touching anything (playback skipped)
+    const sides = new Set();
+    const deadline = Date.now() + 90000;
+    while (Date.now() < deadline && sides.size < 2) {
+      const s = await page.evaluate(() => {
+        const g = window.__kubb.game;
+        if (g.phase === "play") g.skip();
+        return { side: g.need?.side, card: !!document.querySelector(".card") };
+      });
+      assert.equal(s.card, false, "no card waits for anyone");
+      if (s.side) sides.add(s.side);
+      await page.waitForTimeout(100);
+    }
+    assert.equal(sides.size, 2, "both teams throw");
+    assert.ok((await page.evaluate(() => window.__throws.length)) >= 2);
+
+    // hidden: the timer steps it, drawing nothing
+    const before = await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", {
+        configurable: true,
+        get: () => true,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+      return window.__throws.length;
+    });
+    assert.ok(await page.evaluate(() => !!window.__kubb.game.hiddenTimer));
+    await page.waitForFunction((n) => window.__throws.length >= n + 2, before, {
+      timeout: 30000,
+    });
+    await page.evaluate(() => {
+      delete document.hidden;
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    assert.equal(
+      await page.evaluate(() => window.__kubb.game.hiddenTimer),
+      null,
+    );
+
+    // the end: resign one side, the winner card, then the next match by itself
+    await page.evaluate(() => {
+      window.__kubb.watchTune.nextMs = 1500;
+      window.__kubb.game.resign("A");
+    });
+    while (!(await page.locator("[data-test=winner]").count())) {
+      await page.evaluate(() => {
+        const g = window.__kubb.game;
+        if (g.phase === "play") g.skip();
+      });
+      await page.waitForTimeout(100);
+    }
+    const over = await page.evaluate(() => window.__kubb.game.need);
+    assert.equal(over.kind, "over");
+    assert.ok(over.file?.text, "the game file");
+    assert.equal(await page.locator("[data-test=winner-note]").count(), 1);
+    await page.waitForSelector("[data-test=winner]", {
+      state: "detached",
+      timeout: 5000,
+    });
+    const next = await page.evaluate(() => window.__kubb.game.need);
+    assert.equal(next.kind, "throw");
+    assert.equal(next.turn, 1, "a new match");
+    assert.deepEqual(page.errors, []);
+    await page.context().close();
+  },
+);
+
 browserTest("a portrait phone throws by touch", async () => {
   const page = await open(env, "/practice/?nohowto=1", "portrait");
   await waitPhase(page, "aim", 10000);

@@ -168,3 +168,28 @@ test("a change of thrower survives snapshot -> restore", function()
 	expect.eq(r:snapshot(), snap)
 	expect.eq(r.setup.thrower.id, pick, "the restored throw keeps the new thrower")
 end)
+
+-- The web's "Watch the computer" (src/main.js startWatch): a browser that plays
+-- no side and runs the computer. Every need is the computer's throw, for this
+-- browser, with no card to wait on, frame after frame to a winner.
+test("the computer against itself runs to a winner with nobody acting", function()
+	local s = session.new { mode = "match", cpu = "both", seed = 3, teams = teams(1, 1), start = START,
+		raising = "auto", first = "B", maxTurns = 60 }
+	s:setControl { sides = {}, cpu = true }
+	local throws, frames = 0, 0
+	while s:need().kind ~= "over" do
+		local n = s:need()
+		expect.eq(n.kind, "throw")
+		expect.eq(n.cpu, true)
+		expect.eq(n["local"], true, "this browser throws for the computer")
+		expect.eq(n.card, nil, "no card to wait on")
+		local o = s:frame { dt = 1 / 20 }
+		if o.action then throws = throws + 1 end
+		frames = frames + 1
+		expect.truthy(frames < 100000, "the match ends")
+	end
+	expect.truthy(throws > 0)
+	local n = s:need()
+	expect.truthy(n.winner.winner == "A" or n.winner.winner == "B")
+	expect.truthy(n.file.text:find("North") and n.file.text:find("South"), "the game file")
+end)

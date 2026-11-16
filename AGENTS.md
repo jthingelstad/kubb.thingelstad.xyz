@@ -90,6 +90,20 @@ page says that matches are recorded. The practice pitch has no room and is not r
   says which actions end on another hash than the players' browsers committed. After a
   physics change in `vendor/core/` those are the throws that now go differently.
 
+## Watch the computer
+
+`/p/<code>?watch=1` (home page: "Watch the computer", added 2026-11-16 on Jamie's ask: "I
+could oddly imagine watching that in a background window. Also a great way to get test
+data."): the session's `cpu = "both"` with a seat that plays no side
+(`startWatch` in `src/main.js`). The computer throws, raises and places punishment kubbs
+for both teams at the solo match's pace; the winner card stays up `watchTune.nextMs`
+(10 s) with NEXT MATCH, STOP and HOME, then the next match starts with the other team
+first. It uses the solo card's saved options; teams are North and South; `maxTurns` 60
+is a safety net. In a hidden tab a timer steps it without drawing (`Game.background`,
+docs/CLIENT.md "The loop"). Like a solo match it has no room, so it is not recorded:
+its test data is the game file in the `over` need (`need.file`), which the page does not
+show or save, and `tests/lua/test_match.lua` runs the same match on the desktop.
+
 ## Analytics
 
 Tinylytics, `script.js` form, only in the deploy build (`KUBB_PRODUCTION=true`) and only

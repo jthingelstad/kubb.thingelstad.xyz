@@ -22,18 +22,20 @@ test("a pitch at any code is the one game page", () => {
   assert.equal(request("/p/abcd2345").uri, "/pitch/index.html");
   assert.equal(request("/p/abcd2345/").uri, "/pitch/index.html");
   assert.equal(request("/p/abcd2345?solo=1").uri, "/pitch/index.html");
+  assert.equal(request("/p/abcd2345?watch=1").uri, "/pitch/index.html");
   // Not a pitch code: on to the 404 by the ordinary routes.
   assert.equal(request("/p/ABCDEFGH").statusCode, 301);
   assert.equal(request("/p/abc").statusCode, 301);
 });
 
 test("/p and /p/ go on to a new pitch, keeping the query", () => {
-  for (const address of ["/p", "/p/", "/p/?solo=1"]) {
+  for (const address of ["/p", "/p/", "/p/?solo=1", "/p/?watch=1"]) {
     const result = request(address);
     assert.equal(result.statusCode, 302);
     const location = result.headers.location.value;
-    assert.match(location, /^\/p\/[2-9a-hjkmnp-z]{8}(\?solo=1)?$/);
+    assert.match(location, /^\/p\/[2-9a-hjkmnp-z]{8}(\?(solo|watch)=1)?$/);
     assert.equal(location.includes("solo=1"), address.includes("solo"));
+    assert.equal(location.includes("watch=1"), address.includes("watch"));
     assert.equal(request(location).uri, "/pitch/index.html");
   }
 });
