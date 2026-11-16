@@ -407,6 +407,7 @@ export function createRooms({
       exp: expiry(limits.roomTtl),
     };
     if (await store.putDoc(who.room, next, base)) {
+      const t = now(); // the record's time, taken before anything else is awaited
       const room = await store.getRoom(who.room); // read after the write: see join
       const withPart = rider ? `,"with":${rider}` : "";
       const text = `{"t":"doc","v":${v},"by":${asciiJson(who.member)}${withPart},"doc":${doc}}`;
@@ -417,7 +418,7 @@ export function createRooms({
           ? keep({
               room: who.room,
               v,
-              t: now(),
+              t,
               by: who.member,
               doc,
               with: rider,
