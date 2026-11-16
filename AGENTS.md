@@ -123,11 +123,15 @@ under `reports/<yyyy-mm-dd>/`, kept for good like the games.
 could oddly imagine watching that in a background window. Also a great way to get test
 data."): the session's `cpu = "both"` with a seat that plays no side
 (`startWatch` in `src/main.js`). The computer throws, raises and places punishment kubbs
-for both teams at the solo match's pace; the winner card stays up `watchTune.nextMs`
-(10 s) with NEXT MATCH, STOP and HOME, then the next match starts with the other team
+for both teams at a calm pace (Jamie, 2026-11-16: "slow it down. Think more like Zen
+screensaver ... more natural player like pauses"; `watchTune.zen`, `Game.zenPauseFor`:
+the thrower stands 1.5 to 4 s before every throw, 4 to 7 s more when the other team
+steps up, 2 to 4 s more between the kubbs and the batons, and the pitch rests 2.4 s
+after a throw; shown only, the match itself is the same); the winner card stays up
+`watchTune.nextMs` (20 s) with NEXT MATCH, STOP and HOME, then the next match starts with the other team
 first. It uses the solo card's saved options; teams are North and South; `maxTurns` 60
 is a safety net. In a hidden tab a timer steps it without drawing (`Game.background`,
-docs/CLIENT.md "The loop"). Like a solo match it has no room, so it is not recorded:
+docs/CLIENT.md "The loop"), at the match's own pace with no pauses. Like a solo match it has no room, so it is not recorded:
 its test data is the game file in the `over` need (`need.file`), which the page does not
 show or save, and `tests/lua/test_match.lua` runs the same match on the desktop.
 
@@ -136,3 +140,10 @@ show or save, and `tests/lua/test_match.lua` runs the same match on the desktop.
 Tinylytics, `script.js` form, only in the deploy build (`KUBB_PRODUCTION=true`) and only
 on the production hostname (`public/js/analytics.js` checks it in the browser). The site id
 is `TINYLYTICS_SITE` in `src/site/site.mjs`; while it is `null` no script is added.
+
+## Pitch lines
+
+Thin on purpose (Jamie, 2026-11-16: "in Kubb, the concept is that there really is no
+line. The line is just a visual indicator. So it should be much thinner"):
+`render/world.js` `tune.lineWidth` 1.2 cm on the ground, never under 0.6 frame px. The
+Playdate's 2 px lines (DESIGN 6) are its 1-bit screen's, not the web's.

@@ -179,6 +179,16 @@ browserTest(
   async () => {
     const page = await open(env, "/p/abcdefgh?watch=1");
     assert.equal(await page.locator("[data-test=options]").count(), 0);
+    // the calm pace: the computer stands a while before its first throw
+    const pace = await page.evaluate(() => {
+      const g = window.__kubb.game;
+      const p = { zen: !!g.zen, pause: g.zenPause, hold: g.zen?.holdAfter };
+      g.zen = null; // the rest of this test at the match's pace
+      return p;
+    });
+    assert.equal(pace.zen, true);
+    assert.ok(pace.pause > 1, "a pause before the throw");
+    assert.ok(pace.hold > 1);
     await watchThrows(page);
     await page.waitForFunction(() => window.__kubb.game.need?.cpu, null, {
       timeout: 10000,
@@ -405,6 +415,7 @@ browserTest(
 
       // watching: the computer keeps throwing under the card
       const watch = await open(env, `/p/abcdefgh?watch=1&${q}`);
+      await watch.evaluate(() => (window.__kubb.game.zen = null));
       await watchThrows(watch);
       await watch.click("[data-test=menu]");
       await watch.click("[data-test=report]");

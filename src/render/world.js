@@ -40,8 +40,11 @@ export const tune = {
   shadowY: -0.3,
   awayBelow: -0.35, // a face whose n.L is at or below this faces away from the light (shade)
   topAbove: 0.75, // at or above this, the brightest tone (a lit top)
-  lineWidth: 0.05, // m, the field lines (painted 5 cm)
-  lineMinPx: 2, // frame px: never thinner (DESIGN 6: "white 2 px (scaled) lines")
+  // The field lines. A Kubb pitch has no painted lines: at most a string
+  // between the stakes (Jamie, 2026-11-16: "there really is no line. The line
+  // is just a visual indicator ... much, much thinner").
+  lineWidth: 0.012, // m on the ground
+  lineMinPx: 0.6, // frame px: never thinner
   dash: 0.24, // m, the centerline: 6 on 4 off
   dashGap: 0.16,
   advDash: 0.1, // m, the advantage line: 2 on 2 off
