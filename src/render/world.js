@@ -1392,11 +1392,14 @@ function drawBaton(ctx, cam, kx, s) {
   };
   const c1 = cosEnd(E1, -1),
     c2 = cosEnd(E2, 1);
+  // Wound the same way as the caps' ellipses: under the nonzero rule an
+  // opposite winding cancels where a cap overlaps the body and punches a
+  // half-moon hole in the wood, showing the ink beneath.
   const body = (w1, w2) => {
-    ctx.moveTo(p1[0] + px * w1, p1[1] + py * w1);
-    ctx.lineTo(p2[0] + px * w2, p2[1] + py * w2);
+    ctx.moveTo(p1[0] - px * w1, p1[1] - py * w1);
     ctx.lineTo(p2[0] - px * w2, p2[1] - py * w2);
-    ctx.lineTo(p1[0] - px * w1, p1[1] - py * w1);
+    ctx.lineTo(p2[0] + px * w2, p2[1] + py * w2);
+    ctx.lineTo(p1[0] + px * w1, p1[1] + py * w1);
     ctx.closePath();
   };
   const cap = (p, rr, c) => {
