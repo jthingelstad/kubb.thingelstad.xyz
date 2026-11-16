@@ -3,7 +3,8 @@
 // adapters (DynamoDB, the API Gateway Management API) and the connect filter.
 //
 // Environment: TABLE (the DynamoDB table), ALLOWED_ORIGINS (comma separated; an origin
-// without a port allows any port). Sends go back to the API the event came from
+// without a port allows any port), GAMES_BUCKET (where recorder.mjs keeps every committed
+// document version; nothing is recorded without it). Sends go back to the API the event came from
 // (https://<domainName>/<stage>) unless SEND_ENDPOINT says otherwise.
 
 import {
@@ -13,8 +14,10 @@ import {
 } from "@aws-sdk/client-apigatewaymanagementapi";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { S3Client } from "@aws-sdk/client-s3";
 import { createRooms, originAllowed, parseOrigins } from "./core.mjs";
 import { dynamoStore } from "./dynamo-store.mjs";
+import { s3Recorder } from "./recorder.mjs";
 
 const gone = (error) =>
   error?.name === "GoneException" || error?.$metadata?.httpStatusCode === 410;
@@ -77,6 +80,12 @@ export function handler(event) {
         table: process.env.TABLE,
       }),
       ...gatewayAdapters(new ApiGatewayManagementApiClient({ endpoint })),
+      record: process.env.GAMES_BUCKET
+        ? s3Recorder({
+            client: new S3Client({ maxAttempts: 2 }),
+            bucket: process.env.GAMES_BUCKET,
+          })
+        : null,
     }),
     origins: parseOrigins(process.env.ALLOWED_ORIGINS),
   });

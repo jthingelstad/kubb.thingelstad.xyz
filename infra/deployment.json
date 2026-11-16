@@ -17,10 +17,11 @@
   "deploymentRoleArn": "arn:aws:iam::999153317627:role/kubb-xyz-delivery-DeploymentRole-CbBWWX2vhgqG",
   "rooms": {
     "functionName": "kubb-xyz-rooms-rooms",
+    "gamesBucket": "kubb-xyz-rooms-games-999153317627",
     "webSocketUrl": "wss://x3wdf2kum4.execute-api.us-east-1.amazonaws.com/prod",
     "apiDomain": "x3wdf2kum4.execute-api.us-east-1.amazonaws.com",
     "stage": "prod",
-    "codeKey": "rooms/4c5d6116fae17002a9f8f3ab98e699f1de736ec89ad88b9b5d531632cdf09879.zip"
+    "codeKey": "rooms/af5a3f80945ae8257dfe783918912a6a001295dba9f9ccfb72985b25c3d1bf0f.zip"
   },
   "stackTags": {
     "Application": "Thingelstad",

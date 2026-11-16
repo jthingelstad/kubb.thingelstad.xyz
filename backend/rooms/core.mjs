@@ -14,6 +14,10 @@
 //          addChunk(conn, id, i, n, text, exp) -> whole text once, when the last part lands
 //   send(conn, text) -> false when the connection is gone for good
 //   close(conn)      -> closes a connection (used when a member connects a second time)
+//   record(entry)    -> optional: keeps a committed document version for good
+//                       (recorder.mjs). entry = { room, v, t, by, doc, with }; doc and with
+//                       are JSON text (with: null when there was none). It may fail: the
+//                       failure is logged and the room carries on.
 //
 // Invocations for one room run in parallel (one Lambda per message), so nothing here holds
 // state between calls except the cast rate buckets, which are only ever a best effort.
@@ -114,6 +118,7 @@ export function createRooms({
   store,
   send,
   close = async () => {},
+  record = null,
   now = Date.now,
   limits = LIMITS,
 }) {
@@ -350,6 +355,15 @@ export function createRooms({
     await broadcast(who.room, room, text);
   }
 
+  // A recorder that fails must never cost a room its move.
+  async function keep(entry) {
+    try {
+      await record(entry);
+    } catch (error) {
+      console.error("record failed", error?.name, error?.message);
+    }
+  }
+
   // The member a connection speaks for. A connection that has been replaced by the same
   // member's newer one no longer speaks for anybody.
   function member(room, who, conn) {
@@ -399,6 +413,16 @@ export function createRooms({
       await Promise.all([
         post(conn, asciiJson({ t: "ok", id, v })),
         room ? broadcast(who.room, room, text, conn) : null,
+        record
+          ? keep({
+              room: who.room,
+              v,
+              t: now(),
+              by: who.member,
+              doc,
+              with: rider,
+            })
+          : null,
       ]);
     } else {
       const cur = (await store.getDoc(who.room)) ?? {
