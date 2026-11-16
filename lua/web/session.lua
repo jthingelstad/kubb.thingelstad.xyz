@@ -693,6 +693,7 @@ function Session:setSurface(name)
 	assert(self.kind == "practice", "setSurface is for practice")
 	self.opts.surface = surfaceKey(name)
 	self.ts.surface = self.opts.surface
+	self.ts.planDirty = true -- a drill runs on by the ground
 	return self:view()
 end
 

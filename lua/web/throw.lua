@@ -283,6 +283,8 @@ local function replan(s)
 		projectile = kubb and "kubb" or "baton",
 		px = s.playerX, py = s.playerY, tx = s.markerX, ty = s.markerY,
 		release = s.release, level = throw.levelFor(s),
+		-- a drill runs on by the ground and less with spin (drill.slideFor)
+		surface = s.surface, spin = kubb and s.spin or 0,
 	}
 	local sol = plan.solve(q, {})
 	s.sol = sol
@@ -537,6 +539,7 @@ function throw.stepSide(s, side)
 	local pt = plan.tune
 	if s.projectile == "kubb" then
 		s.spin = max(-pt.spinSteps, min(pt.spinSteps, s.spin + side))
+		s.planDirty = true
 	else
 		s.tilt = max(-pt.tiltMaxDeg, min(pt.tiltMaxDeg, s.tilt + side * pt.tiltStepDeg))
 	end
