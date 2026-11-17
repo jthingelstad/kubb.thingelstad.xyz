@@ -606,8 +606,11 @@ rooms table by a second function, in the site stack (`infra/site.json`), not thi
   behind CloudFront with origin access control. CloudFront asks it for
   `/pitch/index.html?pitch=<code>`, `/embed/index.html?pitch=<code>` and
   `/share/kubb.png?pitch=<code>`.
-- **What it reads.** `room#<code> | doc` (`v`, `doc`, `exp`), and for a finished match
-  `room#<code> | replay` (`v`, `exp`, or `z` when the document is gone). Its role allows
+- **What it reads.** `room#<code> | doc` (`v`, `doc`, `exp`), and, for a finished match
+  or when the document is gone, `room#<code> | replay` (`z`, `exp`). A finished match
+  says "Watch the replay" only when the kept replay is that match (the same `n`, `hash`
+  and `snap`, as `lookForKept` in `src/net/pitch.js` checks): a rematch that could not be
+  kept leaves the one before it in the room. Its role allows
   `dynamodb:GetItem` on the rooms table and its own logs, nothing more. It never reads
   the private games bucket, never writes, never lists open games. The page's HTML is the
   site's own `/pitch/index.html` or `/embed/index.html`, fetched and kept a minute.
