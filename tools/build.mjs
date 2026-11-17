@@ -58,7 +58,7 @@ const hash = (bytes) =>
   createHash("sha256").update(bytes).digest("hex").slice(0, 12);
 
 // The rooms address the client is given. Locally: tools/rooms-dev.mjs. In the
-// deploy build: wss://kubb.thingelstad.xyz/ws once the /ws route is on, else
+// deploy build: wss://throwingwood.com/ws once the /ws route is on, else
 // the API's own address, else null (the rooms are not deployed yet).
 export async function roomsUrl(production) {
   if (!production) return DEV_ROOMS_URL;

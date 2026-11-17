@@ -1,4 +1,4 @@
-# AGENTS.md: kubb.thingelstad.xyz
+# AGENTS.md: kubb.thingelstad.xyz (served at throwingwood.com)
 
 `CLAUDE.md` is a symlink to this file. The Throwing Wood workstream guide is
 [`../AGENTS.md`](../AGENTS.md); AWS and secret rules one level above that. The cross-site
@@ -58,7 +58,13 @@ address or home path in `dist/`, no account id in Markdown).
 
 - `infra/site.json` (stack `kubb-xyz-site`): S3 bucket, CloudFront with the shared `edge`
   web ACL, ACM certificate, and the site's own DNS records (A/AAAA aliases and certificate
-  validation) in the `thingelstad.xyz` zone. Never edit those records in the console.
+  validation). The site is https://throwingwood.com since 2026-11-17: its apex and www are in
+  the `throwingwood.com` zone (imported from projects-sysadmin's
+  `projects-dns-zone-throwingwood-com` export), and the old kubb.thingelstad.xyz stays in the
+  `thingelstad.xyz` zone. The viewer request function answers www and the old address with
+  a 301 to the same path on throwingwood.com, so shared links and embeds keep working; the
+  repository, stacks and buckets keep their kubb-xyz names. Never edit those records in the
+  console.
   Access logs go to `/kubb-xyz/web-access`, IP-free, kept 731 days. The viewer request
   function serves `/pitch/index.html` for every `/p/<code>` (codes as the rooms accept
   them: 8 to 24 of `abcdefghjkmnpqrstuvwxyz23456789`). It also owns the bucket for the

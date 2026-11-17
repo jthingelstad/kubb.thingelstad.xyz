@@ -32,7 +32,11 @@ export function cloudfrontRequest(url) {
     if (values.length > 1)
       querystring[key].multiValue = values.map((value) => ({ value }));
   }
-  return { uri: decodeURIComponent(url.pathname), querystring };
+  return {
+    uri: decodeURIComponent(url.pathname),
+    querystring,
+    headers: { host: { value: url.host } },
+  };
 }
 
 // Preview only: any local port, so a test can run its own room server

@@ -7,7 +7,7 @@
 //   version:  "0.1.0",            package.json's version
 //   commit:   "abc123..." | null, the commit the build was made from
 //   mode:     "pitch" | "practice",
-//   roomsUrl: "wss://kubb.thingelstad.xyz/ws" | "ws://127.0.0.1:8788" | null,
+//   roomsUrl: "wss://throwingwood.com/ws" | "ws://127.0.0.1:8788" | null,
 //             null while the rooms are not deployed
 //   wasmUrl:  "/assets/glue-<hash>.wasm",        wasmoon's Lua VM
 //   luaUrl:   "/assets/lua-sources-<hash>.json" | null,

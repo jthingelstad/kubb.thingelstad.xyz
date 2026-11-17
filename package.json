@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Kubb: Throwing Wood on the web, the multiplayer game at kubb.thingelstad.xyz.",
+  "description": "Kubb: Throwing Wood on the web, the multiplayer game at throwingwood.com.",
   "engines": {
     "node": ">=24"
   },

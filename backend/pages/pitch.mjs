@@ -12,7 +12,7 @@
 // package does not carry); tests/pages checks these two against it.
 import { gunzipSync } from "node:zlib";
 
-export const ORIGIN = "https://kubb.thingelstad.xyz";
+export const ORIGIN = "https://throwingwood.com";
 export const SITE_NAME = "Kubb: Throwing Wood";
 
 const ESCAPES = {

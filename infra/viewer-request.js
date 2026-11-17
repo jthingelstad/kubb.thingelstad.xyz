@@ -11,6 +11,18 @@
 //   /x/         /x/index.html
 //   /x          301 to /x/, keeping the query
 //
+// The site's address is https://throwingwood.com (since 2026-11-17). The
+// old address and www answer every route here with a 301 to the same path
+// and query there, so links and embeds already shared keep working. /ws has
+// its own behaviour without this function, so an open page from the old
+// address still reaches the rooms. Any other host (the preview on
+// 127.0.0.1) is served as it is.
+var HOME = "https://throwingwood.com";
+var MOVED_HOSTS = {
+  "kubb.thingelstad.xyz": true,
+  "www.throwingwood.com": true,
+};
+
 // A code is 8 to 24 characters from the alphabet below, the rooms' own rule
 // (ROOM_CODE in backend/rooms/core.mjs); the home page makes 8. Any other
 // /p/ address is not a pitch and ends at the 404.
@@ -43,6 +55,14 @@ function handler(event) {
         : k + "=" + v.value;
     })
     .join("&");
+  var host =
+    request.headers && request.headers.host && request.headers.host.value;
+  if (MOVED_HOSTS[host])
+    return {
+      statusCode: 301,
+      statusDescription: "Moved Permanently",
+      headers: { location: { value: HOME + uri + (query ? "?" + query : "") } },
+    };
   if (uri === "/p" || uri === "/p/") {
     var alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
     var code = "";

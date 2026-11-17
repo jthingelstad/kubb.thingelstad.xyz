@@ -267,7 +267,7 @@ castRate, castBurst, hostGraceMs }`.
   section 10) lives at least until its `keep` runs out, a year from the end of that
   match. An expired room code is a new, empty room. Connection records expire after 3 hours.
 - **Origin.** On AWS `$connect` is refused (403) unless the `Origin` header is in
-  `ALLOWED_ORIGINS` (default `https://kubb.thingelstad.xyz`, `http://localhost`,
+  `ALLOWED_ORIGINS` (default `https://throwingwood.com`, `https://kubb.thingelstad.xyz`, `http://localhost`,
   `http://127.0.0.1`; an entry without a port allows any port). The dev server applies the
   same list but also lets in connections with no `Origin` (Node tools and tests).
 

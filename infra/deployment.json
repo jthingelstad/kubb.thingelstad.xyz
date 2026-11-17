@@ -6,14 +6,14 @@
     "rooms": "kubb-xyz-rooms",
     "delivery": "kubb-xyz-delivery"
   },
-  "productionUrl": "https://kubb.thingelstad.xyz/",
+  "productionUrl": "https://throwingwood.com/",
   "wsRoute": true,
   "githubRepositoryId": "1459352238",
   "siteBucket": "kubb-xyz-site-web-999153317627",
   "codeBucket": "kubb-xyz-site-code-999153317627",
   "distributionId": "E3T39LIDR2ADLL",
   "cloudfrontDomain": "dijxvf6kipkda.cloudfront.net",
-  "certificateArn": "arn:aws:acm:us-east-1:999153317627:certificate/9796c898-6ce2-425d-a3d9-7ccc04792183",
+  "certificateArn": "arn:aws:acm:us-east-1:999153317627:certificate/bf22f820-2176-41b4-8d9b-c7ed734ff984",
   "deploymentRoleArn": "arn:aws:iam::999153317627:role/kubb-xyz-delivery-DeploymentRole-CbBWWX2vhgqG",
   "rooms": {
     "functionName": "kubb-xyz-rooms-rooms",
@@ -21,7 +21,7 @@
     "webSocketUrl": "wss://x3wdf2kum4.execute-api.us-east-1.amazonaws.com/prod",
     "apiDomain": "x3wdf2kum4.execute-api.us-east-1.amazonaws.com",
     "stage": "prod",
-    "codeKey": "rooms/bd37b736c848ece91223149d5c02c06ad9d9f401eef707b7f8f5db4ac016e1b8.zip"
+    "codeKey": "rooms/01529d7932f5f2175445c7ca53708932926a9bd0f4f023c4dfa9659196c03614.zip"
   },
   "stackTags": {
     "Application": "Thingelstad",
@@ -31,8 +31,8 @@
     "Environment": "production"
   },
   "pages": {
-    "codeKey": "pages/af1167978f0f4582db1acf96192a041a575c5bd8bd3b6f34a96d88f00d29a515.zip",
+    "codeKey": "pages/822d6c8d6770e5915a0013bc5212aa736d1cb62cc987a46f305b8937a2189110.zip",
     "endpointDomain": "7t0zxpdy22vtgxb5.btq.lambda-web.us-east-1.on.aws",
-    "revisionId": "rev-ssd0i"
+    "revisionId": "rev-l8qv1"
   }
 }

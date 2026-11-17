@@ -196,7 +196,8 @@ Bursts (TOK!, KLAK KLAK!, KING!) and the recorded knocks carry over.
 ## 7. Hosting
 
 - Static site on S3 behind CloudFront with the shared `edge` web ACL, certificate and DNS
-  records in the site's own stack (the `thingelstad.xyz` zone), like
+  records in the site's own stack (the `throwingwood.com` zone since 2026-11-17; the old
+  kubb.thingelstad.xyz in the `thingelstad.xyz` zone redirects there), like
   `playdate.thingelstad.xyz`. Access logs IP-free, kept 731 days.
 - Rooms: one API Gateway WebSocket API, one Lambda, one DynamoDB table (on demand, TTL).
   Throttled and capped (members a room, message size, document size) so it stays a hobby

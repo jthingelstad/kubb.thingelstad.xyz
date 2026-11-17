@@ -2,7 +2,7 @@
 // ordinary Node HTTP server on AWS_LAMBDA_HTTP_ENDPOINT (127.0.0.1:8789 locally).
 //
 //   TABLE   the rooms table (stack kubb-xyz-rooms), read with GetItem only
-//   SITE    the site it serves pages for (https://kubb.thingelstad.xyz)
+//   SITE    the site it serves pages for (https://throwingwood.com)
 //
 // tools/pages-bundle.mjs packages this with resvg's WebAssembly and the display
 // face beside it.
@@ -15,7 +15,7 @@ import { readRoom } from "./pitch.mjs";
 import { renderer } from "./render.mjs";
 import { createPages, siteBase } from "./server.mjs";
 
-const site = (process.env.SITE || "https://kubb.thingelstad.xyz").replace(
+const site = (process.env.SITE || "https://throwingwood.com").replace(
   /\/$/,
   "",
 );
