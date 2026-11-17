@@ -133,3 +133,13 @@ test("a press in the dead zone arms at once (web)", function()
 	expect.eq(s2.ts.armed, false)
 	expect.eq(s2:frame({ dt = 1 / 60, arm = -110 }).dial.prompt, "CRANK DOWN")
 end)
+
+test("json keeps negative zero, so a snapshot comes back to the same text", function()
+	local t = { a = -0.0, b = 0.0, c = 3, d = 2.5, e = -1.0 }
+	local text = json.encode(t)
+	local back = json.decode(text)
+	expect.eq(json.encode(back), text)
+	expect.eq(1 / back.a, -math.huge)
+	expect.eq(math.type(back.c), "integer")
+	expect.eq(math.type(back.e), "float")
+end)

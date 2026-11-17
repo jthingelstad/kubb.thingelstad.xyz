@@ -196,7 +196,9 @@ value = function(s, i)
 		local v = tonumber(text)
 		if v == nil then fail(s, i, "bad number") end
 		-- a number with a point or an exponent is a float even when it is whole
-		if find(text, "[%.eE]") then v = v + 0.0 end
+		-- (tonumber already gives a float for those; adding 0.0 would turn -0.0
+		-- into 0.0 and a snapshot would not come back to the same text)
+		if find(text, "[%.eE]") and mtype(v) == "integer" then v = v + 0.0 end
 		return v, e + 1
 	end
 end

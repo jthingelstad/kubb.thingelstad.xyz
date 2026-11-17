@@ -52,18 +52,19 @@ drill.tune = {
 	-- a clean drill rests past where it lands, by the loft (slideLofts, a row each) and
 	-- how far out it lands (slideR, a column each), in a line between them and the
 	-- nearest outside them. A faster landing runs on farther until it digs in harder (on
-	-- sand soonest). Measured with the drill as a plain body with the turf's bite
-	-- (2026-11-16: 3 lines x 20 grounds a cell, aimed with none; the release attitude
-	-- and spiral below).
+	-- sand soonest). Measured after the physics audit, with the air's drag
+	-- (2026-11-16, tools/drillscatter.lua --only 5 --grounds 60: 3 lines x 60 grounds a
+	-- cell, aimed with none, the mean rest along the throw past the aimed landing; the
+	-- release attitude and spiral below).
 	slideLofts = { 26, 37, 47, 57 },
 	slideR = { 1.5, 3, 4.5, 6, 7.5 },
 	slide = {
-		grass = { { 0.51, 1.47, 2.26, 2.11, 1.59 }, { 0.35, 0.92, 1.47, 1.39, 1.06 },
-			{ 0.26, 0.68, 0.87, 0.99, 0.69 }, { 0.18, 0.38, 0.64, 0.81, 0.61 } },
-		sand = { { 0.22, 0.74, 0.99, 0.50, 0.36 }, { 0.14, 0.44, 0.51, 0.31, 0.15 },
-			{ 0.07, 0.35, 0.29, 0.19, 0.14 }, { 0.06, 0.17, 0.20, 0.17, 0.12 } },
-		snow = { { 0.50, 1.58, 2.05, 1.90, 2.05 }, { 0.37, 0.99, 1.46, 1.42, 1.53 },
-			{ 0.23, 0.71, 0.92, 1.09, 1.12 }, { 0.17, 0.39, 0.59, 0.83, 0.87 } },
+		grass = { { 0.45, 1.39, 1.94, 1.70, 1.58 }, { 0.31, 0.89, 1.28, 1.13, 1.02 },
+			{ 0.20, 0.58, 0.88, 0.87, 0.63 }, { 0.15, 0.37, 0.58, 0.68, 0.53 } },
+		sand = { { 0.18, 0.67, 0.78, 0.38, 0.36 }, { 0.12, 0.42, 0.47, 0.26, 0.20 },
+			{ 0.07, 0.22, 0.31, 0.19, 0.11 }, { 0.05, 0.13, 0.19, 0.17, 0.09 } },
+		snow = { { 0.38, 1.31, 1.87, 1.75, 1.87 }, { 0.25, 0.79, 1.21, 1.34, 1.34 },
+			{ 0.15, 0.47, 0.83, 1.02, 1.05 }, { 0.13, 0.31, 0.55, 0.69, 0.81 } },
 	},
 	slideRefM = 6,          -- m: the landing distance slideFor reads when given none
 	-- the body at release (world.drillLaunchState, 2026-11-16: the drill is a plain
@@ -115,12 +116,6 @@ function drill.clampMarker(mx, my)
 	return max(-t.markerXMax, min(t.markerXMax, mx)), max(t.markerNear, min(t.markerFar, my))
 end
 
--- The speed that lands a launch from height h0 above the landing height at
--- loft e (radians) a horizontal distance R away.
-local function speedFor(R, e, h0, g)
-	local c = cos(e)
-	return sqrt(g * R * R / (2 * c * c * (R * sin(e) / c + h0)))
-end
 
 -- Solve the clean drill onto the marker (mx, my in the view frame, the
 -- thrower's baseline at lineY) at the loft the distance picks (loftNearDeg to
@@ -132,6 +127,8 @@ end
 --   speed      m/s of the clean launch
 --   band       swing power that gives exactly that speed (band center)
 --   T          s from release until the kubb's edge reaches the grass
+--   land       m from the thrower to where it lands (short of the marker by
+--              its mean run on, drill.slideFor)
 function drill.solve(mx, my, lineY, out)
 	local t = drill.tune
 	local x = max(-t.throwerXMax, min(t.throwerXMax, mx))
@@ -195,11 +192,13 @@ function drill.solveAt(mx, my, lineY, loftDeg, out, px, surface, spin)
 	local h0 = ft.handHeight - t.landZ
 	local e = rad(loftDeg)
 	local R = drill.landFor(d, loftDeg, surface, spin)
-	local v = speedFor(R, e, h0, ft.g)
-	local vz = v * sin(e)
+	-- the speed that lands it R out through still air, with a kubb's drag
+	local k = ft.dragK.kubb
+	local v = flight.speedForCarry(R, e, h0, k)
+	local _, T = flight.carry(v, e, h0, k)
 	out.x, out.swivel, out.loft, out.dist, out.speed = x, atan(dx, dy), loftDeg, d, v
 	out.band = lerp(t.bandNear, t.bandFar, f)
-	out.T = (vz + sqrt(vz * vz + 2 * ft.g * h0)) / ft.g
+	out.T, out.land = T, R
 	return out
 end
 
