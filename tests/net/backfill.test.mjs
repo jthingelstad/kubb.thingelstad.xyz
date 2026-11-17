@@ -127,6 +127,12 @@ test("a hash the engine no longer reaches is the first that differs; a gap makes
     out.filter((_, i) => i !== 6),
   );
   assert.equal(best, null);
+  // a match still in play as recorded is never kept, though its replay is whole
+  const playing = roomReplays(engine, out.slice(0, -3));
+  assert.ok(playing.found[0].replay);
+  assert.equal(playing.found[0].finished, false);
+  assert.equal(playing.best, null);
+  assert.equal(roomReplays(engine, out).best.finished, true);
 });
 
 test("the write keeps the replay and the room a year from the match's end, once, and only for the match the pitch shows", async () => {

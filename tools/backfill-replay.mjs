@@ -78,18 +78,35 @@ export function checkReplay(engine, replay) {
   return out;
 }
 
-// Every match of a room's records, judged; `best` is the last that makes a whole replay.
+// Whether a recorded snapshot is a finished match: the recorded one, not the replay's
+// end (a finished match can play out otherwise under newer physics).
+export function finished(engine, snap) {
+  engine.restore(snap);
+  return engine.need().kind === "over";
+}
+
+// Every match of a room's records, judged; `best` is the last finished one that makes a
+// whole replay (a match still in play is never kept).
 export function roomReplays(engine, records) {
   const found = [];
   for (const match of matchesOf(records)) {
     const r = replayFromMatch(match);
-    found.push(
-      r.replay
-        ? { n: match.n, ...r, check: checkReplay(engine, r.replay) }
-        : { n: match.n, why: r.why },
-    );
+    if (!r.replay) {
+      found.push({ n: match.n, why: r.why });
+      continue;
+    }
+    const check = checkReplay(engine, r.replay);
+    found.push({
+      n: match.n,
+      ...r,
+      check,
+      finished: finished(engine, r.replay.snap),
+    });
   }
-  return { found, best: found.filter((f) => f.replay).at(-1) ?? null };
+  return {
+    found,
+    best: found.filter((f) => f.replay && f.finished).at(-1) ?? null,
+  };
 }
 
 // The write, against a room store (backend/rooms/dynamo-store.mjs): what `keep` does,
@@ -203,8 +220,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       f.check
         ? `${room} match ${f.n}: ${f.check.actions} actions, ${f.check.same} on the players' hash${f.check.firstDiffers ? `, the first to differ is action ${f.check.firstDiffers} (${f.replay.log[f.check.firstDiffers - 1].a.type})` : ""}; ${f.check.over ? "it ends" : "it does not end"}${f.check.end ? " on the recorded result" : ", not on the recorded snapshot (the pitch shows that one)"}`
         : `${room} match ${f.n}: no replay (${f.why})`,
+      f.check && !f.finished ? " (not finished as recorded: not kept)" : "",
     );
-  if (!best) throw new Error(`${room}: no match makes a whole replay`);
+  if (!best) throw new Error(`${room}: no finished match makes a whole replay`);
   if (args.includes("--write"))
     console.log(await keepBackfill(await liveStore(), room, best));
   else console.log("Nothing written (--write writes it).");
