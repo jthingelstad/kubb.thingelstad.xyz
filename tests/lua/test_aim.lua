@@ -50,6 +50,18 @@ test("practice aim defaults", function()
 	expect.eq(back.need.kind, "throw")
 end)
 
+test("the aim arc ends where the clean throw lands, in the air's drag", function()
+	local s = session.new { mode = "practice" }
+	local ts = s.ts
+	local pts = tw.web.throw.arcPoints(ts)
+	local last = pts[#pts]
+	local sol = ts.sol
+	local lx, ly = tw.flight.predict(ts.playerX, ts.playerY, sol.swivel or 0, sol.loft or 32, sol.speed)
+	expect.near(last[1], lx, 1e-6, "across")
+	expect.near(last[2], ly, 1e-6, "out")
+	expect.near(last[3], 0, 1e-6, "on the ground")
+end)
+
 test("setTarget snaps and stays put; setStance holds the line", function()
 	local s = session.new { mode = "practice" }
 	s:setTarget(1.1, 7.9, true)
