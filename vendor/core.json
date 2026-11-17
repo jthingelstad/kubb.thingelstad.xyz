@@ -1,6 +1,6 @@
 {
   "source": "playdate-kubb source/core",
-  "commit": "cca801265e93c6de13aed454329c341ff56c5f00",
+  "commit": "7885cedcc864637e5676eab5a1fcec8b88159896",
   "files": {
     "autothrow.lua": "e3cf6c0f0e9f71c83ce4fef0f27a257195cdefef35db3dac02c38b9e0c79e592",
     "bench.lua": "790ead4be45ee073d29506f2606bda6c8ea796928fe859d5093e8dcb9d9b4f8e",
@@ -12,7 +12,7 @@
     "debris.lua": "ccc8553bd70a231cc939adea8e511e842b5ab6ddd21b9afc45a904cce698fa17",
     "drill.lua": "ab5aa683bb6e26029ea4f01be78c988f4e814382479b072514c8f72762f3b2ea",
     "drills.lua": "ae4113243ab8d677abc80310bad9e998f8da7380b193e1405b311662904a0103",
-    "flight.lua": "8ca7eb32ffd92cf0d56424679a287311c6cb4cf42e8c49a07d20fdceb9219c28",
+    "flight.lua": "6dc373f9268b7d50e95757c2b107c454fe88690a672359dd3f028360b44d394c",
     "frame.lua": "3f9e4493c4b0663e90fb12ddd29a94b686d5f724f6d4c67cf2c886221dde8487",
     "frametel.lua": "d725b277d2464e71fc85d32fba38ab36ecd2ccb8522576e893aeda4b26acdc05",
     "gamefile.lua": "e3fa53fb7b0360a6a70e24f2c1f97e6192793c120b5eff81c00abab9694e4922",
@@ -36,10 +36,11 @@
     "rules.lua": "b8491b9e15121891ddc045df6f23fb8c8b886b524e63da0a262b74bee4cdc6a4",
     "save.lua": "3a4b81f16cd5759914cdff5897e6bb5c4c74c8bd4f57ab18dfd02970b6beccd4",
     "swing.lua": "08a0da27d8b86bd8ff5e7b172576550ed97da477fd9f086d2f208022cf531361",
-    "throwplan.lua": "219ccb6aec90c24550a6e74212d8ae47246317e55ba873fc9200a9d7c7f0860e",
+    "throwplan.lua": "0473cc66cf20335f80c82adccb962e1581b2a5f74b6432f8e1d4b1410d732402",
     "trace.lua": "108ed10b3663f7c339d00c9bb5840c371442bc3430f69987a374483f1f07b204",
     "tw.lua": "d3bb3a81977440239e9024e243aa3b3dce2ba418b19d87075b8268b73aeff167",
     "vec.lua": "16ed8c29ccd68dcc7cff60892b5b2e767aaf01635e7fad30e593f09247326393",
+    "version.lua": "4bbb84469b046fb56d9744f571f7d4a155db7b280d6210843cc33af1fe00a588",
     "wind.lua": "5be8fbc824ab65f875570249012fe334c5327b93f5036d37e2679e8bef93a876",
     "world.lua": "4f5cb3fbd159e76c70c9e03a79f3305b9a0bc175614846decba5e91bf8a1797c"
   }
