@@ -47,7 +47,8 @@ const analytics = process.env.KUBB_PRODUCTION === "true" && TINYLYTICS_SITE;
 for (const page of PAGES) {
   const html = await read(page.file);
   const count = html.split("tinylytics.app").length - 1;
-  assert.equal(count, analytics ? 1 : 0, `tinylytics.app in ${page.file}`);
+  const counted = analytics && page.analytics !== false;
+  assert.equal(count, counted ? 1 : 0, `tinylytics.app in ${page.file}`);
 
   // Every local file or route a page names is served.
   for (const [, ref] of html.matchAll(/(?:src|href)="(\/[^"#]*)"/g))
