@@ -107,20 +107,41 @@ export async function keepBackfill(store, room, { replay, at }) {
   const m = JSON.parse(stored.doc).match;
   if (!m || m.n !== replay.n || m.snap !== replay.snap)
     throw new Error(`${room}: the pitch no longer shows match ${replay.n}`);
-  if ((current.keep?.v ?? 0) >= stored.v || (await store.getReplay(room)))
+  if ((current.keep?.v ?? 0) >= stored.v)
+    return `${room}: a replay is kept already; nothing written`;
+  // A replay item already there is this run's own only when it is this very replay (a
+  // run that wrote it and stopped before the room): then the room is finished below.
+  const there = await store.getReplay(room);
+  if (there && (there.v !== stored.v || there.data !== data))
     return `${room}: a replay is kept already; nothing written`;
   const until = Math.floor(at / 1000) + LIMITS.keepTtl;
-  if (!(await store.putReplay(room, { v: stored.v, t: at, data, exp: until })))
+  if (
+    !there &&
+    !(await store.putReplay(room, { v: stored.v, t: at, data, exp: until }))
+  )
     return `${room}: a replay is kept already; nothing written`;
-  const next = {
-    ...current,
-    rev: current.rev + 1,
-    exp: Math.max(current.exp, until),
-    keep: { v: stored.v, until },
-  };
-  if (!(await store.putRoom(room, next, current.rev)))
-    throw new Error(`${room}: the room changed while writing; run it again`);
-  await store.touchDoc(room, next.exp);
+  // the room record, on its revision: a visitor may write it meanwhile, so read again
+  let next = null;
+  for (let tries = 0; tries < 5 && !next; tries++) {
+    const now = tries ? await store.getRoom(room) : current;
+    if (!now) throw new Error(`${room}: the room went while writing`);
+    if ((now.keep?.v ?? 0) >= stored.v) {
+      next = now;
+      break;
+    }
+    const want = {
+      ...now,
+      rev: now.rev + 1,
+      exp: Math.max(now.exp, until),
+      keep: { v: stored.v, until },
+    };
+    if (await store.putRoom(room, want, now.rev)) next = want;
+  }
+  if (!next)
+    throw new Error(
+      `${room}: the room kept changing; run it again (it finishes what is left)`,
+    );
+  await store.touchDoc(room, Math.max(next.exp, until));
   return `${room}: kept match ${replay.n} (version ${stored.v}, ${data.length} bytes) until ${new Date(until * 1000).toISOString().slice(0, 10)}`;
 }
 
