@@ -50,15 +50,34 @@ test("practice aim defaults", function()
 	expect.eq(back.need.kind, "throw")
 end)
 
-test("the aim arc ends where the clean throw lands, in the air's drag", function()
+test("the aim arc ends at the target kubb's face, at its aim height", function()
 	local s = session.new { mode = "practice" }
 	local ts = s.ts
+	expect.eq(ts.markerOnId, "b3")
+	local sol = ts.sol
+	local zAim = tw.plan.aimZFor("kubb")
+	expect.near(sol.aimZ, zAim, 1e-12, "the plan aims through the kubb at mid-height")
+	-- the clean flight (with the air's drag) carries to the kubb's centre at that height
+	local R = tw.flight.carry(sol.speed, math.rad(sol.loft), tw.flight.tune.handHeight - zAim,
+		tw.flight.tune.dragK.baton)
+	expect.near(R, 8 - ts.playerY, 0.005, "carries to the kubb")
 	local pts = tw.web.throw.arcPoints(ts)
 	local last = pts[#pts]
-	local sol = ts.sol
-	local lx, ly = tw.flight.predict(ts.playerX, ts.playerY, sol.swivel or 0, sol.loft or 32, sol.speed)
-	expect.near(last[1], lx, 1e-6, "across")
-	expect.near(last[2], ly, 1e-6, "out")
+	local face = 8 - tw.body.kinds.kubb.hx
+	expect.near(last[1], 0, 1e-6, "across")
+	expect.near(last[2], face, 1e-6, "ends at the near face")
+	expect.truthy(last[3] >= zAim - 1e-6 and last[3] < zAim + 0.03, "at the aim height: " .. last[3])
+end)
+
+test("an arc onto an empty spot ends on the ground", function()
+	local s = session.new { mode = "practice" }
+	s:setTarget(0.5, 6.0)
+	local ts = s.ts
+	expect.eq(ts.sol.aimZ, 0)
+	local pts = tw.web.throw.arcPoints(ts)
+	local last = pts[#pts]
+	expect.near(last[1], 0.5, 1e-6, "across")
+	expect.near(last[2], 6.0, 1e-6, "out")
 	expect.near(last[3], 0, 1e-6, "on the ground")
 end)
 

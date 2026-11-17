@@ -49,7 +49,8 @@ throw.tune = {
 	walkSpeed = 1.2,      -- m/s along the throwing line (keys held)
 	halfWidth = 2.5,      -- the line is 5 m wide (DESIGN 2)
 	backMax = 3.0,        -- m the player may step back from the throwing line
-	snapRadius = 0.25,    -- m: aimAt (snap) puts the circle onto a standing target this near
+	snapRadius = 0.25,    -- m: aimAt (snap) puts the circle onto a standing target this near;
+	                      -- a baton's circle this near one is on it (replan: aimed through it)
 	keepNear = 1.0,       -- m: a circle moved by hand stays put for the next throw while a live
 	                      -- target stands this near it (else it goes onto the nearest target)
 	overDeg = 150,        -- backswing degrees past which the clock shows overpowered (11 o'clock)
@@ -176,12 +177,20 @@ end
 -- drag (flight.carry), so the arc is drawn as the plain parabola from the
 -- hand to the same landing in the same time (within 2 to 4 cm of it). A
 -- drilled kubb's lands where drill.solveAt puts it: sol.land out, its centre
--- at drill.tune.landZ.
+-- at drill.tune.landZ. A baton's plan already sends its centre through the
+-- target (plan.solve: sol.dist out, at sol.aimZ, in sol.flightT); on a piece
+-- (replan's s.aimFace) the arc stops where it reaches the piece's near face,
+-- a hair above the aim height: the fourth value is the time drawn to.
 local function arcLaunch(s)
 	local sol = s.sol
 	local speed, loft, sw = sol.speed or 0, sol.loft or 32, sol.swivel or 0
 	local T, R, z1 = sol.T, sol.land, drill.tune.landZ
-	if not (s.drill and T and R) then
+	local Tdraw = nil
+	if s.projectile ~= "kubb" and sol.flightT and sol.dist then
+		T, R, z1 = sol.flightT, sol.dist > 0.1 and sol.dist or 0.1, sol.aimZ or 0
+		local face = s.aimFace
+		if face and face > 0 and face < R then Tdraw = T * face / R end
+	elseif not (s.drill and T and R) then
 		local lx, ly
 		lx, ly, T = flight.predict(s.playerX, s.playerY, sw, loft, speed)
 		lx, ly = lx - s.playerX, ly - s.playerY
@@ -190,7 +199,7 @@ local function arcLaunch(s)
 	if T <= 0 then return 0, 0, 0, 0 end
 	local vh = R / T
 	local h, g = flight.tune.handHeight, flight.tune.g
-	return vh * math.sin(sw), vh * math.cos(sw), (z1 - h + 0.5 * g * T * T) / T, T
+	return vh * math.sin(sw), vh * math.cos(sw), (z1 - h + 0.5 * g * T * T) / T, Tdraw or T
 end
 
 -- The planned arc's points (arcSkip..arcPoints), as drawn on the Playdate.
@@ -293,6 +302,23 @@ local function replan(s)
 		-- a drill runs on by the ground and less with spin (drill.slideFor)
 		surface = s.surface, spin = kubb and s.spin or 0,
 	}
+	-- a baton's circle on a piece (a standing target within snapRadius of its
+	-- centre) aims the baton's centre through it at the piece's aim height
+	-- (plan.aimZFor), and the arc ends on that piece's near face (s.aimFace, m
+	-- along the throw from the stance); an empty spot is aimed at the ground
+	-- (scenes/throw.lua replan)
+	local on = nil
+	if not kubb and s.snaps then on = plan.snap(s.markerX, s.markerY, s.snaps, #s.snaps, throw.tune.snapRadius) end
+	if on then
+		local king = on.kind == "king"
+		q.aimZ = plan.aimZFor(king and "king" or "kubb")
+		local dx, dy = s.markerX - s.playerX, s.markerY - s.playerY
+		local d = sqrt(dx * dx + dy * dy)
+		local along = d > 0 and ((on.x - s.playerX) * dx + (on.y - s.playerY) * dy) / d or 0
+		s.aimFace = along - (king and body.kinds.king.hx or body.kinds.kubb.hx)
+	else
+		q.aimZ, s.aimFace = 0, nil
+	end
 	local sol = plan.solve(q, {})
 	s.sol = sol
 	s.swivel, s.loftDeg = sol.swivel, sol.loft
