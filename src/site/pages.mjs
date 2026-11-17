@@ -258,6 +258,8 @@ export const PAGES = [
     render: embed,
     game: true,
     noindex: true,
+    // no analytics in another site's frame
+    analytics: false,
     sources: ["src"],
   },
   {
