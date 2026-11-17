@@ -110,6 +110,12 @@ export class Game {
     this.planToggle = false;
     this.walkOn = false; // WALK: a drag on the pitch walks the thrower
     this.swipeEnabled = swipeEnabled;
+    this.swipeLayout =
+      swipeEnabled &&
+      (matchMedia("(any-pointer: coarse)").matches ||
+        navigator.maxTouchPoints > 0);
+    this.touchPrompts =
+      this.swipeLayout && matchMedia("(pointer: coarse)").matches;
     this.touchSamples = [];
     this.ptr = null; // the pointer that is pressed: { id, kind, x, y, ... }
     this.dialArm = null;
@@ -807,12 +813,17 @@ export class Game {
     this.canvas.height = Math.round(H * dpr);
     const cs = getComputedStyle(document.documentElement);
     const inset = (n) => parseFloat(cs.getPropertyValue(n)) || 0;
-    this.L = layoutFor(W, H, {
-      top: inset("--safe-top"),
-      right: inset("--safe-right"),
-      bottom: inset("--safe-bottom"),
-      left: inset("--safe-left"),
-    });
+    this.L = layoutFor(
+      W,
+      H,
+      {
+        top: inset("--safe-top"),
+        right: inset("--safe-right"),
+        bottom: inset("--safe-bottom"),
+        left: inset("--safe-left"),
+      },
+      this.swipeLayout,
+    );
     this.fit = worldFit(W, H, this.panX);
     if (this.engine) this.applyWide();
   }
@@ -888,6 +899,10 @@ export class Game {
         ...dial,
         grabbed: this.ptr?.kind === "dial" || this.ptr?.kind === "swipe",
       };
+      if (this.touchPrompts && !watching) {
+        if (st.prompt === "WIND BACK") st.prompt = "PULL DOWN ↓";
+        if (st.prompt === "FLICK!") st.prompt = "FLICK UP!";
+      }
       if (watching && !st.prompt) st.prompt = "WATCH";
       drawDial(this.ctx, this.L.dial, st);
     }
@@ -1115,6 +1130,11 @@ export class Game {
 
   bindInput() {
     const c = this.canvas;
+    if (this.swipeLayout) {
+      this.listen(c, "pointerover", (e) => {
+        this.touchPrompts = e.pointerType === "touch";
+      });
+    }
     this.listen(c, "pointerdown", (e) => this.down(e));
     this.listen(c, "pointermove", (e) => this.move(e));
     this.listen(c, "pointerup", (e) => this.up(e, false));
@@ -1145,7 +1165,12 @@ export class Game {
       const g = dialGeometry(this.L.dial);
       const aim = this.out?.aim || {};
       const swipe = this.swipeEnabled && e.pointerType === "touch";
-      if (!swipe && hitTest(g, x, y)) kind = "dial";
+      // The painted control is in front of the pitch. Its face keeps the
+      // press even where the projected stance or target lies underneath it.
+      const onDial = swipe
+        ? Math.hypot(x - g.cx, y - g.cy) <= g.r
+        : hitTest(g, x, y);
+      if (onDial) kind = swipe ? "swipe" : "dial";
       else if (this.walkOn) kind = "walk";
       else if (
         this.near(aim.marker, x, y, touch ? tune.grabTouch : tune.grabMouse)
@@ -1157,6 +1182,7 @@ export class Game {
       if (kind === "swipe") {
         this.sampleTouch(e, "down");
         this.planToggle = false;
+        this.walkOn = false;
       }
       if (kind === "dial") {
         this.dialArm = armAt(g, x, y);

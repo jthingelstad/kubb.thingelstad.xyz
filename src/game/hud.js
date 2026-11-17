@@ -198,14 +198,14 @@ export class Hud {
       s.left = `${L.safe.left + 8}px`;
       s.right = `${L.safe.right + 8}px`;
       s.width = "";
-      s.top = `${d.y + d.height * 0.18}px`;
+      s.top = `${L.plansY + d.height * 0.18}px`;
       s.bottom = "";
     } else {
       s.left = "";
       s.right = `${L.W - d.x + 6}px`;
       s.width = "";
       s.top = "";
-      s.bottom = `${L.H - (d.y + d.height) + 10}px`;
+      s.bottom = `${L.H - (L.plansY + d.height) + 10}px`;
     }
   }
 }
