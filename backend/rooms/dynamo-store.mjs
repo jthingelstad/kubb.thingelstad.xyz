@@ -2,6 +2,7 @@
 //
 //   room#<code>  room            { rev, json, exp }       host and members: small, read on every message
 //   room#<code>  doc             { v, doc, by, sid, exp } the shared document, JSON text
+//   room#<code>  replay          { v, t, z, exp }         the room's kept replay: its JSON text, gzipped
 //   conn#<id>    conn            { room, member, exp }    which member a connection is
 //   conn#<id>    part#<msg>#<i>  { d, exp }               one part of a message being uploaded
 //   open         <made>#<code>   { room, made, players, seats, state, exp }
@@ -24,6 +25,8 @@ import {
   QueryCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
+
+import { gunzipSync, gzipSync } from "node:zlib";
 
 import { listingKey } from "./core.mjs";
 
@@ -123,6 +126,44 @@ export function dynamoStore({ client, table, now = Date.now }) {
       } catch (error) {
         if (!lost(error)) throw error;
       }
+    },
+
+    // A finished match's replay (docs/ROOMS.md section 10), gzipped: kept only when no
+    // unexpired replay of this room has this document version or a later one.
+    async putReplay(code, { v, t, data, exp }) {
+      try {
+        await client.send(
+          new PutCommand({
+            TableName: table,
+            Item: {
+              pk: `room#${code}`,
+              sk: "replay",
+              v,
+              t,
+              z: gzipSync(Buffer.from(data)),
+              exp,
+            },
+            ConditionExpression:
+              "attribute_not_exists(pk) OR #exp < :now OR #v < :v",
+            ExpressionAttributeNames: { "#exp": "exp", "#v": "v" },
+            ExpressionAttributeValues: { ":now": seconds(), ":v": v },
+          }),
+        );
+        return true;
+      } catch (error) {
+        if (lost(error)) return false;
+        throw error;
+      }
+    },
+    async getReplay(code) {
+      const item = await get(`room#${code}`, "replay");
+      if (!item) return null;
+      return {
+        v: item.v,
+        t: item.t,
+        data: gunzipSync(Buffer.from(item.z)).toString(),
+        exp: item.exp,
+      };
     },
 
     async putConn(conn, who) {

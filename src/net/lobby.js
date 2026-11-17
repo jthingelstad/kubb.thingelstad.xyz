@@ -21,11 +21,20 @@
 //       players: { A: [{ id, name }], B: [...] },  who plays, frozen at START
 //       cpu:     "A" | "B" | null,                 the computer's side
 //       host,                 who started it
+//       setup,                the engine's newMatch options (the replay sets out from them)
+//       h0,                   the engine's hash at the start
+//       log:   [{ a, h }],    every action committed, with the hash after it: the
+//                             replay's. One an action (log.length === seq) while it is
+//                             whole; null once it is not (an older browser committed
+//                             without it, or the document would grow too big)
+//       over:  true,          the match has ended (set by the action that ended it)
 //     }
 //   }
 //
 // The snapshot is opaque text: never JSON.parse it and write it back (that
 // turns 3.0 into 3 and changes the hash).
+
+import { asciiSize } from "./sync.js";
 
 export const DOC_VERSION = 1;
 export const TEAM_MAX = 6;
@@ -258,8 +267,9 @@ export function matchOptions(doc, { players, cpu }, { seed, start }) {
 
 export const LEVELS = ["beginner", "club", "pro"];
 
-// START: the match begins with the host's first snapshot.
-export function startMatch(doc, { snap, hash, players, cpu, host }) {
+// START: the match begins with the host's first snapshot. `setup` (the newMatch
+// options) starts the replay's log.
+export function startMatch(doc, { snap, hash, players, cpu, host, setup }) {
   const l = lobbyOf(doc);
   if (l.started) return undefined;
   const n = l.n + 1;
@@ -277,21 +287,79 @@ export function startMatch(doc, { snap, hash, players, cpu, host }) {
     cpu: cpu || null,
     host,
   };
+  if (setup && typeof setup === "object")
+    Object.assign(l.match, { setup, h0: hash, log: [] });
   return l;
 }
 
 // An action committed: the snapshot after it, as action number `seq` of
 // match `n`. Refused (undefined) unless it follows the document's own last
 // action: the compare-and-set's loser drops its action and adopts.
-export function commitAction(doc, { n, seq, snap, hash }) {
+// `action` goes on the replay's log with the hash after it; `over` when it ended the
+// match. A log that cannot stay whole (no action, a gap, or the document past
+// LOG_BUDGET) is dropped: that match has no replay.
+export function commitAction(doc, { n, seq, snap, hash, action, over }) {
   const l = lobbyOf(doc);
   const m = l.match;
   if (!l.started || !m || m.n !== n || m.seq !== seq - 1) return undefined;
   l.match = { ...m, seq, snap, hash };
+  if (Array.isArray(m.log)) {
+    l.match.log =
+      action && m.log.length === seq - 1
+        ? [...m.log, { a: action, h: hash }]
+        : null;
+  }
+  if (over) l.match.over = true;
+  if (l.match.log && asciiSize(l) > LOG_BUDGET) l.match.log = null;
   return l;
 }
 
-// REMATCH: back to the lobby with the same teams (the old match is dropped).
+// The most the document may grow to while it carries a replay's log (the room's limit is
+// 256 KB). An action is about 360 B with its hash and a snapshot up to 30 KB, so this
+// holds about 600 actions: a 35-turn match between the computers is about 400.
+export const LOG_BUDGET = 248 * 1024;
+
+// A match's replay, when it has one: it has ended and its log is whole. This is what a
+// pitch keeps (room.keep, docs/ROOMS.md section 10) and what the replay player plays
+// (src/replay/player.js): { v, n, setup, h0, log, snap, hash, players, cpu }. Older
+// matches (from before replays, or committed by an older browser) give null: their
+// pitch shows the result without a replay.
+export const REPLAY_VERSION = 1;
+export function replayOf(match) {
+  const m = match;
+  if (!m || typeof m !== "object" || m.over !== true) return null;
+  if (!m.setup || typeof m.setup !== "object" || typeof m.snap !== "string")
+    return null;
+  if (!Array.isArray(m.log) || m.log.length !== m.seq) return null;
+  return {
+    v: REPLAY_VERSION,
+    n: m.n,
+    setup: m.setup,
+    h0: m.h0 ?? null,
+    log: m.log,
+    snap: m.snap,
+    hash: m.hash,
+    players: m.players,
+    cpu: m.cpu ?? null,
+  };
+}
+
+// The same check for a replay that came from elsewhere (the room's kept copy).
+export function isReplay(r) {
+  return (
+    !!r &&
+    typeof r === "object" &&
+    r.v === REPLAY_VERSION &&
+    !!r.setup &&
+    typeof r.setup === "object" &&
+    Array.isArray(r.log) &&
+    r.log.every((e) => e && typeof e.a === "object" && e.a) &&
+    typeof r.snap === "string"
+  );
+}
+
+// REMATCH: back to the lobby with the same teams (the old match is dropped from the
+// document; its replay was kept by the room when it ended).
 export function backToLobby(doc, n) {
   const l = lobbyOf(doc);
   if (!l.started || (n != null && l.n !== n)) return undefined;

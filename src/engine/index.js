@@ -137,6 +137,34 @@ export class Engine {
     return this.call("showAt", { t });
   }
 
+  // ---- a replay (lua/web/replay.lua) ----
+  // data: { setup, h0, log: [{ a, h }] } (src/net/lobby.js replayOf). Every result
+  // carries `replay`: { i, total, turn, thrown, throws, differs, done }. While a
+  // replay is loaded every action from outside is refused; new or restore ends it.
+  replayLoad(data) {
+    return this.call("replayLoad", {
+      setup: data.setup,
+      h0: data.h0 ?? undefined,
+      log: data.log,
+    });
+  }
+  replayStep() {
+    return this.call("replayStep");
+  }
+  replayBack() {
+    return this.call("replayBack");
+  }
+  replayRewind() {
+    return this.call("replayRewind");
+  }
+  // { ...info, held }: held while a computer's throw waits at its release
+  replayInfo() {
+    return this.call("replayInfo");
+  }
+  replayEnd() {
+    return this.call("replayEnd");
+  }
+
   // ---- the wide view (lua/web/wide.lua) ----
   // box { left, top, right, bottom } in frame px turns it on: every camera
   // after this is the wide one and the pitch comes in the world frame.

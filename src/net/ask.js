@@ -1,7 +1,8 @@
 // One message to the room server on a socket of its own, and its answer: a report
-// (src/net/report.js), a match played in this browser (src/net/record.js). The socket opens, the message goes (in parts when it is longer
-// than a frame, docs/ROOMS.md section 2.1), the answer comes back or the time runs out, and
-// the socket closes. Never touches a room.
+// (src/net/report.js), a match played in this browser (src/net/record.js), a pitch's
+// replay (src/replay/fetch.js). The socket opens, the message goes (in parts when it is
+// longer than a frame, docs/ROOMS.md section 2.1), the answer comes back (joined from its
+// parts the same way) or the time runs out, and the socket closes. Never touches a room.
 //
 //   const answer = await ask({ url, message, done: "reported", re: "report" });
 //
@@ -9,6 +10,8 @@
 // rejects an AskError whose code is the server's error code (for an `error` with `re`), or
 // timeout, closed, unavailable.
 import { asciiJson, toFrames } from "./room.js";
+
+const PART = /^~([a-z0-9]{1,16})\.(\d{1,3})\.(\d{1,3})~/;
 
 export class AskError extends Error {
   constructor(code, message) {
@@ -56,6 +59,7 @@ export function ask({
       return;
     }
     const id = message.id ?? null;
+    const parts = new Map();
     ws.onopen = () => {
       try {
         for (const f of toFrames(asciiJson(message), frame)) ws.send(f);
@@ -64,9 +68,20 @@ export function ask({
       }
     };
     ws.onmessage = (e) => {
+      let text = typeof e.data === "string" ? e.data : "";
+      if (text.startsWith("~")) {
+        const head = PART.exec(text);
+        if (!head) return;
+        const got = parts.get(head[1]) ?? [];
+        got[Number(head[2])] = text.slice(head[0].length);
+        parts.set(head[1], got);
+        if (got.filter((x) => x !== undefined).length < Number(head[3])) return;
+        parts.delete(head[1]);
+        text = got.join("");
+      }
       let m;
       try {
-        m = JSON.parse(typeof e.data === "string" ? e.data : "");
+        m = JSON.parse(text);
       } catch {
         return;
       }

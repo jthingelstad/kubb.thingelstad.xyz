@@ -7,8 +7,9 @@ import "core/tw"
 import "web/json"
 import "web/session"
 import "web/wide"
+import "web/replay"
 
-local json, session, wide = tw.web.json, tw.web.session, tw.web.wide
+local json, session, wide, replay = tw.web.json, tw.web.session, tw.web.wide, tw.web.replay
 
 local api = {}
 local S = nil
@@ -16,6 +17,15 @@ local S = nil
 local function need()
 	assert(S, "no session: call new or restore first")
 	return S
+end
+
+-- A replay (lua/web/replay.lua) while one is loaded: its session is S, and nothing may
+-- act in it (every call that would change the match but the replay's own is refused).
+local R = nil
+
+local function act()
+	assert(not R, "a replay is read only")
+	return need()
 end
 
 local M = {}
@@ -28,7 +38,7 @@ local wideBox, wideCam = nil, nil
 local WIDE = { view = true, aim = true, frame = true, showAt = true, apply = true, recording = true,
 	showAim = true, setTarget = true, nudgeTarget = true, setStance = true, stepArc = true, setArc = true,
 	stepSide = true, freshPlan = true, setLevel = true, setDrill = true, reset = true, setSurface = true,
-	new = true, restore = true }
+	new = true, restore = true, replayLoad = true, replayStep = true, replayBack = true, replayRewind = true }
 
 -- { box = { left, top, right, bottom } } turns it on (frame px; kind "side"
 -- or "end" to choose the framing, else by the box's shape), {} turns it off.
@@ -54,8 +64,8 @@ local function wideOut(method, r)
 	return wide.out(r, wideCam, S.frameSide, S.recSide)
 end
 
-function M.new(a) S = session.new(a or {}); return S:view() end
-function M.restore(text, raw) S = session.restore(raw); return S:view() end
+function M.new(a) R = nil; S = session.new(a or {}); return S:view() end
+function M.restore(text, raw) R = nil; S = session.restore(raw); return S:view() end
 function M.view() return need():view() end
 -- The view in the thrower's frame even while the wide view is on: what a report
 -- records, so tools/reports.mjs can compare it with a replay (not in WIDE).
@@ -75,12 +85,53 @@ function M.setLevel(a) return need():setLevel(a and a.level) end
 function M.setDrill(a) return need():setDrill(a and a.on) end
 function M.reset() return need():reset() end
 function M.setSurface(a) return need():setSurface(a and a.surface) end
-function M.setControl(a) return need():setControl(a) end
+function M.setControl(a) return act():setControl(a) end
 function M.aimState() return need():aimState() end
 function M.showAim(a) return need():showAim(a) or json.object() end
-function M.apply(a) return need():apply(a) end
+function M.apply(a) return act():apply(a) end
 function M.checkPunish(a) return need():checkPunish(a.x, a.y) end
 function M.hash() local text = need():snapshot(); return { hash = session.fnv(text), bytes = #text } end
+-- ---------- a replay (lua/web/replay.lua) ----------
+-- replayLoad { setup, h0, log } sets the match out again from its options; the view,
+-- with `replay` = its info. replayStep plays the next action ({ ok, recording?, need,
+-- action, replay }); replayBack goes to the start of the previous turn and
+-- replayRewind to the start of the match (the view, with `replay`).
+local function withInfo(r)
+	r.replay = R:info()
+	return r
+end
+function M.replayLoad(a)
+	R = nil
+	R = replay.new(a)
+	S = R.s
+	return withInfo(S:view())
+end
+local function needReplay()
+	assert(R, "no replay: call replayLoad first")
+	return R
+end
+function M.replayStep()
+	local r = needReplay():step()
+	S = R.s
+	return withInfo(r)
+end
+function M.replayBack()
+	needReplay():back()
+	S = R.s
+	return withInfo(S:view())
+end
+function M.replayRewind()
+	needReplay():rewind()
+	S = R.s
+	return withInfo(S:view())
+end
+function M.replayInfo()
+	local r = needReplay():info()
+	r.held = S.ts.mode == "cpuhold"
+	return r
+end
+function M.replayEnd() R = nil; return json.object() end
+
 function M.recording() return need().recording or json.object() end
 function M.sheet() return need():sheet() or json.object() end
 

@@ -97,6 +97,13 @@ export class Lobby {
       "data-test": "share",
     });
     this.linkText = h("span.link-text", location.host + location.pathname);
+    // the pitch's last finished match, when the room keeps its replay
+    this.replayBtn = button(
+      "WATCH THE LAST MATCH",
+      () => hooks.replay?.(),
+      "small",
+      { "data-test": "lobby-replay", hidden: true },
+    );
     this.optionsBox = h("div.lobby-options", { "data-test": "lobby-options" });
     this.startBtn = button("START", () => hooks.start(), "go big", {
       "data-test": "lobby-start",
@@ -118,7 +125,7 @@ export class Lobby {
       h("div.opt", h("span.opt-label", "Your level"), this.levelSeg.el),
       h("div.teams", this.teams.A.el, this.teams.B.el),
       h("div.watch-row", this.watchList, this.sitOut),
-      h("div.share-row", this.shareBtn, this.linkText),
+      h("div.share-row", this.shareBtn, this.linkText, this.replayBtn),
       this.optionsBox,
       this.note,
       h(
@@ -145,6 +152,11 @@ export class Lobby {
 
   hide() {
     if (this.closeFn) this.closeFn();
+  }
+
+  // Show WATCH THE LAST MATCH or not.
+  setReplay(on) {
+    this.replayBtn.hidden = !on;
   }
 
   say(text) {

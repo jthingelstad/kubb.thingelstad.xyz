@@ -63,12 +63,23 @@ reducers in `src/net/lobby.js`:
     players: { A: [{ id, name }], B: [...] },   // frozen at START
     cpu:     "A" | "B" | null,                  // the computer's side
     host,                                       // who started it
+    setup,                                      // the engine's newMatch options
+    h0,                                         // the engine's hash at the start
+    log:     [{ a, h }] | null,                 // every action with the hash after it
+    over:    true,                              // set by the action that ended it
   }
 }
 ```
 
+`setup`, `h0` and `log` are the match's replay (docs/CLIENT.md "Replays"): START writes
+the options and an empty log, and each commit adds its action and hash. The log stays
+whole only while every commit adds to it: a gap (a browser built before replays commits
+without the action) or a document past 248 KB (`LOG_BUDGET`, about 600 actions) sets it
+to `null`, and that match has no replay. `replayOf(match)` gives the replay of a match
+that is `over` with a whole log, else `null`.
+
 A room's document is `null` until someone writes it, and an expired room (48 hours after
-its last write) comes back empty: both read as a fresh lobby. The snapshot is carried as
+its last write, a finished one a year after its match ended) comes back empty: both read as a fresh lobby. The snapshot is carried as
 the text the engine gave: it is never `JSON.parse`d and written back (that would turn
 `3.0` into `3` and change the hash).
 
@@ -169,9 +180,22 @@ A throw taken for an absent teammate says YOUR THROW FOR <NAME>.
 - **Full room** (16 connected), a bad code, or the pitch open in another tab of the same
   browser (`replaced`, USE IT HERE reloads): a plain card with a way on. A build with no
   room server offers PLAY THE COMPUTER.
-- **The end**: everyone gets the winner card. REMATCH is the host's: back to the lobby
-  with the same teams (`started: false`, the match dropped); the others read who can start
-  one. HOME for everyone.
+- **The end**: everyone gets the winner card, with WATCH REPLAY. REMATCH is the host's:
+  back to the lobby with the same teams (`started: false`, the match dropped); the others
+  read who can start one. HOME for everyone. The browser that committed the last action,
+  and every player who saw it arrive, sends the room `keep` with `replayOf` the match
+  (docs/ROOMS.md section 10): the room keeps the replay and itself a year. Someone who
+  arrives at a finished pitch (or comes back to it) gets the winner card with the teams
+  and WATCH REPLAY as its lead, if the room kept one: the result, the teams, the score
+  sheet and nothing to act on. A match that ended before replays shows the same card
+  without WATCH REPLAY. After a rematch the lobby offers WATCH THE LAST MATCH, the
+  replay of the most recent finished match, until the next one ends. A match in play is
+  never offered.
+- **Watching a replay** (`Pitch.watch`): the room session stays joined but the pitch
+  ignores documents while it plays (`ReplayPlayer`, docs/CLIENT.md "Replays"); BACK TO
+  THE PITCH returns to where it was (the winner card, or the lobby) and catches up with
+  the room. The replay is read only: its seat may never act, so nothing it shows reaches
+  the room. A finished pitch is never listed under Open games.
 - **Resign** (the menu) is for players only, not for those watching.
 
 ## Tests
@@ -186,7 +210,12 @@ A throw taken for an absent teammate says YOUR THROW FOR <NAME>.
   hash; the turn passes and the guest throws, the host watches it; a third browser
   arrives mid-match, adopts and watches; a shout arrives; the guest's socket drops and it
   comes back in step; a resignation gives everyone the winner card and the host's
-  REMATCH takes all three back to the lobby with the same teams. Also one person against
+  REMATCH takes all three back to the lobby with the same teams. "a finished pitch plays
+  its match again": a match against the computer ends, the room keeps its replay, a
+  late visitor gets WATCH REPLAY first with the teams, and the replay is read only,
+  pauses, steps one throw, goes BACK, ends at 4X on the same hash as the document with
+  REPLAY AGAIN, returns to the pitch, and after REMATCH the lobby offers the last match;
+  its bar fits a phone. Also one person against
   the computer through the room, the lobby on a phone (no sideways scroll) and in
   landscape, and a room server that cannot be reached. Skipped with a notice without
   Playwright's Chromium. `KUBB_MP_SHOTS=build/mp-shots` also saves screenshots.

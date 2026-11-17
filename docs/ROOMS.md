@@ -13,18 +13,19 @@ The game puts the lobby (teams, options, started or not) and the match snapshot 
 shared document (`docs/DESIGN.md` section 4.3). This file is the whole contract: the wire
 protocol, the client library, the limits, the cost, and what is not protected.
 
-| Piece                                  | Where                                                                   |
-| -------------------------------------- | ----------------------------------------------------------------------- |
-| Room logic (pure, both servers run it) | `backend/rooms/core.mjs`                                                |
-| AWS Lambda handler, DynamoDB store     | `backend/rooms/handler.mjs`, `backend/rooms/dynamo-store.mjs`           |
-| The recorder (every version, to S3)    | `backend/rooms/recorder.mjs`, `src/net/record.js`, `tools/games.mjs`    |
-| Open games (the home page's list)      | `backend/rooms/core.mjs`, `public/js/open-games.js`, `src/net/pitch.js` |
-| Reports (to S3)                        | `backend/rooms/reports.mjs`, `src/net/report.js`, `tools/reports.mjs`   |
-| In-memory store (dev server, tests)    | `backend/rooms/memory-store.mjs`                                        |
-| Local server                           | `tools/rooms-dev.mjs` (`node tools/rooms-dev.mjs`, ws://127.0.0.1:8788) |
-| Browser client                         | `src/net/room.js`                                                       |
-| CloudFormation                         | `infra/rooms.json`                                                      |
-| Tests                                  | `node --test tests/net/`                                                |
+| Piece                                   | Where                                                                   |
+| --------------------------------------- | ----------------------------------------------------------------------- |
+| Room logic (pure, both servers run it)  | `backend/rooms/core.mjs`                                                |
+| AWS Lambda handler, DynamoDB store      | `backend/rooms/handler.mjs`, `backend/rooms/dynamo-store.mjs`           |
+| The recorder (every version, to S3)     | `backend/rooms/recorder.mjs`, `src/net/record.js`, `tools/games.mjs`    |
+| Open games (the home page's list)       | `backend/rooms/core.mjs`, `public/js/open-games.js`, `src/net/pitch.js` |
+| Reports (to S3)                         | `backend/rooms/reports.mjs`, `src/net/report.js`, `tools/reports.mjs`   |
+| Replays (a finished match, kept a year) | `backend/rooms/core.mjs`, `src/replay/fetch.js`, `src/net/pitch.js`     |
+| In-memory store (dev server, tests)     | `backend/rooms/memory-store.mjs`                                        |
+| Local server                            | `tools/rooms-dev.mjs` (`node tools/rooms-dev.mjs`, ws://127.0.0.1:8788) |
+| Browser client                          | `src/net/room.js`                                                       |
+| CloudFormation                          | `infra/rooms.json`                                                      |
+| Tests                                   | `node --test tests/net/`                                                |
 
 ## 1. The client library (`src/net/room.js`)
 
@@ -125,6 +126,9 @@ when they last connected or disconnected.
 - `claimHost()`: ask to become host (rules in section 2.4).
 - `setOpen(open)`: the host lists the room under Open games (`{ players, seats, state }`)
   or takes it off (`null`); section 9. False while not connected.
+- `keep(replay)`: the match has ended: keep its replay (`replayOf` in `src/net/lobby.js`)
+  for the document version the room holds, and the room a year; section 10. False while
+  not joined.
 - `leave()`: leave the room for good (the member is forgotten there) and close.
 - `close()`: close without leaving: the member shows as disconnected and keeps their place.
 
@@ -190,9 +194,11 @@ document, about 9 parts.
 | `game`   | `id?`, `g`                                 | a match played in one browser (section 7); needs no join           |
 | `list`   | `id?`                                      | the open games (section 9); needs no join                          |
 | `open`   | `open`                                     | the host lists the room, or `null` takes it off (section 9)        |
+| `keep`   | `replay`                                   | the match has ended: keep its replay and the room (section 10)     |
+| `replay` | `id?`, `room`                              | a room's kept replay (section 10); needs no join                   |
 
 `join` must be the first message on a connection (anything else but `ping`, `report`,
-`game` and `list` answers `not-joined`).
+`game`, `list` and `replay` answers `not-joined`).
 A connection joins one room as one member; a second `join` on the same connection for
 the same room and member is a rejoin, for anything else it is `already-joined`.
 
@@ -212,6 +218,7 @@ the same room and member is a rejoin, for anything else it is `already-joined`.
 | `reported` | `id`                                                                               | your `report` is kept                                                                                |
 | `recorded` | `id`                                                                               | your `game` is kept                                                                                  |
 | `list`     | `id`, `now`, `games`                                                               | the open games: `[{ room, made, players, seats, state }]`, newest first (section 9)                  |
+| `replay`   | `id`, `room`, `v`, `at`, `replay`                                                  | the room's kept replay, or `replay: null` (section 10)                                               |
 | `error`    | `code`, `message`, `re?`, `id?`                                                    | `re` = the `t` that failed; `id` = the `set` id                                                      |
 
 - `doc` is omitted from `joined` when the joiner sent `v` equal to the current version
@@ -256,8 +263,9 @@ castRate, castBurst, hostGraceMs }`.
   throttle (section 4) is the hard cap.
 - **Expiry.** A room and its document expire 48 hours after the room's last write
   (DynamoDB TTL on `exp`; joins, `me`, presence and host changes write the room, and a
-  join moves the document's expiry along with it). An expired room code is a new, empty
-  room. Connection records expire after 3 hours.
+  join moves the document's expiry along with it). A room whose match was kept (`keep`,
+  section 10) lives at least until its `keep` runs out, a year from the end of that
+  match. An expired room code is a new, empty room. Connection records expire after 3 hours.
 - **Origin.** On AWS `$connect` is refused (403) unless the `Origin` header is in
   `ALLOWED_ORIGINS` (default `https://kubb.thingelstad.xyz`, `http://localhost`,
   `http://127.0.0.1`; an entry without a port allows any port). The dev server applies the
@@ -289,6 +297,8 @@ All in `LIMITS` in `backend/rooms/core.mjs`, the one place to change them.
 | cast rate               | 10 a second a connection, burst 20                                      |
 | host grace              | 15 s                                                                    |
 | room and document TTL   | 48 h after the last write                                               |
+| a kept room and replay  | 365 days from the `keep` (the end of the match)                         |
+| a kept replay           | 256 KB as ASCII JSON (stored gzipped)                                   |
 | connection record TTL   | 3 h (API Gateway closes every connection at 2 h)                        |
 | unfinished upload       | 10 min                                                                  |
 | room code               | 8 to 24 of `23456789abcdefghjkmnpqrstuvwxyz` (the client makes 10)      |
@@ -327,6 +337,7 @@ The table (`pk`, `sk`, both strings):
 | ------------- | ---------------- | ----------------------------------------------------------------------------------------- |
 | `room#<code>` | `room`           | `rev`, `exp`, `json` (host and members, with each member's connection id)                 |
 | `room#<code>` | `doc`            | `v`, `doc` (ASCII JSON text), `by`, `sid`, `exp`                                          |
+| `room#<code>` | `replay`         | `v`, `t`, `z` (the replay's ASCII JSON, gzipped), `exp`: a finished match's replay        |
 | `conn#<id>`   | `conn`           | `room`, `member`, `exp`                                                                   |
 | `conn#<id>`   | `part#<msg>#<i>` | `d`, `exp`: one part of an upload                                                         |
 | `open`        | `<made>#<code>`  | `room`, `made`, `rev`, `listed`, `players`, `seats`, `state`, `exp`: an open game's entry |
@@ -388,8 +399,14 @@ By design, friends on a link:
 - **One-browser matches are taken as sent.** The server checks the shape and the size of
   a `game` message, not that the match was really played; a made-up match is only noise
   in the test data.
+- **A finished pitch's replay can be watched by anyone with the link** for a year: the
+  names the players typed and every throw. Nothing new is published; the replay is not
+  listed anywhere (a finished match is off the open games list) and `replay` gives it
+  only for a code the asker already has. Any member can send `keep`; the first one for a
+  version wins, so a member can at worst keep a made-up replay of a match that ended in
+  the document, readable only by those who hold the link.
 - No accounts and no personal data beyond the name a player types; rooms vanish 48 hours
-  after their last write. Lambda logs carry connection ids and error names, not
+  after their last write, a finished one a year after its match ended. Lambda logs carry connection ids and error names, not
   documents or names. The games bucket keeps every document version, names included,
   every match played in one browser (section 7), and every report, with what the player
   typed (section 8).
@@ -527,3 +544,39 @@ link and nothing else, is the default.
   dropped when that browser rewrites the lobby, so the host's next lobby write may close
   the game again until the host's page is reloaded), never sends `open` and never asks
   for the list; everything else works as before.
+
+## 10. Replays
+
+A finished pitch can be watched again (Jamie, 2026-11-16: "When a game is finished playing
+on a pitch I'd like the URL to allow people to come and watch a replay of the match.").
+The room server stores and hands out the replay; it knows no Kubb, so what a replay is
+belongs to the game (`docs/MULTIPLAYER.md`, `docs/CLIENT.md` "Replays").
+
+- **Keep.** When the action that ends a match lands, the browser that committed it, and
+  every player's browser that sees that version arrive, sends
+  `{ "t": "keep", "replay": { ... } }` (`room.keep`, `replayOf` in `src/net/lobby.js`).
+  Members only (`not-joined`); a `replay` that is not an object is `bad-message`, one
+  over 256 KB `too-big`, and a room with no document `bad-message`. The server stores it
+  as the item `room#<code> | replay` for the document version the room holds then
+  (`v`, `t` the time, `z` the JSON gzipped, `exp` a year on), conditional on no
+  unexpired replay of a later or the same version: the first keep of a match wins and
+  later ones change nothing. Then it writes `keep = { v, until }` into the room record
+  and moves the document's `exp` to `until`. From then on every write of the room or the
+  document expires at the later of 48 hours on and `keep.until`, so a finished pitch
+  stays a year from the end of its match, however often it is visited, and a rematch
+  played there cannot shorten it. The next match's end keeps its replay in place of the
+  last one, a year from then.
+- **Fetch.** `{ "t": "replay", "id": 1, "room": "<code>" }` on any connection, no join,
+  is answered `{ "t": "replay", "id": 1, "room", "v", "at", "replay" }`: the kept replay
+  as JSON (not a string), with the version it was kept for and when; `replay: null`
+  (and `v` 0) for a room never kept, a match in play, a match from before replays, or a
+  room long gone. It can be more than one frame; the client's `ask` puts the parts
+  together. A read that fails answers `null`. A bad code is `bad-room`.
+  `src/replay/fetch.js` (`fetchReplay({ url, code })`) is the client: a socket of its
+  own, so the replay can be fetched with no pitch page or room session.
+- **Old rooms.** A match that ended before this has no replay item, so its pitch shows
+  the result and the score sheet without WATCH REPLAY. Nothing is backfilled by the
+  server.
+- **No new AWS resources.** The replay is one more item in the rooms table, gzipped (the
+  log's actions repeat their shape, so it packs well); the function's role already covers the table.
+  The private games bucket is never read to serve a replay.

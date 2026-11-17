@@ -162,6 +162,28 @@ browser tells the room server what to list (`docs/MULTIPLAYER.md`), and the serv
 it in the rooms table's `open` partition with a 15 minute TTL: no new AWS resources, no
 scans (`docs/ROOMS.md` section 9).
 
+## Replays
+
+A finished pitch can be watched again (Jamie, 2026-11-16: "When a game is finished playing
+on a pitch I'd like the URL to allow people to come and watch a replay of the match.").
+The match is played again through this engine from its start, action by action
+(`lua/web/replay.lua`, `src/replay/player.js`), in the wide view at the match's own pace,
+with play/pause, NEXT THROW, BACK, 1X 2X 4X and the score sheet beside it. The winner card
+and anyone who opens the link after the end get WATCH REPLAY; after a rematch the lobby
+offers WATCH THE LAST MATCH. A replay belongs to nobody: the engine refuses every action
+from outside while one is loaded. A hash that disagrees (after a physics change) is
+noted and it plays on.
+
+- The document carries the replay while the match is played (`setup`, `h0`, `log`;
+  `docs/MULTIPLAYER.md`); at the end a player's browser sends `keep` and the rooms table
+  keeps it gzipped beside the document, and the room a year from the end of the match
+  (`docs/ROOMS.md` section 10). No new AWS resources. Old matches show the result without
+  WATCH REPLAY.
+- Anyone can fetch a kept replay by its code without joining (`{ t: "replay", room }`,
+  `src/replay/fetch.js`); `startReplay({ code, game, root })` needs nothing of the pitch
+  page, so an embed or a share image can build on the two.
+- Replays are never served from the private games bucket.
+
 ## Score sheet
 
 MENU, SCORE SHEET (any match, not practice) and SCORE SHEET on the winner card show the

@@ -16,6 +16,9 @@ import {
   sideOf,
   OPTION_DEFAULTS,
   TEAM_MAX,
+  LOG_BUDGET,
+  replayOf,
+  isReplay,
 } from "../../src/net/lobby.js";
 
 const members = (...ids) =>
@@ -173,4 +176,119 @@ test("the snapshot text is kept as text", () => {
     host: "a",
   });
   assert.equal(JSON.parse(JSON.stringify(d)).match.snap, snap);
+});
+
+// ---------- the replay's log (docs/MULTIPLAYER.md "The document") ----------
+
+const P1 = { A: [{ id: "a", name: "Ann", level: "pro" }], B: [] };
+const SETUP = { seed: 7, teams: { A: { name: "A" } }, cpu: "B" };
+const throwOf = (i) => ({ type: "throw", arm: i });
+
+function played(actions, { over = true } = {}) {
+  let d = startMatch(joinTeam(null, "a", "A"), {
+    snap: "s0",
+    hash: "h0",
+    players: P1,
+    cpu: "B",
+    host: "a",
+    setup: SETUP,
+  });
+  actions.forEach((a, i) => {
+    d = commitAction(d, {
+      n: 1,
+      seq: i + 1,
+      snap: `s${i + 1}`,
+      hash: `h${i + 1}`,
+      action: a,
+      over: over && i === actions.length - 1,
+    });
+  });
+  return d;
+}
+
+test("each action is logged with its hash; the last marks the match over", () => {
+  const d = played([throwOf(1), { type: "raise", choice: 1 }, throwOf(2)]);
+  assert.deepEqual(d.match.setup, SETUP);
+  assert.equal(d.match.h0, "h0");
+  assert.deepEqual(d.match.log, [
+    { a: throwOf(1), h: "h1" },
+    { a: { type: "raise", choice: 1 }, h: "h2" },
+    { a: throwOf(2), h: "h3" },
+  ]);
+  assert.equal(d.match.over, true);
+  const r = replayOf(d.match);
+  assert.deepEqual(r, {
+    v: 1,
+    n: 1,
+    setup: SETUP,
+    h0: "h0",
+    log: d.match.log,
+    snap: "s3",
+    hash: "h3",
+    players: d.match.players,
+    cpu: "B",
+  });
+  assert.ok(isReplay(JSON.parse(JSON.stringify(r))));
+  assert.equal(
+    replayOf(played([throwOf(1)], { over: false }).match),
+    null,
+    "not over",
+  );
+});
+
+test("a match with no whole log has no replay", () => {
+  // from before replays: no setup, no log
+  let d = startMatch(null, {
+    snap: "s0",
+    hash: "h0",
+    players: P1,
+    cpu: "B",
+    host: "a",
+  });
+  d = commitAction(d, {
+    n: 1,
+    seq: 1,
+    snap: "s1",
+    hash: "h1",
+    action: throwOf(1),
+    over: true,
+  });
+  assert.equal(d.match.log, undefined);
+  assert.equal(replayOf(d.match), null);
+  // an older browser's commit (no action) breaks the log for good
+  d = played([throwOf(1)], { over: false });
+  d = commitAction(d, { n: 1, seq: 2, snap: "s2", hash: "h2" });
+  assert.equal(d.match.log, null);
+  d = commitAction(d, {
+    n: 1,
+    seq: 3,
+    snap: "s3",
+    hash: "h3",
+    action: throwOf(3),
+    over: true,
+  });
+  assert.equal(d.match.log, null);
+  assert.equal(replayOf(d.match), null);
+  // and garbage is not a replay
+  for (const x of [
+    null,
+    {},
+    { v: 2, setup: {}, log: [], snap: "" },
+    { v: 1, setup: {}, log: [null], snap: "" },
+  ])
+    assert.equal(isReplay(x), false);
+});
+
+test("a log that would outgrow the document is dropped: no replay for that match", () => {
+  const big = { type: "throw", pad: "x".repeat(4000) };
+  const n = Math.ceil(LOG_BUDGET / 4000) + 2;
+  const d = played(Array.from({ length: n }, () => big));
+  assert.equal(d.match.log, null);
+  assert.equal(d.match.seq, n);
+  assert.equal(replayOf(d.match), null);
+});
+
+test("a rematch drops the match; its replay was the room's to keep", () => {
+  const d = backToLobby(played([throwOf(1)]), 1);
+  assert.equal(d.match, null);
 });

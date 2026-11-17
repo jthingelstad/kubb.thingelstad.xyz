@@ -141,6 +141,12 @@ export class Game {
     this.wide = null;
     this.engineWide = false; // the engine hands out the wide camera
     this.onWide = null; // () => void: main's control follows what is shown
+    // A replay (src/replay/player.js) drives the Game from outside: the time it
+    // runs at, frozen while paused, no engine cards, and its own step each tick.
+    this.timeScale = 1;
+    this.frozen = false;
+    this.noCards = false;
+    this.driver = null; // (dt) => void, after each tick with the replay's dt
 
     this.hud = new Hud(ui, {
       arc: (s) => this.planStep("arc", s),
@@ -395,7 +401,7 @@ export class Game {
   // The engine's cards (hand-off, pass, settle), each shown once.
   showCard() {
     const n = this.need;
-    if (!n || !n.card || !this.cards) return;
+    if (!n || !n.card || !this.cards || this.noCards) return;
     const key = `${n.turn}:${n.throws}:${n.kind}:${n.card.kind}`;
     if (this.shownCards.has(key)) return;
     this.shownCards.add(key);
@@ -489,10 +495,12 @@ export class Game {
 
   tick(dt, now) {
     if (!this.quiet) this.resizeIfNeeded();
+    dt = this.frozen ? 0 : dt * this.timeScale;
     if (this.phase === "aim") this.aimFrame(dt, now);
     else if (this.phase === "play") this.playFrame(dt, now);
     else this.drawStill();
     if (this.result) this.result.age += dt;
+    this.driver?.(dt);
   }
 
   // ---------- aiming ----------
@@ -507,7 +515,7 @@ export class Game {
     }
     // the pause holds the engine still: a zero dt would not (the session
     // reads it as a sixtieth), so the aim as it stands is drawn again
-    const paused = this.zenPause > 0;
+    const paused = this.zenPause > 0 || this.frozen;
     if (!this.modal && may) {
       if (this.ptr?.kind === "dial") input.arm = this.dialArm;
       input.plan = this.planHeld || this.planToggle;

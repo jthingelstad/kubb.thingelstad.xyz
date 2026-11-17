@@ -177,6 +177,7 @@ async function boot() {
       home,
       roomsUrl: roomsUrl(),
       sheet,
+      menu,
     });
     if (testing) window.__kubb.pitch = pitch;
   }
