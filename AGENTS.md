@@ -1,11 +1,13 @@
 # AGENTS.md: kubb.thingelstad.xyz
 
-`CLAUDE.md` is a symlink to this file. Domain rules are in [`../AGENTS.md`](../AGENTS.md);
-AWS and secret rules one level above that.
+`CLAUDE.md` is a symlink to this file. The Throwing Wood workstream guide is
+[`../AGENTS.md`](../AGENTS.md); AWS and secret rules one level above that. The cross-site
+rules this site shares with Jamie's other sites (sites list, shared type) are in
+`../../thingelstad.com/AGENTS.md`.
 
 Kubb: Throwing Wood on the web: the Playdate game's own Lua core running in the browser,
 with multiplayer on a link. The design is `docs/DESIGN.md`; read it first. The Playdate
-game is the sibling checkout `../../playdate-kubb` (private; its `docs/DESIGN.md` and
+game is the sibling checkout `../playdate-kubb` (private; its `docs/DESIGN.md` and
 `AGENTS.md` are the reference for how the game plays).
 
 ## Rules
@@ -24,7 +26,7 @@ game is the sibling checkout `../../playdate-kubb` (private; its `docs/DESIGN.md
   The wide view (watching the computer) shows the world frame instead: Lua un-turns Team
   B's output before JS sees it (`lua/web/wide.lua`), so JS still flips nothing.
 - Dev servers bind to 127.0.0.1 and are stopped when the work is done.
-- No italics on sans-serif type. Type and tokens come from `../shared/`.
+- No italics on sans-serif type. Type and tokens come from `../../thingelstad.com/shared/`.
 
 ## Build and check
 

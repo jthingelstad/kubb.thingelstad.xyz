@@ -22,7 +22,7 @@ const luaFiles = (dir) =>
 const mode = process.argv[2];
 if (mode === "sync") {
   const repo = path.resolve(
-    process.argv[3] ?? path.join(root, "..", "..", "playdate-kubb"),
+    process.argv[3] ?? path.join(root, "..", "playdate-kubb"),
   );
   const src = path.join(repo, "source", "core");
   const dirty = execFileSync(
