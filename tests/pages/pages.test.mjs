@@ -8,6 +8,7 @@ import {
   ORIGIN,
   SITE_NAME,
   cardOf,
+  embedState,
   injectPreview,
   pitchState,
   previewOf,
@@ -112,6 +113,27 @@ test("each state's words", () => {
     }),
   });
   assert.match(previewOf(withReplay).description, /Watch the replay\.$/);
+  // beside a finished document, the kept replay counts only when it is this match
+  const r = JSON.parse(replay);
+  const finished = (n) =>
+    doc({
+      started: true,
+      match: {
+        over: true,
+        n,
+        snap: r.snap,
+        hash: r.hash,
+        setup: {},
+        log: null,
+      },
+    });
+  const own = pitchState({ doc: finished(r.n), kept: replay });
+  assert.equal(own.replay, true);
+  assert.deepEqual(embedState(own, "abcd2345").match, { n: r.n, hash: r.hash });
+  const rematch = pitchState({ doc: finished(r.n + 1), kept: replay });
+  assert.equal(rematch.replay, false);
+  assert.doesNotMatch(previewOf(rematch).description, /replay/);
+  assert.equal(pitchState({ doc: finished(r.n), kept: null }).replay, false);
   // a document that cannot be read is no room
   assert.equal(pitchState({ doc: { v: 1, doc: "{not json" } }).state, "none");
 });

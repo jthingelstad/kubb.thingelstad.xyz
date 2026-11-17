@@ -100,7 +100,14 @@ export async function startEmbed({
   // a rematch's lobby: the pitch is waiting, whatever the last match left kept
   if (s?.state === "waiting")
     return quiet("Waiting for players", null, "waiting");
-  const data = roomsUrl ? await fetch({ url: roomsUrl, code }) : null;
+  const fetched = roomsUrl ? await fetch({ url: roomsUrl, code }) : null;
+  // a finished match plays only its own replay: a rematch that could not be kept
+  // leaves the one before it in the room (src/net/pitch.js lookForKept)
+  const m = s?.state === "over" ? s.match : null;
+  const data =
+    fetched && m && (fetched.n !== m.n || fetched.hash !== m.hash)
+      ? null
+      : fetched;
   if (!data) {
     if (s?.state === "over" && s.final) return quiet(s.final, null, "over");
     return quiet("No match here", null, "none");

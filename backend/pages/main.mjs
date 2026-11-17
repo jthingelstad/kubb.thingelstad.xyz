@@ -38,23 +38,25 @@ async function item(pk, sk, fields) {
   );
   return Item && Item.exp > Date.now() / 1000 ? Item : null;
 }
+const unzip = (z) => gunzipSync(Buffer.from(z)).toString();
 async function load(code) {
   const pk = `room#${code}`;
   const doc = await item(pk, "doc", ["v", "doc", "exp"]);
   if (doc) {
-    // a finished match: whether its replay was kept, to say "Watch the replay"
+    // a finished match: the kept replay, to say "Watch the replay" only when it
+    // is this match's (pitch.mjs sameMatch)
     const over = /"over":true/.test(doc.doc);
-    const stamp = over ? await item(pk, "replay", ["v", "exp"]) : null;
+    const kept = over ? await item(pk, "replay", ["z", "exp"]) : null;
     return {
       doc: { v: doc.v, doc: doc.doc },
       replay: null,
-      kept: over ? !!stamp : null,
+      ...(over ? { kept: kept ? unzip(kept.z) : null } : {}),
     };
   }
   const kept = await item(pk, "replay", ["z", "exp"]);
   return {
     doc: null,
-    replay: kept ? gunzipSync(Buffer.from(kept.z)).toString() : null,
+    replay: kept ? unzip(kept.z) : null,
   };
 }
 

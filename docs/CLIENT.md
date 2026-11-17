@@ -270,7 +270,8 @@ kept replay and shows "No match here" when there is none.
   and lets go above; `hold()` never undoes a pause the viewer chose.
 - **Cards.** In play: "Match in progress" with WATCH ON KUBB.THINGELSTAD.XYZ. Waiting:
   "Waiting for players", in a rematch's lobby too, though the last match is kept.
-  Finished with nothing kept: the final score. Unknown: "No match here". Each links to
+  Finished with nothing kept, or with only an earlier match kept (the state block's
+  `match`, `{ n, hash }`, is checked against the replay): the final score. Unknown: "No match here". Each links to
   `/p/<code>` in a new tab; none loads the engine.
 - **Attribution.** "Kubb: Throwing Wood ↗" in the corner, to `/p/<code>`, `target=_blank`
   `rel=noopener`.

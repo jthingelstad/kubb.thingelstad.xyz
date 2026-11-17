@@ -43,16 +43,28 @@ const hasReplay = (m) =>
   m.log.length > 0 &&
   m.log.length === m.seq;
 
+// The kept replay is this finished match's own: the same match number and final
+// snapshot (src/net/pitch.js lookForKept). A rematch that could not be kept leaves
+// the last match's replay in place, which is not this one.
+export const sameMatch = (r, m) =>
+  !!r &&
+  !!m &&
+  typeof r === "object" &&
+  r.n === m.n &&
+  r.hash === m.hash &&
+  r.snap === m.snap;
+
 // The pitch's state from its stored document ({ v, doc: JSON text } or null) and,
-// when the document is gone, its kept replay's JSON text. kept: whether the room
-// keeps a replay (read beside a finished document; the document's own match may
-// be one too long to keep), else judged from the match.
+// when the document is gone, its kept replay's JSON text. kept: beside a finished
+// document, the room's kept replay (JSON text, or null for none); without it the
+// document's own match is judged (it may be one too long to keep).
 //
 //   { state: "none" }
 //   { state: "waiting", v }
 //   { state: "playing", v, teams: { A, B }, turn, pieces }
-//   { state: "over", v, teams, turn, winner: "A" | "B" | null, how, replay, pieces }
-export function pitchState({ doc = null, replay = null, kept = null } = {}) {
+//   { state: "over", v, teams, turn, winner: "A" | "B" | null, how, replay, pieces,
+//     match: { n, hash } }
+export function pitchState({ doc = null, replay = null, kept } = {}) {
   const d = doc ? parse(doc.doc) : null;
   const v = finite(doc?.v) ? doc.v : 0;
   if (d && typeof d === "object") {
@@ -65,14 +77,25 @@ export function pitchState({ doc = null, replay = null, kept = null } = {}) {
         ...shown,
         state: "over",
         v,
-        replay: typeof kept === "boolean" ? kept : hasReplay(m),
+        replay:
+          kept === undefined
+            ? hasReplay(m)
+            : typeof kept === "string" && sameMatch(parse(kept), m),
+        match: { n: m.n ?? null, hash: m.hash ?? null },
       };
     return { ...shown, state: "playing", v };
   }
   const r = parse(replay);
   if (r && typeof r === "object") {
     const shown = fromSnap(r.snap, r.setup);
-    if (shown) return { ...shown, state: "over", v: 0, replay: true };
+    if (shown)
+      return {
+        ...shown,
+        state: "over",
+        v: 0,
+        replay: true,
+        match: { n: r.n ?? null, hash: r.hash ?? null },
+      };
   }
   return { state: "none" };
 }
@@ -245,6 +268,8 @@ export function embedState(s, code) {
     teams: s?.teams ?? null,
     turn: s?.turn ?? null,
     final: finalLine(s),
+    // a finished match: which one, so an older kept replay is not played for it
+    match: s?.state === "over" ? (s.match ?? null) : null,
   };
 }
 
