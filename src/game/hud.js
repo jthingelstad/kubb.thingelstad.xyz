@@ -5,11 +5,34 @@
 // calls update() once a frame; only changed text touches the DOM.
 import { h, button } from "../ui/dom.js";
 
-const VERDICT_TEXT = {
-  power: { label: "POWER" },
-  release: { label: "ARC" },
-  steady: { label: "" },
+// The verdict chips under the flag, from the core's words (throwplan.lua
+// plan.verdictText): on target, power and release read "POWER ON" and
+// "ARC ON", steadiness STEADY, the side STRAIGHT. Anything else is off
+// target and reads as the plain word (LONG, SHORT, SLOW, LOW, HIGH, SHAKY,
+// PULLED LEFT): inverted, larger and first, so a long throw under MISS
+// cannot pass for a good one (Tyler's report, 2026-11-16).
+const VERDICT_ON = {
+  power: { on: "ON", label: "POWER" },
+  release: { on: "ON", label: "ARC" },
+  steady: { on: "STEADY", label: "" },
+  side: { on: "STRAIGHT", label: "" },
 };
+
+// [{ text, off }] for the HUD's chips: the off-target ones first, each group
+// in the order power, release, steadiness, side.
+export function verdictChips(vs) {
+  if (!vs) return [];
+  const off = [];
+  const on = [];
+  for (const [key, v] of Object.entries(VERDICT_ON)) {
+    const word = vs[key];
+    if (!word) continue;
+    if (word === v.on)
+      on.push({ text: v.label ? `${v.label} ${word}` : word, off: false });
+    else off.push({ text: word, off: true });
+  }
+  return [...off, ...on];
+}
 
 export class Hud {
   constructor(root, actions) {
@@ -111,24 +134,12 @@ export class Hud {
     const [flag, verdicts, rest] = this.center.children;
     this.text(flag, st.flag || "");
     this.text(rest, st.restText || "");
-    const vs = st.verdicts;
-    const vtext = vs
-      ? [
-          vs.power && `${VERDICT_TEXT.power.label} ${vs.power}`,
-          vs.release && `${VERDICT_TEXT.release.label} ${vs.release}`,
-          vs.steady,
-          vs.side,
-        ]
-          .filter(Boolean)
-          .join("|")
-      : "";
+    const chips = verdictChips(st.verdicts);
+    const vtext = chips.map((c) => (c.off ? "!" : "") + c.text).join("|");
     if (this.cache.get(verdicts) !== vtext) {
       this.cache.set(verdicts, vtext);
       verdicts.replaceChildren(
-        ...vtext
-          .split("|")
-          .filter(Boolean)
-          .map((t) => h("span.chip", t)),
+        ...chips.map((c) => h(c.off ? "span.chip.off" : "span.chip", c.text)),
       );
       verdicts.hidden = !vtext;
     }
