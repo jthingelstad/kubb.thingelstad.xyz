@@ -89,6 +89,25 @@ test("a replay reproduces every hash and the result", function()
 		k.raise or 0, k.punish or 0, a.turn))
 end)
 
+test("a replay can set out from the match's first snapshot instead of its options", function()
+	local d, played = record(5)
+	local o = copy(d.setup)
+	o.mode = "match"
+	local r = replay.new(travelled { start = session.new(o):snapshot(), h0 = d.h0, log = d.log })
+	expect.eq(r.differs, false, "the start is the same")
+	local i = 0
+	while not r:done() do
+		r:step()
+		i = i + 1
+		expect.eq(r.s:hash(), d.log[i].h, "hash after action " .. i)
+	end
+	expect.eq(r.differs, false)
+	expect.eq(r.s:snapshot(), played:snapshot())
+	r:rewind()
+	expect.eq(r.i, 0)
+	expect.eq(r.s:hash(), d.h0, "rewind goes to that snapshot")
+end)
+
 test("a hash that disagrees marks the replay and it plays on", function()
 	local d = record(6)
 	local t = travelled(d)

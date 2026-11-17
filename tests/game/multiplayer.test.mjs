@@ -559,6 +559,72 @@ browserTest("a finished pitch plays its match again", async () => {
   }
 });
 
+browserTest(
+  "a match from before replays offers the replay the room keeps for it",
+  async () => {
+    const code = makeRoomCode();
+    const solo = await join(code, "Ada");
+    await solo.click("[data-test=join-B]");
+    await waitFor(solo, () =>
+      document.querySelector(".team-a")?.textContent.includes("computer"),
+    );
+    await solo.click("[data-test=lobby-start]");
+    await waitFor(solo, () => window.__kubb.pitch.state().mode === "match");
+    await settle(solo);
+    await solo.evaluate(() => window.__kubb.game.resign("B"));
+    await waitFor(solo, () => !!document.querySelector("[data-test=winner]"));
+    await waitFor(solo, () =>
+      window.__kubb.pitch.log.some((e) => e[1] === "keep"),
+    );
+    const played = await pst(solo);
+    await solo.context().close();
+    // the document as one written before replays: no setup, start hash, log or end
+    const stored = await rooms.store.getDoc(code);
+    const doc = JSON.parse(stored.doc);
+    for (const k of ["setup", "h0", "log", "over"]) delete doc.match[k];
+    assert.ok(
+      await rooms.store.putDoc(
+        code,
+        { ...stored, doc: JSON.stringify(doc) },
+        stored.v,
+      ),
+    );
+    // the room keeps a replay of that match (as tools/backfill-replay.mjs writes one)
+    assert.ok(await rooms.store.getReplay(code));
+
+    const late = await join(code, "Vic", "desktop", { lobby: false });
+    await waitFor(late, () => !!document.querySelector("[data-test=winner]"));
+    await waitFor(
+      late,
+      () => !!document.querySelector("[data-test=watch-replay]"),
+    );
+    assert.ok(
+      await late.evaluate(() =>
+        window.__kubb.pitch.log.some((e) => e[1] === "kept"),
+      ),
+    );
+    assert.match(await late.textContent("[data-test=winner-teams]"), /Ada/);
+    await late.click("[data-test=watch-replay]");
+    await late.waitForSelector("[data-test=replay-bar]");
+    await late.click("[data-speed='4']");
+    await waitFor(
+      late,
+      () =>
+        document.querySelector("[data-test=watch-replay]")?.textContent ===
+        "REPLAY AGAIN",
+      undefined,
+      60000,
+    );
+    assert.equal(
+      await late.evaluate(() => window.__kubb.engine.hash().hash),
+      played.docHash,
+      "the recorded result",
+    );
+    assert.deepEqual(late.errors, []);
+    await late.context().close();
+  },
+);
+
 browserTest("the lobby on a phone, as a guest", async () => {
   const code = makeRoomCode();
   const host = await join(code, "Hanna");

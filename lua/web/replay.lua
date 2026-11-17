@@ -6,6 +6,9 @@
 -- newMatch options, the hash at the start, and each action with the hash after it.
 --
 --   local r = replay.new { setup = <newMatch options>, h0 = "<hash>", log = { { a = action, h = "<hash>" }, ... } }
+--   replay.new { start = "<snapshot>", h0 = ..., log = ... } sets out from the match's first
+--   snapshot instead: a match kept after it was played, from its recorded start
+--   (tools/backfill-replay.mjs), whose document had no options.
 --   r:step()   the next action: { ok, recording?, need, action }
 --   r:back()   to the start of the previous turn (from the snapshot kept there)
 --   r:info()   { i, total, turn, thrown, throws, differs, done }
@@ -34,8 +37,8 @@ local function copy(v)
 end
 
 function replay.new(d)
-	assert(type(d) == "table" and type(d.setup) == "table" and type(d.log) == "table",
-		"a replay needs its setup and its log")
+	assert(type(d) == "table" and (type(d.setup) == "table" or type(d.start) == "string")
+		and type(d.log) == "table", "a replay needs its setup (or its start) and its log")
 	local r = setmetatable({}, Replay)
 	r.setup, r.h0, r.log = d.setup, d.h0, d.log
 	r.total = #d.log
@@ -46,9 +49,13 @@ function replay.new(d)
 	end
 	r.differs = false
 	r.marks = {}
-	local o = copy(r.setup)
-	o.mode = "match"
-	r.s = session.new(o)
+	if type(d.start) == "string" then
+		r.s = session.restore(d.start, replay.NOBODY)
+	else
+		local o = copy(r.setup)
+		o.mode = "match"
+		r.s = session.new(o)
+	end
 	r.s:setControl(replay.NOBODY)
 	if r.h0 ~= nil and r.s:hash() ~= r.h0 then r.differs = true end
 	r.i, r.thrown = 0, 0

@@ -576,9 +576,21 @@ belongs to the game (`docs/MULTIPLAYER.md`, `docs/CLIENT.md` "Replays").
   together. A read that fails answers `null`. A bad code is `bad-room`.
   `src/replay/fetch.js` (`fetchReplay({ url, code })`) is the client: a socket of its
   own, so the replay can be fetched with no pitch page or room session.
-- **Old rooms.** A match that ended before this has no replay item, so its pitch shows
-  the result and the score sheet without WATCH REPLAY. Nothing is backfilled by the
-  server.
+- **Old rooms.** A match that ended before this has no log in its document and no
+  replay item, so its pitch shows the result and the score sheet without WATCH REPLAY.
+  One can be kept after the fact from the room's records in the games bucket, room by
+  room and only with Jamie's go (Jamie approved the first, for one pitch, on 2026-11-16): `npm run games:pull -- --room
+<code>`, then `node tools/backfill-replay.mjs --room <code>` builds the replay from the
+  match's first snapshot (`start`, in place of `setup`) and its recorded actions and
+  plays it through this engine (the hash after each action against the players', the
+  first that differs, whether it ends on the recorded result), writing nothing; with
+  `--write`, as `cloud-engineer`, it writes what a `keep` would have (the replay item,
+  `room.keep` and the document's expiry, a year from the end of the match), only while
+  the room's document still shows that very match and no replay is kept. A browser that
+  arrives at a finished match with no log asks the room for its replay and offers WATCH
+  REPLAY when it is that match, ending on the same snapshot (`lookForKept` in
+  `src/net/pitch.js`). The bucket is only read on the machine that runs the tool; the
+  replay is served from the table like any other.
 - **No new AWS resources.** The replay is one more item in the rooms table, gzipped (the
   log's actions repeat their shape, so it packs well); the function's role already covers the table.
   The private games bucket is never read to serve a replay.

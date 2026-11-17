@@ -350,8 +350,8 @@ export function isReplay(r) {
     !!r &&
     typeof r === "object" &&
     r.v === REPLAY_VERSION &&
-    !!r.setup &&
-    typeof r.setup === "object" &&
+    ((!!r.setup && typeof r.setup === "object") ||
+      typeof r.start === "string") &&
     Array.isArray(r.log) &&
     r.log.every((e) => e && typeof e.a === "object" && e.a) &&
     typeof r.snap === "string"
