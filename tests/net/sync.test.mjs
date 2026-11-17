@@ -33,7 +33,12 @@ test("the next action is applied; anything else adopts", () => {
 });
 
 test("an action too big to ride along is left off", () => {
-  assert.deepEqual(rider(1, 2, { a: 1 }), { n: 1, seq: 2, a: { a: 1 } });
+  assert.deepEqual(rider(1, 2, { a: 1 }), {
+    n: 1,
+    seq: 2,
+    a: { a: 1 },
+    c: "web",
+  });
   assert.equal(rider(1, 2, { a: "x".repeat(5000) }), undefined);
   assert.equal(asciiSize({ a: "é" }), JSON.stringify({ a: "x" }).length + 5);
 });

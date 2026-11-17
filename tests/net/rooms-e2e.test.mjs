@@ -9,6 +9,7 @@ import {
   memberId,
   throttle,
 } from "../../src/net/room.js";
+import { WebSocket as NodeWs } from "ws";
 import { FRAME_MAX, startRoomsServer } from "../../tools/rooms-dev.mjs";
 
 let server;
@@ -296,4 +297,23 @@ test("a kept replay comes back by its code on a socket of its own, in frames", a
     null,
     "another pitch keeps none",
   );
+});
+
+test("the dev server lets in the iPhone app's origin and refuses a stranger's", async () => {
+  const handshake = (origin) =>
+    new Promise((resolve) => {
+      const ws = new NodeWs(server.url, { origin });
+      ws.once("open", () => {
+        ws.close();
+        resolve("open");
+      });
+      ws.once("unexpected-response", (req, res) => {
+        resolve(res.statusCode);
+        req.destroy();
+      });
+      ws.once("error", () => resolve("error"));
+    });
+  assert.equal(await handshake("https://app.throwingwood.com"), "open");
+  assert.equal(await handshake("http://localhost:5173"), "open");
+  assert.equal(await handshake("https://example.com"), 401);
 });

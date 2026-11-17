@@ -75,6 +75,42 @@ test("a committed version is recorded with its action; a lost one is not", async
   assert.deepEqual(JSON.parse(seen[0].doc), { teams: { A: ["Åsa"] } });
 });
 
+test("the rider's client and engine tags (c, e) are recorded as they came", async () => {
+  const seen = [];
+  const h = harness(async (entry) => void seen.push(entry));
+  await h.say("c1", { t: "join", room: ROOM, member: A });
+  const rider = {
+    n: 1,
+    seq: 1,
+    a: { type: "throw" },
+    c: "ios",
+    e: "1.2.0+core.c11f533",
+  };
+  await h.say("c1", {
+    t: "set",
+    id: 1,
+    base: 0,
+    doc: { started: true },
+    with: rider,
+  });
+  // the server checks none of the rider: anything a client puts there goes in whole
+  const odd = { n: 1, seq: 2, a: { type: "raise" }, c: "Not A Tag!", e: 7 };
+  await h.say("c1", {
+    t: "set",
+    id: 2,
+    base: 1,
+    doc: { started: true },
+    with: odd,
+  });
+  assert.equal(seen.length, 2);
+  assert.equal(seen[0].with, asciiJson(rider));
+  assert.deepEqual(JSON.parse(seen[0].with), rider);
+  assert.deepEqual(JSON.parse(seen[1].with), odd);
+  const back = JSON.parse(recordText(seen[0]));
+  assert.equal(back.with.c, "ios");
+  assert.equal(back.with.e, "1.2.0+core.c11f533");
+});
+
 test("a recorder that fails does not cost the room its move", async (t) => {
   t.mock.method(console, "error", () => {});
   const h = harness(async () => {

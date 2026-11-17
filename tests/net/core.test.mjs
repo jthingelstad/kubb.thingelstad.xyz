@@ -385,6 +385,14 @@ test("origin allow-list", () => {
   );
   assert.ok(!originAllowed("null", allowed));
   assert.ok(!originAllowed(undefined, allowed));
+  // the iPhone app's own origin is an entry like any other, not a wildcard
+  const app = parseOrigins(
+    "https://throwingwood.com,https://app.throwingwood.com",
+  );
+  assert.ok(originAllowed("https://app.throwingwood.com", app));
+  assert.ok(originAllowed("https://throwingwood.com", app));
+  assert.ok(!originAllowed("https://other.throwingwood.com", app));
+  assert.ok(!originAllowed("http://app.throwingwood.com", app));
 });
 
 // ---------- replays (docs/ROOMS.md section 10) ----------

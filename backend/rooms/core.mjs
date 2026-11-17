@@ -95,6 +95,29 @@ export const REPORT_MODES = Object.freeze([
 export const ROOM_CODE = /^[2-9a-hjkmnp-z]{8,24}$/;
 export const MEMBER_ID = /^[A-Za-z0-9_-]{8,40}$/;
 
+// What made a one-browser match or a report, both optional (clients built before them
+// send neither): `client` the program ("web", "ios"), `engine` the game engine's version.
+// A room match's `with` rider may carry the same as `c` and `e`; the server stores the
+// rider as it came and checks none of it (docs/ROOMS.md section 7).
+export const CLIENT_TAG = /^[a-z0-9.-]{1,32}$/;
+export const ENGINE_TAG = /^[a-z0-9.+-]{1,64}$/;
+
+// Throws a RoomError (bad-message) when `x.client` or `x.engine` is present and not a tag.
+function checkTags(x, fail) {
+  if (x.client !== undefined && x.client !== null)
+    if (typeof x.client !== "string" || !CLIENT_TAG.test(x.client))
+      fail(
+        "bad-message",
+        "`client` must be 1 to 32 of a-z, 0-9, dot and dash.",
+      );
+  if (x.engine !== undefined && x.engine !== null)
+    if (typeof x.engine !== "string" || !ENGINE_TAG.test(x.engine))
+      fail(
+        "bad-message",
+        "`engine` must be 1 to 64 of a-z, 0-9, dot, dash and plus.",
+      );
+}
+
 const FRAME_HEAD = 40; // room for "~<id>.<i>.<n>~" in front of a part
 const PART = /^~([a-z0-9]{1,16})\.(\d{1,3})\.(\d{1,3})~/;
 const BACKSLASH = String.fromCharCode(92);
@@ -166,7 +189,7 @@ export class RoomError extends Error {
 const isObject = (x) =>
   x !== null && typeof x === "object" && !Array.isArray(x);
 
-// A `report` message checked: { t: "report", id?, r: { mode, happened, should, ... } }.
+// A `report` message checked: { t: "report", id?, r: { mode, happened, should, client?, engine?, ... } }.
 // `bytes` is the message's size. Throws a RoomError, or returns the report object.
 export function checkReport(msg, bytes, limits = LIMITS) {
   const id = msg.id ?? null;
@@ -192,10 +215,11 @@ export function checkReport(msg, bytes, limits = LIMITS) {
   if (r.room !== undefined && r.room !== null)
     if (typeof r.room !== "string" || !ROOM_CODE.test(r.room))
       fail("bad-room", "That is not a room code.");
+  checkTags(r, fail);
   return r;
 }
 
-// A `game` message checked: { t: "game", id?, g: { mode, start, actions, hashes?, ... } }.
+// A `game` message checked: { t: "game", id?, g: { mode, start, actions, hashes?, client?, engine?, ... } }.
 // `bytes` is the message's size. Throws a RoomError, or returns the game object.
 export function checkGame(msg, bytes, limits = LIMITS) {
   const id = msg.id ?? null;
@@ -233,6 +257,7 @@ export function checkGame(msg, bytes, limits = LIMITS) {
   }
   if (g.file !== undefined && g.file !== null && typeof g.file !== "string")
     fail("bad-message", "`file` must be text.");
+  checkTags(g, fail);
   return g;
 }
 

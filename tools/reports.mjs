@@ -33,7 +33,8 @@ export function describeReport(obj, file = "") {
   const r = obj.report ?? {};
   const lines = [];
   const where = r.room ? ` room ${r.room} v ${r.v ?? "?"}` : "";
-  lines.push(`${when(obj.t)}  ${r.mode ?? "?"}${where}  ${file}`);
+  const client = typeof r.client === "string" ? ` [${r.client}]` : "";
+  lines.push(`${when(obj.t)}  ${r.mode ?? "?"}${client}${where}  ${file}`);
   const text = (label, s) => {
     const body = String(s ?? "").trim();
     lines.push(`  ${label}: ${body ? body.replace(/\s*\n\s*/g, " / ") : "-"}`);

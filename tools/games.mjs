@@ -146,8 +146,23 @@ export function browserMatch(record) {
         : null,
     end: g.end ?? null,
     name: g.name ?? null,
+    client: typeof g.client === "string" ? g.client : null,
   };
 }
+
+// The client tags (`c`) a room match's riders carry, in the order first seen: the
+// programs that committed its actions ("web", "ios"). Empty for records made before
+// clients said.
+export function clientsOf(match) {
+  const seen = [];
+  for (const r of match.steps ?? [])
+    if (typeof r.with?.c === "string" && !seen.includes(r.with.c))
+      seen.push(r.with.c);
+  return seen;
+}
+
+// " [web]", " [web, ios]", or "" when nothing says.
+const tagged = (clients) => (clients.length ? ` [${clients.join(", ")}]` : "");
 
 // One one-browser match through `engine`: from its start, each action in turn. Returns
 // { steps: [{ seq, type, outcome, how, flag, why }], same, differs, refused, unjudged,
@@ -364,7 +379,7 @@ async function replay({ room, dir, throws }) {
     for (const k of Object.keys(total)) total[k] += r[k];
     const when = new Date(match.t).toISOString().slice(0, 16).replace("T", " ");
     console.log(
-      `${match.room} match ${match.n} (${when} UTC): ${r.steps.length} actions, ${r.same} same, ${r.differs} differ, ${r.refused} refused, ${r.adopted} adopted`,
+      `${match.room} match ${match.n}${tagged(clientsOf(match))} (${when} UTC): ${r.steps.length} actions, ${r.same} same, ${r.differs} differ, ${r.refused} refused, ${r.adopted} adopted`,
     );
     for (const s of r.steps)
       if (
@@ -384,7 +399,7 @@ async function replay({ room, dir, throws }) {
     for (const k of Object.keys(one)) one[k] += r[k];
     const when = new Date(match.t).toISOString().slice(0, 16).replace("T", " ");
     console.log(
-      `${match.mode} ${match.name ?? ""} (${when} UTC): ${r.steps.length} actions, ${r.same} same, ${r.differs} differ, ${r.refused} refused, ${r.unjudged} unjudged${r.unchecked ? `, ${r.unchecked} unchecked` : ""}${r.end ? `; the end ${r.end}` : ""}`,
+      `${match.mode}${tagged(match.client ? [match.client] : [])} ${match.name ?? ""} (${when} UTC): ${r.steps.length} actions, ${r.same} same, ${r.differs} differ, ${r.refused} refused, ${r.unjudged} unjudged${r.unchecked ? `, ${r.unchecked} unchecked` : ""}${r.end ? `; the end ${r.end}` : ""}`,
     );
     for (const s of r.steps)
       if (
