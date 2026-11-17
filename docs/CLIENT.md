@@ -369,7 +369,9 @@ so `client.test.mjs` doubles the flick speed to make up for the 30 Hz stepping.
 ### Trying the touch pendulum
 
 Open `/practice/?throw=swipe` on a phone. The switch lasts for this tab. Start
-in the lower half, pull down to wind, then flick up and lift. The dial shows the
+on the wooden knob or in the lower half, pull down to wind, then flick up and lift.
+In the trial the dial sits higher on touchscreens so the full downstroke fits below
+its knob, and its face takes the press ahead of scenery behind it. The dial shows the
 arm and its power and release bands. Return slowly to let down. The target,
 stance and WALK keep their drag controls. A mouse or trackpad always uses the
 dial. The browser sends raw pointer positions in short-edge units and monotonic

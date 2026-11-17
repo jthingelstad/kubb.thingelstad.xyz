@@ -64,7 +64,7 @@ export function panFor(W, H, fx, room = 40) {
 }
 
 // The screen's regions in CSS px. safe = { top, right, bottom, left }.
-export function layoutFor(W, H, safe = {}) {
+export function layoutFor(W, H, safe = {}, swipe = false) {
   const s = { top: 0, right: 0, bottom: 0, left: 0, ...safe };
   const m = tune.margin;
   const tall = isTall(W, H);
@@ -105,7 +105,11 @@ export function layoutFor(W, H, safe = {}) {
     };
     side = "left";
   }
-  return { W, H, safe: s, tall, phone, dial, minimap, side };
+  const plansY = dial.y; // keep the side buttons in reach, beside the downstroke
+  // The resting knob is at six. Leave a finger room below it for a full
+  // downstroke, clear of the bottom safe area, in the touch trial.
+  if (swipe) dial.y -= Math.min(W, H) * 0.2;
+  return { W, H, safe: s, tall, phone, dial, plansY, minimap, side };
 }
 
 // The wide view's box: where the whole pitch is fitted (vendor/engine/session/wide.lua), in

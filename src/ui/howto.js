@@ -8,8 +8,8 @@ import { prefs } from "../game/prefs.js";
 const STEPS = [
   {
     swipe: [
-      "Start in the lower half",
-      "Put one finger below the middle of the pitch. Leave room to pull down. With a mouse, grab the dial.",
+      "Start on the dial or the grass",
+      "Close this guide to play. Touch the wooden knob or the grass in the lower half of the screen, then pull straight down.",
     ],
     title: "Grab the dial",
     text: "Press on the big dial and keep holding. The arm follows your finger or mouse round its centre.",
@@ -117,8 +117,7 @@ export function showHowto(root, game = null, onDone = null) {
     t0 = performance.now();
     count.textContent = `${i + 1} OF ${STEPS.length}`;
     const step = STEPS[i];
-    const swipe =
-      game?.swipeEnabled && navigator.maxTouchPoints > 0 && step.swipe;
+    const swipe = game?.touchPrompts && step.swipe;
     title.textContent = swipe ? swipe[0] : step.title;
     text.textContent = swipe ? swipe[1] : step.text;
     back.disabled = i === 0;

@@ -660,25 +660,25 @@ browserTest(
 );
 
 // Send hardware-style contacts through Chromium, with a physical sample clock
-// independent of the machine running the test. Start clear of the dial and aim.
-async function pendulum(page, returnSeconds) {
+// independent of the machine running the test.
+async function pendulum(page, returnSeconds, { x = 85, y = 580 } = {}) {
   const cdp = await page.context().newCDPSession(page);
   const clock = Date.now() / 1000;
-  const send = (type, y, t) =>
+  const send = (type, offset, t) =>
     cdp.send("Input.dispatchTouchEvent", {
       type,
-      touchPoints: y == null ? [] : [{ x: 85, y, id: 1 }],
+      touchPoints: offset == null ? [] : [{ x, y: y + offset, id: 1 }],
       timestamp: clock + t,
     });
   try {
-    await send("touchStart", 580, 0);
-    await send("touchMove", 612, 0.12);
-    await send("touchMove", 680, 0.38);
+    await send("touchStart", 0, 0);
+    await send("touchMove", 32, 0.12);
+    await send("touchMove", 100, 0.38);
     await page.waitForFunction(
       () => window.__kubb.game.out.dial.phase === "winding",
     );
     for (let i = 1; i <= 8; i++)
-      await send("touchMove", 680 - 22 * i, 0.38 + (returnSeconds * i) / 8);
+      await send("touchMove", 100 - 22 * i, 0.38 + (returnSeconds * i) / 8);
     await send("touchEnd", null, 0.39 + returnSeconds);
   } finally {
     await cdp.detach();
@@ -707,6 +707,38 @@ browserTest(
         await page.evaluate(() => window.__kubb.game.play.rec.input),
         "touch",
       );
+      assert.deepEqual(page.errors, []);
+    } finally {
+      await page.context().close();
+    }
+  },
+);
+
+browserTest(
+  "the visible knob has room to wind and release a touch throw",
+  async () => {
+    const page = await open(env, "/practice/?throw=swipe", "swipe");
+    try {
+      // Mobile WebKit can advertise a coarse pointer with zero maxTouchPoints.
+      await page.addInitScript(() =>
+        Object.defineProperty(navigator, "maxTouchPoints", { value: 0 }),
+      );
+      await page.reload();
+      await page
+        .getByRole("heading", { name: "Start on the dial or the grass" })
+        .waitFor();
+      await page.locator("[data-test=howto-close]").tap();
+      const { cx, cy, r } = await dialGeometry(page);
+      const knob = { x: cx, y: cy + r * 0.86 };
+      assert.ok(
+        knob.y + 100 < page.viewportSize().height,
+        "the downstroke stays on screen",
+      );
+      await pendulum(page, 1 / 6, knob);
+      await waitPhase(page, "play");
+      const rec = await page.evaluate(() => window.__kubb.game.play.rec);
+      assert.equal(rec.input, "touch");
+      assert.ok(rec.result.back >= 105, "wound the arm on the visible dial");
       assert.deepEqual(page.errors, []);
     } finally {
       await page.context().close();
