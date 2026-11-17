@@ -729,7 +729,7 @@
           }
         ],
         "ScalingConfig": { "MaxEnvironments": 2 },
-        "ThrottleConfig": { "RateLimit": 50 }
+        "ThrottleConfig": { "RateLimit": 100 }
       }
     },
     "PagesAccess": {
