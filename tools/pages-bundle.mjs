@@ -1,8 +1,8 @@
 // The pages function's code (backend/pages, docs/HOSTING.md "Pitch pages"):
 // backend/pages/main.mjs bundled by esbuild to one ESM file, index.js, with the AWS
 // SDK inside it, and beside it package.json (type: module), resvg's WebAssembly
-// and the display face. Zipped byte for byte the same every time, so its hash
-// names the package.
+// and the display face. Zipped the same way every time, and named by a hash of
+// its contents (contentHash).
 //
 //   node tools/pages-bundle.mjs   write build/pages.zip and print its key
 //
@@ -70,6 +70,19 @@ export function zipFiles(entries) {
   return Buffer.concat([...local, directory, end]);
 }
 
+// The package's name: a hash of what is in it (each name, length and bytes, in
+// name order), not of the zip, whose deflated bytes vary with the zlib of the Node
+// that made it (this Mac's against CI's), so tools/deploy.mjs on CI and
+// npm run infra:apply here agree on which package is live.
+export function contentHash(entries) {
+  const hash = createHash("sha256");
+  for (const { name, data } of [...entries].sort((a, b) =>
+    a.name < b.name ? -1 : 1,
+  ))
+    hash.update(`${name}\0${data.length}\0`).update(data);
+  return hash.digest("hex");
+}
+
 export async function bundlePages() {
   const result = await build({
     entryPoints: [PAGES_ENTRY],
@@ -101,9 +114,7 @@ export async function bundlePages() {
       data: await fs.readFile("backend/pages/LondrinaSolid-Black.ttf"),
     },
   ];
-  const zip = zipFiles(entries);
-  const hex = createHash("sha256").update(zip).digest("hex");
-  return { zip, key: `pages/${hex}.zip` };
+  return { zip: zipFiles(entries), key: `pages/${contentHash(entries)}.zip` };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

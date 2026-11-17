@@ -12,7 +12,7 @@ import {
   contentSecurityPolicy,
   embedSecurityPolicy,
 } from "../../src/site/csp.mjs";
-import { zipFiles } from "../../tools/pages-bundle.mjs";
+import { contentHash, zipFiles } from "../../tools/pages-bundle.mjs";
 import { pitchCode } from "../../src/site/config.js";
 import { CODE_ALPHABET, CODE_LENGTH, ref } from "../../src/site/site.mjs";
 import { ROOM_CODE } from "../../backend/rooms/core.mjs";
@@ -264,6 +264,13 @@ test("the pages zip is the same bytes every time and lists its files", () => {
   assert.deepEqual(a, zipFiles([...entries].reverse()));
   assert.equal(a.readUInt32LE(a.length - 22), 0x06054b50);
   assert.equal(a.readUInt16LE(a.length - 22 + 10), 2);
+  // named by its contents, in any order, and by nothing else
+  assert.equal(contentHash(entries), contentHash([...entries].reverse()));
+  assert.notEqual(
+    contentHash(entries),
+    contentHash([entries[0], { ...entries[1], name: "package.jso" }]),
+  );
+  assert.match(contentHash(entries), /^[0-9a-f]{64}$/);
 });
 
 test("the delivery role trusts only main of this repository", async () => {
