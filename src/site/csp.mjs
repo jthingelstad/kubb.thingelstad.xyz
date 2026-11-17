@@ -14,7 +14,18 @@ export const PRODUCTION_CONNECT = [
   "https://tinylytics.app",
 ];
 
-export function contentSecurityPolicy(connect = PRODUCTION_CONNECT) {
+// The embed, /e/<code> (Jamie, 2026-11-16: "I would like an embed option that
+// allows me to put a Kubb game played as an embed on another website"), is the
+// one route any site may frame: the same policy with frame-ancestors *, sent
+// by its own response headers policy (infra/site.json EmbedHeaders) and by the
+// preview for /embed/index.html. Every other route is never framed.
+export const FRAME_NEVER = "'none'";
+export const FRAME_ANYONE = "*";
+
+export function contentSecurityPolicy(
+  connect = PRODUCTION_CONNECT,
+  { frameAncestors = FRAME_NEVER } = {},
+) {
   return [
     "default-src 'self'",
     "script-src 'self' 'wasm-unsafe-eval' https://tinylytics.app",
@@ -27,6 +38,10 @@ export function contentSecurityPolicy(connect = PRODUCTION_CONNECT) {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    "frame-ancestors 'none'",
+    `frame-ancestors ${frameAncestors}`,
   ].join("; ");
+}
+
+export function embedSecurityPolicy(connect = PRODUCTION_CONNECT) {
+  return contentSecurityPolicy(connect, { frameAncestors: FRAME_ANYONE });
 }

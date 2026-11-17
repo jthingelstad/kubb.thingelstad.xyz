@@ -18,11 +18,29 @@
       "Default": "prod",
       "AllowedPattern": "^[A-Za-z0-9_-]+$",
       "Description": "Stage of the rooms WebSocket API; /ws is sent on to this path"
+    },
+    "PagesCodeKey": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^pages/[0-9a-f]{64}\\.zip$",
+      "Description": "The pitch pages function's package in the code bucket (tools/pages-bundle.mjs). Empty leaves the function out: /p/, /e/ and /og/ are the static pages."
+    },
+    "RoomsTable": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^[A-Za-z0-9_.-]+$",
+      "Description": "The rooms table (stack kubb-xyz-rooms), which the pages function reads. Empty leaves the function out."
     }
   },
   "Conditions": {
     "HasRooms": {
       "Fn::Not": [{ "Fn::Equals": [{ "Ref": "RoomsApiDomain" }, ""] }]
+    },
+    "HasPages": {
+      "Fn::And": [
+        { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "PagesCodeKey" }, ""] }] },
+        { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "RoomsTable" }, ""] }] }
+      ]
     }
   },
   "Resources": {
@@ -191,7 +209,7 @@
           "Runtime": "cloudfront-js-2.0",
           "Comment": "A pitch at any code is the one game page; directory routes to index.html; extensionless paths 301 to the slash form"
         },
-        "FunctionCode": "// The site's viewer request function (CloudFront Functions, JavaScript\n// runtime 2.0). infra/site.json carries this file as its FunctionCode\n// (tools/infra.mjs copies it in before every plan; tests/site fails when the\n// two differ), and the preview server runs this same file.\n//\n//   /p/<code>   any code serves the one game page, /pitch/index.html\n//   /p, /p/     302 to a pitch with a new code (for a browser without scripts)\n//   /x/         /x/index.html\n//   /x          301 to /x/, keeping the query\n//\n// A code is 8 to 24 characters from the alphabet below, the rooms' own rule\n// (ROOM_CODE in backend/rooms/core.mjs); the home page makes 8. Any other\n// /p/ address is not a pitch and ends at the 404.\nfunction handler(event) {\n  var request = event.request;\n  var uri = request.uri;\n  var query = Object.keys(request.querystring)\n    .map(function (k) {\n      var v = request.querystring[k];\n      return v.multiValue\n        ? v.multiValue\n            .map(function (m) {\n              return k + \"=\" + m.value;\n            })\n            .join(\"&\")\n        : k + \"=\" + v.value;\n    })\n    .join(\"&\");\n  if (uri === \"/p\" || uri === \"/p/\") {\n    var alphabet = \"abcdefghjkmnpqrstuvwxyz23456789\";\n    var code = \"\";\n    for (var i = 0; i < 8; i++)\n      code += alphabet.charAt(Math.floor(Math.random() * alphabet.length));\n    return {\n      statusCode: 302,\n      statusDescription: \"Found\",\n      headers: {\n        location: { value: \"/p/\" + code + (query ? \"?\" + query : \"\") },\n        \"cache-control\": { value: \"no-store\" },\n      },\n    };\n  }\n  if (/^\\/p\\/[2-9a-hjkmnp-z]{8,24}\\/?$/.test(uri)) {\n    request.uri = \"/pitch/index.html\";\n    return request;\n  }\n  if (uri.endsWith(\"/\")) request.uri = uri + \"index.html\";\n  else if (uri.split(\"/\").pop().indexOf(\".\") === -1)\n    return {\n      statusCode: 301,\n      statusDescription: \"Moved Permanently\",\n      headers: { location: { value: uri + \"/\" + (query ? \"?\" + query : \"\") } },\n    };\n  return request;\n}\n"
+        "FunctionCode": "// The site's viewer request function (CloudFront Functions, JavaScript\n// runtime 2.0). infra/site.json carries this file as its FunctionCode\n// (tools/infra.mjs copies it in before every plan; tests/site fails when the\n// two differ), and the preview server runs this same file.\n//\n//   /p/<code>        any code serves the one game page, /pitch/index.html\n//   /e/<code>        the embed of that pitch, /embed/index.html\n//   /og/<code>.png   that pitch's share image; the static one, /share/kubb.png,\n//                    is what it falls back to\n//   /p, /p/          302 to a pitch with a new code (for a browser without scripts)\n//   /x/         /x/index.html\n//   /x          301 to /x/, keeping the query\n//\n// A code is 8 to 24 characters from the alphabet below, the rooms' own rule\n// (ROOM_CODE in backend/rooms/core.mjs); the home page makes 8. Any other\n// /p/ address is not a pitch and ends at the 404.\n//\n// The three pitch routes also carry the code as the query string `pitch`.\n// Their behaviours send them to the pages function (backend/pages, which\n// reads the room and writes that pitch's share tags and image) with the\n// static file as the failover origin, so the rewritten address is what the\n// bucket serves when the function cannot answer. Only `pitch` and `v` reach\n// the function or the cache key; the page's own query (?solo=1) stays in the\n// browser's address.\nvar PITCH_ROUTES = [\n  [/^\\/p\\/([2-9a-hjkmnp-z]{8,24})\\/?$/, \"/pitch/index.html\"],\n  [/^\\/e\\/([2-9a-hjkmnp-z]{8,24})\\/?$/, \"/embed/index.html\"],\n  [/^\\/og\\/([2-9a-hjkmnp-z]{8,24})\\.png$/, \"/share/kubb.png\"],\n];\n\nfunction handler(event) {\n  var request = event.request;\n  var uri = request.uri;\n  var query = Object.keys(request.querystring)\n    .map(function (k) {\n      var v = request.querystring[k];\n      return v.multiValue\n        ? v.multiValue\n            .map(function (m) {\n              return k + \"=\" + m.value;\n            })\n            .join(\"&\")\n        : k + \"=\" + v.value;\n    })\n    .join(\"&\");\n  if (uri === \"/p\" || uri === \"/p/\") {\n    var alphabet = \"abcdefghjkmnpqrstuvwxyz23456789\";\n    var code = \"\";\n    for (var i = 0; i < 8; i++)\n      code += alphabet.charAt(Math.floor(Math.random() * alphabet.length));\n    return {\n      statusCode: 302,\n      statusDescription: \"Found\",\n      headers: {\n        location: { value: \"/p/\" + code + (query ? \"?\" + query : \"\") },\n        \"cache-control\": { value: \"no-store\" },\n      },\n    };\n  }\n  for (var r = 0; r < PITCH_ROUTES.length; r++) {\n    var m = uri.match(PITCH_ROUTES[r][0]);\n    if (m) {\n      request.uri = PITCH_ROUTES[r][1];\n      request.querystring.pitch = { value: m[1] };\n      return request;\n    }\n  }\n  if (uri.endsWith(\"/\")) request.uri = uri + \"index.html\";\n  else if (uri.split(\"/\").pop().indexOf(\".\") === -1)\n    return {\n      statusCode: 301,\n      statusDescription: \"Moved Permanently\",\n      headers: { location: { value: uri + \"/\" + (query ? \"?\" + query : \"\") } },\n    };\n  return request;\n}\n"
       }
     },
     "Distribution": {
@@ -233,6 +251,25 @@
                 },
                 { "Ref": "AWS::NoValue" }
               ]
+            },
+            {
+              "Fn::If": [
+                "HasPages",
+                {
+                  "Id": "pages",
+                  "DomainName": {
+                    "Fn::GetAtt": ["PagesEndpoint", "DomainName"]
+                  },
+                  "OriginAccessControlId": { "Ref": "PagesOriginAccess" },
+                  "CustomOriginConfig": {
+                    "HTTPSPort": 443,
+                    "OriginProtocolPolicy": "https-only",
+                    "OriginSSLProtocols": ["TLSv1.2"],
+                    "OriginReadTimeout": 15
+                  }
+                },
+                { "Ref": "AWS::NoValue" }
+              ]
             }
           ],
           "DefaultCacheBehavior": {
@@ -269,10 +306,10 @@
               "ErrorCachingMinTTL": 60
             }
           ],
-          "CacheBehaviors": {
-            "Fn::If": [
-              "HasRooms",
-              [
+          "CacheBehaviors": [
+            {
+              "Fn::If": [
+                "HasRooms",
                 {
                   "PathPattern": "/ws",
                   "TargetOriginId": "rooms",
@@ -293,8 +330,104 @@
                       }
                     }
                   ]
+                },
+                { "Ref": "AWS::NoValue" }
+              ]
+            },
+            {
+              "PathPattern": "/p/*",
+              "TargetOriginId": {
+                "Fn::If": ["HasPages", "pages-or-static", "website"]
+              },
+              "ViewerProtocolPolicy": "redirect-to-https",
+              "AllowedMethods": ["GET", "HEAD"],
+              "CachedMethods": ["GET", "HEAD"],
+              "Compress": true,
+              "CachePolicyId": { "Ref": "PagesCachePolicy" },
+              "ResponseHeadersPolicyId": { "Ref": "Headers" },
+              "FunctionAssociations": [
+                {
+                  "EventType": "viewer-request",
+                  "FunctionARN": {
+                    "Fn::GetAtt": [
+                      "ViewerRequestFunction",
+                      "FunctionMetadata.FunctionARN"
+                    ]
+                  }
                 }
-              ],
+              ]
+            },
+            {
+              "PathPattern": "/e/*",
+              "TargetOriginId": {
+                "Fn::If": ["HasPages", "pages-or-static", "website"]
+              },
+              "ViewerProtocolPolicy": "redirect-to-https",
+              "AllowedMethods": ["GET", "HEAD"],
+              "CachedMethods": ["GET", "HEAD"],
+              "Compress": true,
+              "CachePolicyId": { "Ref": "PagesCachePolicy" },
+              "ResponseHeadersPolicyId": { "Ref": "EmbedHeaders" },
+              "FunctionAssociations": [
+                {
+                  "EventType": "viewer-request",
+                  "FunctionARN": {
+                    "Fn::GetAtt": [
+                      "ViewerRequestFunction",
+                      "FunctionMetadata.FunctionARN"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "PathPattern": "/og/*",
+              "TargetOriginId": {
+                "Fn::If": ["HasPages", "pages-or-static", "website"]
+              },
+              "ViewerProtocolPolicy": "redirect-to-https",
+              "AllowedMethods": ["GET", "HEAD"],
+              "CachedMethods": ["GET", "HEAD"],
+              "Compress": true,
+              "CachePolicyId": { "Ref": "PagesCachePolicy" },
+              "ResponseHeadersPolicyId": { "Ref": "Headers" },
+              "FunctionAssociations": [
+                {
+                  "EventType": "viewer-request",
+                  "FunctionARN": {
+                    "Fn::GetAtt": [
+                      "ViewerRequestFunction",
+                      "FunctionMetadata.FunctionARN"
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "OriginGroups": {
+            "Fn::If": [
+              "HasPages",
+              {
+                "Quantity": 1,
+                "Items": [
+                  {
+                    "Id": "pages-or-static",
+                    "FailoverCriteria": {
+                      "StatusCodes": {
+                        "Quantity": 5,
+                        "Items": [403, 500, 502, 503, 504]
+                      }
+                    },
+                    "Members": {
+                      "Quantity": 2,
+                      "Items": [
+                        { "OriginId": "pages" },
+                        { "OriginId": "website" }
+                      ]
+                    }
+                  }
+                ]
+              },
               { "Ref": "AWS::NoValue" }
             ]
           }
@@ -421,6 +554,23 @@
           "Version": "2012-10-17",
           "Statement": [
             {
+              "Sid": "LambdaReadsPagesRevisions",
+              "Effect": "Allow",
+              "Principal": { "Service": "lambda.amazonaws.com" },
+              "Action": ["s3:GetObject", "s3:GetObjectVersion"],
+              "Resource": { "Fn::Sub": "${CodeBucket.Arn}/pages/*" },
+              "Condition": {
+                "StringEquals": {
+                  "aws:SourceAccount": { "Ref": "AWS::AccountId" }
+                },
+                "ArnLike": {
+                  "aws:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:web-function/${AWS::StackName}-pages/*"
+                  }
+                }
+              }
+            },
+            {
               "Sid": "RequireTls",
               "Effect": "Deny",
               "Principal": "*",
@@ -447,6 +597,215 @@
         },
         "FunctionCode": {
           "Fn::Sub": "function handler(event) {\n  var request = event.request;\n  request.uri = \"/${RoomsStage}\";\n  return request;\n}\n"
+        }
+      }
+    },
+    "PagesLogs": {
+      "Type": "AWS::Logs::LogGroup",
+      "Condition": "HasPages",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Sub": "/aws/lambda-web/${AWS::StackName}-pages"
+        },
+        "RetentionInDays": 30
+      }
+    },
+    "PagesLocalLogs": {
+      "Type": "AWS::Logs::LogGroup",
+      "Condition": "HasPages",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Sub": "/aws/lambda-web/${AWS::StackName}-pages.local"
+        },
+        "RetentionInDays": 30
+      }
+    },
+    "PagesRole": {
+      "Type": "AWS::IAM::Role",
+      "Condition": "HasPages",
+      "Properties": {
+        "Description": "Pitch pages function: reads a room's document and kept replay, writes its own logs",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": { "Service": "lambda.amazonaws.com" },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "pages",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "ReadRooms",
+                  "Effect": "Allow",
+                  "Action": "dynamodb:GetItem",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RoomsTable}"
+                  }
+                },
+                {
+                  "Sid": "OwnLogs",
+                  "Effect": "Allow",
+                  "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
+                  "Resource": [
+                    { "Fn::GetAtt": ["PagesLogs", "Arn"] },
+                    { "Fn::GetAtt": ["PagesLocalLogs", "Arn"] }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "PagesFunction": {
+      "Type": "AWS::Lambda::WebFunction",
+      "Condition": "HasPages",
+      "Properties": { "FunctionName": { "Fn::Sub": "${AWS::StackName}-pages" } }
+    },
+    "PagesRevision": {
+      "Type": "AWS::Lambda::WebFunctionRevision",
+      "Condition": "HasPages",
+      "DependsOn": ["PagesFunction", "CodeBucketPolicy"],
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "FunctionName": { "Fn::Sub": "${AWS::StackName}-pages" },
+        "Description": { "Ref": "PagesCodeKey" },
+        "BuildConfig": {
+          "CodeConfig": {
+            "S3Object": {
+              "Bucket": { "Ref": "CodeBucket" },
+              "Key": { "Ref": "PagesCodeKey" }
+            }
+          },
+          "RuntimeConfig": { "Runtime": "nodejs24.x" }
+        },
+        "ServiceConfig": {
+          "ExecutionRoleArn": { "Fn::GetAtt": ["PagesRole", "Arn"] },
+          "TimeoutSeconds": 15,
+          "MaxConcurrencyPerEnvironment": 8,
+          "EnvironmentVariables": {
+            "TABLE": { "Ref": "RoomsTable" },
+            "SITE": "https://kubb.thingelstad.xyz"
+          },
+          "TelemetryConfig": {
+            "LoggingConfig": {
+              "LogGroup": { "Ref": "PagesLogs" },
+              "ApplicationLogLevel": "INFO",
+              "SystemLogLevel": "INFO"
+            }
+          }
+        }
+      }
+    },
+    "PagesEndpoint": {
+      "Type": "AWS::Lambda::WebFunctionEndpoint",
+      "Condition": "HasPages",
+      "DependsOn": "PagesFunction",
+      "Properties": {
+        "FunctionName": { "Fn::Sub": "${AWS::StackName}-pages" },
+        "EndpointName": "live",
+        "EndpointType": "HomeRegion",
+        "AuthType": "IamAuth",
+        "RevisionWeights": [
+          {
+            "RevisionId": { "Fn::GetAtt": ["PagesRevision", "RevisionId"] },
+            "Weight": 100
+          }
+        ],
+        "ScalingConfig": { "MaxEnvironments": 2 },
+        "ThrottleConfig": { "RateLimit": 50 }
+      }
+    },
+    "PagesAccess": {
+      "Type": "AWS::Lambda::ResourcePolicy",
+      "Condition": "HasPages",
+      "Properties": {
+        "ResourceArn": { "Fn::GetAtt": ["PagesEndpoint", "FunctionArn"] },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "SiteDistributionInvokesLive",
+              "Effect": "Allow",
+              "Principal": { "Service": "cloudfront.amazonaws.com" },
+              "Action": "lambda:InvokeWebFunctionEndpoint",
+              "Resource": { "Fn::GetAtt": ["PagesEndpoint", "EndpointArn"] },
+              "Condition": {
+                "StringEquals": {
+                  "aws:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "PagesOriginAccess": {
+      "Type": "AWS::CloudFront::OriginAccessControl",
+      "Condition": "HasPages",
+      "Properties": {
+        "OriginAccessControlConfig": {
+          "Name": { "Fn::Sub": "${AWS::StackName}-pages" },
+          "Description": "CloudFront signs its requests to the pitch pages function",
+          "OriginAccessControlOriginType": "lambda",
+          "SigningBehavior": "always-amz-auth",
+          "SigningProtocol": "sigv4"
+        }
+      }
+    },
+    "PagesCachePolicy": {
+      "Type": "AWS::CloudFront::CachePolicy",
+      "Properties": {
+        "CachePolicyConfig": {
+          "Name": { "Fn::Sub": "${AWS::StackName}-pages" },
+          "Comment": "A pitch's page or image: keyed by its code (pitch, set by the viewer request function) and the image's version (v)",
+          "MinTTL": 0,
+          "DefaultTTL": 60,
+          "MaxTTL": 86400,
+          "ParametersInCacheKeyAndForwardedToOrigin": {
+            "EnableAcceptEncodingGzip": true,
+            "EnableAcceptEncodingBrotli": true,
+            "CookiesConfig": { "CookieBehavior": "none" },
+            "HeadersConfig": { "HeaderBehavior": "none" },
+            "QueryStringsConfig": {
+              "QueryStringBehavior": "whitelist",
+              "QueryStrings": { "Quantity": 2, "Items": ["pitch", "v"] }
+            }
+          }
+        }
+      }
+    },
+    "EmbedHeaders": {
+      "Type": "AWS::CloudFront::ResponseHeadersPolicy",
+      "Properties": {
+        "ResponseHeadersPolicyConfig": {
+          "Name": { "Fn::Sub": "${AWS::StackName}-embed-headers" },
+          "Comment": "The embed, /e/<code>: the same headers, but any site may frame it",
+          "SecurityHeadersConfig": {
+            "ContentTypeOptions": { "Override": true },
+            "ReferrerPolicy": {
+              "ReferrerPolicy": "strict-origin-when-cross-origin",
+              "Override": true
+            },
+            "StrictTransportSecurity": {
+              "AccessControlMaxAgeSec": 31536000,
+              "Override": true
+            },
+            "ContentSecurityPolicy": {
+              "ContentSecurityPolicy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://tinylytics.app; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://avatars.micro.blog https://tinylytics.app; font-src 'self'; connect-src 'self' wss://kubb.thingelstad.xyz wss://*.execute-api.us-east-1.amazonaws.com https://tinylytics.app; media-src 'self' data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *",
+              "Override": true
+            }
+          }
         }
       }
     }
@@ -479,6 +838,26 @@
     "RoomsRoute": {
       "Value": { "Fn::If": ["HasRooms", "wss://kubb.thingelstad.xyz/ws", ""] },
       "Description": "The rooms WebSocket through this hostname, empty while the /ws route is off"
+    },
+    "PagesEndpoint": {
+      "Value": {
+        "Fn::If": [
+          "HasPages",
+          { "Fn::GetAtt": ["PagesEndpoint", "DomainName"] },
+          ""
+        ]
+      },
+      "Description": "The pitch pages function's live endpoint, the origin of /p/, /e/ and /og/; empty while it is off"
+    },
+    "PagesRevision": {
+      "Value": {
+        "Fn::If": [
+          "HasPages",
+          { "Fn::GetAtt": ["PagesRevision", "RevisionId"] },
+          ""
+        ]
+      },
+      "Description": "The revision the live endpoint serves"
     }
   }
 }

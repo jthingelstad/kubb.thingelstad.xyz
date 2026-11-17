@@ -62,6 +62,17 @@ address or home path in `dist/`, no account id in Markdown).
   them: 8 to 24 of `abcdefghjkmnpqrstuvwxyz23456789`). It also owns the bucket for the
   rooms function's code, and, with `"wsRoute": true` in `infra/deployment.json`, the `/ws`
   route that sends the WebSocket on to the rooms API under the same web ACL.
+- The site stack also holds the pitch pages function, `kubb-xyz-site-pages` (a Lambda
+  Web Function, `backend/pages/`): CloudFront sends `/p/*`, `/e/*` and `/og/*` to it, after
+  the viewer request function has turned them into `/pitch/index.html`,
+  `/embed/index.html` and `/share/kubb.png` with `?pitch=<code>`. It reads one room's
+  document (and its kept replay) from the rooms table with `GetItem`, nothing else, and
+  writes that pitch's share tags into the page or draws its share image. The bucket is the
+  origin group's second member: when the function fails, or the stack has no function,
+  the static page and image are served as before. `npm run infra:apply -- site` bundles it
+  (`tools/pages-bundle.mjs`, `pages/<sha256>.zip` in the code bucket) and passes the rooms
+  table's name; `tools/deploy.mjs` only says when the live bundle is behind
+  (`docs/ROOMS.md` section 11).
 - `infra/rooms.json` (stack `kubb-xyz-rooms`): the WebSocket API, its function and table,
   and the private games bucket (below).
   `npm run infra:apply -- rooms` bundles `backend/rooms/handler.mjs` (esbuild, one ESM
@@ -186,6 +197,40 @@ noted and it plays on.
   can be given one from its records, one room at a time and only with Jamie's go:
   `node tools/backfill-replay.mjs --room <code>` (dry run, the hash agreement) and
   `--write` (as `cloud-engineer`); `docs/ROOMS.md` section 10.
+
+## Embed
+
+A finished match can be put on another website (Jamie, 2026-11-16: "I would like an embed
+option that allows me to put a Kubb game played as an embed on another website").
+`/e/<code>` is the replay player alone (`src/embed/embed.js`): the wide view, its bar,
+the score sheet closed, no sound, playing while at least half of it is in view and held
+when scrolled away (a pause the viewer chose stays a pause), REPLAY AGAIN at the end, and
+"Kubb: Throwing Wood ↗" to `/p/<code>` in a new tab. It never joins, acts or reports, and
+has no analytics. A match in play, a pitch waiting for players, a match with no kept
+replay and an unknown code are quiet cards with a link to the pitch; a match in play is
+not shown because watching one means joining the room.
+
+- EMBED, beside WATCH REPLAY on the winner card and on the replay bar, shows the snippet
+  with COPY (`src/ui/embed.js`): an iframe 100% wide at 16:10, `loading="lazy"`, a
+  `title` and `allow=""`.
+- `/e/` is the one path that may be framed: its own response headers policy with
+  `frame-ancestors *` (`embedSecurityPolicy` in `src/site/csp.mjs`) and no
+  `X-Frame-Options`; every other page keeps `DENY` and `frame-ancestors 'none'`.
+- An embed follows its pitch: after a rematch it plays the newer match.
+- No oEmbed endpoint: the snippet is enough for the sites it is pasted into.
+
+## Share previews
+
+A pitch's link shows that pitch (Jamie, 2026-11-16: "can we get the share preview image to
+reflect the game that it is linked to?"). The pitch pages function writes the title
+("North vs South · Kubb: Throwing Wood"), a description of its state ("Waiting for
+players. Join the pitch.", "In play: turn 7", "Final: North won, 1 to 0, in 9 turns. Watch
+the replay.") and `/og/<code>.png?v=<version>` into `/p/<code>` and `/e/<code>`. The image
+(1200×630, `pitchCardImage` in `src/site/art.mjs`, drawn with resvg) has the team names,
+the state and the pitch from above with its pieces where they stand. Team names come from
+the match; a waiting pitch has none yet, so it is "A pitch waiting for players". No names
+of players, member ids, open-game listing or games bucket. Anything that fails gives the
+static title, description and share image, never an error page.
 
 ## Score sheet
 

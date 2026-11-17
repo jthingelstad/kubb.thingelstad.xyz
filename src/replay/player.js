@@ -15,7 +15,9 @@
 // `data` is a replay (src/net/lobby.js replayOf): { setup, h0, log, snap, ... }.
 // Options: home (HOME on the end card), close (BACK TO THE PITCH on the bar and the end
 // card; without it there is no way back but HOME), menu (MENU's View follows the
-// replay's view while it plays), onEnd (the end card is shown).
+// replay's view while it plays), onEnd (the end card is shown), embed (an EMBED
+// button on the bar and the end card: src/ui/embed.js), embedded (an embed's
+// player, /e/<code>: no HOME, the score sheet closed until asked for).
 //
 // What it shows: the wide view by default (THROWER'S VIEW / WIDE VIEW switches, the
 // "watchView" pref and the V key, as watching the computer does); PLAY / PAUSE (space),
@@ -84,14 +86,27 @@ export class ReplayPlayer {
     close = null,
     menu = null,
     onEnd = null,
+    embed = null,
+    embedded = false,
   }) {
-    Object.assign(this, { game, root, data, home, close, menu, onEnd });
+    Object.assign(this, {
+      game,
+      root,
+      data,
+      home,
+      close,
+      menu,
+      onEnd,
+      embed,
+      embedded,
+    });
     this.playing = true;
     this.speed = 1;
     this.wait = 0;
     this.waitCpu = false;
     this.single = false; // NEXT THROW while paused: this one throw plays
     this.ended = false;
+    this.held = false; // paused by hold(), not by the viewer
     this.info = null;
     this.saved = null;
     this.onKey = (e) => this.key(e);
@@ -231,6 +246,11 @@ export class ReplayPlayer {
         h("span.replay-speeds", this.speedBtns),
         this.viewBtn,
         this.sheetBtn,
+        this.embed
+          ? button("EMBED", () => this.embed(), "small", {
+              "data-test": "replay-embed",
+            })
+          : null,
         this.close
           ? button("BACK TO THE PITCH", () => this.close(), "small", {
               "data-test": "replay-close",
@@ -247,7 +267,8 @@ export class ReplayPlayer {
       h("p.kicker", "SCORE SHEET"),
       this.sheetText,
     );
-    this.panel.hidden = window.innerWidth < replayTune.sheetWide;
+    this.panel.hidden =
+      this.embedded || window.innerWidth < replayTune.sheetWide;
     this.root.append(this.panel, this.bar);
     this.root.classList.add("replaying");
   }
@@ -259,7 +280,23 @@ export class ReplayPlayer {
     this.playBtn.setAttribute("aria-pressed", String(on));
   }
 
+  // Held while out of view (an embed scrolled away): nothing plays until resumed.
+  // A pause the viewer chose stays a pause.
+  hold(on) {
+    if (this.ended || !this.saved) return;
+    if (on) {
+      if (!this.playing) return;
+      this.held = true;
+      this.single = false;
+      this.setPlaying(false);
+    } else if (this.held) {
+      this.held = false;
+      this.setPlaying(true);
+    }
+  }
+
   toggle() {
+    this.held = false;
     if (this.ended) return this.load();
     this.single = false;
     this.setPlaying(!this.playing);
@@ -277,12 +314,15 @@ export class ReplayPlayer {
     if (!this.panel.hidden) this.renderSheet();
   }
 
+  // An embed opens in the wide view and keeps its choice to itself.
   chosen() {
+    if (this.embedded) return this.view ?? "wide";
     return prefs.get("watchView", "wide") === "thrower" ? "thrower" : "wide";
   }
 
   choose(v) {
-    prefs.set("watchView", v);
+    if (this.embedded) this.view = v;
+    else prefs.set("watchView", v);
     this.game.setWide(v === "wide");
   }
 
@@ -465,7 +505,8 @@ export class ReplayPlayer {
       replayLabel: "REPLAY AGAIN",
       first: true,
       rematch: null,
-      home: this.home ?? (() => (location.href = "/")),
+      home: this.embedded ? null : (this.home ?? (() => (location.href = "/"))),
+      embed: this.embed,
       back: this.close,
       sheet: () => openSheet(this.root, { game: g }),
       note: this.info.differs ? DIFFERS : null,

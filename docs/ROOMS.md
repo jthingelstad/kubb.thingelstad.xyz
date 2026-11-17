@@ -594,3 +594,31 @@ belongs to the game (`docs/MULTIPLAYER.md`, `docs/CLIENT.md` "Replays").
 - **No new AWS resources.** The replay is one more item in the rooms table, gzipped (the
   log's actions repeat their shape, so it packs well); the function's role already covers the table.
   The private games bucket is never read to serve a replay.
+
+## 11. Pitch pages
+
+The share tags and image of one pitch (Jamie, 2026-11-16: "can we get the share preview
+image to reflect the game that it is linked to?") and the embed's state are read from the
+rooms table by a second function, in the site stack (`infra/site.json`), not this one.
+
+- **What it is.** `kubb-xyz-site-pages`, a Lambda Web Function (`backend/pages/main.mjs`,
+  a Node HTTP server; esbuild bundle with the AWS SDK, resvg's wasm and the Londrina font)
+  behind CloudFront with origin access control. CloudFront asks it for
+  `/pitch/index.html?pitch=<code>`, `/embed/index.html?pitch=<code>` and
+  `/share/kubb.png?pitch=<code>`.
+- **What it reads.** `room#<code> | doc` (`v`, `doc`, `exp`), and for a finished match
+  `room#<code> | replay` (`v`, `exp`, or `z` when the document is gone). Its role allows
+  `dynamodb:GetItem` on the rooms table and its own logs, nothing more. It never reads
+  the private games bucket, never writes, never lists open games. The page's HTML is the
+  site's own `/pitch/index.html` or `/embed/index.html`, fetched and kept a minute.
+- **What it says.** `backend/pages/pitch.mjs`: the state (none, waiting, playing, over),
+  the words and the picture. Team names come from the match (`snap.save.game.teams`);
+  member ids and player names never leave the function.
+- **Caching.** The cache key is the path plus `pitch` and `v`. Pages are cached 60 s at
+  the edge (300 s once the match is over); images 300 s, a day once over. The page's image
+  link carries the document version, so a new state gets a new image.
+- **Failing.** A code the rooms do not know gives the static page and a redirect to the
+  static image. A function error or a 5xx sends CloudFront to the bucket (origin group),
+  which serves the same files without the pitch's tags.
+- **Cost.** A share or an embed load is one or two `GetItem` reads and one short
+  invocation; images are cached at the edge.

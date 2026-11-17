@@ -37,6 +37,7 @@ import { prefs } from "../game/prefs.js";
 import { h, button } from "../ui/dom.js";
 import { ReplayPlayer } from "../replay/player.js";
 import { fetchReplay } from "../replay/fetch.js";
+import { openEmbed } from "../ui/embed.js";
 
 export const tune = {
   tickMs: 200, // the controller's clock: aim casts (5 a second), drain, host check
@@ -702,6 +703,8 @@ export class Pitch {
       note: host ? null : `${this.nameOf(this.room.host)} can start a rematch.`,
       // a match from before replays (or too long to keep) has none
       replay: data ? () => this.watch(data) : null,
+      // a finished match on another site (src/embed/embed.js): with its replay only
+      embed: data ? () => this.showEmbed() : null,
       first: arrived,
       teams: arrived ? teamsLine(m.players) : null,
     });
@@ -736,9 +739,15 @@ export class Pitch {
       home: this.home,
       menu: this.menu,
       close: () => this.endReplay(),
+      embed: () => this.showEmbed(),
     });
     this.replay.start();
     this.note("replay", data.n);
+  }
+
+  // EMBED: the HTML that shows this pitch's match on another site.
+  showEmbed() {
+    openEmbed(this.ui, { game: this.game, code: this.code });
   }
 
   endReplay() {

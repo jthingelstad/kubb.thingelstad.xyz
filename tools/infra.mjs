@@ -11,7 +11,10 @@
 // the private bucket, the distribution (behind the shared edge web ACL), the
 // A and AAAA alias records, the access log and the bucket for the rooms
 // function's code; with "wsRoute": true in infra/deployment.json it also
-// sends /ws on to the rooms WebSocket API. The rooms stack (infra/rooms.json)
+// sends /ws on to the rooms WebSocket API. Once the rooms stack is deployed it
+// also runs the pitch pages function (backend/pages, a Lambda Web Function behind
+// /p/, /e/ and /og/; docs/HOSTING.md "Pitch pages"): its package is
+// tools/pages-bundle.mjs, uploaded to the code bucket under its hash. The rooms stack (infra/rooms.json)
 // is the WebSocket API, its function, its table and the private bucket the
 // games are recorded in: its code is
 // backend/rooms/handler.mjs bundled and zipped by tools/rooms-bundle.mjs,
@@ -33,6 +36,7 @@ import {
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 import fs from "node:fs/promises";
+import { bundlePages } from "./pages-bundle.mjs";
 import { bundleRooms } from "./rooms-bundle.mjs";
 import { syncSiteTemplate } from "./site-template.mjs";
 
@@ -169,13 +173,38 @@ if (config.wsRoute && !rooms && selected.includes("site"))
   );
 
 let site = outputs(await stack(config.stacks.site));
-if (selected.includes("site"))
+let pagesKey = config.pages?.codeKey || null;
+if (selected.includes("site")) {
+  // The pages function reads the rooms table: none until the rooms stack is there.
+  const table = outputs(await stack(config.stacks.rooms)).TableName || "";
+  if (table && site.CodeBucket) {
+    const bundle = await bundlePages();
+    pagesKey = bundle.key;
+    console.log(`Pages bundle ${bundle.key} (${bundle.zip.length} bytes)`);
+    if (mode === "apply")
+      await new S3Client(settings).send(
+        new PutObjectCommand({
+          Bucket: site.CodeBucket,
+          Key: bundle.key,
+          Body: bundle.zip,
+          ContentType: "application/zip",
+        }),
+      );
+  }
   site = outputs(
-    await converge(config.stacks.site, "site", {
-      RoomsApiDomain: config.wsRoute ? rooms.apiDomain : "",
-      RoomsStage: config.wsRoute ? rooms.stage : "prod",
-    }),
+    await converge(
+      config.stacks.site,
+      "site",
+      {
+        RoomsApiDomain: config.wsRoute ? rooms.apiDomain : "",
+        RoomsStage: config.wsRoute ? rooms.stage : "prod",
+        PagesCodeKey: table && site.CodeBucket ? pagesKey : "",
+        RoomsTable: table && site.CodeBucket ? table : "",
+      },
+      ["CAPABILITY_IAM"],
+    ),
   );
+}
 
 let codeKey = config.rooms?.codeKey || null;
 if (selected.includes("rooms")) {
@@ -239,6 +268,13 @@ if (mode === "apply") {
     certificateArn: site.CertificateArn || null,
     deploymentRoleArn: delivery.DeploymentRoleArn || null,
     rooms: rooms ? { ...rooms, codeKey } : null,
+    pages: site.PagesEndpoint
+      ? {
+          codeKey: pagesKey,
+          endpointDomain: site.PagesEndpoint,
+          revisionId: site.PagesRevision || null,
+        }
+      : null,
   };
   await fs.writeFile(
     "infra/deployment.json",

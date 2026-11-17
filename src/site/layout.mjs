@@ -127,6 +127,7 @@ export function gamePage({
   styles = [],
   noindex = false,
   tinylytics = false,
+  bodyClass = "game",
 }) {
   // A JSON data block: "<" is escaped so no value can close the element.
   const json = JSON.stringify(config).replace(/</g, "\\u003c");
@@ -138,7 +139,7 @@ ${styles.map((href) => `<link rel="stylesheet" href="${href}">`).join("\n")}
 <script type="application/json" id="kubb-config">${json}</script>
 <script type="module" src="${script}"></script>
 </head>
-<body class="game">
+<body class="${bodyClass}">
 <canvas id="pitch" aria-label="The pitch"></canvas>
 <div id="ui"></div>
 <noscript>

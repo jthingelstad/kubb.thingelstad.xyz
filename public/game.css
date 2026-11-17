@@ -1017,6 +1017,64 @@ body.game {
   font-weight: 700;
 }
 
+/* ---------- the embed, /e/<code> (src/embed/embed.js) ---------- */
+
+/* It fills whatever frame it is given; below this it scrolls rather than crush. */
+body.embed {
+  min-width: 300px;
+  min-height: 188px;
+  overflow: auto;
+  background: var(--paper);
+}
+.embed-link {
+  position: absolute;
+  top: calc(var(--safe-top) + 8px);
+  left: calc(var(--safe-left) + 8px);
+  z-index: 30;
+  padding: 3px 8px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 700 13px/1.2 var(--jt-font-sans, system-ui, sans-serif);
+  text-decoration: none;
+}
+.embed-link:hover,
+.embed-link:focus-visible {
+  background: var(--marigold);
+}
+.embed-scrim {
+  background: rgba(23, 20, 15, 0.2);
+}
+.embed-quiet {
+  text-align: center;
+}
+.embed-quiet .btn {
+  text-decoration: none;
+}
+/* in a small frame the bar keeps to one tight row and the end card scrolls */
+body.embed .replay-bar {
+  max-width: calc(100% - 16px);
+}
+body.embed .replay-controls {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.embed-text {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  background: #fff;
+  font: 500 13px/1.45 var(--jt-font-mono);
+  resize: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 /* ---------- a tall screen (a phone held upright) ---------- */
 
 @media (max-aspect-ratio: 20/21) {

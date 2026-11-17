@@ -31,7 +31,8 @@ export const VIEWPORTS = {
 // runs under a lock, and each process serves its own copy of what it built
 // (build/test-dist-<pid>, removed on close), so another file's rebuild never
 // changes the files under a running test.
-export async function serve({ build = true } = {}) {
+// page: a stand-in for the pages function (tools/preview.mjs).
+export async function serve({ build = true, page = null } = {}) {
   let root = "dist";
   if (build) {
     root = `build/test-dist-${process.pid}`;
@@ -41,7 +42,7 @@ export async function serve({ build = true } = {}) {
       await fs.cp("dist", root, { recursive: true });
     });
   }
-  const server = await startPreview({ port: 0, root });
+  const server = await startPreview({ port: 0, root, page });
   const base = `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch();
   return {

@@ -108,6 +108,13 @@ for (const page of PAGES) {
 // The pitch page is reached at /p/<code>, never at /pitch/ by a link.
 assert.ok(resolves("/p/abcdefgh"), "/p/<code> serves the game page");
 assert.ok(!resolves("/p/NOT-A-CODE"), "/p/ with a bad code is not a pitch");
+// The embed at /e/<code>, and a pitch's share image at /og/<code>.png, whose
+// static fallback is the site's own share image.
+assert.ok(resolves("/e/abcdefgh"), "/e/<code> serves the embed page");
+assert.ok(
+  resolves("/og/abcdefgh.png"),
+  "/og/<code>.png falls back to the share image",
+);
 for (const image of ["share/kubb.png", "favicon.png", "apple-touch-icon.png"])
   assert.ok(keys.has(image), `${image} was not built`);
 

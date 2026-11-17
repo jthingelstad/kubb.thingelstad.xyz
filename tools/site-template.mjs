@@ -1,7 +1,8 @@
-// infra/site.json carries two things whose one source is elsewhere: the
+// infra/site.json carries three things whose one source is elsewhere: the
 // viewer request function (infra/viewer-request.js, which the preview server
-// also runs) and the Content-Security-Policy (src/site/csp.mjs, which the
-// preview server also sends). tools/infra.mjs writes them in before every
+// also runs) and the two Content-Security-Policies (src/site/csp.mjs, which the
+// preview server also sends): the site's, never framed, and the embed's, which
+// any site may frame. tools/infra.mjs writes them in before every
 // plan; tests/site fails when the template has drifted.
 //
 //   node tools/site-template.mjs         write them in
@@ -9,7 +10,10 @@
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { format } from "prettier";
-import { contentSecurityPolicy } from "../src/site/csp.mjs";
+import {
+  contentSecurityPolicy,
+  embedSecurityPolicy,
+} from "../src/site/csp.mjs";
 
 const TEMPLATE = new URL("../infra/site.json", import.meta.url);
 const FUNCTION = new URL("../infra/viewer-request.js", import.meta.url);
@@ -20,6 +24,8 @@ export async function expectedTemplate() {
     await fs.readFile(FUNCTION, "utf8");
   template.Resources.Headers.Properties.ResponseHeadersPolicyConfig.SecurityHeadersConfig.ContentSecurityPolicy.ContentSecurityPolicy =
     contentSecurityPolicy();
+  template.Resources.EmbedHeaders.Properties.ResponseHeadersPolicyConfig.SecurityHeadersConfig.ContentSecurityPolicy.ContentSecurityPolicy =
+    embedSecurityPolicy();
   // Written as prettier writes it, so npm run format:check agrees.
   return format(JSON.stringify(template), { parser: "json" });
 }
