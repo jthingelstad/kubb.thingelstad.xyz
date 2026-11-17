@@ -10,6 +10,8 @@
 //
 // Nothing here imports src/site/site.mjs (it reads a file at load, which the
 // package does not carry); tests/pages checks these two against it.
+import { gunzipSync } from "node:zlib";
+
 export const ORIGIN = "https://kubb.thingelstad.xyz";
 export const SITE_NAME = "Kubb: Throwing Wood";
 
@@ -98,6 +100,24 @@ export function pitchState({ doc = null, replay = null, kept } = {}) {
       };
   }
   return { state: "none" };
+}
+
+// What pitchState needs of one room, through item(pk, sk, fields), a GetItem
+// that answers null for an item missing or expired (backend/pages/main.mjs).
+// The kept replay is read beside a finished match, however it is finished: a
+// match from before replays has no "over" of its own, only its snapshot's phase.
+export async function readRoom(item, code) {
+  const pk = `room#${code}`;
+  const unzip = (z) => gunzipSync(Buffer.from(z)).toString();
+  const doc = await item(pk, "doc", ["v", "doc", "exp"]);
+  if (doc) {
+    const stored = { v: doc.v, doc: doc.doc };
+    if (pitchState({ doc: stored }).state !== "over") return { doc: stored };
+    const kept = await item(pk, "replay", ["z", "exp"]);
+    return { doc: stored, kept: kept ? unzip(kept.z) : null };
+  }
+  const kept = await item(pk, "replay", ["z", "exp"]);
+  return { doc: null, replay: kept ? unzip(kept.z) : null };
 }
 
 function fromSnap(snapText, setup) {
