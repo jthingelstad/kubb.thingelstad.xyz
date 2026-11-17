@@ -142,10 +142,26 @@ test("only /e/ may be framed; every other route keeps DENY and 'none'", async ()
     policy("Headers").ContentSecurityPolicy.ContentSecurityPolicy,
     /frame-ancestors 'none'$/,
   );
-  assert.equal(policy("EmbedHeaders").FrameOptions, undefined);
+  // the embed's headers: the site's security headers, frame-ancestors *, and no
+  // frame options, set by its viewer response function on either origin
+  const code = R.EmbedResponseFunction.Properties.FunctionCode;
+  const handler = new Function(`${code}; return handler;`)();
+  const out = handler({
+    response: {
+      statusCode: 200,
+      headers: { "x-frame-options": { value: "DENY" } },
+    },
+  }).headers;
+  assert.equal(out["x-frame-options"], undefined);
+  assert.equal(out["content-security-policy"].value, embedSecurityPolicy());
+  assert.equal(out["x-content-type-options"].value, "nosniff");
   assert.equal(
-    policy("EmbedHeaders").ContentSecurityPolicy.ContentSecurityPolicy,
-    embedSecurityPolicy(),
+    out["referrer-policy"].value,
+    policy("Headers").ReferrerPolicy.ReferrerPolicy,
+  );
+  assert.equal(
+    out["strict-transport-security"].value,
+    `max-age=${policy("Headers").StrictTransportSecurity.AccessControlMaxAgeSec}`,
   );
   assert.match(embedSecurityPolicy(), /frame-ancestors \*$/);
   // the embed's policy is the site's in every other directive
@@ -165,9 +181,18 @@ test("only /e/ may be framed; every other route keeps DENY and 'none'", async ()
   );
   assert.deepEqual(Object.keys(behaviors).sort(), ["/e/*", "/og/*", "/p/*"]);
   for (const [path, b] of Object.entries(behaviors)) {
-    assert.deepEqual(b.ResponseHeadersPolicyId, {
-      Ref: path === "/e/*" ? "EmbedHeaders" : "Headers",
-    });
+    if (path === "/e/*") {
+      assert.equal(b.ResponseHeadersPolicyId, undefined);
+      assert.deepEqual(b.FunctionAssociations[1], {
+        EventType: "viewer-response",
+        FunctionARN: {
+          "Fn::GetAtt": [
+            "EmbedResponseFunction",
+            "FunctionMetadata.FunctionARN",
+          ],
+        },
+      });
+    } else assert.deepEqual(b.ResponseHeadersPolicyId, { Ref: "Headers" });
     // the pages function when it is there, the static pages when it is not
     assert.deepEqual(b.TargetOriginId, {
       "Fn::If": ["HasPages", "pages-or-static", "website"],

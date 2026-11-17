@@ -213,9 +213,12 @@ not shown because watching one means joining the room.
 - EMBED, beside WATCH REPLAY on the winner card and on the replay bar, shows the snippet
   with COPY (`src/ui/embed.js`): an iframe 100% wide at 16:10, `loading="lazy"`, a
   `title` and `allow=""`.
-- `/e/` is the one path that may be framed: its own response headers policy with
+- `/e/` is the one path that may be framed: the site's security headers with
   `frame-ancestors *` (`embedSecurityPolicy` in `src/site/csp.mjs`) and no
-  `X-Frame-Options`; every other page keeps `DENY` and `frame-ancestors 'none'`.
+  `X-Frame-Options`; every other page keeps `DENY` and `frame-ancestors 'none'`. They
+  are set by a viewer response CloudFront Function (`infra/embed-response.mjs`, written
+  into `infra/site.json` by `node tools/site-template.mjs`), not a response headers
+  policy: the account's 20 are all in use by its sites.
 - An embed follows its pitch: while a rematch is set up it shows "Waiting for players"
   (not the last match), and once that match is kept it plays the newer one.
 - No oEmbed endpoint: the snippet is enough for the sites it is pasted into.
