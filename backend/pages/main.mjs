@@ -11,7 +11,7 @@ import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import fs from "node:fs/promises";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
-import { gunzipSync } from "node:zlib";
+import { readRoom } from "./pitch.mjs";
 import { renderer } from "./render.mjs";
 import { createPages, siteBase } from "./server.mjs";
 
@@ -38,27 +38,7 @@ async function item(pk, sk, fields) {
   );
   return Item && Item.exp > Date.now() / 1000 ? Item : null;
 }
-const unzip = (z) => gunzipSync(Buffer.from(z)).toString();
-async function load(code) {
-  const pk = `room#${code}`;
-  const doc = await item(pk, "doc", ["v", "doc", "exp"]);
-  if (doc) {
-    // a finished match: the kept replay, to say "Watch the replay" only when it
-    // is this match's (pitch.mjs sameMatch)
-    const over = /"over":true/.test(doc.doc);
-    const kept = over ? await item(pk, "replay", ["z", "exp"]) : null;
-    return {
-      doc: { v: doc.v, doc: doc.doc },
-      replay: null,
-      ...(over ? { kept: kept ? unzip(kept.z) : null } : {}),
-    };
-  }
-  const kept = await item(pk, "replay", ["z", "exp"]);
-  return {
-    doc: null,
-    replay: kept ? unzip(kept.z) : null,
-  };
-}
+const load = (code) => readRoom(item, code);
 
 // Beside this file in the package; from node_modules when run from the repository.
 async function asset(name, fallback) {

@@ -12,7 +12,9 @@ import {
   injectPreview,
   pitchState,
   previewOf,
+  readRoom,
 } from "../../backend/pages/pitch.mjs";
+import { gzipSync } from "node:zlib";
 import { renderer } from "../../backend/pages/render.mjs";
 import { createPages, siteBase } from "../../backend/pages/server.mjs";
 import * as site from "../../src/site/site.mjs";
@@ -357,4 +359,44 @@ test("the share image renders per state at 1200 x 630", async () => {
   const pieces = cardOf(pitchState(ROOMS.over)).pieces;
   const king = pieces.find((p) => p.kind === "king");
   assert.equal(king.standing, !/^king/.test(overGame.how));
+});
+
+test("readRoom: a match from before replays is over by its snapshot, and its kept replay is read", async () => {
+  const r = JSON.parse(replay);
+  // no "over" of its own, no log: a document from before replays
+  const old = doc({
+    started: true,
+    match: { n: r.n, snap: r.snap, hash: r.hash },
+  });
+  const items = {
+    doc: { ...old, exp: 2e9 },
+    replay: { z: gzipSync(replay), exp: 2e9 },
+  };
+  const asked = [];
+  const item = async (pk, sk, fields) => {
+    asked.push([pk, sk, fields.join(",")]);
+    return items[sk] ?? null;
+  };
+  const read = await readRoom(item, "abcd2345");
+  assert.deepEqual(asked, [
+    ["room#abcd2345", "doc", "v,doc,exp"],
+    ["room#abcd2345", "replay", "z,exp"],
+  ]);
+  const s = pitchState(read);
+  assert.equal(s.state, "over");
+  assert.equal(s.replay, true);
+  assert.match(previewOf(s).description, /Watch the replay\.$/);
+  // a match in play reads nothing more
+  asked.length = 0;
+  items.doc = {
+    ...doc({ started: true, match: { snap: inPlay, setup: {} } }),
+    exp: 2e9,
+  };
+  assert.equal(pitchState(await readRoom(item, "abcd2345")).state, "playing");
+  assert.equal(asked.length, 1);
+  // the document gone: the kept replay alone
+  delete items.doc;
+  const gone = pitchState(await readRoom(item, "abcd2345"));
+  assert.equal(gone.state, "over");
+  assert.equal(gone.replay, true);
 });

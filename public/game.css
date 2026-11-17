@@ -1039,6 +1039,10 @@ body.embed {
   font: 700 13px/1.2 var(--jt-font-sans, system-ui, sans-serif);
   text-decoration: none;
 }
+/* the link has the top-left corner, so the HUD's panel sits below it */
+body.embed .hud-rail {
+  top: calc(var(--safe-top) + 40px);
+}
 .embed-link:hover,
 .embed-link:focus-visible {
   background: var(--marigold);
