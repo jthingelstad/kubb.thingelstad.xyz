@@ -1,7 +1,13 @@
 // Build dist/: the files in public/, the game client bundled from src/main.js,
 // wasmoon's WebAssembly Lua VM, the Lua sources (tools/lua-bundle.mjs), the
 // pages from src/site/, and the files written from them (sitemap.xml,
-// robots.txt, llms.txt, revision.json).
+// robots.txt, llms.txt, revision.json, version.json).
+//
+// version.json is the release (src/site/release.js): the game's version and
+// build from vendor/core/version.lua, the web commit (GITHUB_SHA in CI, else
+// git rev-parse HEAD) and the core's playdate-kubb commit. The pages carry the
+// same object as config.release; the client asks for version.json to tell a
+// player when a newer deploy is out (src/net/freshness.js).
 //
 //   node tools/build.mjs                          local, preview and CI checks
 //   KUBB_PRODUCTION=true node tools/build.mjs     the deploy build
@@ -21,6 +27,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { PAGES } from "../src/site/pages.mjs";
+import { makeRelease, parseCoreVersion } from "../src/site/release.js";
 import {
   DEV_ROOMS_URL,
   GAME_READY,
@@ -71,6 +78,11 @@ async function coreCommit() {
   } catch {
     return null;
   }
+}
+
+// The game's version and build, from the vendored core (the Playdate's pdxinfo).
+async function gameVersion() {
+  return parseCoreVersion(await fs.readFile("vendor/core/version.lua", "utf8"));
 }
 
 // A file under dist/assets/, named <name>-<hash><ext>.
@@ -128,13 +140,17 @@ export async function buildSite({
   }
   if (!assets.main) throw new Error("esbuild wrote no client entry");
 
+  const commit = process.env.GITHUB_SHA || git("rev-parse", "HEAD") || null;
+  const core = await coreCommit();
+  const release = makeRelease({ ...(await gameVersion()), web: commit, core });
   const config = {
     version: pkg.version,
-    commit: process.env.GITHUB_SHA || git("rev-parse", "HEAD") || null,
+    commit,
     roomsUrl: await roomsUrl(production),
     wasmUrl: await hashedAsset("node_modules/wasmoon/dist/glue.wasm", "glue"),
     luaUrl: luaFile ? await hashedAsset(luaFile, "lua-sources") : null,
-    core: await coreCommit(),
+    core,
+    release,
     sounds: "/sounds/",
   };
 
@@ -189,6 +205,7 @@ A pitch at /p/<code> is one group's game, reached by its link; those pages are n
       builtAt: new Date().toISOString(),
     }) + "\n",
   );
+  await fs.writeFile("dist/version.json", JSON.stringify(release) + "\n");
   if (!quiet)
     console.log(
       `Built ${PAGES.length} pages${production ? " (deploy build)" : ""}; rooms ${config.roomsUrl ?? "not deployed"}; Lua ${config.luaUrl ?? "not bundled yet"}`,

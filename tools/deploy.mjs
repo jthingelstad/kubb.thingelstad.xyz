@@ -30,7 +30,7 @@ import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { prepareObject, publicationOrder } from "./delivery-plan.mjs";
+import { MARKERS, prepareObject, publicationOrder } from "./delivery-plan.mjs";
 import { bundleRooms } from "./rooms-bundle.mjs";
 
 const REPOSITORY = "jthingelstad/kubb.thingelstad.xyz";
@@ -130,13 +130,14 @@ async function upload(key) {
   uploaded++;
 }
 
-// Assets and scripts first, then pages, then the revision marker, so a page
-// never points at a file that is not there yet.
+// Assets and scripts first, then pages, then the revision and version
+// markers, so a page never points at a file that is not there yet and no open
+// tab is told of a release before its pages are up.
 const ordered = publicationOrder(await files("dist"));
 for (const group of [
-  ordered.filter((k) => !k.endsWith(".html") && k !== "revision.json"),
+  ordered.filter((k) => !k.endsWith(".html") && !MARKERS.includes(k)),
   ordered.filter((k) => k.endsWith(".html")),
-  ["revision.json"],
+  MARKERS,
 ]) {
   await assertCurrentHead();
   let next = 0;
@@ -217,6 +218,7 @@ for (const [route, file] of [
   ["/style.css", "style.css"],
   [wasm, wasm.slice(1)],
   ["/revision.json", "revision.json"],
+  ["/version.json", "version.json"],
 ]) {
   const { response, bytes } = await live(route);
   if (
@@ -232,6 +234,15 @@ for (const [route, file] of [
       `The Lua VM is served as ${response.headers.get("content-type")}`,
     );
 }
+// The deployed release must never be cached, by CloudFront or a browser.
+const version = await live("/version.json");
+if (
+  !/no-store/.test(version.response.headers.get("cache-control") || "") ||
+  /^Hit/i.test(version.response.headers.get("x-cache") || "")
+)
+  throw new Error(
+    `version.json is cacheable: ${version.response.headers.get("cache-control")}, ${version.response.headers.get("x-cache")}`,
+  );
 const missing = await live("/no-such-page/");
 if (
   missing.response.status !== 404 ||

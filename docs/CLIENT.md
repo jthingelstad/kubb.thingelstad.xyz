@@ -289,6 +289,31 @@ flick of about 1000 deg/s read SLOW, so `lua/web/tune.lua` sets it to 1200 for t
 The Playwright mouse and CDP touch need two animation frames a step (a round trip each),
 so `client.test.mjs` doubles the flick speed to make up for the 30 Hz stepping.
 
+## Version and freshness
+
+One version for the game: the Playdate's `source/pdxinfo` (`version`, `buildNumber`),
+carried in the core as `vendor/core/version.lua` (`tw.version`) and so brought here by
+`npm run vendor:sync`. There is no separate engine version; the core's identity is the
+playdate-kubb commit in `vendor/core.json`, shown as a diagnostic.
+
+- **The release** (`src/site/release.js`): `{ version, build, web, core, text }`, `text`
+  as `0.9.5 (6) · web a2659b7 · core cca8012`. The build (`tools/build.mjs`) reads the
+  version and build from `vendor/core/version.lua`, the web commit from `GITHUB_SHA` in
+  CI or `git rev-parse HEAD`, the core commit from `vendor/core.json`; it puts the
+  release in the game pages' config (`config.release`) and writes it as `/version.json`.
+- **Shown** small at the foot of the reading pages (home, rules, 404) and of MENU.
+- **Freshness** (`src/net/freshness.js`): the client fetches `/version.json` with
+  `cache: "no-store"` when the page becomes visible again (at most once a minute) and
+  every 10 minutes while it is visible. When the deployed web commit is not the one the
+  page was built from, `src/ui/update.js` shows a small notice, "A new version is out",
+  with RELOAD and LATER (under MENU on a wide screen, just above the dial on a tall
+  one, beneath any card). It never reloads on its own. On a shared pitch with a match
+  on it offers no RELOAD ("reload after this match") until the match is over.
+- **Never cached**: `tools/delivery-plan.mjs` publishes `version.json` with
+  `Cache-Control: no-store, max-age=0` (the site's cache policy has `MinTTL` 0, so
+  CloudFront keeps none of it), after every page, beside `revision.json`; `tools/deploy.mjs`
+  checks the live bytes and that the header says no-store.
+
 ## Tests and screenshots
 
 - `node --test tests/game/` (part of `npm run check`): `layout.test.mjs` is pure;

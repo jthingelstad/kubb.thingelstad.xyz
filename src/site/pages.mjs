@@ -114,6 +114,7 @@ ${openGames(config.roomsUrl)}
     body,
     bodyClass: "home",
     tinylytics,
+    release: config.release?.text,
     scripts: [
       "/js/start.js",
       ...(config.roomsUrl ? ["/js/open-games.js"] : []),
@@ -121,7 +122,7 @@ ${openGames(config.roomsUrl)}
   });
 }
 
-function rules({ tinylytics }) {
+function rules({ tinylytics, config = {} }) {
   const cards = RULES.map(
     (card, i) => `<li class="card">
     <h3 class="card__title"><span class="card__n">${i + 1}</span> ${esc(card.title)}</h3>
@@ -165,10 +166,11 @@ function rules({ tinylytics }) {
       "How Kubb is played, in five short cards, and how to throw a baton on the web by dragging round the dial.",
     body,
     tinylytics,
+    release: config.release?.text,
   });
 }
 
-function notFound({ tinylytics }) {
+function notFound({ tinylytics, config = {} }) {
   return page({
     path: "/404.html",
     title: `Not found · ${SITE_TITLE}`,
@@ -180,6 +182,7 @@ function notFound({ tinylytics }) {
   <p><a class="button" href="/">Back to the start</a></p>
 </section>`,
     tinylytics,
+    release: config.release?.text,
   });
 }
 

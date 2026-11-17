@@ -20,8 +20,17 @@ export const mime = {
 
 const PAGE = "public, max-age=0, s-maxage=60, must-revalidate";
 const HASHED = "public, max-age=31536000, immutable";
+// version.json says which release is deployed now (src/net/freshness.js): no
+// browser or CloudFront copy (the cache policy's MinTTL is 0, so CloudFront
+// keeps nothing an origin marks no-store).
+const NEVER = "no-store, max-age=0";
+
+// Published last, after every page, so no browser is told of a release whose
+// pages are not up yet (tools/deploy.mjs).
+export const MARKERS = ["revision.json", "version.json"];
 
 export function cacheControl(key) {
+  if (key === "version.json") return NEVER;
   // The build puts a content hash in every name under assets/.
   if (key.startsWith("assets/")) return HASHED;
   if (key.startsWith("fonts/") || key.startsWith("shared/fonts/"))
