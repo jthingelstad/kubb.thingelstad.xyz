@@ -779,7 +779,7 @@
             "HeadersConfig": { "HeaderBehavior": "none" },
             "QueryStringsConfig": {
               "QueryStringBehavior": "whitelist",
-              "QueryStrings": { "Quantity": 2, "Items": ["pitch", "v"] }
+              "QueryStrings": ["pitch", "v"]
             }
           }
         }

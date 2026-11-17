@@ -97,10 +97,11 @@ export async function startEmbed({
       s.teams ? `${s.teams.A} vs ${s.teams.B}, turn ${s.turn}` : null,
       "playing",
     );
+  // a rematch's lobby: the pitch is waiting, whatever the last match left kept
+  if (s?.state === "waiting")
+    return quiet("Waiting for players", null, "waiting");
   const data = roomsUrl ? await fetch({ url: roomsUrl, code }) : null;
   if (!data) {
-    if (s?.state === "waiting")
-      return quiet("Waiting for players", null, "waiting");
     if (s?.state === "over" && s.final) return quiet(s.final, null, "over");
     return quiet("No match here", null, "none");
   }

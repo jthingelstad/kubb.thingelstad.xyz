@@ -34,6 +34,7 @@ const CODES = {
   replay: "rrrrrrrr",
   playing: "pppppppp",
   waiting: "wwwwwwww",
+  rematch: "mmmmmmmm", // waiting again, the last match's replay still kept
   over: "vvvvvvvv", // finished, its replay not kept
   none: "nnnnnnnn",
 };
@@ -44,6 +45,7 @@ const STATES = {
     doc: doc({ started: true, match: { snap: IN_PLAY, setup: {} } }),
   }),
   [CODES.waiting]: pitchState({ doc: doc({ started: false }) }),
+  [CODES.rematch]: pitchState({ doc: doc({ started: false }) }),
   [CODES.over]: pitchState({
     doc: doc({
       started: true,
@@ -67,12 +69,13 @@ before(async () => {
   });
   await new Promise((r) => hostServer.listen(0, "127.0.0.1", r));
   embedder = `http://127.0.0.1:${hostServer.address().port}/`;
-  await rooms.store.putReplay(CODES.replay, {
-    v: 9,
-    t: Date.now(),
-    data: REPLAY,
-    exp: Math.floor(Date.now() / 1000) + 3600,
-  });
+  for (const code of [CODES.replay, CODES.rematch])
+    await rooms.store.putReplay(code, {
+      v: 9,
+      t: Date.now(),
+      data: REPLAY,
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    });
   env = await serve({
     build: true,
     page: (html, { uri, query }) => {
@@ -225,6 +228,7 @@ browserTest(
     for (const [code, state, title] of [
       [CODES.playing, "playing", "Match in progress"],
       [CODES.waiting, "waiting", "Waiting for players"],
+      [CODES.rematch, "waiting", "Waiting for players"],
       [CODES.over, "over", "Final: South 1, North 0"],
       [CODES.none, "none", "No match here"],
     ]) {

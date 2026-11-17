@@ -269,8 +269,9 @@ kept replay and shows "No match here" when there is none.
   `IntersectionObserver` on the page holds it below half in view (`embedTune.visible`)
   and lets go above; `hold()` never undoes a pause the viewer chose.
 - **Cards.** In play: "Match in progress" with WATCH ON KUBB.THINGELSTAD.XYZ. Waiting:
-  "Waiting for players". Finished with nothing kept: the final score. Unknown: "No match
-  here". Each links to `/p/<code>` in a new tab; none loads the engine.
+  "Waiting for players", in a rematch's lobby too, though the last match is kept.
+  Finished with nothing kept: the final score. Unknown: "No match here". Each links to
+  `/p/<code>` in a new tab; none loads the engine.
 - **Attribution.** "Kubb: Throwing Wood ↗" in the corner, to `/p/<code>`, `target=_blank`
   `rel=noopener`.
 - The page fills its frame, at least 300×188.
