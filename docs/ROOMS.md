@@ -194,7 +194,7 @@ document, about 9 parts.
 | `game`   | `id?`, `g`                                 | a match played in one browser (section 7); needs no join           |
 | `list`   | `id?`                                      | the open games (section 9); needs no join                          |
 | `open`   | `open`                                     | the host lists the room, or `null` takes it off (section 9)        |
-| `keep`   | `replay`                                   | the match has ended: keep its replay and the room (section 10)     |
+| `keep`   | `v`, `replay`                              | the match has ended: keep its replay and the room (section 10)     |
 | `replay` | `id?`, `room`                              | a room's kept replay (section 10); needs no join                   |
 
 `join` must be the first message on a connection (anything else but `ping`, `report`,
@@ -554,11 +554,13 @@ belongs to the game (`docs/MULTIPLAYER.md`, `docs/CLIENT.md` "Replays").
 
 - **Keep.** When the action that ends a match lands, the browser that committed it, and
   every player's browser that sees that version arrive, sends
-  `{ "t": "keep", "replay": { ... } }` (`room.keep`, `replayOf` in `src/net/lobby.js`).
-  Members only (`not-joined`); a `replay` that is not an object is `bad-message`, one
-  over 256 KB `too-big`, and a room with no document `bad-message`. The server stores it
-  as the item `room#<code> | replay` for the document version the room holds then
-  (`v`, `t` the time, `z` the JSON gzipped, `exp` a year on), conditional on no
+  `{ "t": "keep", "v": 12, "replay": { ... } }` (`room.keep`, `replayOf` in
+  `src/net/lobby.js`), `v` the document version the match ended at. Members only
+  (`not-joined`); a `replay` that is not an object is `bad-message`, one over 256 KB
+  `too-big`, and a `v` that is missing or later than the room's document
+  `bad-message`. The server stores it as the item `room#<code> | replay` for that
+  version, not the one the room has reached since, so a late keep of an earlier match
+  never takes a newer match's place (`v`, `t` the time, `z` the JSON gzipped, `exp` a year on), conditional on no
   unexpired replay of a later or the same version: the first keep of a match wins and
   later ones change nothing. Then it writes `keep = { v, until }` into the room record
   and moves the document's `exp` to `until`. From then on every write of the room or the

@@ -253,7 +253,10 @@ test("a kept replay comes back by its code on a socket of its own, in frames", a
     null,
     "nothing kept",
   );
-  await a.update(() => ({ started: true, match: { over: true } }));
+  const ended = await a.update(() => ({
+    started: true,
+    match: { over: true },
+  }));
   const replay = {
     v: 1,
     n: 1,
@@ -269,7 +272,7 @@ test("a kept replay comes back by its code on a socket of its own, in frames", a
     cpu: "B",
   };
   assert.ok(JSON.stringify(replay).length > FRAME_MAX * 2);
-  assert.ok(a.keep(replay));
+  assert.ok(a.keep(replay, ended.v));
   // keep has no answer: ask until the room has it
   let got = null;
   for (let i = 0; i < 50 && !got; i++) {

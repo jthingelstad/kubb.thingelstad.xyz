@@ -413,7 +413,9 @@ export function createRooms({
 
   // A match has ended: keep its replay, the room and its document a year (docs/ROOMS.md
   // section 10). `replay` is the game's, opaque here (at most replayBytes as ASCII JSON),
-  // stored beside the document for the version the room holds now. Saying it again for a
+  // stored beside the document for `v`, the document version the match ended at (never
+  // later than the room's: a keep that arrives late is ordered by its own version, not
+  // by the one the room has reached since). Saying it again for a
   // version already kept changes nothing, so a finished room is kept a year from the end
   // of its match, not from its last visit, and an older match never replaces a newer one.
   async function keepRoom(conn, who, msg) {
@@ -425,22 +427,25 @@ export function createRooms({
         "too-big",
         `A replay is limited to ${limits.replayBytes} bytes.`,
       );
+    const v = msg.v;
+    if (!Number.isInteger(v) || v < 1)
+      throw new RoomError("bad-message", "`v` must be a document version.");
     member(await store.getRoom(who.room), who, conn);
     const stored = await store.getDoc(who.room);
-    if (!stored || !stored.v)
-      throw new RoomError("bad-message", "There is nothing to keep yet.");
+    if (!stored || !stored.v || v > stored.v)
+      throw new RoomError("bad-message", "There is no such version to keep.");
     const until = expiry(limits.keepTtl);
     if (typeof store.putReplay === "function")
       await store.putReplay(who.room, {
-        v: stored.v,
+        v,
         t: now(),
         data,
         exp: until,
       });
     const { room } = await mutate(who.room, (room) => {
       member(room, who, conn);
-      if ((room.keep?.v ?? 0) >= stored.v) return { room: null };
-      room.keep = { v: stored.v, until };
+      if ((room.keep?.v ?? 0) >= v) return { room: null };
+      room.keep = { v, until };
       return { room };
     });
     if (room) await store.touchDoc(who.room, room.exp);

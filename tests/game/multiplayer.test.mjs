@@ -456,6 +456,12 @@ browserTest("a finished pitch plays its match again", async () => {
     await late.textContent("[data-test=replay-count]"),
     /THROW 1 OF \d+/,
   );
+  // no REPORT A THROW in a replay: its throws are the log's, not played here
+  await late.click("[data-test=menu]");
+  await late.waitForSelector("[data-test=menu-card]");
+  assert.equal(await late.locator("[data-test=report]").count(), 0);
+  await late.keyboard.press("Escape");
+  await waitFor(late, () => !document.querySelector("[data-test=menu-card]"));
   // BACK in the first turn: the start of the match
   await late.click("[data-test=replay-back]");
   assert.equal(
@@ -483,6 +489,27 @@ browserTest("a finished pitch plays its match again", async () => {
   assert.equal(end.differs, false);
   assert.equal(end.hash, played.docHash, "the same end as the match");
   await shot(late, "replay-end");
+  // REPLAY AGAIN, paused, and NEXT THROW to the end: the log ends on a resignation,
+  // which plays nothing back, and the end card still comes
+  await late.click("[data-test=watch-replay]");
+  await late.waitForSelector("[data-test=replay-bar]");
+  await late.click("[data-test=replay-play]");
+  for (let i = 0; i < 40; i++) {
+    if (await late.locator("[data-test=winner]").count()) break;
+    await waitFor(late, () => window.__kubb.game.phase !== "play");
+    await late.click("[data-test=replay-next]");
+    await late.waitForTimeout(50);
+  }
+  await waitFor(
+    late,
+    () =>
+      document.querySelector("[data-test=watch-replay]")?.textContent ===
+      "REPLAY AGAIN",
+  );
+  assert.equal(
+    (await late.evaluate(() => window.__kubb.engine.replayInfo())).done,
+    true,
+  );
   // and back to the pitch from the end card: the finished match, the room's own state
   await late.click("[data-test=replay-back-to-pitch]");
   await waitFor(late, () => !!document.querySelector("[data-test=winner]"));
@@ -490,6 +517,10 @@ browserTest("a finished pitch plays its match again", async () => {
   assert.equal(back.mode, "match");
   assert.equal(back.hash, played.docHash);
   assert.equal(await late.locator("[data-test=replay-bar]").count(), 0);
+  assert.ok(
+    await late.evaluate(() => !!window.__kubb.menu.hooks.report),
+    "REPORT A THROW is back",
+  );
 
   // REMATCH: the lobby offers the last match
   await solo.click("[data-test=rematch]");

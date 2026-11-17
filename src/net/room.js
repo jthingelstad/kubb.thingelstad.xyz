@@ -568,11 +568,12 @@ export class Room {
   /**
    * Keep a finished match's replay a year (docs/ROOMS.md section 10): `replay` is the
    * game's (src/net/lobby.js replayOf), opaque to the room, which keeps it beside the
-   * document and keeps the room and its document as long. Once a document version
-   * (saying it again changes nothing). False while not connected.
+   * document and keeps the room and its document as long. `v` is the document version
+   * the match ended at. Once a version (saying it again changes nothing). False while
+   * not connected.
    */
-  keep(replay) {
-    return this._joined && this._sendNow({ t: "keep", replay });
+  keep(replay, v) {
+    return this._joined && this._sendNow({ t: "keep", v, replay });
   }
 
   /**
