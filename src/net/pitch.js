@@ -501,7 +501,7 @@ export class Pitch {
           this.note("commit", seq, r ? "ok" : "lost");
           // lost: someone else acted first; their document is already here
           if (!r) this.resync();
-          else this.keepReplay(r.doc);
+          else this.keepReplay(r.doc, r.v);
           this.overLater();
         },
         (err) => {
@@ -513,22 +513,22 @@ export class Pitch {
       );
   }
 
-  onDoc({ doc, with: w, mine }) {
+  onDoc({ v, doc, with: w, mine }) {
     this.handleDoc(doc, w, mine);
-    this.keepReplay(doc);
+    this.keepReplay(doc, v);
   }
 
   // A match this browser watched end (here or elsewhere): ask the room to keep its
   // replay a year (docs/ROOMS.md section 10). Once a match; the room keeps the
   // first it is told for a document version. A browser that only arrived after the
   // end sends nothing.
-  keepReplay(doc) {
+  keepReplay(doc, v) {
     const m = doc?.match;
     if (!doc?.started || !m?.over || m.n !== this.local.n) return;
     if (this.kept === m.n || this.arrivedOver === m.n) return;
     const r = replayOf(m);
     if (!r) return;
-    if (this.room.keep(r)) {
+    if (this.room.keep(r, v)) {
       this.kept = m.n;
       this.note("keep", m.n);
     }

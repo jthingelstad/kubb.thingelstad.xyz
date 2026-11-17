@@ -111,6 +111,7 @@ export class ReplayPlayer {
       onWide: g.onWide,
       wideWanted: g.wideWanted,
       view: this.menu?.hooks.view ?? null,
+      report: this.menu?.hooks.report ?? null,
     };
     g.cards?.close();
     g.seat = NOBODY;
@@ -123,11 +124,14 @@ export class ReplayPlayer {
     g.driver = (dt) => this.drive(dt);
     g.onWide = () => this.renderView();
     this.build();
-    if (this.menu)
+    if (this.menu) {
       this.menu.hooks.view = {
         get: () => this.chosen(),
         set: (v) => this.choose(v),
       };
+      // REPORT A THROW is for a throw as it was played; a replay's is the log's
+      this.menu.hooks.report = null;
+    }
     window.addEventListener("keydown", this.onKey);
     g.setWide(this.chosen() === "wide");
     this.load();
@@ -172,7 +176,10 @@ export class ReplayPlayer {
       zen: s.zen,
       onWide: s.onWide,
     });
-    if (this.menu) this.menu.hooks.view = s.view;
+    if (this.menu) {
+      this.menu.hooks.view = s.view;
+      this.menu.hooks.report = s.report;
+    }
     g.cards?.close();
     this.bar?.remove();
     this.panel?.remove();
@@ -409,7 +416,11 @@ export class ReplayPlayer {
       this.single = true;
       g.frozen = false;
     }
-    if (this.info.done && g.phase !== "play") this.wait = 0;
+    // the log ran out on something that does not play back (a resignation): the end
+    if (this.info.done && g.phase !== "play") {
+      if (this.playing) this.wait = 0;
+      else this.finish();
+    }
   }
 
   // BACK: the start of the previous turn (the start of the match from the first).
