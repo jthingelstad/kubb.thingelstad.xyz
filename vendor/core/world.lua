@@ -13,7 +13,8 @@
 --   5. move and turn the bodies
 --   6. `relaxIterations` passes without the push bias, so pushing apart
 --      does not leave pieces with extra speed (no energy gain)
---   7. restitution, from each contact's approach speed before the solve
+--   7. restitution, from each contact's approach speed before the solve,
+--      with its friction
 --   8. rolling resistance and dig, sleep, topple and touch bookkeeping
 -- Tipping about an edge, rocking back and falling are all just contacts.
 --
@@ -61,6 +62,8 @@ world.tune = {
 	                       -- baton's end-over-end turn on the ground (all of it holds its roll
 	                       -- about the long axis; the plug, dig, holds both)
 	restitutionIterations = 4, -- bounce passes (one pass over a flat landing's corners overshoots)
+	restitutionMaxIterations = 32, -- and when the bounce reaches a row, up to this many: they stop once
+	restitutionTol = 1e-4, -- no impulse changes by this (N s); the push crosses a row of four in 10 to 30
 	pairMu = 0.4,          -- wood on wood friction, every pair of pieces (kubb on kubb, the king, a baton,
 	                       -- a stake): clean dry wood on wood 0.25 to 0.5, oak on oak sliding 0.48 along
 	                       -- the grain and 0.32 across it (Engineering ToolBox, friction coefficients).
@@ -72,6 +75,10 @@ world.tune = {
 	                       -- without the kubb's footing (AGENTS.md, "The pair bounce with its footing")
 	warm = 0.9,            -- fraction of last step's ground impulses applied up front
 	gyro = true,           -- gyroscopic term (torque-free precession; implicit, stable)
+	flightTurns = 4,       -- a drilled kubb's turn in flight (the air's turn, the gyroscopic term
+	                       -- and its attitude) is stepped this many times a step: a drill spinning
+	                       -- at 25 rad/s or more precesses too far in one 1/240 s step (AGENTS.md,
+	                       -- "Physics", "The turn in flight")
 	sleepLin = 0.03,       -- m/s: below this ...
 	sleepAng = 0.3,        -- rad/s: ... and this ...
 	sleepTime = 0.25,      -- s: ... for this long while touching something: the body sleeps
@@ -219,6 +226,7 @@ function world.new(opts)
 		firstHit = nil,       -- its first contact with another body: same fields
 		contacts = 0,         -- contacts in the last step (for the bench)
 		awakeCount = 0,       -- awake bodies in the last step
+		bouncePasses = 0,     -- bounce passes run so far (stage 7; for the bench)
 		groundSeed = opts.groundSeed or 0,   -- the ground texture's seed (world.launch sets it
 		groundSeedFixed = opts.groundSeed ~= nil,   -- from the throw unless one is given here)
 		-- the wind (m/s, horizontal): it pushes the thrown piece until its
@@ -481,12 +489,17 @@ local K_BIAS <const>, K_RELAX <const> = 53, 54                  -- velocity targ
 local K_V0 <const>, K_MU <const>, K_E <const> = 55, 56, 57
 local K_LN <const>, K_LT1 <const>, K_LT2 <const> = 58, 59, 60   -- accumulated impulses
 local K_LNMAX <const> = 61                                      -- largest normal impulse seen
+local K_REST <const> = 62                                       -- a bounce pass's velocity target
 
 local REC = {}   -- the records of this step's active contacts, 1 .. nRec (reused)
 local nRec = 0
+local BOUNCE = {}   -- the records a bounce pass solves, 1 .. nBounce (reused)
 
 -- Per body, filled each step: position, bounding radius, awake, speed bound.
 local BX, BY, BZ, BR, AW, SPD, NXT = {}, {}, {}, {}, {}, {}, {}
+-- Per awake body, its velocity before this step's forces (world.step stage 1),
+-- for the trapezoid move of a body with no contact (stage 5)
+local OVX, OVY, OVZ = {}, {}, {}
 -- Bodies woken in this step's pair loop (indices), and for each the index below
 -- which its pairs with sleepers were passed untested (world.step).
 local WK, WLO = {}, {}
@@ -519,7 +532,8 @@ world.airDrag = airDrag
 -- axis and K = rho (k2 - k1) volume (world.tune.aeroK per kind). A spiral
 -- turns that into a precession, so the nose follows the flight path; with
 -- too little spin the kubb tumbles. Applied like airDrag: only to
--- w.projectile until its first contact.
+-- w.projectile until its first contact. The step applies it in substeps,
+-- in the kubb's frame (flightTurn); this is the same term in world axes.
 local function aeroTurn(w, b, dt)
 	local k = b.aeroK
 	if not k or k == 0 then return end
@@ -576,6 +590,88 @@ local function gyro(b, dt)
 	b.wz = r31 * ox + r32 * oy + r33 * oz
 end
 
+-- A drilled kubb's turn in flight (the projectile with an air's turn,
+-- b.aeroK, until its first contact), in n substeps of dt / n: a kubb
+-- spinning at 25 rad/s or more precesses too far in one 1/240 s step
+-- (AGENTS.md, "Physics", "The turn in flight"). It works in the kubb's own
+-- frame, where both terms are cheap: the air's velocity past it (the wind
+-- less its own velocity, constant over the step) is turned against the
+-- kubb's spin each substep, the air's turn (aeroTurn's tau = K (v.z)(v x z))
+-- is a kick to the two cross axes, and the gyroscopic term of a body with a
+-- square section (Ix = Iy, every kubb) is an exact turn of the cross spin at
+-- (Ix - Iz) wz / Ix (Euler's equations; Cayley's rotation, which keeps its
+-- size). The attitude takes each substep's spin (q <- q + hs/2 q (0, w));
+-- it is normalized and the rotation matrix, world inverse inertia and world
+-- spin are made once at the end. Called by the lone step and by world.step's
+-- stage 5, so the two stay identical; stage 1 applies neither term to it.
+-- Written out: one call a step, no tables, one square root.
+local function flightTurn(w, b, dt, n, useGyro)
+	local hs = dt / n
+	local h = 0.5 * hs
+	local r11, r12, r13, r21, r22, r23, r31, r32, r33 =
+		b.r11, b.r12, b.r13, b.r21, b.r22, b.r23, b.r31, b.r32, b.r33
+	-- spin and the air's velocity past it, in the kubb's frame
+	local wx, wy, wz = b.wx, b.wy, b.wz
+	local ox = r11 * wx + r21 * wy + r31 * wz
+	local oy = r12 * wx + r22 * wy + r32 * wz
+	local oz = r13 * wx + r23 * wy + r33 * wz
+	local vx, vy, vz = b.vx, b.vy, b.vz
+	if w.windOn then vx, vy = vx - w.windX, vy - w.windY end
+	local ux = r11 * vx + r21 * vy + r31 * vz
+	local uy = r12 * vx + r22 * vy + r32 * vz
+	local uz = r13 * vx + r23 * vy + r33 * vz
+	local ka = (b.aeroK or 0) * hs
+	local iIx, iIy = b.iIx, b.iIy
+	-- the cross spin turns at gz x wz a second (0 without the gyroscopic term)
+	local gz = useGyro and (b.Ix - b.Iz) * iIx * hs or 0
+	local qw, qx, qy, qz = b.qw, b.qx, b.qy, b.qz
+	for _ = 1, n do
+		-- the air's turn: tau = K (v . z)(v x z), z the long axis = (0, 0, 1)
+		local s = ka * uz
+		ox, oy = ox + s * uy * iIx, oy - s * ux * iIy
+		-- the gyroscopic term: (ox, oy) turned by -gz oz (Cayley)
+		local t = 0.5 * gz * oz
+		local d = 1 / (1 + t * t)
+		local c, sn = (1 - t * t) * d, 2 * t * d
+		ox, oy = c * ox + sn * oy, c * oy - sn * ox
+		-- the attitude: q <- q + hs/2 q (0, o)
+		qw, qx, qy, qz = qw - h * (qx * ox + qy * oy + qz * oz),
+			qx + h * (qw * ox + qy * oz - qz * oy),
+			qy + h * (qw * oy + qz * ox - qx * oz),
+			qz + h * (qw * oz + qx * oy - qy * ox)
+		-- the air's velocity in the turned frame: u <- u - hs o x u, to second order
+		local cx, cy, cz = oy * uz - oz * uy, oz * ux - ox * uz, ox * uy - oy * ux
+		local ex, ey, ez = oy * cz - oz * cy, oz * cx - ox * cz, ox * cy - oy * cx
+		ux, uy, uz = ux - hs * cx + h * hs * ex, uy - hs * cy + h * hs * ey, uz - hs * cz + h * hs * ez
+	end
+	local qn = sqrt(qw * qw + qx * qx + qy * qy + qz * qz)
+	if qn < 1e-12 then
+		qw, qx, qy, qz = 1, 0, 0, 0
+	else
+		qn = 1 / qn
+		qw, qx, qy, qz = qw * qn, qx * qn, qy * qn, qz * qn
+	end
+	b.qw, b.qx, b.qy, b.qz = qw, qx, qy, qz
+	local xx, yy, zz = qx * qx, qy * qy, qz * qz
+	local xy, xz, yz = qx * qy, qx * qz, qy * qz
+	local xw, yw, zw = qw * qx, qw * qy, qw * qz
+	r11, r12, r13 = 1 - 2 * (yy + zz), 2 * (xy - zw), 2 * (xz + yw)
+	r21, r22, r23 = 2 * (xy + zw), 1 - 2 * (xx + zz), 2 * (yz - xw)
+	r31, r32, r33 = 2 * (xz - yw), 2 * (yz + xw), 1 - 2 * (xx + yy)
+	b.r11, b.r12, b.r13, b.r21, b.r22, b.r23, b.r31, b.r32, b.r33 = r11, r12, r13, r21, r22, r23, r31, r32, r33
+	local ia, ic, ie = iIx, iIy, b.iIz
+	b.i11 = r11 * r11 * ia + r12 * r12 * ic + r13 * r13 * ie
+	b.i12 = r11 * r21 * ia + r12 * r22 * ic + r13 * r23 * ie
+	b.i13 = r11 * r31 * ia + r12 * r32 * ic + r13 * r33 * ie
+	b.i22 = r21 * r21 * ia + r22 * r22 * ic + r23 * r23 * ie
+	b.i23 = r21 * r31 * ia + r22 * r32 * ic + r23 * r33 * ie
+	b.i33 = r31 * r31 * ia + r32 * r32 * ic + r33 * r33 * ie
+	-- the spin back in the world frame, by the new attitude
+	b.wx = r11 * ox + r12 * oy + r13 * oz
+	b.wy = r21 * ox + r22 * oy + r23 * oz
+	b.wz = r31 * ox + r32 * oy + r33 * oz
+end
+
 -- How pointed the body meets the ground, 0..1. A box flat on a face is 0
 -- (the load spreads, nothing digs); on an edge at 45 degrees or on a corner,
 -- 1. A baton lying flat is 0; at 45 degrees or steeper, end first, 1.
@@ -595,10 +691,15 @@ local function noteContact(w, b, other, px, py, pz)
 	if other and not w.firstHit then w.firstHit = rec end
 end
 
--- One sequential-impulse pass over the contacts; tk = K_BIAS or K_RELAX.
-local function solve(tk)
-	for i = 1, nRec do
-		local r = REC[i]
+-- One sequential-impulse pass over records 1 .. n of list (REC, or the
+-- bounce pass's BOUNCE), each held to its target r[tk] (K_BIAS, K_RELAX or
+-- K_REST): the normal impulse, then the friction, capped at mu times the
+-- normal impulse accumulated so far. Returns the largest change it made to
+-- any impulse (N s), for the bounce passes' convergence test.
+local function solve(tk, list, n)
+	local dm = 0
+	for i = 1, n do
+		local r = list[i]
 		local a, kind = r[K_A], r[K_KIND]
 		local ima = a.im
 		local avx, avy, avz, awx, awy, awz = a.vx, a.vy, a.vz, a.wx, a.wy, a.wz
@@ -613,6 +714,7 @@ local function solve(tk)
 			if lam > r[K_LNMAX] then r[K_LNMAX] = lam end
 			local d = lam - old
 			if d ~= 0 then
+				if d > dm then dm = d elseif -d > dm then dm = -d end
 				avz = avz + ima * d
 				awx, awy, awz = awx + d * r[K_WANX], awy + d * r[K_WANY], awz + d * r[K_WANZ]
 			end
@@ -630,6 +732,8 @@ local function solve(tk)
 			r[K_LT1], r[K_LT2] = l1, l2
 			local d1, d2 = l1 - o1, l2 - o2
 			if d1 ~= 0 or d2 ~= 0 then
+				if d1 > dm then dm = d1 elseif -d1 > dm then dm = -d1 end
+				if d2 > dm then dm = d2 elseif -d2 > dm then dm = -d2 end
 				avx, avy = avx + ima * d1, avy + ima * d2
 				awx = awx + d1 * r[K_WA1X] + d2 * r[K_WA2X]
 				awy = awy + d1 * r[K_WA1Y] + d2 * r[K_WA2Y]
@@ -649,6 +753,7 @@ local function solve(tk)
 			if lam > r[K_LNMAX] then r[K_LNMAX] = lam end
 			local d = lam - old
 			if d ~= 0 then
+				if d > dm then dm = d elseif -d > dm then dm = -d end
 				avx, avy, avz = avx + ima * d * nx, avy + ima * d * ny, avz + ima * d * nz
 				awx, awy, awz = awx + d * r[K_WANX], awy + d * r[K_WANY], awz + d * r[K_WANZ]
 			end
@@ -668,6 +773,8 @@ local function solve(tk)
 			r[K_LT1], r[K_LT2] = l1, l2
 			local d1, d2 = l1 - o1, l2 - o2
 			if d1 ~= 0 or d2 ~= 0 then
+				if d1 > dm then dm = d1 elseif -d1 > dm then dm = -d1 end
+				if d2 > dm then dm = d2 elseif -d2 > dm then dm = -d2 end
 				local px, py, pz = d1 * t1x + d2 * t2x, d1 * t1y + d2 * t2y, d1 * t1z + d2 * t2z
 				avx, avy, avz = avx + ima * px, avy + ima * py, avz + ima * pz
 				awx = awx + d1 * r[K_WA1X] + d2 * r[K_WA2X]
@@ -692,6 +799,7 @@ local function solve(tk)
 			if lam > r[K_LNMAX] then r[K_LNMAX] = lam end
 			local d = lam - old
 			if d ~= 0 then
+				if d > dm then dm = d elseif -d > dm then dm = -d end
 				avx, avy, avz = avx + ima * d * nx, avy + ima * d * ny, avz + ima * d * nz
 				awx, awy, awz = awx + d * r[K_WANX], awy + d * r[K_WANY], awz + d * r[K_WANZ]
 				bvx, bvy, bvz = bvx - imb * d * nx, bvy - imb * d * ny, bvz - imb * d * nz
@@ -716,6 +824,8 @@ local function solve(tk)
 			r[K_LT1], r[K_LT2] = l1, l2
 			local d1, d2 = l1 - o1, l2 - o2
 			if d1 ~= 0 or d2 ~= 0 then
+				if d1 > dm then dm = d1 elseif -d1 > dm then dm = -d1 end
+				if d2 > dm then dm = d2 elseif -d2 > dm then dm = -d2 end
 				local px, py, pz = d1 * t1x + d2 * t2x, d1 * t1y + d2 * t2y, d1 * t1z + d2 * t2z
 				avx, avy, avz = avx + ima * px, avy + ima * py, avz + ima * pz
 				awx = awx + d1 * r[K_WA1X] + d2 * r[K_WA2X]
@@ -730,6 +840,7 @@ local function solve(tk)
 			b.vx, b.vy, b.vz, b.wx, b.wy, b.wz = bvx, bvy, bvz, bwx, bwy, bwz
 		end
 	end
+	return dm
 end
 
 -- Rolling resistance: an angular impulse of lever * normal impulse against
@@ -818,46 +929,52 @@ local function loneStep(w, b, t, P)
 		local kd = k * dt * sqrt(rx * rx + ry * ry + rz * rz)
 		b.vx, b.vy, b.vz = b.vx + kd * rx, b.vy + kd * ry, b.vz + kd * rz
 	end
-	if b.aeroK and b == w.projectile and not w.firstContact then aeroTurn(w, b, dt) end
-	if t.gyro then gyro(b, dt) end
+	-- the turn: a drill in flight takes the air's turn and the gyroscopic
+	-- term in substeps as it moves (flightTurn); anything else here
+	local drillTurn = b.aeroK and b == w.projectile and not w.firstContact
+	if not drillTurn and t.gyro then gyro(b, dt) end
 	b.groundImpulse = 0
 	b.plough = 0   -- in the air: as the full step does for a body off the ground
 	-- 2-4. no contacts
 	C.n = 0
 	w.contacts = 0
 	nRec = 0
-	-- 5. integrate
+	-- 5. integrate (no contact: the trapezoid move, as world.step's stage 5)
 	local h = 0.5 * dt
-	b.x, b.y, b.z = b.x + b.vx * dt, b.y + b.vy * dt, b.z + b.vz * dt
-	local qw, qx, qy, qz = b.qw, b.qx, b.qy, b.qz
-	wx, wy, wz = b.wx, b.wy, b.wz
-	local dw = -(wx * qx + wy * qy + wz * qz)
-	local dx = wx * qw + wy * qz - wz * qy
-	local dy = wy * qw + wz * qx - wx * qz
-	local dz = wz * qw + wx * qy - wy * qx
-	qw, qx, qy, qz = qw + h * dw, qx + h * dx, qy + h * dy, qz + h * dz
-	local qn = sqrt(qw * qw + qx * qx + qy * qy + qz * qz)
-	if qn < 1e-12 then
-		qw, qx, qy, qz = 1, 0, 0, 0
+	b.x, b.y, b.z = b.x + (vx + b.vx) * h, b.y + (vy + b.vy) * h, b.z + (vz + b.vz) * h
+	if drillTurn then
+		flightTurn(w, b, dt, t.flightTurns, t.gyro)
 	else
-		qn = 1 / qn
-		qw, qx, qy, qz = qw * qn, qx * qn, qy * qn, qz * qn
+		local qw, qx, qy, qz = b.qw, b.qx, b.qy, b.qz
+		wx, wy, wz = b.wx, b.wy, b.wz
+		local dw = -(wx * qx + wy * qy + wz * qz)
+		local dx = wx * qw + wy * qz - wz * qy
+		local dy = wy * qw + wz * qx - wx * qz
+		local dz = wz * qw + wx * qy - wy * qx
+		qw, qx, qy, qz = qw + h * dw, qx + h * dx, qy + h * dy, qz + h * dz
+		local qn = sqrt(qw * qw + qx * qx + qy * qy + qz * qz)
+		if qn < 1e-12 then
+			qw, qx, qy, qz = 1, 0, 0, 0
+		else
+			qn = 1 / qn
+			qw, qx, qy, qz = qw * qn, qx * qn, qy * qn, qz * qn
+		end
+		b.qw, b.qx, b.qy, b.qz = qw, qx, qy, qz
+		local xx, yy, zz = qx * qx, qy * qy, qz * qz
+		local xy, xz, yz = qx * qy, qx * qz, qy * qz
+		local xw, yw, zw = qw * qx, qw * qy, qw * qz
+		local r11, r12, r13 = 1 - 2 * (yy + zz), 2 * (xy - zw), 2 * (xz + yw)
+		local r21, r22, r23 = 2 * (xy + zw), 1 - 2 * (xx + zz), 2 * (yz - xw)
+		local r31, r32, r33 = 2 * (xz - yw), 2 * (yz + xw), 1 - 2 * (xx + yy)
+		b.r11, b.r12, b.r13, b.r21, b.r22, b.r23, b.r31, b.r32, b.r33 = r11, r12, r13, r21, r22, r23, r31, r32, r33
+		local ia, ic, ie = b.iIx, b.iIy, b.iIz
+		b.i11 = r11 * r11 * ia + r12 * r12 * ic + r13 * r13 * ie
+		b.i12 = r11 * r21 * ia + r12 * r22 * ic + r13 * r23 * ie
+		b.i13 = r11 * r31 * ia + r12 * r32 * ic + r13 * r33 * ie
+		b.i22 = r21 * r21 * ia + r22 * r22 * ic + r23 * r23 * ie
+		b.i23 = r21 * r31 * ia + r22 * r32 * ic + r23 * r33 * ie
+		b.i33 = r31 * r31 * ia + r32 * r32 * ic + r33 * r33 * ie
 	end
-	b.qw, b.qx, b.qy, b.qz = qw, qx, qy, qz
-	local xx, yy, zz = qx * qx, qy * qy, qz * qz
-	local xy, xz, yz = qx * qy, qx * qz, qy * qz
-	local xw, yw, zw = qw * qx, qw * qy, qw * qz
-	local r11, r12, r13 = 1 - 2 * (yy + zz), 2 * (xy - zw), 2 * (xz + yw)
-	local r21, r22, r23 = 2 * (xy + zw), 1 - 2 * (xx + zz), 2 * (yz - xw)
-	local r31, r32, r33 = 2 * (xz - yw), 2 * (yz + xw), 1 - 2 * (xx + yy)
-	b.r11, b.r12, b.r13, b.r21, b.r22, b.r23, b.r31, b.r32, b.r33 = r11, r12, r13, r21, r22, r23, r31, r32, r33
-	local ia, ic, ie = b.iIx, b.iIy, b.iIz
-	b.i11 = r11 * r11 * ia + r12 * r12 * ic + r13 * r13 * ie
-	b.i12 = r11 * r21 * ia + r12 * r22 * ic + r13 * r23 * ie
-	b.i13 = r11 * r31 * ia + r12 * r32 * ic + r13 * r33 * ie
-	b.i22 = r21 * r21 * ia + r22 * r22 * ic + r23 * r23 * ie
-	b.i23 = r21 * r31 * ia + r22 * r32 * ic + r23 * r33 * ie
-	b.i33 = r31 * r31 * ia + r32 * r32 * ic + r33 * r33 * ie
 	-- 6-8. nothing to relax, bounce or store; the tail for b (no ground
 	-- impulse: no rolling resistance, and it cannot fall asleep)
 	w.time = w.time + dt
@@ -868,6 +985,7 @@ local function loneStep(w, b, t, P)
 		if b.dig < 1e-5 then b.dig = 0 end
 	end
 	local sinTopple = sin(rad(t.toppleDeg))
+	local r33 = b.r33
 	if b.shape == 1 and not b.toppled and r33 <= sinTopple and r33 >= -sinTopple then b.toppled = true; b.toppleT = w.time end
 	local x, y = b.x, b.y
 	local half, len, om = t.pitchHalfWidth, t.pitchLength, t.outMargin
@@ -904,6 +1022,7 @@ function world.step(w)
 		local b = bodies[i]
 		if b.awake then
 			awakeCount = awakeCount + 1
+			OVX[i], OVY[i], OVZ[i] = b.vx, b.vy, b.vz
 			b.vz = b.vz - g * dt
 			if inAir and b == proj then
 				-- the air's drag (airDrag, written out)
@@ -912,8 +1031,9 @@ function world.step(w)
 				local kd = k * dt * sqrt(rx * rx + ry * ry + rz * rz)
 				b.vx, b.vy, b.vz = b.vx + kd * rx, b.vy + kd * ry, b.vz + kd * rz
 			end
-			if b == proj and b.aeroK and not w.firstContact then aeroTurn(w, b, dt) end
-			if useGyro then gyro(b, dt) end
+			-- a drill in flight takes the air's turn and the gyroscopic term
+			-- in substeps as it moves (stage 5, flightTurn)
+			if useGyro and not (inAir and b == proj and b.aeroK) then gyro(b, dt) end
 			b.groundImpulse = 0
 		end
 	end
@@ -1116,6 +1236,7 @@ function world.step(w)
 	-- 3. prepare: one record per contact with an awake body
 	local slop, pushRate, maxPush = t.slop, t.pushRate, t.maxPush
 	local warmF, pairMu, pairE = t.warm, t.pairMu, t.pairE
+	local warm = false
 	local m = 0
 	for i = 1, n do
 		local a, b = cA[i], cB[i]
@@ -1135,6 +1256,8 @@ function world.step(w)
 			local r = REC[m]
 			if not r then r = {}; REC[m] = r end
 			r[K_A], r[K_B], r[K_IDX] = a, b, i
+			a.cStep = stamp
+			if b then b.cStep = stamp end
 			local px, py, pz = cPx[i], cPy[i], cPz[i]
 			local ax, ay, az = a.x, a.y, a.z
 			local rax, ray, raz = px - ax, py - ay, pz - az
@@ -1269,12 +1392,10 @@ function world.step(w)
 				if ef < 0 then ef = 0 end
 				r[K_E] = e * ef * a.gEf[k]
 				r[K_LN], r[K_LT1], r[K_LT2] = ln, l1, l2
-				-- warm start (n = +z, t1 = +x, t2 = +y)
+				-- (the warm start, last step's impulses, is applied once every
+				-- contact is built, below)
 				if ln > 0 or l1 ~= 0 or l2 ~= 0 then
-					a.vx, a.vy, a.vz = avx + ima * l1, avy + ima * l2, avz + ima * ln
-					a.wx = awx + ln * r[K_WANX] + l1 * r[K_WA1X] + l2 * r[K_WA2X]
-					a.wy = awy + ln * r[K_WANY] + l1 * r[K_WA1Y] + l2 * r[K_WA2Y]
-					a.wz = awz + ln * r[K_WANZ] + l1 * r[K_WA1Z] + l2 * r[K_WA2Z]
+					warm = true
 				elseif sx ~= 0 or sy ~= 0 then
 					-- a landing on a tilted patch (new, so nothing to warm start): this
 					-- step's contact takes the patch's normal, as a contact with a
@@ -1347,7 +1468,12 @@ function world.step(w)
 					r[K_KIND] = 2
 					local imb = b.im
 					local j11, j12, j13, j22, j23, j33 = b.i11, b.i12, b.i13, b.i22, b.i23, b.i33
-					local rbx, rby, rbz = px - b.x, py - b.y, pz - b.z
+					-- B's arm reaches B's own surface: P is on A, and a contact made
+					-- ahead of the touch (sep > 0) meets B sep along the normal
+					-- short of it. (Along n it moves no normal impulse's torque, only
+					-- friction's: the baton's drag down a kubb's face, levered from
+					-- the baton's side of the gap, held the kubb back from tipping.)
+					local rbx, rby, rbz = px - nx * sep - b.x, py - ny * sep - b.y, pz - nz * sep - b.z
 					kn, k1, k2 = kn + imb, k1 + imb, k2 + imb
 					jx, jy, jz = rby * nz - rbz * ny, rbz * nx - rbx * nz, rbx * ny - rby * nx
 					wx = j11 * jx + j12 * jy + j13 * jz
@@ -1380,54 +1506,92 @@ function world.step(w)
 		end
 	end
 	nRec = m
+	-- warm start the ground contacts (n = +z, t1 = +x, t2 = +y), after every
+	-- contact has taken its approach speed (v0) from the velocities the step
+	-- began with: applied as each was built, a piece's later corners read its
+	-- speed with its earlier corners' warm start in it, and after a hard
+	-- landing (last step's impulses, the bounce's among them, are large) a
+	-- corner at rest read an approach of metres a second and was given a
+	-- bounce off it (AGENTS.md, "Physics", "The bounce reaches the row")
+	if warm then
+		for i = 1, m do
+			local r = REC[i]
+			if r[K_KIND] == 1 then
+				local ln, l1, l2 = r[K_LN], r[K_LT1], r[K_LT2]
+				if ln > 0 or l1 ~= 0 or l2 ~= 0 then
+					local a = r[K_A]
+					local ima = a.im
+					a.vx, a.vy, a.vz = a.vx + ima * l1, a.vy + ima * l2, a.vz + ima * ln
+					a.wx = a.wx + ln * r[K_WANX] + l1 * r[K_WA1X] + l2 * r[K_WA2X]
+					a.wy = a.wy + ln * r[K_WANY] + l1 * r[K_WA1Y] + l2 * r[K_WA2Y]
+					a.wz = a.wz + ln * r[K_WANZ] + l1 * r[K_WA1Z] + l2 * r[K_WA2Z]
+				end
+			end
+		end
+	end
 
 	if P then local now = pc(); P.prepare = P.prepare + now - pt; pt = now end
 	-- 4. solve with the push bias
-	for _ = 1, t.iterations do solve(K_BIAS) end
+	for _ = 1, t.iterations do solve(K_BIAS, REC, m) end
 
 	if P then local now = pc(); P.solve = P.solve + now - pt; pt = now end
 	-- 5. integrate positions (quaternion step, normalize, rotation matrix and
-	-- world inverse inertia: quat.integrate and body.updateDerived written out)
+	-- world inverse inertia: quat.integrate and body.updateDerived written out).
+	-- A body with no contact this step moves by the mean of its velocity
+	-- before and after the forces (the trapezoid: exact for gravity, and what
+	-- flight.carry's midpoint steps do), so a throw flies as far as the aim
+	-- says; the semi-implicit move (the velocity after) dropped g dt t / 2 and
+	-- came down 2 to 3 cm short. A body in contact moves by its solved
+	-- velocity, so a piece at rest stays put.
 	local h = 0.5 * dt
 	for i = 1, nb do
 		local b = bodies[i]
 		if b.awake then
-			b.x, b.y, b.z = b.x + b.vx * dt, b.y + b.vy * dt, b.z + b.vz * dt
-			local qw, qx, qy, qz = b.qw, b.qx, b.qy, b.qz
-			local wx, wy, wz = b.wx, b.wy, b.wz
-			local dw = -(wx * qx + wy * qy + wz * qz)
-			local dx = wx * qw + wy * qz - wz * qy
-			local dy = wy * qw + wz * qx - wx * qz
-			local dz = wz * qw + wx * qy - wy * qx
-			qw, qx, qy, qz = qw + h * dw, qx + h * dx, qy + h * dy, qz + h * dz
-			local qn = sqrt(qw * qw + qx * qx + qy * qy + qz * qz)
-			if qn < 1e-12 then
-				qw, qx, qy, qz = 1, 0, 0, 0
+			if b.cStep == stamp then
+				b.x, b.y, b.z = b.x + b.vx * dt, b.y + b.vy * dt, b.z + b.vz * dt
 			else
-				qn = 1 / qn
-				qw, qx, qy, qz = qw * qn, qx * qn, qy * qn, qz * qn
+				b.x, b.y, b.z = b.x + (OVX[i] + b.vx) * h, b.y + (OVY[i] + b.vy) * h, b.z + (OVZ[i] + b.vz) * h
 			end
-			b.qw, b.qx, b.qy, b.qz = qw, qx, qy, qz
-			local xx, yy, zz = qx * qx, qy * qy, qz * qz
-			local xy, xz, yz = qx * qy, qx * qz, qy * qz
-			local xw, yw, zw = qw * qx, qw * qy, qw * qz
-			local r11, r12, r13 = 1 - 2 * (yy + zz), 2 * (xy - zw), 2 * (xz + yw)
-			local r21, r22, r23 = 2 * (xy + zw), 1 - 2 * (xx + zz), 2 * (yz - xw)
-			local r31, r32, r33 = 2 * (xz - yw), 2 * (yz + xw), 1 - 2 * (xx + yy)
-			b.r11, b.r12, b.r13, b.r21, b.r22, b.r23, b.r31, b.r32, b.r33 = r11, r12, r13, r21, r22, r23, r31, r32, r33
-			local ia, ic, ie = b.iIx, b.iIy, b.iIz
-			b.i11 = r11 * r11 * ia + r12 * r12 * ic + r13 * r13 * ie
-			b.i12 = r11 * r21 * ia + r12 * r22 * ic + r13 * r23 * ie
-			b.i13 = r11 * r31 * ia + r12 * r32 * ic + r13 * r33 * ie
-			b.i22 = r21 * r21 * ia + r22 * r22 * ic + r23 * r23 * ie
-			b.i23 = r21 * r31 * ia + r22 * r32 * ic + r23 * r33 * ie
-			b.i33 = r31 * r31 * ia + r32 * r32 * ic + r33 * r33 * ie
+			if inAir and b == proj and b.aeroK and b.cStep ~= stamp then
+				-- the thrown piece in flight: its turn in substeps (flightTurn)
+				flightTurn(w, b, dt, t.flightTurns, useGyro)
+			else
+				local qw, qx, qy, qz = b.qw, b.qx, b.qy, b.qz
+				local wx, wy, wz = b.wx, b.wy, b.wz
+				local dw = -(wx * qx + wy * qy + wz * qz)
+				local dx = wx * qw + wy * qz - wz * qy
+				local dy = wy * qw + wz * qx - wx * qz
+				local dz = wz * qw + wx * qy - wy * qx
+				qw, qx, qy, qz = qw + h * dw, qx + h * dx, qy + h * dy, qz + h * dz
+				local qn = sqrt(qw * qw + qx * qx + qy * qy + qz * qz)
+				if qn < 1e-12 then
+					qw, qx, qy, qz = 1, 0, 0, 0
+				else
+					qn = 1 / qn
+					qw, qx, qy, qz = qw * qn, qx * qn, qy * qn, qz * qn
+				end
+				b.qw, b.qx, b.qy, b.qz = qw, qx, qy, qz
+				local xx, yy, zz = qx * qx, qy * qy, qz * qz
+				local xy, xz, yz = qx * qy, qx * qz, qy * qz
+				local xw, yw, zw = qw * qx, qw * qy, qw * qz
+				local r11, r12, r13 = 1 - 2 * (yy + zz), 2 * (xy - zw), 2 * (xz + yw)
+				local r21, r22, r23 = 2 * (xy + zw), 1 - 2 * (xx + zz), 2 * (yz - xw)
+				local r31, r32, r33 = 2 * (xz - yw), 2 * (yz + xw), 1 - 2 * (xx + yy)
+				b.r11, b.r12, b.r13, b.r21, b.r22, b.r23, b.r31, b.r32, b.r33 = r11, r12, r13, r21, r22, r23, r31, r32, r33
+				local ia, ic, ie = b.iIx, b.iIy, b.iIz
+				b.i11 = r11 * r11 * ia + r12 * r12 * ic + r13 * r13 * ie
+				b.i12 = r11 * r21 * ia + r12 * r22 * ic + r13 * r23 * ie
+				b.i13 = r11 * r31 * ia + r12 * r32 * ic + r13 * r33 * ie
+				b.i22 = r21 * r21 * ia + r22 * r22 * ic + r23 * r23 * ie
+				b.i23 = r21 * r31 * ia + r22 * r32 * ic + r23 * r33 * ie
+				b.i33 = r31 * r31 * ia + r32 * r32 * ic + r33 * r33 * ie
+			end
 		end
 	end
 
 	if P then local now = pc(); P.integrate = P.integrate + now - pt; pt = now end
 	-- 6. relax: remove the push-apart speed
-	for _ = 1, t.relaxIterations do solve(K_RELAX) end
+	for _ = 1, t.relaxIterations do solve(K_RELAX, REC, m) end
 
 	if P then local now = pc(); P.relax = P.relax + now - pt; pt = now end
 	-- 7. restitution, the bounce of each contact that arrived faster than
@@ -1439,8 +1603,27 @@ function world.step(w)
 	-- footing on the ground, a neighbour), held to the target they had in the
 	-- relax pass: applied alone, a baton's bounce off a standing kubb drove
 	-- the kubb into the ground and the ground threw it up the next step.
+	-- Friction is solved in these passes too, capped at mu times the
+	-- contact's whole normal impulse (the push, the relax and the bounce):
+	-- in the bias passes a speculative contact's impulse only takes the
+	-- approach speed past the gap still to close, so a landing kept 0.6 to
+	-- 0.9 of its ground speed, and how much depended on where the step fell
+	-- (AGENTS.md, "Physics", "Friction in the bounce").
+	-- The bounce reaches the whole group of awake pieces pressed together,
+	-- not only the pieces that bounce: a baton striking the front of a row
+	-- of touching kubbs strikes the row, and with the bounce cut off at the
+	-- front kubb's own contacts the second kubb was free in these passes, so
+	-- the front two took the blow as a light pair, met the third a step later
+	-- and stopped (AGENTS.md, "Physics", "The bounce reaches the row"). When
+	-- it reaches past the pieces that bounce (a row), the passes run until
+	-- the impulses settle (restitutionTol), up to restitutionMaxIterations:
+	-- each pass carries the push one kubb further, and four left it short
+	-- of the far kubbs. Any other bounce keeps restitutionIterations: run to
+	-- the limit there, a sliding contact's friction and its push fed each
+	-- other pass after pass (a spinning baton's corner swung between all of
+	-- its bounce and none), and the fuzz's energy rises went from 5 to 24.
 	local rs = t.restitutionSpeed
-	local any, pair = false, false
+	local any, pair, row = false, false, false
 	for i = 1, m do
 		local r = REC[i]
 		if r[K_V0] < -rs and r[K_LNMAX] > 0 and r[K_E] > 0 then
@@ -1453,56 +1636,86 @@ function world.step(w)
 			end
 		end
 	end
-	if any then
-		for _ = 1, t.restitutionIterations do
+	if pair then
+		-- spread the mark through every pressing contact between two awake
+		-- pieces (a row of n needs n passes; usually one finds nothing new)
+		local grew = true
+		while grew do
+			grew = false
 			for i = 1, m do
 				local r = REC[i]
-				local v0 = r[K_V0]
-				local a, kind = r[K_A], r[K_KIND]
-				local tgt
-				if v0 < -rs and r[K_LNMAX] > 0 and r[K_E] > 0 then
-					tgt = -r[K_E] * v0
-				elseif pair and r[K_LNMAX] > 0 and (a.bounceStep == stamp
-					or (kind == 2 and r[K_B].bounceStep == stamp)) then
-					tgt = r[K_RELAX]
-				end
-				if tgt then
-					local vn
-					if kind == 1 then
-						vn = a.vz + a.wx * r[K_ANX] + a.wy * r[K_ANY]
-					else
-						vn = a.vx * r[K_NX] + a.vy * r[K_NY] + a.vz * r[K_NZ]
-							+ a.wx * r[K_ANX] + a.wy * r[K_ANY] + a.wz * r[K_ANZ]
-						if kind == 2 then
-							local b = r[K_B]
-							vn = vn - (b.vx * r[K_NX] + b.vy * r[K_NY] + b.vz * r[K_NZ])
-								- (b.wx * r[K_BNX] + b.wy * r[K_BNY] + b.wz * r[K_BNZ])
+				if r[K_KIND] == 2 and r[K_LNMAX] > 0 then
+					local a, b = r[K_A], r[K_B]
+					if a.bounceStep == stamp then
+						if b.bounceStep ~= stamp then
+							b.bounceStep = stamp; b.rowStep = stamp; grew = true; row = true
 						end
-					end
-					local old = r[K_LN]
-					local lam = old - r[K_MN] * (vn - tgt)
-					if lam < 0 then lam = 0 end
-					r[K_LN] = lam
-					if lam ~= old then
-						local d = lam - old
-						local ima = a.im
-						if kind == 1 then
-							a.vz = a.vz + ima * d
-						else
-							local nx, ny, nz = r[K_NX], r[K_NY], r[K_NZ]
-							a.vx, a.vy, a.vz = a.vx + ima * d * nx, a.vy + ima * d * ny, a.vz + ima * d * nz
-							if kind == 2 then
-								local b = r[K_B]
-								local imb = b.im
-								b.vx, b.vy, b.vz = b.vx - imb * d * nx, b.vy - imb * d * ny, b.vz - imb * d * nz
-								b.wx, b.wy, b.wz = b.wx - d * r[K_WBNX], b.wy - d * r[K_WBNY], b.wz - d * r[K_WBNZ]
-							end
-						end
-						a.wx, a.wy, a.wz = a.wx + d * r[K_WANX], a.wy + d * r[K_WANY], a.wz + d * r[K_WANZ]
+					elseif b.bounceStep == stamp then
+						a.bounceStep = stamp; a.rowStep = stamp; grew = true; row = true
 					end
 				end
 			end
 		end
+		if row then
+			-- the islands that grew: spread rowStep from the pieces the bounce
+			-- reached through the same contacts, so only their contacts get the
+			-- extra passes (a bounce elsewhere in the step keeps its four)
+			grew = true
+			while grew do
+				grew = false
+				for i = 1, m do
+					local r = REC[i]
+					if r[K_KIND] == 2 and r[K_LNMAX] > 0 then
+						local a, b = r[K_A], r[K_B]
+						if a.rowStep == stamp then
+							if b.rowStep ~= stamp then b.rowStep = stamp; grew = true end
+						elseif b.rowStep == stamp then
+							a.rowStep = stamp; grew = true
+						end
+					end
+				end
+			end
+		end
+	end
+	if any then
+		local nb = 0
+		for i = 1, m do
+			local r = REC[i]
+			local v0 = r[K_V0]
+			local a, kind = r[K_A], r[K_KIND]
+			if v0 < -rs and r[K_LNMAX] > 0 and r[K_E] > 0 then
+				nb = nb + 1
+				BOUNCE[nb] = r
+				r[K_REST] = -r[K_E] * v0
+			elseif pair and r[K_LNMAX] > 0 and (a.bounceStep == stamp
+				or (kind == 2 and r[K_B].bounceStep == stamp)) then
+				nb = nb + 1
+				BOUNCE[nb] = r
+				r[K_REST] = r[K_RELAX]
+			end
+		end
+		local tol, least, most = t.restitutionTol, t.restitutionIterations, t.restitutionMaxIterations
+		if not row then most = least end
+		local passes = 0
+		-- (restitutionIterations 0 turns the bounce off: a diagnostic, AGENTS.md)
+		while least > 0 do
+			local dm = solve(K_REST, BOUNCE, nb)
+			passes = passes + 1
+			if passes >= most or (passes >= least and dm < tol) then break end
+			if passes == least and row then
+				-- past restitutionIterations only the rows' contacts go on
+				local k = 0
+				for i = 1, nb do
+					local r = BOUNCE[i]
+					if r[K_A].rowStep == stamp or (r[K_KIND] == 2 and r[K_B].rowStep == stamp) then
+						k = k + 1
+						BOUNCE[k] = r
+					end
+				end
+				nb = k
+			end
+		end
+		w.bouncePasses = w.bouncePasses + passes
 	end
 
 	if P then local now = pc(); P.restitution = P.restitution + now - pt; pt = now end
@@ -1527,6 +1740,22 @@ function world.step(w)
 				noteContact(w, a, nil, cPx[idx], cPy[idx], cPz[idx])
 			end
 		elseif r[K_LNMAX] > 0 then
+			-- what holds a piece up, for its sleep: a sleeping or static piece,
+			-- or an awake one (propBy); and an awake piece it presses on is a
+			-- mate, whose sleep timer it waits for (the sleep test below)
+			local a = r[K_A]
+			if kind == 3 then
+				a.restStep = stamp
+			else
+				local b = r[K_B]
+				a.propStep, a.propBy = stamp, b
+				b.propStep, b.propBy = stamp, a
+				local ta, tb = a.sleepTime, b.sleepTime
+				if a.mateStep ~= stamp then a.mateStep, a.mateMin = stamp, tb
+				elseif tb < a.mateMin then a.mateMin = tb end
+				if b.mateStep ~= stamp then b.mateStep, b.mateMin = stamp, ta
+				elseif ta < b.mateMin then b.mateMin = ta end
+			end
 			local other = cB[idx]
 			local first = cA[idx]
 			first.touched, other.touched = true, true
@@ -1685,9 +1914,26 @@ function world.step(w)
 			local x, y = b.x, b.y
 			if x > half + om or x < -(half + om) or y < -om or y > len + om then b.leftPitch = true end
 			local vx, vy, vz, wx, wy, wz = b.vx, b.vy, b.vz, b.wx, b.wy, b.wz
-			if vx * vx + vy * vy + vz * vz < sleepLin2 and wx * wx + wy * wy + wz * wz < sleepAng2 and gi > 0 then
-				b.sleepTime = b.sleepTime + dt
-				if b.sleepTime >= sleepTime then
+			-- held up: by the ground, by a sleeping or static piece, or by an
+			-- awake piece that is itself held up that way (a kubb lying on a
+			-- kubb never touches the ground; Physics fuzz, 2026-11-16)
+			local held = gi > 0 or b.restStep == stamp
+			if not held and b.propStep == stamp then
+				local p = b.propBy
+				held = not p.awake or p.groundImpulse > 0 or p.restStep == stamp
+			end
+			if vx * vx + vy * vy + vz * vz < sleepLin2 and wx * wx + wy * wy + wz * wz < sleepAng2 and held then
+				local st = b.sleepTime + dt
+				b.sleepTime = st
+				-- an awake piece it presses on that is still settling holds it
+				-- awake until both are ready, so they sleep in the same step: one
+				-- that slept first left the other its weight's worth of warm
+				-- started push from the ground, which kicked it and woke the
+				-- sleeper again (a leaner woke 20 times, 1:14364)
+				local ready = st >= sleepTime
+				if ready and b.mateStep == stamp and b.mateMin > 0
+					and b.mateMin + dt < sleepTime then ready = false end
+				if ready then
 					epoch = epoch + 1
 					b.awake = false
 					b.vx, b.vy, b.vz, b.wx, b.wy, b.wz = 0, 0, 0, 0, 0, 0

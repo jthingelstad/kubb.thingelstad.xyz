@@ -1,16 +1,16 @@
 {
   "source": "playdate-kubb source/core",
-  "commit": "8262f1845603477404122eccf894814c7b07d65d",
+  "commit": "86ac7eab603f1ddcba3151af3fd73a7b66b3a7c4",
   "files": {
     "autothrow.lua": "0e24c6ff24671141f7ab23ef3108bd1509361efdf89337e1948845c7b2c0bd25",
     "bench.lua": "790ead4be45ee073d29506f2606bda6c8ea796928fe859d5093e8dcb9d9b4f8e",
-    "body.lua": "97f7f65a6a04fdc1bfee832f71ac0d4e4eeeda259e2ff96e8378dbf0fbf32dff",
+    "body.lua": "7984503fa805f27b9acc4cdfe998f730178a6c7fa5edf2f28950d274819c3b31",
     "burstpick.lua": "2c3f468a44b041a4161f2f7db7f49efbba2d16c2585ec7ac5b2610af22a4ce10",
     "camera.lua": "c0b7f5f1ed1b7f39a38f9c486d44ed6ea4127fefcbe02ef8f108d3b8e4de4a52",
     "cards.lua": "e044d698e5a09b75e3f26f7d456b55bc5c557671838e259f174f0aaee4b7e609",
-    "collide.lua": "aeb839c2705a9a16d032e1d8c880a947fbc41409ec5c37f99db60701b4a10fad",
+    "collide.lua": "dd8860ce9e64bc14febd2809ca8f6efc3140e95c445d9cdc97f189327441e983",
     "debris.lua": "ccc8553bd70a231cc939adea8e511e842b5ab6ddd21b9afc45a904cce698fa17",
-    "drill.lua": "ab5aa683bb6e26029ea4f01be78c988f4e814382479b072514c8f72762f3b2ea",
+    "drill.lua": "e8020f4286db84078af39f8ff31337309afc4e8b85440ebb050433a1c36322d3",
     "drills.lua": "ae4113243ab8d677abc80310bad9e998f8da7380b193e1405b311662904a0103",
     "flight.lua": "2e900949f0c26a903a630d1ccc4434aacc0f0fef79e6fcc6c9aaabca261de11e",
     "frame.lua": "3f9e4493c4b0663e90fb12ddd29a94b686d5f724f6d4c67cf2c886221dde8487",
@@ -40,8 +40,8 @@
     "trace.lua": "108ed10b3663f7c339d00c9bb5840c371442bc3430f69987a374483f1f07b204",
     "tw.lua": "d3bb3a81977440239e9024e243aa3b3dce2ba418b19d87075b8268b73aeff167",
     "vec.lua": "16ed8c29ccd68dcc7cff60892b5b2e767aaf01635e7fad30e593f09247326393",
-    "version.lua": "4bbb84469b046fb56d9744f571f7d4a155db7b280d6210843cc33af1fe00a588",
+    "version.lua": "9dbab51bbb8d9df494d10abf160fadbad4d96e1acbd73422354d2d268a635481",
     "wind.lua": "5be8fbc824ab65f875570249012fe334c5327b93f5036d37e2679e8bef93a876",
-    "world.lua": "4f5cb3fbd159e76c70c9e03a79f3305b9a0bc175614846decba5e91bf8a1797c"
+    "world.lua": "3a64b702af7348a9c1e5b56babb8d0c00c965041e9363668065c3758186ae9a8"
   }
 }
