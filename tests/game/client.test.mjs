@@ -93,6 +93,58 @@ browserTest(
   },
 );
 
+// Tyler's report, 2026-11-16: three throws he took for perfect had been
+// judged long. A swing well past the power band with a hard flick is long;
+// its LONG chip is the off-target style, ahead of the on-target ones.
+browserTest("a long throw shows its LONG chip first, inverted", async () => {
+  const page = await open(env, "/practice/?nohowto=1");
+  await waitPhase(page, "aim", 10000);
+  await watchThrows(page);
+  const p = (await state(page)).plan;
+  await swing(
+    page,
+    sweep({
+      back: p.powerHi + 30,
+      stop: p.release,
+      backDps: 900,
+      flickDps: 3600,
+    }),
+  );
+  await waitPhase(page, "play", 5000);
+  await page.waitForSelector(".verdicts .chip", { timeout: 20000 });
+  const throws = await page.evaluate(() => window.__throws);
+  assert.equal(throws[0].result.verdicts.power, "LONG", "the throw is long");
+  const chips = await page.$$eval(".verdicts .chip", (els) =>
+    els.map((e) => {
+      const cs = getComputedStyle(e);
+      return {
+        text: e.textContent,
+        off: e.classList.contains("off"),
+        bg: cs.backgroundColor,
+        size: parseFloat(cs.fontSize),
+      };
+    }),
+  );
+  assert.deepEqual(
+    { text: chips[0].text, off: chips[0].off },
+    { text: "LONG", off: true },
+  );
+  assert.ok(!chips.some((c) => c.text.startsWith("POWER")), "no POWER chip");
+  const firstOn = chips.findIndex((c) => !c.off);
+  assert.ok(
+    chips.slice(firstOn).every((c) => !c.off),
+    "the off chips come first",
+  );
+  const ink = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue("--ink"),
+  );
+  assert.equal(chips[0].bg, "rgb(22, 19, 15)", `ink background (${ink})`);
+  if (firstOn > 0)
+    assert.ok(chips[0].size > chips[firstOn].size, "the off chip is larger");
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
+
 browserTest(
   "dragging the target circle moves the engine's target",
   async () => {

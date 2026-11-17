@@ -187,8 +187,14 @@ burst inverts the screen. Each piece's first touch plays a knock: one of
 still sounding, at a rate of 1 +- 0.06, so knocks together overlap as different takes. The
 king gets a short chord. Audio unlocks on the first pointer down; mute is remembered.
 
-After a throw the flag (1 DOWN, MISS, ...) and the verdict chips (POWER, RELEASE, STEADY;
-only for this browser's throws) show, and the rest distance in practice.
+After a throw the flag (1 DOWN, MISS, ...) and the verdict chips (power, release,
+steadiness and side; only for this browser's throws) show, and the rest distance in
+practice. An off-target verdict is the plain word (LONG, SHORT, SLOW, LOW, HIGH, SHAKY,
+PULLED LEFT, PULLED RIGHT) in a `.chip.off`: inverted like the flag (ink with paper type),
+larger and heavier, and ahead of the on-target chips (POWER ON, ARC ON, STEADY, STRAIGHT),
+which keep the plain paper pill (`verdictChips` in `src/game/hud.js`). Tyler's report,
+2026-11-16: a long throw's POWER LONG read just like POWER ON under a MISS, and three
+throws he took for perfect had been judged long.
 
 ## Match flow
 
