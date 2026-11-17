@@ -1,8 +1,8 @@
 {
   "source": "playdate-kubb source/core",
-  "commit": "86ac7eab603f1ddcba3151af3fd73a7b66b3a7c4",
+  "commit": "573381242aeb516c7c10ecee0f097d4b73b8a3e2",
   "files": {
-    "autothrow.lua": "0e24c6ff24671141f7ab23ef3108bd1509361efdf89337e1948845c7b2c0bd25",
+    "autothrow.lua": "080d77c98534f34b23c02ddc827f4a3f71d3ef741e2a27f917a67043e9437d70",
     "bench.lua": "790ead4be45ee073d29506f2606bda6c8ea796928fe859d5093e8dcb9d9b4f8e",
     "body.lua": "7984503fa805f27b9acc4cdfe998f730178a6c7fa5edf2f28950d274819c3b31",
     "burstpick.lua": "2c3f468a44b041a4161f2f7db7f49efbba2d16c2585ec7ac5b2610af22a4ce10",
