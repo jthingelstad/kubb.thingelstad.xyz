@@ -16,7 +16,7 @@ const engineDir = path.join(root, "vendor", "engine");
 
 // The engine's Lua: these folders' *.lua files and version.lua, as kubb-engine's
 // tools/bundle.mjs takes them. Module names are the paths without ".lua".
-const DIRS = ["core", "session", "tune"];
+const DIRS = ["core", "room", "session", "tune"];
 const TOP = ["version.lua"];
 
 function engineFiles() {

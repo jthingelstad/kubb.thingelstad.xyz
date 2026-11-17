@@ -5,20 +5,22 @@ everyone on the link, each on their own screen. The contract is docs/DESIGN.md 4
 room server and its client are docs/ROOMS.md; the Game's seam is docs/CLIENT.md. This is
 the client as built.
 
-| File                              | What it does                                                                                     |
-| --------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `src/net/pitch.js`                | `Pitch`, the controller: joins the room, runs the lobby, drives the Game, casts, host hand-over. |
-| `src/net/lobby.js`                | Pure: the shared document's shape and its reducers (what `room.update(fn)` runs).                |
-| `src/net/seats.js`                | Pure: who may act for each need, and the engine's control for this browser.                      |
-| `src/net/sync.js`                 | Pure: what to do with each document that arrives (apply, adopt, start, back to the lobby).       |
-| `src/ui/lobby.js`                 | `Lobby`, the lobby card.                                                                         |
-| `tests/net/*.mjs`                 | `lobby.test.mjs`, `seats.test.mjs`, `sync.test.mjs` for the pure parts.                          |
-| `tests/game/multiplayer.test.mjs` | Playwright: real browsers against `tools/rooms-dev.mjs` (see Tests).                             |
+| File                               | What it does                                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `src/net/pitch.js`                 | `Pitch`, the controller: joins the room, runs the lobby, drives the Game, casts, host hand-over. |
+| `src/net/lobby.js`                 | Wrappers over the engine's `room.*` document reducers (what `room.update(fn)` runs).             |
+| `src/net/seats.js`                 | Cached wrappers over the engine's seat and actor rules.                                          |
+| `src/net/sync.js`                  | Wrappers over the engine's sync decisions and rider; JavaScript keeps `aimKey`.                  |
+| `src/net/room-engine.js`           | The bridge: `engine.call("room.<name>", args).value`, initialized with the page's engine.        |
+| `src/ui/lobby.js`                  | `Lobby`, the lobby card.                                                                         |
+| `tests/net/room-wrappers.test.mjs` | Bridge contracts and caches; the room rules are tested by kubb-engine's vectors.                 |
+| `tests/game/multiplayer.test.mjs`  | Playwright: real browsers against `tools/rooms-dev.mjs` (see Tests).                             |
 
 ## The lobby
 
 Arriving on the link joins the room (`config.roomsUrl`) under this browser's member id
-(`kubb.member` in localStorage) with `me = { name, level }`. The lobby card shows:
+(`kubb.member` in localStorage) with `me = { name, level, engine }`. `engine` is the
+vendored engine's major.minor (`"0.3"`), read from `room.constants`. The lobby card shows:
 
 - **Your name** (remembered as `kubb:name`; sent as you type) and **your level**. Each
   player's throw level is their own.
@@ -45,7 +47,7 @@ place up in a full room) is taken off their team by the host's browser.
 ## The document
 
 One shared document per room (`room.update` compare-and-set), written only by the
-reducers in `src/net/lobby.js`:
+reducers in kubb-engine's `room/lobby.lua`, through `src/net/lobby.js`:
 
 ```js
 {
@@ -63,6 +65,7 @@ reducers in `src/net/lobby.js`:
     players: { A: [{ id, name }], B: [...] },   // frozen at START
     cpu:     "A" | "B" | null,                  // the computer's side
     host,                                       // who started it
+    engine,                                     // the starting engine's major.minor ("0.3")
     setup,                                      // the engine's newMatch options
     h0,                                         // the engine's hash at the start
     log:     [{ a, h }] | null,                 // every action with the hash after it
@@ -70,6 +73,9 @@ reducers in `src/net/lobby.js`:
   }
 }
 ```
+
+Unknown top-level keys survive every reducer, including START, commits and REMATCH.
+Empty objects, empty arrays and nulls stay distinct across the bridge.
 
 `setup`, `h0` and `log` are the match's replay (docs/CLIENT.md "Replays"): START writes
 the options and an empty log, and each commit adds its action and hash. The log stays
@@ -94,6 +100,34 @@ sends it afresh. The home page's list and the server's rules are docs/ROOMS.md s
 an empty side is the computer. The host's browser makes the match
 (`engine.newMatch` with a random seed, each player's `key` = their member id) and
 commits `started: true`, `n + 1` and the match at `seq: 0`. Team A throws first.
+`room.startCheck` and `room.startMatch` receive the current members and check their
+engines before writing `match.engine`.
+
+## Engines
+
+Room reducers, seat decisions and sync decisions are kubb-engine v0.3.0's `room.*`
+calls over the same JSON bridge as the session (`kubbCall`). The engine's `docs/ROOM.md`
+is their API; its 8,851 recorded vector steps cover the rules. There is no second
+JavaScript implementation. `useRoomEngine` reads the engine's constants once during
+boot; tools that use these wrappers initialize it too.
+
+`LENIENT_ENGINES` in `src/net/lobby.js` is the one transition switch, currently true.
+A member without `me.engine` is an open tab from the previous web build and may still
+play; a match without `match.engine` may still be joined. An explicitly different
+major.minor is always refused by the engine. Flip the switch to false before the
+iPhone app ships. Patch versions may differ; all peers use the pointer tune.
+
+Before taking control of a running match, every member calls `room.mayPlay`, including
+watchers who could become host and run the computer. A refusal gives no team or CPU
+control and hides the player's resignation action. The house-style card says:
+
+- Pitch newer: "This pitch is playing on a newer version of Throwing Wood. Reload to
+  join." with RELOAD and WATCH.
+- This client newer: "This pitch is playing on an older version of Throwing Wood. Ask
+  the host to reload." with WATCH.
+
+A guest on a team in the lobby checks the host's announced engine too. A host whose
+START is refused sees which players need to reload; no match is committed.
 
 ## Staying in step
 
@@ -102,11 +136,11 @@ after it as action `seq + 1`, with the action riding along as the update's `with
 
 ```js
 room.update((doc) => commitAction(doc, { n, seq, snap, hash }), {
-  with: { n, seq, a: action, c: "web" },
+  with: { n, seq, a: action, c: "web", e: "0.3.0" },
 });
 ```
 
-`c` names the client that committed the action, and `e` (not sent yet) the engine's
+`c` names the client that committed the action, and `e` the engine's full
 version: the recorder keeps them with the action, and the other browsers ignore them
 (`docs/ROOMS.md` section 2.6).
 
@@ -114,7 +148,7 @@ version: the recorder keeps them with the action, and the other browsers ignore 
 acting at once cannot both land: the room's compare-and-set runs the reducer again on the
 winner's document, it refuses, and the loser drops its action and adopts the winner's
 snapshot. Every other browser gets the document with `with` and decides
-(`src/net/sync.js`):
+(`room.decide`, through `src/net/sync.js`):
 
 | The document                     | What this browser does                                                                                           |
 | -------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -140,8 +174,8 @@ document; the room client splits frames over 30 000 B by itself.
 
 ## Who acts
 
-`src/net/seats.js`, from the match's players, the computer's side, the room's host and
-who is connected now:
+`room.*` seat calls through `src/net/seats.js`, from the match's players, the computer's
+side, the room's host and who is connected now (`ctx.connected` is an array of ids):
 
 - **A throw** is for the member whose player the engine names (`need.setup.thrower.key`).
   If they are not connected, the first connected member of that team in throwing order
@@ -155,6 +189,11 @@ who is connected now:
   decides need by need. Seats are recomputed when members connect or go, when the host
   changes, and five times a second, never during a playback. A host who takes over the
   computer mid-throw restarts its think from the current snapshot.
+
+The controller keeps the same context object until the members, host or match change.
+Seat and actor wrappers cache by context, need and member: repeated render-loop reads
+never cross the room bridge. Name cleanup and open-listing reads are cached too. Socket
+pacing and `aimKey` stay in JavaScript.
 
 Whose turn it is shows by name: the status pill says YOUR THROW (marigold), HANNA THROWS,
 COMPUTER THROWS, YOUR RAISE, TEAM B PLACES A KUBB and so on, and the hand-off card leads
@@ -204,7 +243,13 @@ A throw taken for an absent teammate says YOUR THROW FOR <NAME>.
 
 ## Tests
 
-- `node --test tests/net/` covers the reducers, the seats and the sync decisions.
+- `node --test tests/net/room-wrappers.test.mjs` covers the bridge's named arguments,
+  `.value` results, null-to-undefined reducer no-ops, unknown top-level fields through
+  every document reducer, version admission, opaque snapshots and seat caches. The
+  engine's own vector tests cover the shared rules.
+- `tests/game/room-version.test.mjs` checks advertised versions, refused START,
+  lenient old tabs, both refusal cards, reload, disabled team/CPU control and idle
+  room-bridge call counts, on desktop and phone against the local rooms server.
 - `tests/game/multiplayer.test.mjs` starts `tools/rooms-dev.mjs` and the preview on free
   127.0.0.1 ports and opens each player in their own browser context on one
   `/p/<code>?rooms=<the test's room server>` (`?rooms=` is honoured only on 127.0.0.1,

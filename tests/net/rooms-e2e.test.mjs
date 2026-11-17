@@ -245,6 +245,7 @@ test("a join that cannot succeed rejects ready and closes", async () => {
 });
 
 test("a kept replay comes back by its code on a socket of its own, in frames", async () => {
+  await import("./room-engine.mjs"); // the replay check is the engine's
   const { fetchReplay } = await import("../../src/replay/fetch.js");
   const code = makeRoomCode();
   const a = join(code, memberId(), "Ann");

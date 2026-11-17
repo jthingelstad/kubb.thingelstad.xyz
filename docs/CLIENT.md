@@ -36,7 +36,7 @@ A failure to start shows a plain error card with RELOAD and HOME. The HOW TO THR
 | `src/ui/cards.js`                             | `Cards`: the engine's hand-off, pass and settle cards (naming who acts on a shared pitch), the winner, solo options, a plain notice, and the raise and punishment panels. |
 | `src/ui/lobby.js`                             | `Lobby`: the shared pitch's lobby card.                                                                                                                                   |
 | `src/net/pitch.js`                            | `Pitch`: the shared pitch's controller: joins the room, runs the lobby, drives the Game through the seam, aim casts, shouts, host hand-over.                              |
-| `src/net/lobby.js`, `seats.js`, `sync.js`     | Pure: the room document's reducers, who acts, and how a browser stays in step (tests in `tests/net/`).                                                                    |
+| `src/net/lobby.js`, `seats.js`, `sync.js`     | Thin wrappers over kubb-engine's `room.*` rules; cached seat/actor reads keep these calls out of the render loop (docs/MULTIPLAYER.md).                                   |
 | `src/net/room.js`                             | The room client (docs/ROOMS.md).                                                                                                                                          |
 | `src/ui/menu.js`                              | `Menu`: level, surface (practice), sound, how to throw, resign (a match), report a throw, rules, home.                                                                    |
 | `src/ui/report.js`, `src/net/report.js`       | The report card, and what a report carries and how it is sent (below, and docs/ROOMS.md section 8).                                                                       |
@@ -372,6 +372,9 @@ Two versions: the web game's own (`version` in `package.json`, 0.1.0) and the ve
 kubb-engine it vendors (`vendor/engine/engine.json`, read in Lua as `engineVersion`).
 The game file's "Scored by" is "Throwing Wood web <web version>" (`setClient`); records,
 reports and the `with` rider carry the engine's version as `engine` / `e`.
+Room joins also announce `me.engine` (major.minor), START checks the members and writes
+`match.engine`, and `room.mayPlay` gates team and CPU control of a running match.
+The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.md "Engines".
 
 - **The release** (`src/site/release.js`): `{ version, web, engine, text }`, `text` as
   `0.1.0 · web a2659b7 · engine 0.2.0`. The build (`tools/build.mjs`) reads the version

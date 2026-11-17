@@ -47,7 +47,15 @@ test("Engine.create loads the pointer tune and labels the game file", async () =
 
 test("the engine's golden corpus, every hash, under this wasmoon", async () => {
   const corpus = JSON.parse(read("vendor/engine/golden/hashes.json"));
-  assert.equal(corpus.version, manifest.version);
+  // the engine that wrote the corpus: a hash-neutral release keeps the one before it
+  // (0.3.0 plays 0.2.0's corpus), so it is never newer than the vendored engine
+  const num = (v) => v.split(".").map(Number);
+  const [a, b] = [num(corpus.version), num(manifest.version)];
+  assert.ok(
+    a[0] < b[0] ||
+      (a[0] === b[0] && (a[1] < b[1] || (a[1] === b[1] && a[2] <= b[2]))),
+    `corpus ${corpus.version}, engine ${manifest.version}`,
+  );
   const e = await Engine.create({
     sources: {
       ...sources,

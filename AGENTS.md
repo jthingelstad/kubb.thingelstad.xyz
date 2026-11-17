@@ -24,6 +24,14 @@ game is the sibling checkout `../playdate-kubb` (private; its `docs/DESIGN.md` a
 - **Game logic in Lua, in kubb-engine** (tested there); this repository has no Lua of its
   own. JavaScript draws, listens and talks to the network. JS and Lua exchange JSON strings in
   a few coarse calls a frame.
+- **Room rules are the engine's too.** `src/net/lobby.js`, `seats.js` and `sync.js`
+  are thin wrappers over `room.*` (the engine's docs/ROOM.md), reading `.value` through
+  `src/net/room-engine.js`. Initialize with `useRoomEngine` before calling them, pass
+  connected ids as an array, and keep seat/actor calls cached out of the render loop.
+  Keep `aimKey` and socket pacing in JavaScript. `me.engine` announces major.minor;
+  START passes members and writes `match.engine`; `mayPlay` gates team and CPU control.
+  `LENIENT_ENGINES` is temporarily true for old untagged tabs and must flip to false
+  before the iPhone app ships. Explicit version mismatches are always refused.
 - **The thrower's view frame everywhere** (core/frame): JS never flips the pitch.
   The wide view (watching the computer) shows the world frame instead: Lua un-turns Team
   B's output before JS sees it (the engine's `session/wide.lua`), so JS still flips nothing.

@@ -24,6 +24,7 @@ import { openReport } from "./ui/report.js";
 import { openSheet } from "./ui/sheet.js";
 import { recordMatch } from "./net/record.js";
 import { clientLabel } from "./net/sync.js";
+import { useRoomEngine } from "./net/lobby.js";
 import { watchFreshness } from "./net/freshness.js";
 import { showUpdate } from "./ui/update.js";
 import { startEmbed, embedCode } from "./embed/embed.js";
@@ -81,6 +82,9 @@ async function makeEngine() {
     }),
     document.fonts?.load('900 40px "Londrina Solid"').catch(() => null),
   ]);
+  // the room's logic (a shared pitch's document, seats, staying in step) is the
+  // engine's too: src/net/lobby.js, seats.js and sync.js call it
+  useRoomEngine(engine);
   return engine;
 }
 

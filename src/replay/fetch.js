@@ -8,11 +8,13 @@
 //
 // Null when the room keeps no replay (a match in progress, a match from before replays, a
 // room gone), when what came back is not one this build can play, or when the server
-// cannot be reached. Never throws.
+// cannot be reached. Never throws. The check is the engine's (room.isReplay), so it
+// needs the page's engine; the embed, which loads the engine only once there is a
+// replay, passes `check: null` and checks it after (src/embed/embed.js).
 import { ask } from "../net/ask.js";
 import { isReplay } from "../net/lobby.js";
 
-export async function fetchReplay({ url, code, ...rest }) {
+export async function fetchReplay({ url, code, check = isReplay, ...rest }) {
   let answer;
   try {
     answer = await ask({
@@ -26,6 +28,6 @@ export async function fetchReplay({ url, code, ...rest }) {
     return null;
   }
   const r = answer?.replay;
-  if (!isReplay(r)) return null;
+  if (!r || typeof r !== "object" || (check && !check(r))) return null;
   return { ...r, at: answer.at ?? null, kept: answer.v ?? null };
 }

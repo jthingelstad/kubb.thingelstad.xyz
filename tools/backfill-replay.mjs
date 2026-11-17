@@ -20,11 +20,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { asciiJson, LIMITS } from "../backend/rooms/core.mjs";
-import { isReplay, REPLAY_VERSION } from "../src/net/lobby.js";
+import { isReplay, REPLAY_VERSION, useRoomEngine } from "../src/net/lobby.js";
 import { matchesOf, parseRecord } from "./games.mjs";
 
 // A recorded match ({ start, steps } from matchesOf) as { replay, at } (at: when its
 // last action was recorded), or { why } when its records cannot make a whole one.
+// Needs the room engine (useRoomEngine): the replay check is the engine's.
 export function replayFromMatch(match) {
   if (!match.start) return { why: "its start was not recorded" };
   const log = [];
@@ -214,6 +215,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { Engine } = await import("../src/engine/index.js");
   const { bundleLua } = await import("./lua-bundle.mjs");
   const engine = await Engine.create({ sources: await bundleLua() });
+  useRoomEngine(engine);
   const { found, best } = roomReplays(engine, await readRoom(dir, room));
   for (const f of found)
     console.log(

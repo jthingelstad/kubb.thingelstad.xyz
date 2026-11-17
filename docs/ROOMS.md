@@ -154,6 +154,10 @@ browser that loses its place just takes the snapshot (`DESIGN.md` 4.3).
 
 ## 2. The wire protocol
 
+The socket, chunking, retries and pacing stay in this repository. The game's shared
+document reducers, seats and sync decisions are kubb-engine's `room.*` Lua calls, used
+through thin web wrappers (`docs/MULTIPLAYER.md`). The room server still knows no Kubb.
+
 One WebSocket per browser tab. Every message is a JSON object with a type `t`, sent as
 a text frame. All text is **ASCII JSON**: every character above `~` is written as a
 backslash-u escape (`asciiJson` in both libraries), so a message's length in characters
@@ -293,6 +297,16 @@ connection), `failed` (it could not be written) and `unavailable` (this server k
 none).
 
 ### 2.6 Client and engine tags
+
+For game admission, the client joins with `me = { name, level, engine }`, where `engine`
+is the engine's major.minor (`"0.3"`). START passes the current members to the engine's
+`room.startCheck`/`room.startMatch`, which refuses explicit mismatches and stamps
+`match.engine`. `room.mayPlay` checks a running match before giving team or CPU control.
+These are client rules: the server treats both fields as opaque JSON. During the web
+transition `LENIENT_ENGINES` permits a missing tag from an old open tab or match; it
+must become strict before the iPhone app ships (`docs/MULTIPLAYER.md` "Engines").
+
+Recording tags are separate and carry the full version:
 
 A record says which program made it, so a throw that went wrong can be traced to the web
 page or the iPhone app and to the engine that played it. Both are optional: clients built
