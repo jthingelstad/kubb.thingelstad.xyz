@@ -32,6 +32,61 @@ test("a pitch at any code is the one game page", () => {
   assert.equal(request("/p/abc").statusCode, 301);
 });
 
+test("the old address and www move to throwingwood.com, path and query kept", () => {
+  for (const old of [
+    "https://kubb.thingelstad.xyz",
+    "https://www.throwingwood.com",
+  ]) {
+    for (const path of [
+      "/",
+      "/p/abcd2345?solo=1",
+      "/e/abcd2345",
+      "/og/abcd2345.png?v=3",
+      "/practice/",
+    ]) {
+      const result = request(old + path);
+      assert.equal(result.statusCode, 301, old + path);
+      assert.equal(
+        result.headers.location.value,
+        "https://throwingwood.com" + path,
+      );
+    }
+  }
+  // the new address, and any other host (the preview), are served as before
+  assert.equal(
+    request("https://throwingwood.com/p/abcd2345").uri,
+    "/pitch/index.html",
+  );
+  assert.equal(
+    request("http://127.0.0.1:4322/p/abcd2345").uri,
+    "/pitch/index.html",
+  );
+});
+
+test("the certificate, aliases and records cover throwingwood.com, www and the old address", async () => {
+  const R = (await json("infra/site.json")).Resources;
+  const names = [
+    "throwingwood.com",
+    "www.throwingwood.com",
+    "kubb.thingelstad.xyz",
+  ];
+  assert.deepEqual(R.Distribution.Properties.DistributionConfig.Aliases, names);
+  const cert = R.Certificate.Properties;
+  assert.deepEqual([cert.DomainName, ...cert.SubjectAlternativeNames], names);
+  assert.deepEqual(
+    cert.DomainValidationOptions.map((o) => o.DomainName),
+    names,
+  );
+  const records = Object.values(R)
+    .filter((r) => r.Type === "AWS::Route53::RecordSet")
+    .map((r) => `${r.Properties.Name} ${r.Properties.Type}`)
+    .sort();
+  assert.deepEqual(
+    records,
+    names.flatMap((n) => [`${n}. A`, `${n}. AAAA`]).sort(),
+  );
+});
+
 test("/p and /p/ go on to a new pitch, keeping the query", () => {
   for (const address of ["/p", "/p/", "/p/?solo=1", "/p/?watch=1"]) {
     const result = request(address);
@@ -100,7 +155,7 @@ test("infra/site.json carries the viewer request function and the CSP", async ()
   );
   const csp = contentSecurityPolicy();
   assert.match(csp, /script-src 'self' 'wasm-unsafe-eval'/);
-  assert.match(csp, /connect-src [^;]*wss:\/\/kubb\.thingelstad\.xyz/);
+  assert.match(csp, /connect-src [^;]*wss:\/\/throwingwood\.com/);
   assert.doesNotMatch(csp, /'unsafe-eval'/);
   assert.ok(csp.length < 1700, "CloudFront's CSP header limit");
 });

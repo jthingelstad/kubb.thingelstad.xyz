@@ -5,7 +5,7 @@
 // only (src/embed/embed.js). Like the score sheet, it is modal while open.
 import { h, button } from "./dom.js";
 
-export const EMBED_ORIGIN = "https://kubb.thingelstad.xyz";
+export const EMBED_ORIGIN = "https://throwingwood.com";
 
 // The snippet: full width, 16:10, loaded when it scrolls near, asking for nothing.
 export function embedSnippet(code) {

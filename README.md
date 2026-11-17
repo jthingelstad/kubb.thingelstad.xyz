@@ -1,6 +1,7 @@
 # Kubb: Throwing Wood on the web
 
-The site at **https://kubb.thingelstad.xyz/**: Kubb, the lawn game of wooden blocks and
+The site at **https://throwingwood.com/** (kubb.thingelstad.xyz until 2026-11-17, which
+now redirects there): Kubb, the lawn game of wooden blocks and
 batons, in the browser. It is Jamie Thingelstad's Playdate game
 [Kubb: Throwing Wood](https://playdate.thingelstad.xyz/throwing-wood/) running on the web:
 the game's own Lua core in a WebAssembly Lua VM, drawn on a canvas, with multiplayer on a
@@ -44,14 +45,14 @@ AWS_PROFILE=cloud-engineer npm run infra:apply -- rooms    # create or update th
 
 ## Hosting
 
-| Piece       | Where                                                             |
-| ----------- | ----------------------------------------------------------------- |
-| Site        | S3 + CloudFront, stack `kubb-xyz-site`, `us-east-1`               |
-| Rooms       | API Gateway WebSocket + Lambda + DynamoDB, stack `kubb-xyz-rooms` |
-| Deploy role | GitHub OIDC, stack `kubb-xyz-delivery`                            |
-| DNS         | `thingelstad.xyz` zone, records owned by the site stack           |
-| AWS account | `<account>`                                                       |
-| Access logs | CloudWatch `/kubb-xyz/web-access`, 731 days, no client IPs        |
+| Piece       | Where                                                                                            |
+| ----------- | ------------------------------------------------------------------------------------------------ |
+| Site        | S3 + CloudFront, stack `kubb-xyz-site`, `us-east-1`                                              |
+| Rooms       | API Gateway WebSocket + Lambda + DynamoDB, stack `kubb-xyz-rooms`                                |
+| Deploy role | GitHub OIDC, stack `kubb-xyz-delivery`                                                           |
+| DNS         | `throwingwood.com` zone (and the old name in `thingelstad.xyz`), records owned by the site stack |
+| AWS account | `<account>`                                                                                      |
+| Access logs | CloudWatch `/kubb-xyz/web-access`, 731 days, no client IPs                                       |
 
 ## Licence
 

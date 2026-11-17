@@ -1,7 +1,7 @@
 // What every page of the site shares. Edit here, never in a page.
 import fs from "node:fs";
 
-export const ORIGIN = "https://kubb.thingelstad.xyz";
+export const ORIGIN = "https://throwingwood.com";
 export const HOST = new URL(ORIGIN).hostname;
 export const SITE_NAME = "Kubb: Throwing Wood";
 export const SITE_TITLE = "Kubb: Throwing Wood on the web";
