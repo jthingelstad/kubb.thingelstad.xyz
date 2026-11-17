@@ -17,7 +17,7 @@ export const PRODUCTION_CONNECT = [
 // The embed, /e/<code> (Jamie, 2026-11-16: "I would like an embed option that
 // allows me to put a Kubb game played as an embed on another website"), is the
 // one route any site may frame: the same policy with frame-ancestors *, sent
-// by its own response headers policy (infra/site.json EmbedHeaders) and by the
+// by its own viewer response function (infra/embed-response.mjs) and by the
 // preview for /embed/index.html. Every other route is never framed.
 export const FRAME_NEVER = "'none'";
 export const FRAME_ANYONE = "*";

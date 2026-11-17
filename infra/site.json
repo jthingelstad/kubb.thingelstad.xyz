@@ -367,13 +367,21 @@
               "CachedMethods": ["GET", "HEAD"],
               "Compress": true,
               "CachePolicyId": { "Ref": "PagesCachePolicy" },
-              "ResponseHeadersPolicyId": { "Ref": "EmbedHeaders" },
               "FunctionAssociations": [
                 {
                   "EventType": "viewer-request",
                   "FunctionARN": {
                     "Fn::GetAtt": [
                       "ViewerRequestFunction",
+                      "FunctionMetadata.FunctionARN"
+                    ]
+                  }
+                },
+                {
+                  "EventType": "viewer-response",
+                  "FunctionARN": {
+                    "Fn::GetAtt": [
+                      "EmbedResponseFunction",
                       "FunctionMetadata.FunctionARN"
                     ]
                   }
@@ -785,28 +793,16 @@
         }
       }
     },
-    "EmbedHeaders": {
-      "Type": "AWS::CloudFront::ResponseHeadersPolicy",
+    "EmbedResponseFunction": {
+      "Type": "AWS::CloudFront::Function",
       "Properties": {
-        "ResponseHeadersPolicyConfig": {
-          "Name": { "Fn::Sub": "${AWS::StackName}-embed-headers" },
-          "Comment": "The embed, /e/<code>: the same headers, but any site may frame it",
-          "SecurityHeadersConfig": {
-            "ContentTypeOptions": { "Override": true },
-            "ReferrerPolicy": {
-              "ReferrerPolicy": "strict-origin-when-cross-origin",
-              "Override": true
-            },
-            "StrictTransportSecurity": {
-              "AccessControlMaxAgeSec": 31536000,
-              "Override": true
-            },
-            "ContentSecurityPolicy": {
-              "ContentSecurityPolicy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://tinylytics.app; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://avatars.micro.blog https://tinylytics.app; font-src 'self'; connect-src 'self' wss://kubb.thingelstad.xyz wss://*.execute-api.us-east-1.amazonaws.com https://tinylytics.app; media-src 'self' data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *",
-              "Override": true
-            }
-          }
-        }
+        "Name": { "Fn::Sub": "${AWS::StackName}-embed-response" },
+        "AutoPublish": true,
+        "FunctionConfig": {
+          "Runtime": "cloudfront-js-2.0",
+          "Comment": "The embed at /e/<code>: the site security headers, but any site may frame it"
+        },
+        "FunctionCode": "// The embed's response headers (/e/*, viewer response). Written by\n// tools/site-template.mjs from infra/embed-response.mjs and src/site/csp.mjs:\n// edit those, never this copy.\nvar HEADERS = {\n  \"content-security-policy\": \"default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://tinylytics.app; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://avatars.micro.blog https://tinylytics.app; font-src 'self'; connect-src 'self' wss://kubb.thingelstad.xyz wss://*.execute-api.us-east-1.amazonaws.com https://tinylytics.app; media-src 'self' data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *\",\n  \"strict-transport-security\": \"max-age=31536000\",\n  \"x-content-type-options\": \"nosniff\",\n  \"referrer-policy\": \"strict-origin-when-cross-origin\"\n};\n\nfunction handler(event) {\n  var headers = event.response.headers;\n  delete headers[\"x-frame-options\"];\n  for (var name in HEADERS) headers[name] = { value: HEADERS[name] };\n  return event.response;\n}\n"
       }
     }
   },
