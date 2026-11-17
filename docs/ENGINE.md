@@ -6,7 +6,7 @@ wasmoon's Lua 5.4. JavaScript reaches it through `src/engine/` with a few coarse
 frame; every argument and result crosses as JSON text. JavaScript draws, listens and
 talks to the network; every rule, plan, swing, flight, ruling and camera is Lua.
 
-The Playdate checkout `../../playdate-kubb` is the reference: `source/scenes/match.lua`,
+The Playdate checkout `../playdate-kubb` is the reference: `source/scenes/match.lua`,
 `throw.lua` and `settle.lua` are what `lua/web/session.lua` and `lua/web/throw.lua`
 follow, line for line where they can. Where the web differs, this file says so
 ("Differences from the Playdate").

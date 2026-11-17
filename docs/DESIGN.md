@@ -6,7 +6,7 @@ pitch, each in their own browser. Written 2026-11-15, before any code. Decisions
 (Jamie) were Jamie's on 2026-11-15; the rest are the builder's.
 
 Read the Playdate game's `docs/DESIGN.md` first (sibling checkout
-`../../playdate-kubb/`): dimensions, camera, the clock throw, physics, rules, notation.
+`../playdate-kubb/`): dimensions, camera, the clock throw, physics, rules, notation.
 This document only says what is different on the web.
 
 ## 1. What it is

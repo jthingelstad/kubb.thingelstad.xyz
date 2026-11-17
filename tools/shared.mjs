@@ -1,5 +1,6 @@
 // What this site shares with Jamie's other sites is vendored, because CI
-// checks out only this repository: the shared type (thingelstad.com/shared/
+// checks out only this repository: the shared type (thingelstad.com/shared/,
+// ../../thingelstad.com/shared since the move into the throwingwood folder;
 // tokens.css and its Inter fonts) into public/shared/, and the list of sites
 // with the owner's h-card (sites.json) into src/site/.
 //
@@ -9,7 +10,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const SOURCE = "../shared";
+const SOURCE = "../../thingelstad.com/shared";
 const PUBLIC = [
   "tokens.css",
   "fonts/OFL-Inter.txt",
