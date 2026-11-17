@@ -251,6 +251,7 @@ export function embedState(s, code) {
 const metaRe = (attr, key) =>
   new RegExp(`<meta ${attr}="${key}" content="[^"]*">`);
 
+// Every replacement is a function, so a "$&" in a team name stays literal.
 // The page's head with this pitch's preview: title, description, og:*, and the
 // image at /og/<code>.png (v: the document's version, so a changed pitch is a new
 // image to a service that caches by URL). With `embed`, the state block too.
@@ -262,12 +263,12 @@ export function injectPreview(html, { code, s, path, embed = false }) {
     const set = (attr, key, value) => {
       out = out.replace(
         metaRe(attr, key),
-        `<meta ${attr}="${key}" content="${esc(value)}">`,
+        () => `<meta ${attr}="${key}" content="${esc(value)}">`,
       );
     };
     out = out.replace(
       /<title>[^<]*<\/title>/,
-      `<title>${esc(p.title)}</title>`,
+      () => `<title>${esc(p.title)}</title>`,
     );
     set("name", "description", p.description);
     set("property", "og:title", p.title);
@@ -276,14 +277,15 @@ export function injectPreview(html, { code, s, path, embed = false }) {
     set("property", "og:image:alt", p.alt);
     set("name", "twitter:image", image);
     out = out.replace(
-      /(<meta property="og:image" )/,
-      `<meta property="og:url" content="${ORIGIN}${path}">\n$1`,
+      /<meta property="og:image" /,
+      (tag) => `<meta property="og:url" content="${ORIGIN}${path}">\n${tag}`,
     );
   }
   if (embed)
     out = out.replace(
       "</head>",
-      `<script type="application/json" id="kubb-pitch">${jsonBlock(embedState(s, code))}</script>\n</head>`,
+      () =>
+        `<script type="application/json" id="kubb-pitch">${jsonBlock(embedState(s, code))}</script>\n</head>`,
     );
   return out;
 }

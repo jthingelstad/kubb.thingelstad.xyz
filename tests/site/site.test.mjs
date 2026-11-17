@@ -189,7 +189,7 @@ test("only /e/ may be framed; every other route keeps DENY and 'none'", async ()
   const key =
     R.PagesCachePolicy.Properties.CachePolicyConfig
       .ParametersInCacheKeyAndForwardedToOrigin;
-  assert.deepEqual(key.QueryStringsConfig.QueryStrings.Items, ["pitch", "v"]);
+  assert.deepEqual(key.QueryStringsConfig.QueryStrings, ["pitch", "v"]);
   assert.equal(key.CookiesConfig.CookieBehavior, "none");
   assert.equal(key.HeadersConfig.HeaderBehavior, "none");
 });

@@ -216,7 +216,8 @@ not shown because watching one means joining the room.
 - `/e/` is the one path that may be framed: its own response headers policy with
   `frame-ancestors *` (`embedSecurityPolicy` in `src/site/csp.mjs`) and no
   `X-Frame-Options`; every other page keeps `DENY` and `frame-ancestors 'none'`.
-- An embed follows its pitch: after a rematch it plays the newer match.
+- An embed follows its pitch: while a rematch is set up it shows "Waiting for players"
+  (not the last match), and once that match is kept it plays the newer one.
 - No oEmbed endpoint: the snippet is enough for the sites it is pasted into.
 
 ## Share previews

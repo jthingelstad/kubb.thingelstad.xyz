@@ -170,6 +170,30 @@ test("names are escaped, and the embed's state block cannot close its element", 
   assert.equal(state.turn, 2);
 });
 
+test("a $ sequence in a team name is written as it is", () => {
+  const snap = JSON.parse(inPlay);
+  snap.save.game.teams.A.name = "$& $1 $` $'";
+  const s = pitchState({
+    doc: doc({
+      started: true,
+      match: { snap: JSON.stringify(snap), setup: {} },
+    }),
+  });
+  const html = injectPreview(base, {
+    code: "abcd2345",
+    s,
+    path: "/e/abcd2345",
+    embed: true,
+  });
+  assert.equal(html.match(/<title>/g).length, 1);
+  assert.equal(html.match(/property="og:title"/g).length, 1);
+  assert.match(meta(html, "og:title"), /^\$&amp; \$1 \$` \$&#39; vs South/);
+  const block = html.match(
+    /<script type="application\/json" id="kubb-pitch">(.*?)<\/script>/s,
+  )[1];
+  assert.equal(JSON.parse(block).teams.A, "$& $1 $` $'");
+});
+
 test("the server: each state's page, and the built page on any failure", async () => {
   const calls = [];
   const handle = createPages({
