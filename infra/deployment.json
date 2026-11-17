@@ -29,5 +29,10 @@
     "Repository": "jthingelstad/kubb.thingelstad.xyz",
     "ManagedBy": "cloudformation",
     "Environment": "production"
+  },
+  "pages": {
+    "codeKey": "pages/440f7662b8fd694be90e65a37376547bf1f5d0dba4723afe985a8e266819e21f.zip",
+    "endpointDomain": "7t0zxpdy22vtgxb5.btq.lambda-web.us-east-1.on.aws",
+    "revisionId": "rev-oaczk"
   }
 }
