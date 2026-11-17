@@ -11,7 +11,7 @@
 //       manifest (vendor/engine/engine.json), the manifest, LICENSE and the golden
 //       corpus against vendor/engine.json, and the bundle against the manifest's
 //
-// vendor/engine/ holds the engine's core/, session/, tune/, version.lua, engine.json and
+// vendor/engine/ holds the engine's core/, room/, session/, tune/, version.lua, engine.json and
 // LICENSE, and its golden corpus (tests/golden/drive.lua and hashes.json) as golden/.
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -26,7 +26,7 @@ const pinPath = path.join(root, "vendor", "engine.json");
 const REPOSITORY = "jthingelstad/kubb-engine";
 
 // What is taken from the tag: [path in the engine, path under vendor/engine/].
-const ENGINE_DIRS = ["core", "session", "tune"];
+const ENGINE_DIRS = ["core", "room", "session", "tune"];
 const EXTRA = [
   ["engine.json", "engine.json"],
   ["LICENSE", "LICENSE"],

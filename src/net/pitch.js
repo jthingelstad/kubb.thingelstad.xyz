@@ -3,8 +3,8 @@
 // drives the Game through its seam (docs/CLIENT.md): the seat says who may
 // act here, onAction commits what was done here, applyRemote plays what was
 // done elsewhere, adopt takes the room's snapshot when this browser is out of
-// step. The rules of who acts are src/net/seats.js; the document's reducers
-// src/net/lobby.js; the in-step decision src/net/sync.js.
+// step. The rules of who acts, the document's reducers and the in-step decision are
+// the engine's (vendor/engine/room/), through src/net/seats.js, lobby.js and sync.js.
 import { connect, memberId, RoomError } from "./room.js";
 import {
   lobbyOf,
@@ -22,6 +22,10 @@ import {
   setAccess,
   openListing,
   replayOf,
+  isReplay,
+  startCheck,
+  mayPlay,
+  ENGINE,
 } from "./lobby.js";
 import {
   controlFor,
@@ -51,6 +55,43 @@ export const tune = {
 };
 
 export const SHOUTS = ["NICE!", "OOH!", "TOK!", "UNLUCKY"];
+
+// The seat of a browser that may not play (watching, or an engine the match's is not).
+const NO_CONTROL = Object.freeze({ sides: [], cpu: false });
+const NO_PLAYERS = Object.freeze({ A: [], B: [] });
+
+// Which of two engine versions ("0.3") is newer: > 0 when a is.
+function compareVersions(a, b) {
+  const x = String(a ?? "")
+    .split(".")
+    .map(Number);
+  const y = String(b ?? "")
+    .split(".")
+    .map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] || 0) - (y[i] || 0);
+    if (d) return d;
+  }
+  return 0;
+}
+
+// The card for a member whose engine is not the pitch's (docs/MULTIPLAYER.md "Engines").
+// `theirs`: the pitch's engine (the match's, or the host's before START); null when it
+// names none (an older build).
+export function versionNotice(mine, theirs) {
+  const newer = theirs != null && compareVersions(theirs, mine) > 0;
+  return newer
+    ? {
+        title: "A newer version",
+        text: "This pitch is playing on a newer version of Throwing Wood. Reload to join.",
+        reload: true,
+      }
+    : {
+        title: "An older version",
+        text: "This pitch is playing on an older version of Throwing Wood. Ask the host to reload.",
+        reload: false,
+      };
+}
 
 export function startPitch(env) {
   const p = new Pitch(env);
@@ -111,7 +152,8 @@ export class Pitch {
         url: this.roomsUrl,
         room: this.code,
         member: memberId(),
-        me: { name, level: game.level },
+        // engine: this engine's major.minor, so START can check everyone plays the same
+        me: { name, level: game.level, engine: ENGINE },
         ...(this.WebSocket ? { WebSocket: this.WebSocket } : {}),
       });
     } catch (err) {
@@ -194,6 +236,7 @@ export class Pitch {
     const r = await fetchReplay({
       url: this.roomsUrl,
       code: this.code,
+      check: isReplay,
       ...(this.WebSocket ? { WebSocket: this.WebSocket } : {}),
     });
     this.lastReplay = r;
@@ -360,6 +403,47 @@ export class Pitch {
       status: r.status,
       nameOf: (id) => this.nameOf(id),
     });
+    this.checkHostEngine();
+  }
+
+  // In the lobby, on a team: does the host (who will START) run another engine than
+  // this browser? The engine says (mayPlay against the engine the match would carry);
+  // the card goes up once for each host and engine.
+  checkHostEngine() {
+    const r = this.room;
+    if (r.status !== "open" || r.isHost() || !sideOf(r.doc, r.you)) return;
+    const host = r.members.find((m) => m.id === r.host);
+    const theirs = host?.me?.engine ?? null;
+    const key = `${r.host}:${theirs}`;
+    if (key === this.engineKey) return;
+    this.engineKey = key;
+    const p = mayPlay(ENGINE, { engine: theirs });
+    if (p.ok) return;
+    this.showVersion(p, () => this.lobby.show());
+  }
+
+  // The card for an engine that is not the pitch's (mayPlay's refusal). The pitch can
+  // still be watched: WATCH closes it.
+  showVersion(p, after = null) {
+    const v = versionNotice(ENGINE, p.why === "differs" ? p.match : null);
+    this.note("engine", p.why, p.match ?? null);
+    const close = this.cards.notice({
+      kicker: `PITCH ${this.code}`,
+      title: v.title,
+      text: v.text,
+      actions: [
+        ...(v.reload ? [["RELOAD", () => location.reload(), "go"]] : []),
+        [
+          "WATCH",
+          () => {
+            close();
+            after?.();
+          },
+          v.reload ? "" : "go",
+        ],
+      ],
+      test: "engine-differs",
+    });
   }
 
   // The host forgets members who left the room for good, between matches.
@@ -383,6 +467,15 @@ export class Pitch {
       this.lobby.say("Nobody is on a team yet.");
       return;
     }
+    const ok = startCheck(lu.players, room.members, room.you);
+    if (!ok.ok) {
+      const who = [...ok.differ, ...ok.unknown].map((id) => this.nameOf(id));
+      this.lobby.say(
+        `${who.join(", ")} ${who.length > 1 ? "are" : "is"} on another version of Throwing Wood: reload to play.`,
+      );
+      this.note("start-refused", ok.differ.length, ok.unknown.length);
+      return;
+    }
     const now = new Date();
     const opts = matchOptions(doc, lu, {
       seed: Math.floor(Math.random() * 2 ** 31),
@@ -396,10 +489,11 @@ export class Pitch {
     });
     const n = lobbyOf(doc).n + 1;
     this.match = { players: lu.players, cpu: lu.cpu };
+    this.refused = null;
     this.local = { n, seq: 0 };
     this.mode = "match";
     this.lobby.hide();
-    this.control = controlFor(this.ctx(), this.you);
+    this.control = this.controlHere();
     this.game.seat = this.seatFor(this.control);
     this.game.newMatch(opts);
     const snap = this.game.engine.snapshot();
@@ -413,6 +507,7 @@ export class Pitch {
         cpu: lu.cpu,
         host: room.you,
         setup: opts,
+        members: room.members,
       }),
     );
     this.pending--;
@@ -427,16 +522,29 @@ export class Pitch {
 
   // ---------- the match ----------
 
+  // Who acts now, for the seats (src/net/seats.js): one object while the match, the
+  // host and the members are the same, so the seats' answers are kept between changes
+  // and the render loop never crosses to the engine for them.
   ctx() {
     const r = this.room;
-    return {
-      players: this.match?.players || { A: [], B: [] },
+    const members = r?.members || [];
+    const host = r?.host;
+    const k = this.ctxKey;
+    if (k && k.members === members && k.host === host && k.match === this.match)
+      return k.ctx;
+    const ctx = {
+      players: this.match?.players || NO_PLAYERS,
       cpu: this.match?.cpu ?? null,
-      host: r?.host,
-      connected: new Set(
-        (r?.members || []).filter((m) => m.connected).map((m) => m.id),
-      ),
+      host,
+      connected: members.filter((m) => m.connected).map((m) => m.id),
     };
+    this.ctxKey = { members, host, match: this.match, ctx };
+    return ctx;
+  }
+
+  // This browser's control: none while its engine may not play this match (mayPlay).
+  controlHere() {
+    return this.refused ? NO_CONTROL : controlFor(this.ctx(), this.you);
   }
 
   seatFor(control) {
@@ -444,7 +552,9 @@ export class Pitch {
       sides: control.sides,
       cpu: control.cpu,
       mayAct: (need) =>
-        this.mode === "match" && mayAct(need, this.ctx(), this.you),
+        this.mode === "match" &&
+        !this.refused &&
+        mayAct(need, this.ctx(), this.you),
     };
   }
 
@@ -453,8 +563,8 @@ export class Pitch {
   refreshSeat() {
     const game = this.game;
     if (this.mode !== "match" || game.phase === "play") return;
-    const c = controlFor(this.ctx(), this.you);
-    game.localSide = playingSide(this.ctx(), this.you);
+    const c = this.controlHere();
+    game.localSide = this.refused ? null : playingSide(this.ctx(), this.you);
     if (!sameControl(c, this.control)) {
       const gotCpu = c.cpu && !this.control?.cpu;
       this.control = c;
@@ -478,7 +588,7 @@ export class Pitch {
   // An action taken here: commit the snapshot after it, the action riding
   // along for the others to watch.
   onAction(action, snap, hash) {
-    if (this.mode !== "match" || snap == null) return;
+    if (this.mode !== "match" || this.refused || snap == null) return;
     const n = this.local.n;
     const seq = this.local.seq + 1;
     this.local.seq = seq;
@@ -613,9 +723,15 @@ export class Pitch {
     this.lobby?.hide();
     this.cards.close();
     this.game.shownCards.clear();
-    this.control = controlFor(this.ctx(), this.you);
+    // Check every member before giving out control: a watcher can become host and
+    // run the computer too. A refused engine never takes either side or the CPU.
+    const permission = mayPlay(ENGINE, m);
+    this.refused = permission.ok ? null : permission;
+    this.control = this.controlHere();
     this.game.seat = this.seatFor(this.control);
-    this.game.localSide = playingSide(this.ctx(), this.you);
+    this.game.localSide = this.refused
+      ? null
+      : playingSide(this.ctx(), this.you);
     this.game.adopt(m.snap);
     // a match that had ended before replays has no `over`: the engine says so, after
     // the winner card went up, so it goes up again as an arrival's (with any replay
@@ -625,7 +741,8 @@ export class Pitch {
       if (this.game.need?.kind === "over") this.onNeed(this.game.need);
     }
     this.note("start", m.n, m.seq);
-    if (!this.game.localSide) {
+    if (this.refused) this.showVersion(this.refused);
+    else if (!this.game.localSide) {
       this.watchNoteUntil = Date.now() + tune.watchNoteMs;
     }
     this.afterEnter();
@@ -645,6 +762,7 @@ export class Pitch {
   toLobby() {
     this.mode = "lobby";
     this.match = null;
+    this.refused = null;
     this.local = { n: null, seq: 0 };
     this.queue.length = 0;
     this.control = null;
@@ -686,6 +804,7 @@ export class Pitch {
     const r = await fetchReplay({
       url: this.roomsUrl,
       code: this.code,
+      check: isReplay,
       ...(this.WebSocket ? { WebSocket: this.WebSocket } : {}),
     });
     const still =
@@ -781,7 +900,7 @@ export class Pitch {
     const ctx = this.ctx();
     const actor = shownActor(need, ctx);
     if (actor === "cpu") return { text: "COMPUTER THROWS", mine: false };
-    const mine = mayAct(need, ctx, this.you);
+    const mine = !this.refused && mayAct(need, ctx, this.you);
     const up = (s) => s.toUpperCase();
     if (need.kind === "throw") {
       const owner = need.setup?.thrower?.key;

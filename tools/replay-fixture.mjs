@@ -1,6 +1,6 @@
 // tests/fixtures/replay-north-south.json: a kept replay (src/net/lobby.js replayOf) of a
 // whole computer-against-computer match, North against South (South topples the king in
-// turn 18 under kubb-engine 0.2.0; the tests read "South 1, North 0"), played through this
+// turn 18 under kubb-engine 0.2.0 and 0.3.0; the tests read "South 1, North 0"), played through this
 // checkout's engine. The embed and pitch pages tests serve it; tests/engine/fixtures
 // fails when the engine no longer plays it to the hashes it carries. After an engine
 // change that moves hashes (a new minor version), write it again, and if South no
@@ -11,7 +11,7 @@
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Engine } from "../src/engine/index.js";
-import { replayOf } from "../src/net/lobby.js";
+import { replayOf, useRoomEngine } from "../src/net/lobby.js";
 import { bundleLua } from "./lua-bundle.mjs";
 
 export const FIXTURE = "tests/fixtures/replay-north-south.json";
@@ -30,6 +30,7 @@ export const SETUP = {
 // The match played to its end: the replay as the rooms table keeps it, as text.
 export async function playFixture(sources = bundleLua()) {
   const engine = await Engine.create({ sources });
+  useRoomEngine(engine);
   engine.newMatch(SETUP);
   const h0 = engine.hash().hash;
   const log = [];

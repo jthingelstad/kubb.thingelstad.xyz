@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { asciiJson, LIMITS } from "../../backend/rooms/core.mjs";
 import { memoryStore } from "../../backend/rooms/memory-store.mjs";
 import { Engine } from "../../src/engine/index.js";
+import "./room-engine.mjs";
 import { isReplay } from "../../src/net/lobby.js";
 import {
   checkReplay,

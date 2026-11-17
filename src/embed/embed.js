@@ -21,6 +21,7 @@
 import { h } from "../ui/dom.js";
 import { ReplayPlayer } from "../replay/player.js";
 import { fetchReplay } from "../replay/fetch.js";
+import { isReplay } from "../net/lobby.js";
 
 export const embedTune = {
   visible: 0.5, // the share of the frame in view for the replay to play
@@ -100,7 +101,11 @@ export async function startEmbed({
   // a rematch's lobby: the pitch is waiting, whatever the last match left kept
   if (s?.state === "waiting")
     return quiet("Waiting for players", null, "waiting");
-  const fetched = roomsUrl ? await fetch({ url: roomsUrl, code }) : null;
+  // checked once the engine is here (the check is the engine's): fetched first, so a
+  // pitch with nothing kept never loads it
+  const fetched = roomsUrl
+    ? await fetch({ url: roomsUrl, code, check: null })
+    : null;
   // a finished match plays only its own replay: a rematch that could not be kept
   // leaves the one before it in the room (src/net/pitch.js lookForKept)
   const m = s?.state === "over" ? s.match : null;
@@ -114,6 +119,11 @@ export async function startEmbed({
   }
 
   const game = await makeGame();
+  if (!isReplay(data)) {
+    game.stop?.();
+    if (s?.state === "over" && s.final) return quiet(s.final, null, "over");
+    return quiet("No match here", null, "none");
+  }
   const player = new ReplayPlayer({ game, root: ui, data, embedded: true });
   player.start();
   // still until it is seen: the observer says at once whether it is

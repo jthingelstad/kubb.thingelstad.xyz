@@ -10,6 +10,7 @@ import {
   listingKey,
 } from "../../backend/rooms/core.mjs";
 import { memoryStore } from "../../backend/rooms/memory-store.mjs";
+import "./room-engine.mjs";
 import { SEATS, lobbyOf, openListing, setAccess } from "../../src/net/lobby.js";
 
 const T0 = 1_700_000_000_000;
