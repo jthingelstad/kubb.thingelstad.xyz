@@ -613,6 +613,13 @@ export class Pitch {
     this.game.seat = this.seatFor(this.control);
     this.game.localSide = playingSide(this.ctx(), this.you);
     this.game.adopt(m.snap);
+    // a match that had ended before replays has no `over`: the engine says so, after
+    // the winner card went up, so it goes up again as an arrival's (with any replay
+    // the room keeps for it)
+    if (!m.over && this.game.engine.need().kind === "over") {
+      this.arrivedOver = m.n;
+      if (this.game.need?.kind === "over") this.onNeed(this.game.need);
+    }
     this.note("start", m.n, m.seq);
     if (!this.game.localSide) {
       this.watchNoteUntil = Date.now() + tune.watchNoteMs;
@@ -663,8 +670,31 @@ export class Pitch {
       return;
     }
     this.overNeed = null;
-    const host = this.room.isHost();
     const arrived = this.arrivedOver === this.local.n;
+    this.winnerCard(need, m, data, arrived);
+    // a match whose document carries no replay (it ended before replays) may still have
+    // one the room keeps, set down after it was played (tools/backfill-replay.mjs):
+    // offered when it is this match and ends on the very snapshot the room holds
+    if (!data && arrived && m) this.lookForKept(need, m);
+  }
+
+  async lookForKept(need, m) {
+    const r = await fetchReplay({
+      url: this.roomsUrl,
+      code: this.code,
+      ...(this.WebSocket ? { WebSocket: this.WebSocket } : {}),
+    });
+    const still =
+      this.mode === "match" &&
+      this.local.n === m.n &&
+      this.game.need?.kind === "over";
+    if (!r || !still || r.n !== m.n || r.snap !== m.snap) return;
+    this.note("kept", m.n);
+    this.winnerCard(need, m, r, true);
+  }
+
+  winnerCard(need, m, data, arrived) {
+    const host = this.room.isHost();
     this.cards.winner(need, {
       rematch: host ? () => this.rematch() : null,
       sheet: this.sheet,

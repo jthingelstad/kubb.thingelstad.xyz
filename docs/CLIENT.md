@@ -219,7 +219,8 @@ replay of the match."). A replay is not a video: the match is set out again from
 current engine. What the pitch keeps is `docs/MULTIPLAYER.md` "The document"; where it is
 stored, `docs/ROOMS.md` section 10.
 
-- **The engine.** `engine.replayLoad(data)` sets the replay out in a session that belongs
+- **The engine.** `engine.replayLoad(data)` sets the replay out from its `setup` (the `newMatch` options),
+  or from `start`, the match's first snapshot, for one kept after it was played, in a session that belongs
   to nobody: no side and not the computer. While it is loaded `apply` and `setControl`
   are refused ("a replay is read only") and frames run the aim but never throw.
   `replayStep()` takes the next logged action (`{ ok, recording, need, action, replay }`),

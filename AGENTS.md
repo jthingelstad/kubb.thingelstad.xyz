@@ -182,7 +182,10 @@ noted and it plays on.
 - Anyone can fetch a kept replay by its code without joining (`{ t: "replay", room }`,
   `src/replay/fetch.js`); `startReplay({ code, game, root })` needs nothing of the pitch
   page, so an embed or a share image can build on the two.
-- Replays are never served from the private games bucket.
+- Replays are never served from the private games bucket. A match from before replays
+  can be given one from its records, one room at a time and only with Jamie's go:
+  `node tools/backfill-replay.mjs --room <code>` (dry run, the hash agreement) and
+  `--write` (as `cloud-engineer`); `docs/ROOMS.md` section 10.
 
 ## Score sheet
 

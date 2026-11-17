@@ -138,12 +138,14 @@ export class Engine {
   }
 
   // ---- a replay (lua/web/replay.lua) ----
-  // data: { setup, h0, log: [{ a, h }] } (src/net/lobby.js replayOf). Every result
+  // data: { setup, h0, log: [{ a, h }] } (src/net/lobby.js replayOf), or `start` (the
+  // match's first snapshot) in place of `setup` (tools/backfill-replay.mjs). Every result
   // carries `replay`: { i, total, turn, thrown, throws, differs, done }. While a
   // replay is loaded every action from outside is refused; new or restore ends it.
   replayLoad(data) {
     return this.call("replayLoad", {
-      setup: data.setup,
+      setup: data.start ? undefined : data.setup,
+      start: data.start ?? undefined,
       h0: data.h0 ?? undefined,
       log: data.log,
     });
