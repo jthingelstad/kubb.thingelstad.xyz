@@ -916,6 +916,96 @@ body.game {
   }
 }
 
+/* ---------- a replay (src/replay/player.js) ---------- */
+
+/* the controls along the bottom, the score sheet down the right */
+.replay-bar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 12px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: max-content;
+  max-width: calc(100% - 24px - var(--safe-left) - var(--safe-right));
+  padding: 8px 10px 10px;
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+}
+.replay-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.replay-kicker {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 18px;
+  line-height: 1;
+}
+.replay-count {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.replay-note {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #7a3b00;
+}
+.replay-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.replay-speeds {
+  display: inline-flex;
+  gap: 4px;
+}
+.replay-controls .btn[aria-pressed="true"][data-speed] {
+  background: var(--ink);
+  color: var(--paper);
+}
+.replay-sheet {
+  position: absolute;
+  top: calc(var(--safe-top) + 64px);
+  right: calc(var(--safe-right) + 12px);
+  width: min(300px, 32vw);
+  max-height: calc(100% - 64px - 150px - var(--safe-top) - var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px 10px;
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+}
+.replay-sheet-text {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 6px 0 0;
+  overflow: auto;
+  font: 500 12px/1.45 var(--jt-font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+/* the advantage line and the shouts give the bottom to the replay */
+.replaying .adv,
+.replaying .shout-bar {
+  display: none;
+}
+.teams-line {
+  font-weight: 700;
+}
+
 /* ---------- a tall screen (a phone held upright) ---------- */
 
 @media (max-aspect-ratio: 20/21) {
@@ -1008,6 +1098,17 @@ body.game {
 }
 
 @media (max-width: 420px) {
+  .replay-bar {
+    left: calc(var(--safe-left) + 12px);
+    right: calc(var(--safe-right) + 12px);
+    transform: none;
+    width: auto;
+    max-width: none;
+  }
+  .replay-sheet {
+    left: calc(var(--safe-left) + 12px);
+    width: auto;
+  }
   .teams {
     gap: 6px;
   }

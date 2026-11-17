@@ -25,6 +25,11 @@
 //                       the computer) for good (recorder.mjs). entry = { t, game }; game
 //                       is JSON text. Without it a `game` message is answered `unavailable`.
 //
+// Replays (docs/ROOMS.md section 10) use two more; a store without them keeps none:
+//   putReplay(code, { v, t, data, exp }) kept only when no unexpired replay of this room
+//                       has this v or a later one; data is JSON text
+//   getReplay(code) -> { v, t, data, exp } | null
+//
 // The open games list (docs/ROOMS.md section 9) uses three more store methods; a store
 // without them lists nothing:
 //   putListing(code, entry)  entry = { made, rev, listed, players?, seats?, state?, exp },
@@ -49,6 +54,8 @@ export const LIMITS = Object.freeze({
   castBurst: 20, // ... after a burst of this many
   hostGraceMs: 15_000, // how long the host must be away before host can be claimed
   roomTtl: 48 * 3600, // seconds a room and its document outlive their last write
+  keepTtl: 365 * 24 * 3600, // seconds a kept room (a finished match: `keep`) lives on
+  replayBytes: 256 * 1024, // a kept replay, as ASCII JSON
   connTtl: 3 * 3600, // seconds a connection record lives (connections last 2 hours)
   partTtl: 600, // seconds an unfinished upload is kept
   reportBytes: 64 * 1024, // a whole `report` message, as ASCII JSON
@@ -263,6 +270,10 @@ export function createRooms({
   const listing = typeof store.putListing === "function";
 
   const expiry = (seconds) => Math.floor(now() / 1000) + seconds;
+  // A room lives roomTtl after its last write, or until its `keep` runs out if that is
+  // later (a finished match's room is kept a year: docs/ROOMS.md section 10).
+  const roomExpiry = (room) =>
+    Math.max(expiry(limits.roomTtl), room?.keep?.until ?? 0);
 
   const publicLimits = {
     members: limits.members,
@@ -323,7 +334,7 @@ export function createRooms({
       if (!out.room) return out;
       const prev = current ? current.rev : 0;
       out.room.rev = prev + 1;
-      out.room.exp = expiry(limits.roomTtl);
+      out.room.exp = roomExpiry(out.room);
       if (await store.putRoom(code, out.room, prev)) {
         await syncListing(code, current, out.room);
         return out;
@@ -398,6 +409,69 @@ export function createRooms({
       }
       return { room };
     });
+  }
+
+  // A match has ended: keep its replay, the room and its document a year (docs/ROOMS.md
+  // section 10). `replay` is the game's, opaque here (at most replayBytes as ASCII JSON),
+  // stored beside the document for the version the room holds now. Saying it again for a
+  // version already kept changes nothing, so a finished room is kept a year from the end
+  // of its match, not from its last visit, and an older match never replaces a newer one.
+  async function keepRoom(conn, who, msg) {
+    if (!isObject(msg.replay))
+      throw new RoomError("bad-message", "`replay` must be an object.");
+    const data = asciiJson(msg.replay);
+    if (data.length > limits.replayBytes)
+      throw new RoomError(
+        "too-big",
+        `A replay is limited to ${limits.replayBytes} bytes.`,
+      );
+    member(await store.getRoom(who.room), who, conn);
+    const stored = await store.getDoc(who.room);
+    if (!stored || !stored.v)
+      throw new RoomError("bad-message", "There is nothing to keep yet.");
+    const until = expiry(limits.keepTtl);
+    if (typeof store.putReplay === "function")
+      await store.putReplay(who.room, {
+        v: stored.v,
+        t: now(),
+        data,
+        exp: until,
+      });
+    const { room } = await mutate(who.room, (room) => {
+      member(room, who, conn);
+      if ((room.keep?.v ?? 0) >= stored.v) return { room: null };
+      room.keep = { v: stored.v, until };
+      return { room };
+    });
+    if (room) await store.touchDoc(who.room, room.exp);
+  }
+
+  // A pitch's kept replay, by its code, on any connection (no join: the replay player can
+  // fetch it without the pitch page's socket). Answered with `replay: null` when there is
+  // none: a room never kept (a match in play, a match from before replays) or long gone.
+  async function getReplay(conn, msg) {
+    const id = msg.id ?? null;
+    if (typeof msg.room !== "string" || !ROOM_CODE.test(msg.room))
+      throw new RoomError("bad-room", "That is not a room code.", { id });
+    let item = null;
+    if (typeof store.getReplay === "function") {
+      try {
+        item = await store.getReplay(msg.room);
+      } catch (error) {
+        console.error("replay read failed", error?.name, error?.message);
+      }
+    }
+    const head = asciiJson({
+      t: "replay",
+      id,
+      room: msg.room,
+      v: item?.v ?? 0,
+      at: item?.t ?? null,
+    });
+    await post(
+      conn,
+      `${head.slice(0, -1)},"replay":${item ? item.data : "null"}}`,
+    );
   }
 
   async function list(conn, msg) {
@@ -633,7 +707,8 @@ export function createRooms({
         { id },
       );
     }
-    member(await store.getRoom(who.room), who, conn);
+    const before = await store.getRoom(who.room);
+    member(before, who, conn);
 
     const v = base + 1;
     const next = {
@@ -641,7 +716,7 @@ export function createRooms({
       doc,
       by: who.member,
       sid: id === null ? null : String(id),
-      exp: expiry(limits.roomTtl),
+      exp: roomExpiry(before),
     };
     if (await store.putDoc(who.room, next, base)) {
       const t = now(); // the record's time, taken before anything else is awaited
@@ -847,6 +922,7 @@ export function createRooms({
       if (msg.t === "report") return await report(conn, msg, bytes);
       if (msg.t === "game") return await game(conn, msg, bytes);
       if (msg.t === "list") return await list(conn, msg);
+      if (msg.t === "replay") return await getReplay(conn, msg);
       if (msg.t === "join") return await join(conn, msg);
       const who = await store.getConn(conn);
       if (!who) throw new RoomError("not-joined", "Join the room first.");
@@ -863,6 +939,8 @@ export function createRooms({
           return await leave(conn, who);
         case "open":
           return await setOpen(conn, who, msg);
+        case "keep":
+          return await keepRoom(conn, who, msg);
         default:
           throw new RoomError(
             "bad-message",

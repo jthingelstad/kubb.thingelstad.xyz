@@ -1,0 +1,464 @@
+// A finished match played again on the Game (docs/CLIENT.md "Replays"; Jamie,
+// 2026-11-16: "When a game is finished playing on a pitch I'd like the URL to allow
+// people to come and watch a replay of the match."). Not a video: the engine sets the
+// match out from its options and plays each committed action in turn
+// (lua/web/replay.lua), the same throws with the same physics, drawn as any match is.
+//
+//   const p = await startReplay({ game, root, code, url });     // by a pitch's code
+//   const p = new ReplayPlayer({ game, root, data }); p.start(); // a replay in hand
+//   p.destroy();                                                 // the Game as it was
+//
+// Self-contained on purpose: it takes a Game and an element to put its controls in, and
+// nothing from the pitch page (no lobby, no room socket, no menu unless one is given),
+// so an embed can play a pitch's match with a Game, a root and the code.
+//
+// `data` is a replay (src/net/lobby.js replayOf): { setup, h0, log, snap, ... }.
+// Options: home (HOME on the end card), close (BACK TO THE PITCH on the bar and the end
+// card; without it there is no way back but HOME), menu (MENU's View follows the
+// replay's view while it plays), onEnd (the end card is shown).
+//
+// What it shows: the wide view by default (THROWER'S VIEW / WIDE VIEW switches, the
+// "watchView" pref and the V key, as watching the computer does); PLAY / PAUSE (space),
+// NEXT THROW, BACK (the start of the previous turn), 1x / 2x / 4x; TURN t · THROW x OF y
+// and the score sheet beside the pitch; at the end the winner card with REPLAY AGAIN and
+// HOME. Read only: nothing here sends anything, and the engine refuses every action
+// from outside while the replay is loaded.
+import { h, button } from "../ui/dom.js";
+import { prefs } from "../game/prefs.js";
+import { openSheet } from "../ui/sheet.js";
+import { fetchReplay } from "./fetch.js";
+
+export const replayTune = {
+  throwAfter: 1.2, // s a person stands before their throw is played
+  cpuMost: 6, // s at most for the computer's swing to reach its release
+  otherAfter: 0.8, // s before a raise or a punishment kubb
+  overAfter: 0.6, // s after the last action before the end card
+  speeds: [1, 2, 4],
+  sheetWide: 900, // px: the score sheet is open beside the pitch from this width
+};
+
+export const DIFFERS = "This replay may differ from the match as played.";
+
+const VIEWS = { wide: "WIDE VIEW", thrower: "THROWER'S VIEW" };
+
+// Fetch a pitch's kept replay and play it. Resolves the player, or null when the pitch
+// keeps none (the caller says so: a match from before replays, a room long gone).
+export async function startReplay({ code, url, data = null, ...opts }) {
+  const r = data ?? (await fetchReplay({ url, code }));
+  if (!r) return null;
+  const p = new ReplayPlayer({ ...opts, data: r });
+  p.start();
+  return p;
+}
+
+const NOBODY = Object.freeze({
+  sides: [],
+  cpu: false,
+  mayAct: () => false,
+});
+
+// The status pill in a replay: who acts, by the names the players typed.
+function whoActs(need) {
+  if (!need || need.kind === "over") return null;
+  const up = (x) => String(x || "").toUpperCase();
+  const team = up(
+    need.team || need.teams?.[need.side] || `TEAM ${need.side || ""}`,
+  );
+  if (need.kind === "throw") {
+    if (need.cpu) return { text: "COMPUTER THROWS", mine: false };
+    const name = need.setup?.thrower?.name;
+    return { text: `${up(name) || team} THROWS`, mine: false };
+  }
+  if (need.kind === "raise") return { text: `${team} RAISES`, mine: false };
+  if (need.kind === "punish")
+    return { text: `${team} PLACES A KUBB`, mine: false };
+  return null;
+}
+
+export class ReplayPlayer {
+  constructor({
+    game,
+    root,
+    data,
+    home = null,
+    close = null,
+    menu = null,
+    onEnd = null,
+  }) {
+    Object.assign(this, { game, root, data, home, close, menu, onEnd });
+    this.playing = true;
+    this.speed = 1;
+    this.wait = 0;
+    this.waitCpu = false;
+    this.single = false; // NEXT THROW while paused: this one throw plays
+    this.ended = false;
+    this.info = null;
+    this.saved = null;
+    this.onKey = (e) => this.key(e);
+  }
+
+  // ---------- starting and stopping ----------
+
+  start() {
+    const g = this.game;
+    this.saved = {
+      seat: g.seat,
+      onNeed: g.onNeed,
+      onAction: g.onAction,
+      whoActs: g.whoActs,
+      localSide: g.localSide,
+      zen: g.zen,
+      onWide: g.onWide,
+      wideWanted: g.wideWanted,
+      view: this.menu?.hooks.view ?? null,
+    };
+    g.cards?.close();
+    g.seat = NOBODY;
+    g.onAction = null;
+    g.whoActs = whoActs;
+    g.localSide = null;
+    g.zen = null;
+    g.noCards = true;
+    g.onNeed = (n) => this.onNeed(n);
+    g.driver = (dt) => this.drive(dt);
+    g.onWide = () => this.renderView();
+    this.build();
+    if (this.menu)
+      this.menu.hooks.view = {
+        get: () => this.chosen(),
+        set: (v) => this.choose(v),
+      };
+    window.addEventListener("keydown", this.onKey);
+    g.setWide(this.chosen() === "wide");
+    this.load();
+  }
+
+  // Set the match out from its start and play.
+  load() {
+    const g = this.game;
+    g.cards?.close();
+    const v = g.engine.replayLoad(this.data);
+    this.info = v.replay;
+    this.ended = false;
+    this.restored = false;
+    this.single = false;
+    this.setPlaying(true);
+    this.show(v);
+  }
+
+  destroy() {
+    const g = this.game;
+    if (!this.saved) return;
+    window.removeEventListener("keydown", this.onKey);
+    g.driver = null;
+    g.frozen = false;
+    g.timeScale = 1;
+    g.noCards = false;
+    g.play = null;
+    g.queue.length = 0;
+    try {
+      g.engine.replayEnd();
+    } catch {
+      // the engine has gone: nothing to end
+    }
+    const s = this.saved;
+    this.saved = null;
+    Object.assign(g, {
+      seat: s.seat,
+      onNeed: s.onNeed,
+      onAction: s.onAction,
+      whoActs: s.whoActs,
+      localSide: s.localSide,
+      zen: s.zen,
+      onWide: s.onWide,
+    });
+    if (this.menu) this.menu.hooks.view = s.view;
+    g.cards?.close();
+    this.bar?.remove();
+    this.panel?.remove();
+    this.root.classList.remove("replaying");
+    g.setWide(s.wideWanted);
+  }
+
+  // ---------- the controls ----------
+
+  build() {
+    this.count = h("p.replay-count", { "data-test": "replay-count" });
+    this.note = h(
+      "p.replay-note",
+      { "data-test": "replay-differs", hidden: true },
+      DIFFERS,
+    );
+    this.playBtn = button("PAUSE", () => this.toggle(), "small", {
+      "data-test": "replay-play",
+      "aria-pressed": "true",
+    });
+    this.speedBtns = replayTune.speeds.map((x) =>
+      button(`${x}x`, () => this.setSpeed(x), "small", {
+        "data-speed": x,
+        "aria-pressed": String(x === this.speed),
+      }),
+    );
+    this.viewBtn = button(VIEWS.thrower, () => this.toggleView(), "small", {
+      "data-test": "replay-view",
+      title: "Switch the view (V)",
+    });
+    this.sheetBtn = button("SHEET", () => this.toggleSheet(), "small", {
+      "data-test": "replay-sheet-toggle",
+    });
+    this.bar = h(
+      "div.replay-bar",
+      { "data-test": "replay-bar" },
+      h("div.replay-head", h("span.replay-kicker", "REPLAY"), this.count),
+      this.note,
+      h(
+        "div.replay-controls",
+        button("BACK", () => this.back(), "small", {
+          "data-test": "replay-back",
+          title: "The start of the previous turn",
+        }),
+        this.playBtn,
+        button("NEXT THROW", () => this.next(), "small", {
+          "data-test": "replay-next",
+        }),
+        h("span.replay-speeds", this.speedBtns),
+        this.viewBtn,
+        this.sheetBtn,
+        this.close
+          ? button("BACK TO THE PITCH", () => this.close(), "small", {
+              "data-test": "replay-close",
+            })
+          : null,
+      ),
+    );
+    this.sheetText = h("pre.replay-sheet-text", {
+      "data-test": "replay-sheet",
+    });
+    this.panel = h(
+      "aside.replay-sheet",
+      { "aria-label": "The score sheet" },
+      h("p.kicker", "SCORE SHEET"),
+      this.sheetText,
+    );
+    this.panel.hidden = window.innerWidth < replayTune.sheetWide;
+    this.root.append(this.panel, this.bar);
+    this.root.classList.add("replaying");
+  }
+
+  setPlaying(on) {
+    this.playing = on;
+    this.game.frozen = !on && !this.single;
+    this.playBtn.textContent = on ? "PAUSE" : "PLAY";
+    this.playBtn.setAttribute("aria-pressed", String(on));
+  }
+
+  toggle() {
+    if (this.ended) return this.load();
+    this.single = false;
+    this.setPlaying(!this.playing);
+  }
+
+  setSpeed(x) {
+    this.speed = x;
+    this.game.timeScale = x;
+    for (const b of this.speedBtns)
+      b.setAttribute("aria-pressed", String(Number(b.dataset.speed) === x));
+  }
+
+  toggleSheet() {
+    this.panel.hidden = !this.panel.hidden;
+    if (!this.panel.hidden) this.renderSheet();
+  }
+
+  chosen() {
+    return prefs.get("watchView", "wide") === "thrower" ? "thrower" : "wide";
+  }
+
+  choose(v) {
+    prefs.set("watchView", v);
+    this.game.setWide(v === "wide");
+  }
+
+  toggleView() {
+    this.choose(this.chosen() === "wide" ? "thrower" : "wide");
+  }
+
+  renderView() {
+    const label = this.game.wide ? VIEWS.thrower : VIEWS.wide;
+    if (this.viewBtn.textContent !== label) this.viewBtn.textContent = label;
+    // a window too small for the wide view shows the thrower's: no switch
+    this.viewBtn.hidden = this.chosen() === "wide" && !this.game.wide;
+  }
+
+  key(e) {
+    if (this.game.modal || e.repeat) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target instanceof HTMLInputElement) return;
+    if (e.code === "KeyV") this.toggleView();
+    else if (e.code === "Space") this.toggle();
+    else return;
+    e.preventDefault();
+  }
+
+  render() {
+    const i = this.info;
+    if (!i) return;
+    const shown = Math.max(1, Math.min(i.throws, i.thrown));
+    this.count.textContent = `TURN ${i.turn}  ·  THROW ${i.throws ? shown : 0} OF ${i.throws}`;
+    this.note.hidden = !i.differs;
+    if (!this.panel.hidden) this.renderSheet();
+  }
+
+  renderSheet() {
+    let s = null;
+    try {
+      s = this.game.engine.sheet();
+    } catch {
+      return;
+    }
+    if (!s || typeof s.text !== "string") return;
+    const lines = Array.isArray(s.shown)
+      ? s.shown
+      : s.text.replace(/\n$/, "").split("\n");
+    const text = lines.join("\n");
+    if (this.sheetText.textContent === text) return;
+    this.sheetText.textContent = text;
+    this.sheetText.scrollTop = this.sheetText.scrollHeight;
+  }
+
+  // ---------- playing ----------
+
+  // The Game's view after a step or a jump.
+  show(v) {
+    const g = this.game;
+    g.play = null;
+    g.queue.length = 0;
+    g.result = null;
+    g.mode = "match";
+    g.phase = "idle";
+    g.shownCards.clear();
+    g.enter(v);
+    this.render();
+  }
+
+  // Each time the Game takes a new need: how long before the next action.
+  onNeed(n) {
+    this.render();
+    if (n.kind === "over") {
+      this.waitCpu = false;
+      this.wait = replayTune.overAfter;
+      return;
+    }
+    if (this.single && this.game.phase !== "play") {
+      // NEXT THROW while paused: the throw has played; hold here
+      this.single = false;
+      this.setPlaying(false);
+    }
+    const next = this.data.log[this.info.i];
+    this.waitCpu = false;
+    if (!next) this.wait = replayTune.overAfter;
+    else if (next.a.type === "throw") {
+      this.waitCpu = !!n.cpu;
+      this.wait = this.waitCpu ? replayTune.cpuMost : replayTune.throwAfter;
+    } else this.wait = replayTune.otherAfter;
+  }
+
+  // From the Game's tick, with its dt (already at the replay's speed, 0 when paused).
+  drive(dt) {
+    const g = this.game;
+    if (this.ended || g.phase === "play" || g.modal) return;
+    if (!this.playing && !this.single) return;
+    if (this.info.done) {
+      this.wait -= dt;
+      if (this.wait <= 0) this.finish();
+      return;
+    }
+    this.wait -= dt;
+    // the computer's swing runs in the engine until it holds at its release
+    if (this.waitCpu && this.wait > 0 && g.engine.replayInfo().held)
+      this.wait = 0;
+    if (this.wait <= 0) this.step();
+  }
+
+  // The next action in the log.
+  step() {
+    const g = this.game;
+    const r = g.engine.replayStep();
+    this.info = r.replay;
+    if (r.recording) {
+      g.startPlayback(r.recording, false);
+      this.render();
+    } else g.enter(g.engine.view());
+  }
+
+  // NEXT THROW: the throw playing now to its end, then the next throw (with any raise
+  // or punishment kubb before it) played; when paused it plays and holds after.
+  next() {
+    const g = this.game;
+    if (this.ended) return;
+    if (g.phase === "play") {
+      g.skip();
+      g.endPlayback();
+    }
+    while (!this.info.done) {
+      const e = this.data.log[this.info.i];
+      this.step();
+      if (e.a.type === "throw" || this.ended) break;
+    }
+    if (!this.playing && g.phase === "play") {
+      this.single = true;
+      g.frozen = false;
+    }
+    if (this.info.done && g.phase !== "play") this.wait = 0;
+  }
+
+  // BACK: the start of the previous turn (the start of the match from the first).
+  back() {
+    const g = this.game;
+    if (this.ended) {
+      g.cards?.close();
+      this.ended = false;
+      // the match's own end was shown (the replay went another way): start again
+      if (this.restored) return this.load();
+    }
+    this.single = false;
+    const v = g.engine.replayBack();
+    this.info = v.replay;
+    this.show(v);
+  }
+
+  // The last action has played: the result, as the match ended.
+  finish() {
+    const g = this.game;
+    this.ended = true;
+    this.single = false;
+    this.setPlaying(false);
+    g.frozen = false;
+    let need = g.need;
+    if (this.info.differs || need?.kind !== "over") {
+      // this engine went another way: the result is the match's own
+      try {
+        this.restored = true;
+        g.engine.replayEnd();
+        const v = g.engine.restore(this.data.snap);
+        g.onNeed = null;
+        this.show(v);
+        need = v.need;
+      } finally {
+        g.onNeed = (n) => this.onNeed(n);
+      }
+    }
+    this.render();
+    g.cards?.winner(need, {
+      replay: () => this.load(),
+      replayLabel: "REPLAY AGAIN",
+      first: true,
+      rematch: null,
+      home: this.home ?? (() => (location.href = "/")),
+      back: this.close,
+      sheet: () => openSheet(this.root, { game: g }),
+      note: this.info.differs ? DIFFERS : null,
+    });
+    this.onEnd?.();
+  }
+}

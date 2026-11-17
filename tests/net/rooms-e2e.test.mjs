@@ -242,3 +242,55 @@ test("a join that cannot succeed rejects ready and closes", async () => {
   await assert.rejects(r.ready, (e) => e.code === "bad-member");
   assert.equal(r.status, "closed");
 });
+
+test("a kept replay comes back by its code on a socket of its own, in frames", async () => {
+  const { fetchReplay } = await import("../../src/replay/fetch.js");
+  const code = makeRoomCode();
+  const a = join(code, memberId(), "Ann");
+  await a.ready;
+  assert.equal(
+    await fetchReplay({ url: server.url, code }),
+    null,
+    "nothing kept",
+  );
+  await a.update(() => ({ started: true, match: { over: true } }));
+  const replay = {
+    v: 1,
+    n: 1,
+    setup: { seed: 3 },
+    h0: "00c0ffee",
+    log: Array.from({ length: 300 }, (_, i) => ({
+      a: { type: "throw", i, pad: "z".repeat(300) },
+      h: "abcdef01",
+    })),
+    snap: '{"x":3.0}',
+    hash: "abcdef01",
+    players: { A: [{ id: "m", name: "Ann" }], B: [] },
+    cpu: "B",
+  };
+  assert.ok(JSON.stringify(replay).length > FRAME_MAX * 2);
+  assert.ok(a.keep(replay));
+  // keep has no answer: ask until the room has it
+  let got = null;
+  for (let i = 0; i < 50 && !got; i++) {
+    got = await fetchReplay({ url: server.url, code });
+    if (!got) await new Promise((r) => setTimeout(r, 20));
+  }
+  assert.ok(got, "kept and fetched");
+  assert.equal(got.log.length, 300);
+  assert.equal(got.snap, '{"x":3.0}', "the snapshot text untouched");
+  assert.deepEqual(
+    { ...got, at: undefined, kept: undefined },
+    {
+      ...replay,
+      at: undefined,
+      kept: undefined,
+    },
+  );
+  assert.equal(got.kept, 1);
+  assert.equal(
+    await fetchReplay({ url: server.url, code: makeRoomCode() }),
+    null,
+    "another pitch keeps none",
+  );
+});

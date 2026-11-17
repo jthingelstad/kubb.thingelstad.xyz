@@ -373,6 +373,161 @@ browserTest("one person against the computer through the room", async () => {
   await solo.context().close();
 });
 
+// A finished pitch (docs/CLIENT.md "Replays"): the player's winner card offers WATCH
+// REPLAY; a browser that opens the link after the end gets the result with WATCH REPLAY
+// as its main action, plays the match again through its own engine (read only) to the
+// same end, and goes back to the pitch; after REMATCH the lobby offers the last match.
+browserTest("a finished pitch plays its match again", async () => {
+  const code = makeRoomCode();
+  const solo = await join(code, "Ada");
+  await solo.click("[data-test=join-B]");
+  await waitFor(solo, () =>
+    document.querySelector(".team-a")?.textContent.includes("computer"),
+  );
+  await solo.click("[data-test=lobby-start]");
+  await waitFor(solo, () => window.__kubb.pitch.state().mode === "match");
+  const deadline = Date.now() + 90000;
+  let mine = false;
+  while (Date.now() < deadline && !mine) {
+    await settle(solo);
+    const s = await pst(solo);
+    mine = s.mayAct && s.phase === "aim";
+    if (!mine) await solo.waitForTimeout(100);
+  }
+  assert.ok(mine, "the person's throw");
+  await myThrow(solo);
+  await throwOnce(solo);
+  await inStep([solo]);
+  await waitFor(solo, () => window.__kubb.game.phase !== "play");
+  await solo.evaluate(() => window.__kubb.game.resign("B"));
+  await waitFor(solo, () => !!document.querySelector("[data-test=winner]"));
+  const played = await pst(solo);
+  // the player: REMATCH leads, WATCH REPLAY beside it
+  await waitFor(
+    solo,
+    () => !!document.querySelector("[data-test=watch-replay]"),
+  );
+  assert.equal(
+    await solo.getAttribute("[data-test=rematch]", "data-default"),
+    "",
+  );
+  // the room was told to keep it
+  await waitFor(solo, () =>
+    window.__kubb.pitch.log.some((e) => e[1] === "keep"),
+  );
+
+  // a visitor after the end
+  const late = await join(code, "Vic", "desktop", { lobby: false });
+  await waitFor(late, () => !!document.querySelector("[data-test=winner]"));
+  assert.equal(
+    await late.getAttribute("[data-test=watch-replay]", "data-default"),
+    "",
+    "WATCH REPLAY is the main action",
+  );
+  assert.match(await late.textContent("[data-test=winner-teams]"), /Ada/);
+  await shot(late, "replay-arrived");
+  await late.click("[data-test=watch-replay]");
+  await late.waitForSelector("[data-test=replay-bar]");
+  assert.equal((await pst(late)).mode, "replay");
+  // read only: the engine refuses an action from outside
+  const refused = await late.evaluate(() => {
+    try {
+      window.__kubb.engine.apply({ type: "resign", side: "A" });
+      return "taken";
+    } catch (e) {
+      return String(e.message);
+    }
+  });
+  assert.match(refused, /read only/);
+  // pause, then NEXT THROW plays one throw and holds
+  await late.click("[data-test=replay-play]");
+  const before = await late.evaluate(() => window.__kubb.engine.replayInfo());
+  await late.click("[data-test=replay-next]");
+  await waitFor(late, () => window.__kubb.game.phase !== "play");
+  const after1 = await late.evaluate(() => window.__kubb.engine.replayInfo());
+  assert.equal(after1.thrown, before.thrown + 1, "one throw on");
+  await late.waitForTimeout(400);
+  assert.equal(
+    (await late.evaluate(() => window.__kubb.engine.replayInfo())).i,
+    after1.i,
+    "and held there",
+  );
+  assert.match(
+    await late.textContent("[data-test=replay-count]"),
+    /THROW 1 OF \d+/,
+  );
+  // BACK in the first turn: the start of the match
+  await late.click("[data-test=replay-back]");
+  assert.equal(
+    (await late.evaluate(() => window.__kubb.engine.replayInfo())).i,
+    0,
+  );
+  // on at 4x to the end
+  await late.click("[data-speed='4']");
+  await late.click("[data-test=replay-play]");
+  await shot(late, "replay-playing");
+  await waitFor(
+    late,
+    () =>
+      document.querySelector("[data-test=watch-replay]")?.textContent ===
+      "REPLAY AGAIN",
+    undefined,
+    90000,
+  );
+  const end = await late.evaluate(() => ({
+    info: window.__kubb.engine.replayInfo(),
+    hash: window.__kubb.engine.hash().hash,
+    differs: !document.querySelector("[data-test=replay-differs]").hidden,
+  }));
+  assert.equal(end.info.done, true);
+  assert.equal(end.differs, false);
+  assert.equal(end.hash, played.docHash, "the same end as the match");
+  await shot(late, "replay-end");
+  // and back to the pitch from the end card: the finished match, the room's own state
+  await late.click("[data-test=replay-back-to-pitch]");
+  await waitFor(late, () => !!document.querySelector("[data-test=winner]"));
+  const back = await pst(late);
+  assert.equal(back.mode, "match");
+  assert.equal(back.hash, played.docHash);
+  assert.equal(await late.locator("[data-test=replay-bar]").count(), 0);
+
+  // REMATCH: the lobby offers the last match
+  await solo.click("[data-test=rematch]");
+  await waitFor(solo, () => !!document.querySelector("[data-test=lobby]"));
+  await waitFor(
+    solo,
+    () => !document.querySelector("[data-test=lobby-replay]")?.hidden,
+  );
+
+  // a phone: the bar fits, no sideways scroll
+  const phone = await join(code, "Pia", "portrait", { lobby: false });
+  await waitFor(
+    phone,
+    () => !document.querySelector("[data-test=lobby-replay]")?.hidden,
+  );
+  await phone.click("[data-test=lobby-replay]");
+  await phone.waitForSelector("[data-test=replay-bar]");
+  const fits = await phone.evaluate(() => {
+    const r = document
+      .querySelector("[data-test=replay-bar]")
+      .getBoundingClientRect();
+    return (
+      r.left >= 0 &&
+      r.right <= innerWidth &&
+      document.documentElement.scrollWidth <= innerWidth
+    );
+  });
+  assert.ok(fits, "the replay bar fits a phone");
+  await shot(phone, "replay-phone");
+  await phone.click("[data-test=replay-close]");
+  await waitFor(phone, () => !!document.querySelector("[data-test=lobby]"));
+
+  for (const p of [solo, late, phone]) {
+    assert.deepEqual(p.errors, []);
+    await p.context().close();
+  }
+});
+
 browserTest("the lobby on a phone, as a guest", async () => {
   const code = makeRoomCode();
   const host = await join(code, "Hanna");

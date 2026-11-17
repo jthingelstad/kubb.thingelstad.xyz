@@ -148,3 +148,92 @@ test("two browsers play a whole match in step; a third joins mid-match", async (
     `      ${actions} actions (${humanThrows} by hand), ${n.turn} turns, ${n.how}; snapshot ${actor.hash().bytes} bytes`,
   );
 });
+
+// A finished match played again from its options and its log (lua/web/replay.lua, the
+// pitch's replay): every recording and hash the same, read only, BACK in step.
+test("a replay plays the match again: the same recordings and hashes, read only", async () => {
+  const actor = await Engine.create({ sources });
+  const setup = {
+    seed: 5,
+    cpu: "B",
+    start: START,
+    wind: "light",
+    raising: "hand",
+    maxTurns: 8,
+    teams: {
+      A: { name: "Home", players: [{ name: "Ann", key: "m1" }] },
+      B: { name: "Away", players: [{ name: "Cy" }] },
+    },
+  };
+  actor.newMatch(setup);
+  const h0 = actor.hash().hash;
+  const log = [];
+  const recs = [];
+  let guard = 0;
+  while (actor.need().kind !== "over" && guard++ < 2000) {
+    const n = actor.need();
+    let action;
+    let rec = null;
+    if (n.kind === "raise") {
+      action = { type: "raise", choice: n.default };
+      actor.apply(action);
+    } else if (n.kind === "punish") {
+      action = { type: "punish", x: n.cursor.x, y: n.cursor.y };
+      actor.apply(action);
+    } else {
+      let out;
+      if (n.cpu) {
+        for (let i = 0; i < 600 && !out?.action; i++)
+          out = actor.frame({ dt: 1 / 60 });
+      } else {
+        const plan = actor.aim().aim.plan;
+        for (const arm of swingArms(plan.back, plan.release)) {
+          out = actor.frame({ dt: 1 / 60, arm });
+          if (out.event) break;
+        }
+        if (!out.action) out = actor.frame({ dt: 1 / 60 });
+      }
+      action = out.action;
+      rec = out.recording;
+    }
+    // through JSON, as the document carries it
+    log.push({ a: JSON.parse(JSON.stringify(action)), h: actor.hash().hash });
+    recs.push(rec && JSON.stringify(rec));
+  }
+  assert.equal(actor.need().kind, "over");
+
+  const viewer = await Engine.create({ sources });
+  const v = viewer.replayLoad({ setup, h0, log });
+  assert.equal(v.replay.i, 0);
+  assert.equal(v.replay.total, log.length);
+  assert.equal(v.need.local, false, "nobody acts in a replay");
+  assert.throws(() => viewer.apply(log[0].a), /read only/);
+  assert.throws(
+    () => viewer.setControl({ sides: ["A"], cpu: true }),
+    /read only/,
+  );
+  const turnAt = [];
+  for (let i = 0; i < log.length; i++) {
+    const r = viewer.replayStep();
+    assert.equal(r.ok, true, `action ${i + 1}`);
+    assert.equal(viewer.hash().hash, log[i].h, `hash after action ${i + 1}`);
+    if (recs[i]) assert.equal(JSON.stringify(r.recording), recs[i]);
+    turnAt.push(r.replay.turn);
+  }
+  const end = viewer.replayInfo();
+  assert.equal(end.done, true);
+  assert.equal(end.differs, false);
+  assert.equal(viewer.need().file.text, actor.need().file.text);
+  // BACK from the end: the start of the turn before the last
+  const back = viewer.replayBack();
+  const last = turnAt.at(-1);
+  assert.equal(back.replay.turn, last - 1);
+  assert.equal(
+    viewer.hash().hash,
+    back.replay.i ? log[back.replay.i - 1].h : h0,
+  );
+  viewer.replayRewind();
+  assert.equal(viewer.hash().hash, h0);
+  viewer.replayEnd();
+  console.log(`      replayed ${log.length} actions, ${last} turns`);
+});

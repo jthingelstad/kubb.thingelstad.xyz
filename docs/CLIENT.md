@@ -22,29 +22,30 @@ A failure to start shows a plain error card with RELOAD and HOME. The HOW TO THR
 
 ## Files
 
-| File                                      | What it does                                                                                                                                                              |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/main.js`                             | Boot, the routes above, the practice tray, the solo flow; hands `/p/<code>` to `src/net/pitch.js`.                                                                        |
-| `src/game/game.js`                        | `Game`: the loop, input, playback, the raise and punishment scenes, framing. The seam.                                                                                    |
-| `src/game/hud.js`                         | `Hud`: the rail (who throws, what, the counts), the verdict flag and chips, the rest distance, SLOW MOTION and WATCH, the advantage, the plan buttons.                    |
-| `src/game/layout.js`                      | Pure: where the dial and minimap go, the tall-canvas framing (`worldFit`, `stillFit`, `panFor`), and the wide view's box (`wideBox`).                                     |
-| `src/game/scenes.js`                      | The client's own cameras for raising and punishment, and the pieces in them.                                                                                              |
-| `src/game/sound.js`                       | `Sound`: the knocks and the king's chord through Web Audio; unlock on the first pointer down; mute remembered.                                                            |
-| `src/game/prefs.js`                       | `prefs`: localStorage, wrapped so a blocked store only forgets.                                                                                                           |
-| `src/game/draw.js`                        | The renderer's functions the game uses, in one place.                                                                                                                     |
-| `src/ui/cards.js`                         | `Cards`: the engine's hand-off, pass and settle cards (naming who acts on a shared pitch), the winner, solo options, a plain notice, and the raise and punishment panels. |
-| `src/ui/lobby.js`                         | `Lobby`: the shared pitch's lobby card.                                                                                                                                   |
-| `src/net/pitch.js`                        | `Pitch`: the shared pitch's controller: joins the room, runs the lobby, drives the Game through the seam, aim casts, shouts, host hand-over.                              |
-| `src/net/lobby.js`, `seats.js`, `sync.js` | Pure: the room document's reducers, who acts, and how a browser stays in step (tests in `tests/net/`).                                                                    |
-| `src/net/room.js`                         | The room client (docs/ROOMS.md).                                                                                                                                          |
-| `src/ui/menu.js`                          | `Menu`: level, surface (practice), sound, how to throw, resign (a match), report a throw, rules, home.                                                                    |
-| `src/ui/report.js`, `src/net/report.js`   | The report card, and what a report carries and how it is sent (below, and docs/ROOMS.md section 8).                                                                       |
-| `src/ui/sheet.js`                         | The score sheet card (below).                                                                                                                                             |
-| `src/net/record.js`, `src/net/ask.js`     | What a solo or watch match's record carries and how it is sent; `ask`, the one-message socket reports and records share.                                                  |
-| `src/ui/howto.js`                         | The HOW TO THROW overlay.                                                                                                                                                 |
-| `src/ui/dom.js`                           | `h()` and `button()`.                                                                                                                                                     |
-| `public/game.css`                         | The game pages' styles, linked by `src/site/pages.mjs` after the site's.                                                                                                  |
-| `tests/game/`                             | `layout.test.mjs` (pure), `client.test.mjs` and `multiplayer.test.mjs` (Playwright); `browser.mjs` is their helper.                                                       |
+| File                                          | What it does                                                                                                                                                              |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/main.js`                                 | Boot, the routes above, the practice tray, the solo flow; hands `/p/<code>` to `src/net/pitch.js`.                                                                        |
+| `src/game/game.js`                            | `Game`: the loop, input, playback, the raise and punishment scenes, framing. The seam.                                                                                    |
+| `src/game/hud.js`                             | `Hud`: the rail (who throws, what, the counts), the verdict flag and chips, the rest distance, SLOW MOTION and WATCH, the advantage, the plan buttons.                    |
+| `src/game/layout.js`                          | Pure: where the dial and minimap go, the tall-canvas framing (`worldFit`, `stillFit`, `panFor`), and the wide view's box (`wideBox`).                                     |
+| `src/game/scenes.js`                          | The client's own cameras for raising and punishment, and the pieces in them.                                                                                              |
+| `src/game/sound.js`                           | `Sound`: the knocks and the king's chord through Web Audio; unlock on the first pointer down; mute remembered.                                                            |
+| `src/game/prefs.js`                           | `prefs`: localStorage, wrapped so a blocked store only forgets.                                                                                                           |
+| `src/game/draw.js`                            | The renderer's functions the game uses, in one place.                                                                                                                     |
+| `src/ui/cards.js`                             | `Cards`: the engine's hand-off, pass and settle cards (naming who acts on a shared pitch), the winner, solo options, a plain notice, and the raise and punishment panels. |
+| `src/ui/lobby.js`                             | `Lobby`: the shared pitch's lobby card.                                                                                                                                   |
+| `src/net/pitch.js`                            | `Pitch`: the shared pitch's controller: joins the room, runs the lobby, drives the Game through the seam, aim casts, shouts, host hand-over.                              |
+| `src/net/lobby.js`, `seats.js`, `sync.js`     | Pure: the room document's reducers, who acts, and how a browser stays in step (tests in `tests/net/`).                                                                    |
+| `src/net/room.js`                             | The room client (docs/ROOMS.md).                                                                                                                                          |
+| `src/ui/menu.js`                              | `Menu`: level, surface (practice), sound, how to throw, resign (a match), report a throw, rules, home.                                                                    |
+| `src/ui/report.js`, `src/net/report.js`       | The report card, and what a report carries and how it is sent (below, and docs/ROOMS.md section 8).                                                                       |
+| `src/ui/sheet.js`                             | The score sheet card (below).                                                                                                                                             |
+| `src/net/record.js`, `src/net/ask.js`         | What a solo or watch match's record carries and how it is sent; `ask`, the one-message socket reports and records share.                                                  |
+| `src/replay/player.js`, `src/replay/fetch.js` | The replay player (`ReplayPlayer`, `startReplay`) and `fetchReplay`, a pitch's kept replay by its code (below).                                                           |
+| `src/ui/howto.js`                             | The HOW TO THROW overlay.                                                                                                                                                 |
+| `src/ui/dom.js`                               | `h()` and `button()`.                                                                                                                                                     |
+| `public/game.css`                             | The game pages' styles, linked by `src/site/pages.mjs` after the site's.                                                                                                  |
+| `tests/game/`                                 | `layout.test.mjs` (pure), `client.test.mjs` and `multiplayer.test.mjs` (Playwright); `browser.mjs` is their helper.                                                       |
 
 ## The multiplayer seam
 
@@ -201,6 +202,50 @@ only for this browser's throws) show, and the rest distance in practice.
   the lobby with the same teams), SCORE SHEET and HOME.
 - **The menu**: level, sound, how to throw, score sheet (a match), resign, report a throw,
   rules, home; Escape closes it.
+
+## Replays
+
+A finished match on a shared pitch can be watched again (Jamie, 2026-11-16: "When a game
+is finished playing on a pitch I'd like the URL to allow people to come and watch a
+replay of the match."). A replay is not a video: the match is set out again from its
+`newMatch` options and every committed action goes through this engine in order
+(`lua/web/replay.lua`), the same throws with the same physics, so it plays with the
+current engine. What the pitch keeps is `docs/MULTIPLAYER.md` "The document"; where it is
+stored, `docs/ROOMS.md` section 10.
+
+- **The engine.** `engine.replayLoad(data)` sets the replay out in a session that belongs
+  to nobody: no side and not the computer. While it is loaded `apply` and `setControl`
+  are refused ("a replay is read only") and frames run the aim but never throw.
+  `replayStep()` takes the next logged action (`{ ok, recording, need, action, replay }`),
+  `replayBack()` goes to the start of the previous turn (the start of the match from the
+  first), `replayRewind()` to the start, `replayInfo()` is
+  `{ i, total, turn, thrown, throws, differs, done, held }` (`held`: the computer's swing
+  has reached its release and waits for the log), `replayEnd()` lets go of it. Each
+  action's hash is compared with the one the players' browsers committed; one that
+  disagrees (an old match after a physics change) or an action this engine refuses marks
+  the replay `differs` and it plays on, a refused action passed over.
+- **The player.** `new ReplayPlayer({ game, root, data, home, close, menu, onEnd })`
+  drives a `Game` it is handed and puts its own bar in `root`; `startReplay({ code, url,
+data, ... })` fetches a replay by its pitch code and plays it. It needs nothing of the
+  pitch page's lobby, room session or menu (`menu` is optional, for its View item), so an
+  embed can mount it on a page of its own. It takes over the Game's seat (one that may
+  never act), its cards (`game.noCards`), its view and its loop (`game.driver`, called
+  every tick, and `game.timeScale`), and gives every one back on `destroy()`.
+- **The pace.** The match's own, without the zen pauses: 1.2 s after a throw lands before
+  the next, 0.8 s after a raise or a punishment kubb, and the computer's swing plays out to
+  its release (at most 6 s) before its logged throw goes. 1X, 2X and 4X scale all of it
+  (`replayTune` in `src/replay/player.js`).
+- **The bar.** THE REPLAY with "TURN 4 · THROW 2 OF 37", BACK (the start of the previous
+  turn), PLAY / PAUSE, NEXT THROW (when paused, plays exactly one throw and holds), 1X 2X
+  4X, the view (WIDE VIEW by default, THROWER'S VIEW; V and MENU's View too, remembered as
+  `watchView`), SHEET, and BACK TO THE PITCH where there is a pitch to go back to. Space
+  plays and pauses. The score sheet stands beside the pitch from 900 px wide and opens
+  over it below that; on a phone the bar spans the width. The status pill names who acts
+  (COMPUTER THROWS, HANNA THROWS, TEAM B RAISES); the shout bar and advice are hidden.
+- **The end.** The winner card with REPLAY AGAIN (the lead), SCORE SHEET, BACK TO THE
+  PITCH and HOME. A replay that differs, or that did not end on the result, shows the
+  match's own last snapshot instead, with "This replay may differ from the match as
+  played."
 
 ## Score sheet
 

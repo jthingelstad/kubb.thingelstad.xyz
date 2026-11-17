@@ -566,6 +566,16 @@ export class Room {
   }
 
   /**
+   * Keep a finished match's replay a year (docs/ROOMS.md section 10): `replay` is the
+   * game's (src/net/lobby.js replayOf), opaque to the room, which keeps it beside the
+   * document and keeps the room and its document as long. Once a document version
+   * (saying it again changes nothing). False while not connected.
+   */
+  keep(replay) {
+    return this._joined && this._sendNow({ t: "keep", replay });
+  }
+
+  /**
    * The host lists the room under OPEN GAMES, or takes it off (null): `open` is
    * { players, seats, state } (docs/ROOMS.md section 9). Sent again from time to time
    * while open, or the listing expires. False while not connected.

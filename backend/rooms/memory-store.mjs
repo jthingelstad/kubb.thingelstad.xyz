@@ -8,6 +8,7 @@ export function memoryStore({ now = Date.now } = {}) {
   const rooms = new Map();
   const docs = new Map();
   const conns = new Map();
+  const replays = new Map(); // code -> { v, t, data, exp }
   const parts = new Map(); // "conn id" -> { exp, got: Map(i -> text) }
   const listings = new Map(); // "<made 13>#<code>" -> { room, made, players, seats, state, exp }
 
@@ -18,6 +19,7 @@ export function memoryStore({ now = Date.now } = {}) {
     rooms,
     docs,
     conns,
+    replays,
     parts,
     listings,
 
@@ -42,6 +44,15 @@ export function memoryStore({ now = Date.now } = {}) {
     async touchDoc(code, exp) {
       const doc = live(docs.get(code));
       if (doc) doc.exp = exp;
+    },
+
+    async putReplay(code, item) {
+      if ((live(replays.get(code))?.v ?? 0) >= item.v) return false;
+      replays.set(code, copy(item));
+      return true;
+    },
+    async getReplay(code) {
+      return copy(live(replays.get(code)));
     },
 
     async putConn(conn, who) {

@@ -28,6 +28,11 @@ function fakeClient() {
       ok = !item || item[names["#exp"]] < values[":now"];
     else if (expr === "attribute_not_exists(pk) OR #rev < :rev")
       ok = !item || item[names["#rev"]] < values[":rev"];
+    else if (expr === "attribute_not_exists(pk) OR #exp < :now OR #v < :v")
+      ok =
+        !item ||
+        item[names["#exp"]] < values[":now"] ||
+        item[names["#v"]] < values[":v"];
     else if (expr === "#attr = :expected")
       ok = Boolean(item) && item[names["#attr"]] === values[":expected"];
     else throw new Error(`fake does not know ${expr}`);
@@ -414,5 +419,57 @@ test("open games: listed in one partition, read newest first by one Query", asyn
   assert.deepEqual(
     four.map((r) => r.room),
     ["aaaaaaaa", "dddddddd"],
+  );
+});
+
+test("replays: gzipped beside the room, newer versions only, read back whole", async () => {
+  let t = T0;
+  const client = fakeClient();
+  const store = dynamoStore({ client, table: "rooms", now: () => t });
+  const exp = T0 / 1000 + 365 * 24 * 3600;
+  assert.equal(await store.getReplay("room1234"), null);
+  const data = asciiJson({
+    v: 1,
+    log: Array.from({ length: 400 }, () => ({
+      a: { type: "throw" },
+      h: "abcdef01",
+    })),
+  });
+  assert.equal(
+    await store.putReplay("room1234", { v: 5, t: T0, data, exp }),
+    true,
+  );
+  const item = client.items.get("room#room1234|replay");
+  assert.ok(
+    item.z.length < data.length / 5,
+    `gzipped: ${item.z.length} of ${data.length}`,
+  );
+  assert.equal(item.data, undefined);
+  assert.deepEqual(await store.getReplay("room1234"), {
+    v: 5,
+    t: T0,
+    data,
+    exp,
+  });
+  // the same version or an older one is not kept over it
+  assert.equal(
+    await store.putReplay("room1234", { v: 5, t: T0 + 1, data: "{}", exp }),
+    false,
+  );
+  assert.equal(
+    await store.putReplay("room1234", { v: 4, t: T0 + 1, data: "{}", exp }),
+    false,
+  );
+  assert.equal(
+    await store.putReplay("room1234", { v: 6, t: T0 + 2, data: "{}", exp }),
+    true,
+  );
+  assert.equal((await store.getReplay("room1234")).data, "{}");
+  // past its year it reads as absent, and any version may take its place
+  t = (exp + 1) * 1000;
+  assert.equal(await store.getReplay("room1234"), null);
+  assert.equal(
+    await store.putReplay("room1234", { v: 1, t, data: "[]", exp: exp + 9 }),
+    true,
   );
 });

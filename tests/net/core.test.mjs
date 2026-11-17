@@ -386,3 +386,135 @@ test("origin allow-list", () => {
   assert.ok(!originAllowed("null", allowed));
   assert.ok(!originAllowed(undefined, allowed));
 });
+
+// ---------- replays (docs/ROOMS.md section 10) ----------
+
+const REPLAY = {
+  v: 1,
+  n: 1,
+  setup: { seed: 4 },
+  h0: "0badf00d",
+  log: [{ a: { type: "resign", side: "A" }, h: "12345678" }],
+  snap: '{"over":true}',
+  hash: "12345678",
+};
+
+async function finished(h) {
+  await h.say("c1", { t: "join", room: ROOM, member: "member-one" });
+  await h.say("c1", { t: "set", id: 1, base: 0, doc: { started: true } });
+  await h.say("c1", {
+    t: "set",
+    id: 2,
+    base: 1,
+    doc: { started: true, match: { over: true } },
+  });
+}
+
+test("keep: a finished room, its document and its replay are kept a year; later writes do not shorten it", async () => {
+  const h = harness();
+  await finished(h);
+  await h.say("c1", { t: "keep", replay: REPLAY });
+  assert.equal(h.last("c1", "error"), undefined);
+  const year = Math.floor(h.now() / 1000) + LIMITS.keepTtl;
+  assert.equal(LIMITS.keepTtl, 365 * 24 * 3600);
+  const room = await h.store.getRoom(ROOM);
+  assert.deepEqual(room.keep, { v: 2, until: year });
+  assert.equal(room.exp, year);
+  assert.equal((await h.store.getDoc(ROOM)).exp, year);
+  const kept = await h.store.getReplay(ROOM);
+  assert.equal(kept.v, 2);
+  assert.equal(kept.exp, year);
+  assert.deepEqual(JSON.parse(kept.data), REPLAY);
+
+  // a join and a write later keep the year, not 48 hours from now
+  h.advance(3600 * 1000);
+  await h.say("c2", { t: "join", room: ROOM, member: "member-two" });
+  await h.say("c2", { t: "set", id: 1, base: 2, doc: { started: false } });
+  assert.equal((await h.store.getRoom(ROOM)).exp, year);
+  assert.equal((await h.store.getDoc(ROOM)).exp, year);
+
+  // saying it again for the same version changes nothing (the year runs from the end)
+  await h.say("c1", { t: "keep", replay: { ...REPLAY, n: 9 } });
+  // the doc is at v 3 now: a keep for it is a newer match's
+  assert.equal((await h.store.getRoom(ROOM)).keep.v, 3);
+  // but an older version is never kept over a newer one
+  await h.store.putReplay(ROOM, { v: 1, t: 0, data: "{}", exp: year });
+  assert.equal((await h.store.getReplay(ROOM)).v, 3);
+
+  // still there after 48 hours, gone after the year
+  h.advance((LIMITS.roomTtl + 60) * 1000);
+  await h.say("c3", { t: "replay", id: 4, room: ROOM });
+  assert.equal(h.last("c3", "replay").replay.n, 9);
+  h.advance(LIMITS.keepTtl * 1000);
+  await h.say("c3", { t: "replay", id: 5, room: ROOM });
+  assert.equal(h.last("c3", "replay").replay, null);
+});
+
+test("keep: a second keep of the same version is a no-op", async () => {
+  const h = harness();
+  await finished(h);
+  await h.say("c1", { t: "keep", replay: REPLAY });
+  const first = await h.store.getRoom(ROOM);
+  h.advance(10 * 60 * 1000);
+  await h.say("c1", { t: "keep", replay: { ...REPLAY, n: 2 } });
+  assert.deepEqual((await h.store.getRoom(ROOM)).keep, first.keep);
+  assert.equal(JSON.parse((await h.store.getReplay(ROOM)).data).n, 1);
+});
+
+test("keep: refused when not joined, too big, not an object, or with nothing written", async () => {
+  const h = harness();
+  await h.say("c9", { t: "keep", replay: REPLAY });
+  assert.equal(h.last("c9", "error").code, "not-joined");
+  await h.say("c1", { t: "join", room: ROOM, member: "member-one" });
+  await h.say("c1", { t: "keep", replay: REPLAY });
+  assert.equal(h.last("c1", "error").code, "bad-message");
+  await h.say("c1", { t: "set", id: 1, base: 0, doc: { started: true } });
+  await h.say("c1", { t: "keep", replay: "text" });
+  assert.equal(h.last("c1", "error").code, "bad-message");
+  const big = { ...REPLAY, pad: "x".repeat(LIMITS.replayBytes) };
+  for (const f of toFrames(asciiJson({ t: "keep", replay: big })))
+    await h.say("c1", f);
+  assert.equal(h.last("c1", "error").code, "too-big");
+  assert.equal(await h.store.getReplay(ROOM), null);
+  assert.equal((await h.store.getRoom(ROOM)).keep, undefined);
+});
+
+test("replay: by code with no join; a playing room and an old room give null; a bad code is refused", async () => {
+  const h = harness();
+  // a room in play: never kept
+  await h.say("c1", { t: "join", room: ROOM, member: "member-one" });
+  await h.say("c1", { t: "set", id: 1, base: 0, doc: { started: true } });
+  await h.say("v1", { t: "replay", id: 7, room: ROOM });
+  const none = h.last("v1", "replay");
+  assert.deepEqual(none, {
+    t: "replay",
+    id: 7,
+    room: ROOM,
+    v: 0,
+    at: null,
+    replay: null,
+  });
+  // a room that has never been (or an old finished room from before replays)
+  await h.say("v1", { t: "replay", id: 8, room: "zzzzzzzzzz" });
+  assert.equal(h.last("v1", "replay").replay, null);
+  // kept: the replay comes back whole, in frames when it is long
+  const long = { ...REPLAY, pad: "y".repeat(60_000) };
+  await h.say("c1", {
+    t: "set",
+    id: 2,
+    base: 1,
+    doc: { started: true, match: { over: true } },
+  });
+  for (const f of toFrames(asciiJson({ t: "keep", replay: long })))
+    await h.say("c1", f);
+  await h.say("v2", { t: "replay", id: 9, room: ROOM });
+  const got = h.last("v2", "replay");
+  assert.deepEqual(got.replay, long);
+  assert.equal(got.v, 2);
+  assert.equal(got.at, h.now());
+  assert.ok(h.frames.get("v2").length > 1, "sent in frames");
+  // the visitor is not in the room
+  assert.equal(await h.store.getConn("v2"), null);
+  await h.say("v1", { t: "replay", id: 10, room: "BAD!" });
+  assert.equal(h.last("v1", "error").code, "bad-room");
+});

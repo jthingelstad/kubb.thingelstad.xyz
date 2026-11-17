@@ -21,6 +21,7 @@ import {
   sideOf,
   setAccess,
   openListing,
+  replayOf,
 } from "./lobby.js";
 import {
   controlFor,
@@ -34,6 +35,8 @@ import { decide, rider, aimKey } from "./sync.js";
 import { Lobby } from "../ui/lobby.js";
 import { prefs } from "../game/prefs.js";
 import { h, button } from "../ui/dom.js";
+import { ReplayPlayer } from "../replay/player.js";
+import { fetchReplay } from "../replay/fetch.js";
 
 export const tune = {
   tickMs: 200, // the controller's clock: aim casts (5 a second), drain, host check
@@ -55,11 +58,16 @@ export function startPitch(env) {
 }
 
 export class Pitch {
-  // env: { game, cards, ui, config, code, home, roomsUrl, sheet?, WebSocket? }
+  // env: { game, cards, ui, config, code, home, roomsUrl, sheet?, menu?, WebSocket? }
   // sheet: () => void, opens the score sheet (the winner card's SCORE SHEET)
   constructor(env) {
     Object.assign(this, env);
-    this.mode = "lobby"; // lobby | match | gone
+    this.mode = "lobby"; // lobby | match | replay | gone
+    this.replay = null; // the replay player while one plays (src/replay/player.js)
+    this.replayFrom = null; // the mode to go back to
+    this.kept = null; // the match number this browser asked the room to keep
+    this.arrivedOver = null; // the match number this browser first saw finished
+    this.lastReplay = null; // the room's kept replay, for the lobby
     this.local = { n: null, seq: 0 }; // the match and action this browser holds
     this.match = null; // doc.match's players and cpu, for the seats
     this.queue = []; // remote actions waiting for a playback to end
@@ -122,6 +130,7 @@ export class Pitch {
         access: (open) => this.setAccess(open),
         start: () => this.start(),
         share: () => this.share(),
+        replay: () => this.lastReplay && this.watch(this.lastReplay),
         home: this.home,
       },
       { code: this.code, name, level: game.level },
@@ -172,6 +181,22 @@ export class Pitch {
       });
     }
     this.resync();
+    this.lookForReplay();
+  }
+
+  // Between matches, a pitch that has had one offers its last finished match
+  // (WATCH THE LAST MATCH) when the room keeps its replay. Asked on a socket of
+  // its own (src/replay/fetch.js), once on arriving and after each match.
+  async lookForReplay() {
+    const doc = this.room?.doc;
+    if (this.mode !== "lobby" || !doc || lobbyOf(doc).n < 1) return;
+    const r = await fetchReplay({
+      url: this.roomsUrl,
+      code: this.code,
+      ...(this.WebSocket ? { WebSocket: this.WebSocket } : {}),
+    });
+    this.lastReplay = r;
+    this.lobby?.setReplay(!!r);
   }
 
   joinFailed(err) {
@@ -275,7 +300,9 @@ export class Pitch {
     const room = this.room;
     if (!room || !room.isHost() || room.status !== "open") return;
     const info = openListing(room.doc, room.members, {
-      over: this.mode === "match" && this.game.need?.kind === "over",
+      over:
+        this.mode === "replay" ||
+        (this.mode === "match" && this.game.need?.kind === "over"),
     });
     if (info) this.sawOpen = true;
     else if (!this.sawOpen) return; // never open here: nothing to take off
@@ -384,6 +411,7 @@ export class Pitch {
         players: lu.players,
         cpu: lu.cpu,
         host: room.you,
+        setup: opts,
       }),
     );
     this.pending--;
@@ -456,9 +484,15 @@ export class Pitch {
     this.pending++;
     const w = rider(n, seq, action, this.room.limits?.withBytes ?? 4096);
     if (!w) this.note("too-big-for-with", action.type);
+    let over = false;
+    try {
+      over = this.game.engine.need()?.kind === "over";
+    } catch {
+      // no need to read: not the end
+    }
     this.room
       .update(
-        (d) => commitAction(d, { n, seq, snap, hash }),
+        (d) => commitAction(d, { n, seq, snap, hash, action, over }),
         w ? { with: w } : {},
       )
       .then(
@@ -467,17 +501,37 @@ export class Pitch {
           this.note("commit", seq, r ? "ok" : "lost");
           // lost: someone else acted first; their document is already here
           if (!r) this.resync();
+          else this.keepReplay(r.doc);
+          this.overLater();
         },
         (err) => {
           this.pending--;
           this.note("commit", seq, err.code);
           this.resync();
+          this.overLater();
         },
       );
   }
 
   onDoc({ doc, with: w, mine }) {
     this.handleDoc(doc, w, mine);
+    this.keepReplay(doc);
+  }
+
+  // A match this browser watched end (here or elsewhere): ask the room to keep its
+  // replay a year (docs/ROOMS.md section 10). Once a match; the room keeps the
+  // first it is told for a document version. A browser that only arrived after the
+  // end sends nothing.
+  keepReplay(doc) {
+    const m = doc?.match;
+    if (!doc?.started || !m?.over || m.n !== this.local.n) return;
+    if (this.kept === m.n || this.arrivedOver === m.n) return;
+    const r = replayOf(m);
+    if (!r) return;
+    if (this.room.keep(r)) {
+      this.kept = m.n;
+      this.note("keep", m.n);
+    }
   }
 
   // Look at the room's document as it is now.
@@ -489,6 +543,8 @@ export class Pitch {
 
   handleDoc(doc, w, mine) {
     if (this.mode === "gone") return;
+    // a replay playing: the room's news waits for its end (endReplay looks again)
+    if (this.mode === "replay") return;
     const d = decide(this.local, doc, w, mine);
     switch (d.kind) {
       case "lobby":
@@ -546,6 +602,7 @@ export class Pitch {
 
   enterMatch(m) {
     this.mode = "match";
+    this.arrivedOver = m.over ? m.n : null;
     this.match = { players: m.players, cpu: m.cpu };
     this.local = { n: m.n, seq: m.seq };
     this.queue.length = 0;
@@ -590,19 +647,90 @@ export class Pitch {
     this.room.setMe({ level: this.game.level });
     this.lobby.show();
     this.renderLobby();
+    this.lobby.setReplay(false);
+    this.lookForReplay();
   }
 
   onNeed(need) {
     this.lastAim = "";
     setTimeout(() => this.drain(), 0);
     if (this.mode !== "match" || need.kind !== "over") return;
+    const m = this.room.doc?.match;
+    const data = m && m.n === this.local.n ? replayOf(m) : null;
+    // the last action is ours and still on its way: the card when it lands
+    if (!data && this.pending > 0) {
+      this.overNeed = need;
+      return;
+    }
+    this.overNeed = null;
     const host = this.room.isHost();
+    const arrived = this.arrivedOver === this.local.n;
     this.cards.winner(need, {
       rematch: host ? () => this.rematch() : null,
       sheet: this.sheet,
       home: this.home,
       note: host ? null : `${this.nameOf(this.room.host)} can start a rematch.`,
+      // a match from before replays (or too long to keep) has none
+      replay: data ? () => this.watch(data) : null,
+      first: arrived,
+      teams: arrived ? teamsLine(m.players) : null,
     });
+  }
+
+  // The winner card held back for our own last commit (onNeed).
+  overLater() {
+    if (this.pending > 0 || !this.overNeed) return;
+    const need = this.overNeed;
+    this.overNeed = null;
+    if (this.mode === "match" && this.game.need?.kind === "over")
+      this.onNeed(need);
+  }
+
+  // ---------- a replay ----------
+
+  // WATCH REPLAY (the winner card) or WATCH THE LAST MATCH (the lobby): the match
+  // played again here (src/replay/player.js), read only. The room stays joined; its
+  // news waits until BACK TO THE PITCH.
+  watch(data) {
+    if (this.mode !== "match" && this.mode !== "lobby") return;
+    this.replayFrom = this.mode;
+    this.mode = "replay";
+    this.lobby?.hide();
+    this.cards.close();
+    this.cards.clearPanel?.();
+    this.shoutBar.hidden = true;
+    this.replay = new ReplayPlayer({
+      game: this.game,
+      root: this.ui,
+      data,
+      home: this.home,
+      menu: this.menu,
+      close: () => this.endReplay(),
+    });
+    this.replay.start();
+    this.note("replay", data.n);
+  }
+
+  endReplay() {
+    const p = this.replay;
+    if (!p) return;
+    this.replay = null;
+    p.destroy();
+    const from = this.replayFrom;
+    this.mode = from;
+    const doc = this.room.doc;
+    if (from === "match" && doc?.started && doc.match?.n === this.local.n) {
+      this.shoutBar.hidden = false;
+      this.adoptMatch(doc.match);
+      return;
+    }
+    if (from === "lobby") {
+      this.toLobby();
+      this.resync();
+      return;
+    }
+    // the pitch moved on while the replay played (a rematch)
+    this.resync();
   }
 
   // Who acts, for the HUD and the engine's cards.
@@ -809,6 +937,16 @@ export class Pitch {
       who: g.whoActs?.(g.need) ?? null,
     };
   }
+}
+
+// "Hanna, Ola v Per" for the winner card of a match this browser arrived at
+// after its end.
+function teamsLine(players) {
+  if (!players) return null;
+  const side = (s) => (players[s] || []).map((p) => p.name).join(", ");
+  const a = side("A") || "The computer";
+  const b = side("B") || "The computer";
+  return `${a}  v  ${b}`;
 }
 
 function plainError(err) {

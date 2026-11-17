@@ -76,7 +76,11 @@ export class Cards {
   }
 
   // again: the rematch button's words; stop: a STOP button that calls it and
-  // takes itself and the note away (the computer against itself).
+  // takes itself and the note away (the computer against itself). replay: a
+  // WATCH REPLAY button (a finished pitch, src/replay/player.js), the card's
+  // main action when `first`; replayLabel its words (REPLAY AGAIN); back: a
+  // BACK TO THE PITCH button (the end of a replay); teams: a line naming who
+  // played (a finished pitch, for a browser that arrived after the end).
   winner(
     need,
     {
@@ -86,9 +90,27 @@ export class Cards {
       note = null,
       stop = null,
       sheet = null,
+      replay = null,
+      replayLabel = "WATCH REPLAY",
+      first = false,
+      back = null,
+      teams = null,
     },
   ) {
     const w = need.winner || {};
+    const lead =
+      replay && first
+        ? "replay"
+        : rematch
+          ? "rematch"
+          : replay
+            ? "replay"
+            : "home";
+    const replayBtn = () =>
+      button(replayLabel, replay, lead === "replay" ? "go" : "", {
+        "data-default": lead === "replay",
+        "data-test": "watch-replay",
+      });
     const stats = [`${w.turns} ${w.turns === 1 ? "turn" : "turns"}`];
     if (w.minutes != null)
       stats.push(w.minutes < 1 ? "under a min" : `${w.minutes} min`);
@@ -114,6 +136,7 @@ export class Cards {
       { "data-test": "winner" },
       h("p.kicker", need.short || "GAME"),
       h("h2.display", `${w.winnerName || ""} wins`),
+      teams ? h("p.teams-line", { "data-test": "winner-teams" }, teams) : null,
       h("p", need.how || ""),
       h("p.stats", stats.join("  ·  ")),
       w.players
@@ -127,18 +150,25 @@ export class Cards {
       noteEl,
       h(
         "div.row",
+        replay && first ? replayBtn() : null,
         rematch
-          ? button(again, rematch, "go", {
-              "data-default": true,
+          ? button(again, rematch, lead === "rematch" ? "go" : "", {
+              "data-default": lead === "rematch",
               "data-test": "rematch",
             })
           : null,
+        replay && !first ? replayBtn() : null,
         stopBtn,
         sheet
           ? button("SCORE SHEET", sheet, "", { "data-test": "winner-sheet" })
           : null,
-        button("HOME", home, rematch ? "" : "go", {
-          "data-default": !rematch,
+        back
+          ? button("BACK TO THE PITCH", back, "", {
+              "data-test": "replay-back-to-pitch",
+            })
+          : null,
+        button("HOME", home, lead === "home" ? "go" : "", {
+          "data-default": lead === "home",
         }),
       ),
     );
