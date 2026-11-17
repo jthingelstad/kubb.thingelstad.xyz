@@ -159,6 +159,45 @@ test("the write keeps the replay and the room a year from the match's end, once,
   const kept = await store.getReplay(ROOM);
   assert.equal(kept.v, v);
   assert.deepEqual(JSON.parse(kept.data), best.replay);
+  // a run that wrote the replay and stopped before the room: a second run finishes it
+  const store2 = memoryStore({ now: () => clock });
+  await store2.putRoom(ROOM, { rev: 5, exp, host: "m1", members: [] }, 0);
+  await store2.putDoc(
+    ROOM,
+    { v, doc: asciiJson(last), by: "m1", sid: null, exp },
+    0,
+  );
+  await store2.putReplay(ROOM, {
+    v,
+    t: best.at,
+    data: asciiJson(best.replay),
+    exp: until,
+  });
+  // and a visitor writes the room while it runs: the room is read again
+  const putRoom = store2.putRoom.bind(store2);
+  let raced = false;
+  store2.putRoom = async (code, r, prev) => {
+    if (!raced) {
+      raced = true;
+      const cur = await store2.getRoom(code);
+      await putRoom(code, { ...cur, rev: cur.rev + 1 }, cur.rev);
+    }
+    return putRoom(code, r, prev);
+  };
+  assert.match(await keepBackfill(store2, ROOM, best), /kept match 1/);
+  assert.deepEqual((await store2.getRoom(ROOM)).keep, { v, until });
+  assert.equal((await store2.getDoc(ROOM)).exp, until);
+  // another replay already kept is never replaced
+  const store3 = memoryStore({ now: () => clock });
+  await store3.putRoom(ROOM, { rev: 5, exp, host: "m1", members: [] }, 0);
+  await store3.putDoc(
+    ROOM,
+    { v, doc: asciiJson(last), by: "m1", sid: null, exp },
+    0,
+  );
+  await store3.putReplay(ROOM, { v, t: 1, data: "{}", exp: until });
+  assert.match(await keepBackfill(store3, ROOM, best), /already/);
+  assert.equal((await store3.getRoom(ROOM)).keep, undefined);
   // run again: nothing written
   clock += 1000;
   assert.match(await keepBackfill(store, ROOM, best), /already/);
