@@ -181,21 +181,21 @@ document, about 9 parts.
 
 ### 2.2 Client to server
 
-| `t`      | Fields                                     |                                                                    |
-| -------- | ------------------------------------------ | ------------------------------------------------------------------ |
-| `join`   | `room`, `member`, `me?` (or `name?`), `v?` | join (or rejoin) the room; `v` = the document version already held |
-| `me`     | `me`                                       | merge own fields; `null` removes a key                             |
-| `set`    | `id?`, `base`, `doc`, `with?`              | compare-and-set the document                                       |
-| `cast`   | `d`                                        | relay to everyone else                                             |
-| `claim`  |                                            | ask to become host                                                 |
-| `leave`  |                                            | leave for good                                                     |
-| `ping`   |                                            | keep-alive; answered with `pong`, needs no join                    |
-| `report` | `id?`, `r`                                 | a player's report (section 8); needs no join                       |
-| `game`   | `id?`, `g`                                 | a match played in one browser (section 7); needs no join           |
-| `list`   | `id?`                                      | the open games (section 9); needs no join                          |
-| `open`   | `open`                                     | the host lists the room, or `null` takes it off (section 9)        |
-| `keep`   | `v`, `replay`                              | the match has ended: keep its replay and the room (section 10)     |
-| `replay` | `id?`, `room`                              | a room's kept replay (section 10); needs no join                   |
+| `t`      | Fields                                     |                                                                                                  |
+| -------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `join`   | `room`, `member`, `me?` (or `name?`), `v?` | join (or rejoin) the room; `v` = the document version already held                               |
+| `me`     | `me`                                       | merge own fields; `null` removes a key                                                           |
+| `set`    | `id?`, `base`, `doc`, `with?`              | compare-and-set the document; the game's `with` may carry `c?`, `e?` (section 2.6)               |
+| `cast`   | `d`                                        | relay to everyone else                                                                           |
+| `claim`  |                                            | ask to become host                                                                               |
+| `leave`  |                                            | leave for good                                                                                   |
+| `ping`   |                                            | keep-alive; answered with `pong`, needs no join                                                  |
+| `report` | `id?`, `r`                                 | a player's report (section 8); needs no join; `r.client?`, `r.engine?` (section 2.6)             |
+| `game`   | `id?`, `g`                                 | a match played in one browser (section 7); needs no join; `g.client?`, `g.engine?` (section 2.6) |
+| `list`   | `id?`                                      | the open games (section 9); needs no join                                                        |
+| `open`   | `open`                                     | the host lists the room, or `null` takes it off (section 9)                                      |
+| `keep`   | `v`, `replay`                              | the match has ended: keep its replay and the room (section 10)                                   |
+| `replay` | `id?`, `room`                              | a room's kept replay (section 10); needs no join                                                 |
 
 `join` must be the first message on a connection (anything else but `ping`, `report`,
 `game`, `list` and `replay` answers `not-joined`).
@@ -267,9 +267,20 @@ castRate, castBurst, hostGraceMs }`.
   section 10) lives at least until its `keep` runs out, a year from the end of that
   match. An expired room code is a new, empty room. Connection records expire after 3 hours.
 - **Origin.** On AWS `$connect` is refused (403) unless the `Origin` header is in
-  `ALLOWED_ORIGINS` (default `https://throwingwood.com`, `https://kubb.thingelstad.xyz`, `http://localhost`,
-  `http://127.0.0.1`; an entry without a port allows any port). The dev server applies the
-  same list but also lets in connections with no `Origin` (Node tools and tests).
+  `ALLOWED_ORIGINS` (the stack's `AllowedOrigins`, default `https://throwingwood.com`,
+  `https://kubb.thingelstad.xyz`, `https://app.throwingwood.com`, `http://localhost`,
+  `http://127.0.0.1`; an entry without a port allows any port). A connection with no
+  `Origin` is refused too. `https://app.throwingwood.com` is the iPhone app: no page is
+  served there, it is the `Origin` the app sends on its WebSocket handshake to
+  `wss://throwingwood.com/ws`. The dev server's default list is `http://localhost`,
+  `http://127.0.0.1` and the app's origin (`ROOMS_ORIGINS` replaces it), and it also lets
+  in connections with no `Origin` (Node tools and tests). CloudFront's `/ws` route passes
+  `Origin` through untouched (the AllViewerExceptHostHeader origin request policy, no
+  cache, a viewer request function that only rewrites the path), and the shared `edge`
+  web ACL has no rule on `Origin`, so the check is the rooms function's alone. That web
+  ACL's managed core rule set does block a request with no `User-Agent`: a native client
+  must send one (Apple's URLSession does by default). The check is a filter, not
+  authentication (section 6).
 
 ### 2.5 Error codes
 
@@ -280,6 +291,27 @@ castRate, castBurst, hostGraceMs }`.
 anyone but the host); for `report` and `game` also `too-many` (more than 3 on one
 connection), `failed` (it could not be written) and `unavailable` (this server keeps
 none).
+
+### 2.6 Client and engine tags
+
+A record says which program made it, so a throw that went wrong can be traced to the web
+page or the iPhone app and to the engine that played it. Both are optional: clients built
+before them send neither, and nothing else changes when they are absent.
+
+| Where                        | Field    | Value                                                             |
+| ---------------------------- | -------- | ----------------------------------------------------------------- |
+| `g` (`game`), `r` (`report`) | `client` | the program: `web`, `ios`; 1 to 32 of `a-z`, `0-9`, `.`, `-`      |
+| `g` (`game`), `r` (`report`) | `engine` | the game engine's version; 1 to 64 of `a-z`, `0-9`, `.`, `-`, `+` |
+| a `set`'s `with`             | `c`, `e` | the same two, for the action that rides along (section 7)         |
+
+The server checks `client` and `engine` in `g` and `r` (`CLIENT_TAG`, `ENGINE_TAG` in
+`backend/rooms/core.mjs`): any other value, a number or an empty string among them, is
+`bad-message` with `re` and the `id`, and nothing is kept; `null` counts as absent. They
+are kept as part of `g` or `r`. The rider is the game's and the server checks none of it
+(only its size): `c` and `e` there are kept with the action as the client sent them. The
+web client sends `client: "web"` and `c: "web"` (`CLIENT` in `src/net/sync.js`) and no
+engine version yet. `npm run games:replay` and `npm run reports:pull` print the client
+beside each match and report that says one.
 
 ## 3. Limits
 
@@ -386,8 +418,12 @@ By design, friends on a link:
   link is the key.
 - **Member ids are bearer tokens.** Whoever presents a member id is that member. They
   live in localStorage and travel only to the room server.
-- **The Origin check is a light filter**, not authentication: a non-browser client can
-  send any Origin. The stage throttle and the size limits bound what such a client can do.
+- **The Origin check is a filter, not authentication.** A browser cannot lie about the
+  page it is on, so the check keeps other web sites from opening the rooms from their
+  pages. Anything that is not a browser sets the header itself: the iPhone app sends
+  `https://app.throwingwood.com` because it chooses to, and any script can send that or
+  any other listed origin. Nothing proves a connection comes from our app. The stage
+  throttle and the size limits bound what such a client can do.
 - **The cast rate cap is best effort** on AWS (per Lambda instance).
 - **An open game can be joined by anyone who sees it on the home page.** Its entry shows
   only how many are on the pitch, whether it has started and how long ago it was made,
@@ -398,7 +434,8 @@ By design, friends on a link:
   A listed code is a key like any shared link: whoever has it can join.
 - **One-browser matches are taken as sent.** The server checks the shape and the size of
   a `game` message, not that the match was really played; a made-up match is only noise
-  in the test data.
+  in the test data. The same goes for the `client` and `engine` tags (section 2.6): they
+  say what the sender claims, not what it is.
 - **A finished pitch's replay can be watched by anyone with the link** for a year: the
   names the players typed and every throw. Nothing new is published; the replay is not
   listed anywhere (a finished match is off the open games list) and `replay` gives it
@@ -442,8 +479,11 @@ with }` to `record` (`backend/rooms/recorder.mjs`), which writes one gzipped JSO
   means this engine plays that action another way (expected after the physics changed,
   and the list of throws to look at); `adopted` means no action was recorded for that
   version (too big to ride along, or a version is missing). After anything but `same` the
-  replay takes the recorded snapshot and carries on. A record does not name the build
-  that played it: its time `t` against the deploy history does.
+  replay takes the recorded snapshot and carries on. A room's record does not name the
+  build that played it: its time `t` against the deploy history does. Its rider may name
+  the client and the engine that committed the action, as `c` and `e` (section 2.6):
+  the recorder writes the rider's text as the room stored it, so whatever a client puts
+  there is in the record untouched (`tests/net/recorder.test.mjs` pins it).
 - **One-browser matches.** A match against the computer (`?solo=1`) or watching it
   (`?watch=1`) has no room. When it ends (a winner, or a resignation; an abandoned match
   is not sent) the browser sends it once, on a socket of its own like a report:
@@ -453,7 +493,8 @@ with }` to `record` (`backend/rooms/recorder.mjs`), which writes one gzipped JSO
   `options` (the first snapshot's: seed, teams, names typed, opening, ...), `start` (the
   first snapshot, opaque text), `actions` (every action since), `hashes` (the engine's
   hash after each), `end` (`over`, `winner`, `how`, `text`, the last `hash`), `file` and
-  `name` (the Planet Kubb Notation game file, positions included). Over 256 KB the
+  `name` (the Planet Kubb Notation game file, positions included), and `client` and
+  `engine` when the client says them (section 2.6). Over 256 KB the
   browser drops, in order, `hashes`, `file`, then `start` and `actions` (`start` becomes
   `"-"`), and lists them in `g.dropped`; a watch match is about 20 to 70 KB. The server
   requires `mode`, `start` and `actions` (objects, at most 4000), `hashes` one an action
@@ -482,7 +523,7 @@ either: it checks the shape and the size, keeps the report and acknowledges it.
   reconnecting). A report longer than a frame goes in parts (section 2.1). The server
   requires `r.mode` (`practice`, `solo`, `watch` or `pitch`), `r.happened` and
   `r.should` (text, 1000 characters each, at least one not blank), `r.room` a room code
-  when present, and the whole message at most 64 KB (`LIMITS.reportBytes`); everything
+  when present, `r.client` and `r.engine` tags when present (section 2.6), and the whole message at most 64 KB (`LIMITS.reportBytes`); everything
   else in `r` is the browser's (`src/net/report.js` lists it). The answer is
   `{ "t": "reported", "id": 1 }` or an `error` with `re: "report"` and the `id`.
 - **What is kept.** One gzipped JSON object a report in the games bucket:

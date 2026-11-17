@@ -6,7 +6,7 @@
 //   const msg = reportMessage(state, { happened, should });        // on SEND
 //   await sendReport({ url: config.roomsUrl, message: msg });      // resolves on the ack
 //
-// What is sent (`r` in the message): the mode; the two answers; the build (package
+// What is sent (`r` in the message): the mode; `client: "web"`; the two answers; the build (package
 // version, commit, the hashed Lua bundle's name, the vendored core's commit); the viewport
 // size; the browser's clock; the turn and phase; the last throw's action and result; the
 // pieces where they stand (the thrower's view frame). For a match: its options (read from
@@ -25,6 +25,7 @@
 // answers, the snapshot before and the last action are never cut.
 import { asciiJson } from "./room.js";
 import { ask } from "./ask.js";
+import { CLIENT } from "./sync.js";
 
 // Kept in step with backend/rooms/core.mjs LIMITS (tests/net/report.test.mjs checks).
 export const REPORT_LIMITS = Object.freeze({
@@ -102,6 +103,7 @@ export function captureReport({
   }
   const r = {
     mode,
+    client: CLIENT,
     at: now(),
     build: {
       version: config.version ?? null,

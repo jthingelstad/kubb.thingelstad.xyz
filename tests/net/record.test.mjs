@@ -266,6 +266,65 @@ test("the server refuses what is not a recordable match", async () => {
   assert.equal(broken.last("c1").code, "failed");
 });
 
+test("a match may say which client and engine played it; a bad tag is refused", async () => {
+  const g = { mode: "solo", start: "{}", actions: [{ type: "throw" }] };
+  const h = harness();
+  await h.say("c1", {
+    t: "game",
+    id: 1,
+    g: { ...g, client: "ios", engine: "1.2.0+core.c11f533" },
+  });
+  assert.equal(h.last("c1").t, "recorded");
+  const kept = JSON.parse(h.recordGame.kept[0].text);
+  assert.equal(kept.game.client, "ios");
+  assert.equal(kept.game.engine, "1.2.0+core.c11f533");
+  // absent (an older browser) is fine, and so is the longest tag
+  await h.say("c2", { t: "game", id: 2, g });
+  assert.equal(h.last("c2").t, "recorded");
+  await h.say("c3", {
+    t: "game",
+    id: 3,
+    g: { ...g, client: "a".repeat(32), engine: "1".repeat(64) },
+  });
+  assert.equal(h.last("c3").t, "recorded");
+  assert.equal(h.recordGame.kept.length, 3);
+
+  const bad = harness();
+  for (const [field, value] of [
+    ["client", "iOS"],
+    ["client", "web app"],
+    ["client", "web+1"],
+    ["client", ""],
+    ["client", "a".repeat(33)],
+    ["client", 7],
+    ["client", ["web"]],
+    ["engine", "1.2.0/core"],
+    ["engine", "V1"],
+    ["engine", ""],
+    ["engine", "1".repeat(65)],
+    ["engine", { v: 1 }],
+  ]) {
+    await bad.say("c1", { t: "game", id: 9, g: { ...g, [field]: value } });
+    const r = bad.last("c1");
+    assert.equal(r.t, "error", `${field} ${JSON.stringify(value)}`);
+    assert.equal(r.code, "bad-message");
+    assert.equal(r.re, "game");
+    assert.equal(r.id, 9);
+  }
+  assert.equal(bad.recordGame.kept.length, 0);
+});
+
+test("the web client says it is the web, and invents no engine version", async () => {
+  const record = matchRecord({
+    game: await playedMatch(),
+    mode: "watch",
+    config,
+  });
+  assert.equal(record.client, "web");
+  assert.ok(!("engine" in record));
+  assert.equal(gameMessage(record).g.client, "web");
+});
+
 test("recordMatch sends once, never for practice, and never throws", async () => {
   const sent = [];
   const send = async (opts) => {

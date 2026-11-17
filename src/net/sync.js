@@ -32,10 +32,16 @@ export function decide(local, doc, w, mine = false) {
   return { kind: "apply", match: m, action: w.a };
 }
 
+// Which program made a record or a report: `client` in a one-browser match
+// and a report, `c` in a rider (docs/ROOMS.md section 7). The engine's version
+// (`engine`, `e`) is not sent yet.
+export const CLIENT = "web";
+
 // The `with` for an action, or undefined when it would not fit the room's
 // limit (`bytes`, as ASCII JSON): then the others just adopt the snapshot.
+// `c` says this client committed it; the recorder keeps it with the action.
 export function rider(n, seq, action, bytes = 4096, size = asciiSize) {
-  const w = { n, seq, a: action };
+  const w = { n, seq, a: action, c: CLIENT };
   return size(w) <= bytes - 64 ? w : undefined;
 }
 

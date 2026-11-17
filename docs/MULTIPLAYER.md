@@ -102,9 +102,13 @@ after it as action `seq + 1`, with the action riding along as the update's `with
 
 ```js
 room.update((doc) => commitAction(doc, { n, seq, snap, hash }), {
-  with: { n, seq, a: action },
+  with: { n, seq, a: action, c: "web" },
 });
 ```
+
+`c` names the client that committed the action, and `e` (not sent yet) the engine's
+version: the recorder keeps them with the action, and the other browsers ignore them
+(`docs/ROOMS.md` section 2.6).
 
 `commitAction` refuses unless the document's match is `n` at `seq - 1`, so two browsers
 acting at once cannot both land: the room's compare-and-set runs the reducer again on the

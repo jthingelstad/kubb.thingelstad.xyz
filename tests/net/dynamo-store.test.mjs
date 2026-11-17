@@ -3,7 +3,13 @@
 // (compare-and-set, fresh-or-expired, the one-winner chunk claim) are exercised.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { asciiJson, createRooms, toFrames } from "../../backend/rooms/core.mjs";
+import fs from "node:fs/promises";
+import {
+  asciiJson,
+  createRooms,
+  parseOrigins,
+  toFrames,
+} from "../../backend/rooms/core.mjs";
 import { dynamoStore } from "../../backend/rooms/dynamo-store.mjs";
 import { gatewayAdapters, makeHandler } from "../../backend/rooms/handler.mjs";
 
@@ -472,4 +478,41 @@ test("replays: gzipped beside the room, newer versions only, read back whole", a
     await store.putReplay("room1234", { v: 1, t, data: "[]", exp: exp + 9 }),
     true,
   );
+});
+
+test("handler: the stack's default allow-list lets the iPhone app in, and no stranger", async () => {
+  const template = JSON.parse(
+    await fs.readFile(
+      new URL("../../infra/rooms.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  const origins = parseOrigins(template.Parameters.AllowedOrigins.Default);
+  assert.deepEqual(origins, [
+    "https://throwingwood.com",
+    "https://kubb.thingelstad.xyz",
+    "https://app.throwingwood.com",
+    "http://localhost",
+    "http://127.0.0.1",
+  ]);
+  const handler = makeHandler({ rooms: {}, origins });
+  const connect = async (origin) =>
+    (
+      await handler({
+        requestContext: {
+          routeKey: "$connect",
+          connectionId: "c1",
+          domainName: "x",
+          stage: "prod",
+        },
+        headers: origin ? { Origin: origin } : {},
+      })
+    ).statusCode;
+  assert.equal(await connect("https://app.throwingwood.com"), 200);
+  assert.equal(await connect("https://throwingwood.com"), 200);
+  assert.equal(await connect("https://example.com"), 403);
+  assert.equal(await connect("http://app.throwingwood.com"), 403);
+  assert.equal(await connect("https://app.throwingwood.com.example.com"), 403);
+  assert.equal(await connect("https://x.app.throwingwood.com"), 403);
+  assert.equal(await connect(null), 403);
 });

@@ -157,6 +157,35 @@ test("refusals: too big, empty, too long, a bad mode, not JSON, too many", async
   assert.equal(h.last("c3").t, "reported");
 });
 
+test("a report may say which client and engine sent it; a bad tag is refused", async () => {
+  const h = harness();
+  await h.say("c1", minimal({ client: "ios", engine: "1.2.0+core.c11f533" }));
+  assert.deepEqual(h.last("c1"), { t: "reported", id: 7 });
+  const kept = JSON.parse(h.report.kept[0].text);
+  assert.equal(kept.report.client, "ios");
+  assert.equal(kept.report.engine, "1.2.0+core.c11f533");
+  await h.say("c2", minimal());
+  assert.deepEqual(h.last("c2"), { t: "reported", id: 7 }, "absent is fine");
+
+  const bad = harness();
+  for (const extra of [
+    { client: "Web" },
+    { client: "w_b" },
+    { client: "a".repeat(33) },
+    { client: 1 },
+    { engine: "1 2" },
+    { engine: "1".repeat(65) },
+    { engine: false },
+  ]) {
+    await bad.say("c1", minimal(extra));
+    const r = bad.last("c1");
+    assert.equal(r.t, "error", JSON.stringify(extra));
+    assert.equal(r.code, "bad-message");
+    assert.equal(r.re, "report");
+  }
+  assert.equal(bad.report.kept.length, 0);
+});
+
 test("a report that cannot be kept says so, and does not count", async () => {
   let fail = true;
   const h = harness({
@@ -272,6 +301,8 @@ test("the payload carries the match, the build, the viewport, and no person", as
   assert.equal(msg.t, "report");
   const r = msg.r;
   assert.equal(r.mode, "watch");
+  assert.equal(r.client, "web");
+  assert.ok(!("engine" in r), "no engine version is made up");
   assert.equal(r.at, 42);
   assert.deepEqual(r.build, {
     version: "0.1.0",
@@ -307,7 +338,7 @@ test("the payload carries the match, the build, the viewport, and no person", as
   assert.equal(out.whole.same, true, "the whole match too");
   assert.ok(out.drift.max < 1e-3, "the pieces where the browser had them");
   const lines = describeReport(kept, "x.json.gz").join("\n");
-  assert.match(lines, /watch/);
+  assert.match(lines, /watch \[web\]/, "the client tag when it says one");
   assert.match(lines, /It went through the kubb/);
   assert.match(lines, /before \+ last action; start \+ 3 actions/);
 });

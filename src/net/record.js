@@ -6,7 +6,7 @@
 //
 //   recordMatch({ game, mode, config, url });   // on the `over` need; never throws
 //
-// What is sent (`g` in the message): the mode; the build (package version, commit, the
+// What is sent (`g` in the message): the mode; `client: "web"`; the build (package version, commit, the
 // hashed Lua bundle's name, the vendored core's commit); the browser's clock; the match's
 // options as its first snapshot carries them (seed, teams, names typed, opening, ...); the
 // first snapshot and every action applied since, with the engine's hash after each (start
@@ -20,6 +20,7 @@
 // then the first snapshot and the actions (the options, with the seed, stay).
 import { asciiJson } from "./room.js";
 import { ask } from "./ask.js";
+import { CLIENT } from "./sync.js";
 
 // Kept in step with backend/rooms/core.mjs LIMITS (tests/net/record.test.mjs checks).
 export const GAME_LIMITS = Object.freeze({
@@ -55,6 +56,7 @@ export function matchRecord({ game, mode, config = {}, now = Date.now }) {
   const need = game.need || {};
   return structuredClone({
     mode,
+    client: CLIENT,
     at: now(),
     build: {
       version: config.version ?? null,

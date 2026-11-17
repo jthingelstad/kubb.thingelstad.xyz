@@ -7,7 +7,8 @@
 //   node tools/rooms-dev.mjs [--port 8788]      ws://127.0.0.1:8788
 //
 // ROOMS_ORIGINS (comma separated) is the Origin allow-list, default any port of
-// http://localhost and http://127.0.0.1. A connection with no Origin at all (Node's own
+// http://localhost and http://127.0.0.1, and https://app.throwingwood.com (the Origin the
+// iPhone app sends, so a simulator build can talk to this server). A connection with no Origin at all (Node's own
 // WebSocket in the tests, command-line tools) is let in here; API Gateway's handler refuses it.
 //
 // Reports (MENU, REPORT A THROW): run from the command line it keeps them as files,
@@ -39,14 +40,15 @@ import {
   reportText,
 } from "../backend/rooms/reports.mjs";
 
+export const DEV_ORIGINS =
+  "http://localhost,http://127.0.0.1,https://app.throwingwood.com";
+
 export const FRAME_MAX = 32 * 1024; // API Gateway WebSocket frame size quota
 
 export async function startRoomsServer({
   port = 8788,
   host = "127.0.0.1",
-  origins = parseOrigins(
-    process.env.ROOMS_ORIGINS ?? "http://localhost,http://127.0.0.1",
-  ),
+  origins = parseOrigins(process.env.ROOMS_ORIGINS ?? DEV_ORIGINS),
   limits = LIMITS,
   now = Date.now,
   record = null,

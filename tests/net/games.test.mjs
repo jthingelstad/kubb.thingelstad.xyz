@@ -7,7 +7,13 @@ import { asciiJson } from "../../backend/rooms/core.mjs";
 import { recordText } from "../../backend/rooms/recorder.mjs";
 import { Engine } from "../../src/engine/index.js";
 import { bundleLua } from "../../tools/lua-bundle.mjs";
-import { matchesOf, parseRecord, replayMatch } from "../../tools/games.mjs";
+import {
+  browserMatch,
+  clientsOf,
+  matchesOf,
+  parseRecord,
+  replayMatch,
+} from "../../tools/games.mjs";
 
 const sources = await bundleLua();
 const ROOM = "abcdefgh";
@@ -181,4 +187,35 @@ test("two matches in one room, and a match whose start was missed", () => {
       ["zzzzzzzz", 1, true, 0],
     ],
   );
+});
+
+test("the client tags a match's records carry are read for the listing", () => {
+  const rec = (v, rider) => ({
+    room: ROOM,
+    v,
+    t: 1000 + v,
+    by: "m",
+    with: rider,
+    doc: {
+      started: true,
+      n: 1,
+      match: { n: 1, seq: v - 1, snap: "{}", hash: "x" },
+    },
+  });
+  const [match] = matchesOf([
+    rec(1, null),
+    rec(2, { n: 1, seq: 1, a: {}, c: "web" }),
+    rec(3, { n: 1, seq: 2, a: {}, c: "ios", e: "1.2.0" }),
+    rec(4, { n: 1, seq: 3, a: {}, c: "web" }),
+  ]);
+  assert.deepEqual(clientsOf(match), ["web", "ios"]);
+  const [old] = matchesOf([rec(1, null), rec(2, { n: 1, seq: 1, a: {} })]);
+  assert.deepEqual(clientsOf(old), [], "records from before clients said");
+
+  const g = { mode: "solo", start: "{}", actions: [] };
+  assert.equal(
+    browserMatch({ t: 1, game: { ...g, client: "ios" } }).client,
+    "ios",
+  );
+  assert.equal(browserMatch({ t: 1, game: g }).client, null);
 });
