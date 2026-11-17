@@ -60,19 +60,16 @@ world.tune = {
 	batonTurnHold = 1,     -- share of the ground's rolling resistance (surf.roll) that also holds a
 	                       -- baton's end-over-end turn on the ground (all of it holds its roll
 	                       -- about the long axis; the plug, dig, holds both)
-	rollCap = 4,           -- a baton's rolling resistance takes the ground's impulse up to this
-	                       -- many times its weight a step (a landing's one hard step is far more)
 	restitutionIterations = 4, -- bounce passes (one pass over a flat landing's corners overshoots)
-	pairMu = 0.4,          -- wood on wood friction (guess; dry wood 0.25 to 0.5)
-	boxMu = 0.2,           -- friction between two boxes (kubb on kubb, the king; guess: wood sliding
-	                       -- on wood, 0.2). At pairMu a kubb tipped against its neighbour was held
-	                       -- up by the rub of its edge down the neighbour's face, and a tight row
-	                       -- stood through a blow that fells four kubbs (Jamie, 2026-11-15)
-	pairE = 0.2,           -- wood on wood bounce (guess; 0.35 until 2026-11-15: a baton's bounce off a
-	                       -- standing kubb is applied with nothing holding the kubb's footing, so
-	                       -- part of it drove the kubb down and the ground threw it up; at 0.2,
-	                       -- over tools/batonprobe.lua's sweep, half the bounce-backs and a sixth
-	                       -- fewer kubbs off the ground for 0.2 s or more)
+	pairMu = 0.4,          -- wood on wood friction, every pair of pieces (kubb on kubb, the king, a baton,
+	                       -- a stake): clean dry wood on wood 0.25 to 0.5, oak on oak sliding 0.48 along
+	                       -- the grain and 0.32 across it (Engineering ToolBox, friction coefficients).
+	                       -- Kubb on kubb was 0.2 (wet wood) from 2026-11-15 to 2026-11-16 so a tight row
+	                       -- fell; at 0.4 it stands more (AGENTS.md, "Edge on edge")
+	pairE = 0.35,          -- wood on wood bounce: no measured wood on wood figure found; a wooden
+	                       -- ball on concrete is 0.60 (The Physics Factbook, 2005) and a block gives
+	                       -- up more. 0.2 from 2026-11-15 to 2026-11-16, to hide a bounce solved
+	                       -- without the kubb's footing (AGENTS.md, "The pair bounce with its footing")
 	warm = 0.9,            -- fraction of last step's ground impulses applied up front
 	gyro = true,           -- gyroscopic term (torque-free precession; implicit, stable)
 	sleepLin = 0.03,       -- m/s: below this ...
@@ -87,13 +84,8 @@ world.tune = {
 	                       -- stand centered on the baselines)
 	maxTime = 12,          -- s; a throw is called at rest after this long regardless
 	stakeHeight = 0.15,    -- m above the ground (6 inches, Jamie 2026-11-14); stakes are fixed posts of radius pitch.stakeRadius
-	-- wind (Jamie and Tyler, 2026-11-14): air drag per kind, 0.5 rho Cd A / m
-	-- (1/m), A the mean area a tumbling piece shows the air (end over end it
-	-- shows its narrow end part of the time), Cd about 1: a baton 0.30 x
-	-- 0.044 m, 0.25 kg; a lobbed kubb 0.07 x 0.15 m, 0.40 kg. A full 8 m
-	-- baton drifts about 0.16 m in a light (2.5 m/s) cross wind, 0.43 in a
-	-- strong (6 m/s) one, and loses about 0.95 m into a strong head wind
-	windK = { baton = 0.015, kubb = 0.0086 },
+	-- the air's drag on a thrown piece per kind (world.airDrag) is
+	-- tw.flight.tune.dragK, the figure the aim solves with
 	aeroK = 0.00022,       -- the air's turn on a drilled kubb in flight (world.aeroTurn): rho (k2 - k1)
 	                       -- volume: half the slender-body (Munk) moment of a 7 x 7 x 15 cm block (k2 - k1
 	                       -- about 0.5), which overstates a bluff block; an estimate. It turns the long axis
@@ -119,20 +111,21 @@ world.tune = {
 --               seed (world.groundSeed), read only when a contact is new:
 --     muVar, eVar, digVar  a patch's friction, bounce and dig vary by up to
 --               this share either way (clumps, bare spots, soft ground)
---     bump      a steep landing (approach faster than bumpSpeed m/s) is turned
---               sideways by up to bump times its approach speed, as off a patch
---               tilted a few degrees (its travel only, no spin)
---     drag      1/s: a lying piece or a baton touching the ground loses this
---               share of its ground speed a second (the blades hold it)
+--     bump      the patch's tilt: a steep landing (approach faster than
+--               bumpSpeed m/s) meets ground sloped up to bump (times its
+--               steepness squared) each way, and that step's push and friction
+--               lean with it, so it is turned and nothing is added
+--     drag      1/s: a lying piece or a baton touching the ground with its
+--               full weight loses this share of its ground speed a second (the
+--               blades hold it; pressed more lightly, less)
 --     grip, gripSpeed  1/s and m/s: and this much more a second below
 --               gripSpeed, so it stops instead of creeping
---     trip      rad/s^2 per m/s: a baton sliding upright on an end (within
---               30 degrees) faster than tripSpeed is tipped toward the way it
---               is going, as its foot catches
---     foot, footSpeed  1/s and m/s: a kubb or the king standing (within 30
---               degrees of upright) whose foot slides faster than footSpeed
---               loses this share of that slip a second, taken at the foot, so
---               it slows and tips the way it is going (plough adds to it)
+--     footMu, footSpeed  (optional; snow) a piece standing on an end
+--               (within 30 degrees of upright: a kubb, the king or a baton)
+--               whose foot slides faster than footSpeed m/s ploughs: a
+--               resistance at the foot of at most footMu times the ground's
+--               push, so it tips the way it is going where the surface's own
+--               friction is too low to tip it
 --     bite      an edge or corner that strikes the turf cuts into it and is
 --               held sideways by it: an extra friction coefficient on that
 --               contact, ramped like dig by the edge's own arrival speed and
@@ -148,7 +141,7 @@ world.surfaces = {
 		bite = 0.7, biteTime = 0.05,
 		roll = 0.01,
 		texture = { cell = 0.25, muVar = 0.3, eVar = 0.5, digVar = 0.5, bump = 0.12, bumpSpeed = 0.8,
-			drag = 2.5, grip = 12, gripSpeed = 0.5, trip = 60, tripSpeed = 0.15, foot = 25, footSpeed = 0.3 },
+			drag = 2.5, grip = 12, gripSpeed = 0.5 },
 	},
 	-- sand (DESIGN 5): very high dig, almost no bounce or slide; pieces plug where
 	-- they land, so placement is all in the air. Its texture: soft and packed
@@ -160,7 +153,7 @@ world.surfaces = {
 		bite = 2, biteTime = 0.1,
 		roll = 0.03,
 		texture = { cell = 0.2, muVar = 0.25, eVar = 0.4, digVar = 0.7, bump = 0.18, bumpSpeed = 0.6,
-			drag = 6, grip = 20, gripSpeed = 0.6, trip = 120, tripSpeed = 0.1 },
+			drag = 6, grip = 20, gripSpeed = 0.6 },
 	},
 	-- snow (Jamie, 2026-11-14): packed snow is slick to a fast piece, but soft:
 	-- a steep landing plugs, almost nothing bounces, and a sliding piece ploughs
@@ -172,8 +165,8 @@ world.surfaces = {
 		bite = 0, biteTime = 0.05,
 		roll = 0.004,
 		texture = { cell = 0.3, muVar = 0.5, eVar = 0.3, digVar = 0.8, bump = 0.1, bumpSpeed = 0.8,
-			drag = 0.6, grip = 4, gripSpeed = 0.3, trip = 70, tripSpeed = 0.15, plough = 1.5,
-			foot = 12, footSpeed = 0.3 },
+			drag = 0.6, grip = 4, gripSpeed = 0.3, plough = 1.5,
+			footMu = 0.3, footSpeed = 0.3 },
 	},
 	-- ICE (stage 7, not built): very low friction for the Minnesota slide,
 	-- something like mu = 0.05, e = 0.1, dig = 0, roll = 0.0005. Add it
@@ -229,7 +222,7 @@ function world.new(opts)
 		groundSeed = opts.groundSeed or 0,   -- the ground texture's seed (world.launch sets it
 		groundSeedFixed = opts.groundSeed ~= nil,   -- from the throw unless one is given here)
 		-- the wind (m/s, horizontal): it pushes the thrown piece until its
-		-- first contact (windForce); none, and nothing changes
+		-- first contact (airDrag); none, and it meets still air
 		windX = opts.windX or 0, windY = opts.windY or 0,
 		windOn = (opts.windX or 0) ~= 0 or (opts.windY or 0) ~= 0,
 	}
@@ -321,7 +314,7 @@ function world.launch(w, kind, id, x, y, z, qw, qx, qy, qz, vx, vy, vz, wx, wy, 
 	wake(b)
 	b.touched = true
 	w.projectile = b
-	b.windK = world.tune.windK[kind] or 0
+	b.dragK = tw.flight.tune.dragK[kind] or 0
 	return b
 end
 
@@ -502,32 +495,30 @@ local WT, WPOS = {}, {}
 -- Implicit gyroscopic step (Bullet's computeGyroscopicImpulseImplicit_Body):
 -- one Newton step of I w' = I w - dt w' x I w' in the body frame. Keeps a
 -- spinning baton or kubb precessing correctly without blowing up.
--- The wind on the thrown piece in the air (Jamie and Tyler, 2026-11-14): its
--- drag in the moving air less its drag in still air, k (|r| r + |v| v) with
--- r = wind - v, so with no wind it is nothing at all (the throws are tuned
--- in still air). Applied by world.step and the lone step alike, right after
--- gravity, only to w.projectile until its first contact: once it lands, the
--- wind's push is lost in the ground's.
-local function windForce(w, b, dt)
-	local k = b.windK
-	if not k or k == 0 then return end
-	local vx, vy, vz = b.vx, b.vy, b.vz
-	local rx, ry = w.windX - vx, w.windY - vy
-	local rel = sqrt(rx * rx + ry * ry + vz * vz)
-	local still = sqrt(vx * vx + vy * vy + vz * vz)
-	local kd = k * dt
-	b.vx = vx + kd * (rel * rx + still * vx)
-	b.vy = vy + kd * (rel * ry + still * vy)
-	b.vz = vz + kd * (still - rel) * vz
+-- The air's drag on the thrown piece in flight (audit 8, 2026-11-16; the
+-- wind, Jamie and Tyler, 2026-11-14): k |r| r with r = wind - v, the air's
+-- velocity past it, and k = 0.5 rho Cd A / m per kind (b.dragK,
+-- tw.flight.tune.dragK, where the figures and their sources are). Still air
+-- or wind, the same quadratic drag; the aim solves with it in still air
+-- (flight.carry). Applied by world.step and the lone step alike (written out
+-- there, term for term: no call per step), right after gravity, only to
+-- w.projectile until its first contact: after that the
+-- pieces move slowly and briefly through the air (a kubb knocked flying at
+-- 3 m/s for 0.3 s would lose about 5 cm/s) and the ground's forces dwarf it.
+local function airDrag(w, b, dt)
+	local k = b.dragK
+	local rx, ry, rz = w.windX - b.vx, w.windY - b.vy, -b.vz
+	local kd = k * dt * sqrt(rx * rx + ry * ry + rz * rz)
+	b.vx, b.vy, b.vz = b.vx + kd * rx, b.vy + kd * ry, b.vz + kd * rz
 end
-world.windForce = windForce
+world.airDrag = airDrag
 
 -- The air's turn on the thrown piece in flight (2026-11-16, "Drilling"): a
 -- block moving at an angle to its long axis is turned broadside by the air
 -- (the slender-body, Munk, moment), tau = K (v . z)(v x z) with z the long
 -- axis and K = rho (k2 - k1) volume (world.tune.aeroK per kind). A spiral
 -- turns that into a precession, so the nose follows the flight path; with
--- too little spin the kubb tumbles. Applied like windForce: only to
+-- too little spin the kubb tumbles. Applied like airDrag: only to
 -- w.projectile until its first contact.
 local function aeroTurn(w, b, dt)
 	local k = b.aeroK
@@ -645,8 +636,9 @@ local function solve(tk)
 				awz = awz + d1 * r[K_WA1Z] + d2 * r[K_WA2Z]
 			end
 			a.vx, a.vy, a.vz, a.wx, a.wy, a.wz = avx, avy, avz, awx, awy, awz
-		elseif kind == 3 then
-			-- B asleep or static: nothing moves on its side
+		elseif kind >= 3 then
+			-- B asleep or static, or a landing on a tilted patch (4): nothing
+			-- moves on the other side
 			local nx, ny, nz = r[K_NX], r[K_NY], r[K_NZ]
 			local vn = avx * nx + avy * ny + avz * nz
 				+ awx * r[K_ANX] + awy * r[K_ANY] + awz * r[K_ANZ]
@@ -819,7 +811,13 @@ local function loneStep(w, b, t, P)
 	-- 1. forces
 	w.awakeCount = 1
 	b.vz = vz - g * dt
-	if w.windOn and b == w.projectile and not w.firstContact then windForce(w, b, dt) end
+	if b == w.projectile and not w.firstContact then
+		-- the air's drag (airDrag, written out)
+		local k = b.dragK
+		local rx, ry, rz = w.windX - b.vx, w.windY - b.vy, -b.vz
+		local kd = k * dt * sqrt(rx * rx + ry * ry + rz * rz)
+		b.vx, b.vy, b.vz = b.vx + kd * rx, b.vy + kd * ry, b.vz + kd * rz
+	end
 	if b.aeroK and b == w.projectile and not w.firstContact then aeroTurn(w, b, dt) end
 	if t.gyro then gyro(b, dt) end
 	b.groundImpulse = 0
@@ -900,14 +898,20 @@ function world.step(w)
 	-- 1. forces
 	local awakeCount = 0
 	local useGyro = t.gyro
-	local windOn = w.windOn and not w.firstContact
+	local inAir = not w.firstContact
 	local proj = w.projectile
 	for i = 1, nb do
 		local b = bodies[i]
 		if b.awake then
 			awakeCount = awakeCount + 1
 			b.vz = b.vz - g * dt
-			if windOn and b == proj then windForce(w, b, dt) end
+			if inAir and b == proj then
+				-- the air's drag (airDrag, written out)
+				local k = b.dragK
+				local rx, ry, rz = w.windX - b.vx, w.windY - b.vy, -b.vz
+				local kd = k * dt * sqrt(rx * rx + ry * ry + rz * rz)
+				b.vx, b.vy, b.vz = b.vx + kd * rx, b.vy + kd * ry, b.vz + kd * rz
+			end
 			if b == proj and b.aeroK and not w.firstContact then aeroTurn(w, b, dt) end
 			if useGyro then gyro(b, dt) end
 			b.groundImpulse = 0
@@ -1112,7 +1116,6 @@ function world.step(w)
 	-- 3. prepare: one record per contact with an awake body
 	local slop, pushRate, maxPush = t.slop, t.pushRate, t.maxPush
 	local warmF, pairMu, pairE = t.warm, t.pairMu, t.pairE
-	local boxMu = t.boxMu
 	local m = 0
 	for i = 1, n do
 		local a, b = cA[i], cB[i]
@@ -1179,11 +1182,13 @@ function world.step(w)
 				local anx, any = r[K_ANX], r[K_ANY]
 				local v0 = avz + awx * anx + awy * any
 				r[K_V0] = v0
+				if v0 < -t.restitutionSpeed then a.impact = stamp end
 				-- surface friction and bounce, dig, warm start
 				local k = cSlot[i]
 				local mu, e = surf.mu, surf.e
 				local dig, bite
 				local biteVar = 0
+				local sx, sy = 0, 0
 				local ln, l1, l2 = 0, 0, 0
 				if a.gStamp[k] == stamp - 1 then
 					dig = a.gDig[k]
@@ -1210,18 +1215,18 @@ function world.step(w)
 						u4, u5 = (h2 & 1023) / 511.5 - 1, ((h2 >> 10) & 1023) / 511.5 - 1
 						biteVar = u3
 						a.gMf[k], a.gEf[k] = 1 + tex.muVar * u1, 1 + tex.eVar * u2
-						-- a bump: a steep landing is turned a little sideways, as off a
-						-- patch tilted a few degrees (the travel only: applied at the
-						-- contact point it gave an edge landing a wild spin)
-						-- (scaled by how steeply it comes in: a low skidding drill is
-						-- barely turned, a baton dropping end first is)
+						-- a bump: the patch is tilted a few degrees (slope up to bump
+						-- each way), and a landing faster than bumpSpeed meets it: its
+						-- push that step is along the tilted normal (below), so it is
+						-- turned, and nothing is added (the ground stays the plane z = 0)
+						-- (the slope is scaled by how steeply it comes in: a low
+						-- skidding drill barely feels it, a baton dropping end first does)
 						if v0 < -tex.bumpSpeed then
 							local vt1 = avx + awy * raz - awz * ray
 							local vt2 = avy + awz * rax - awx * raz
 							local steep = -v0 / sqrt(v0 * v0 + vt1 * vt1 + vt2 * vt2)
-							local k = -v0 * tex.bump * steep * steep
-							avx, avy = avx + k * u4, avy + k * u5
-							a.vx, a.vy = avx, avy
+							steep = tex.bump * steep * steep
+							sx, sy = steep * u4, steep * u5
 						end
 					else
 						a.gMf[k], a.gEf[k] = 1, 1
@@ -1270,6 +1275,39 @@ function world.step(w)
 					a.wx = awx + ln * r[K_WANX] + l1 * r[K_WA1X] + l2 * r[K_WA2X]
 					a.wy = awy + ln * r[K_WANY] + l1 * r[K_WA1Y] + l2 * r[K_WA2Y]
 					a.wz = awz + ln * r[K_WANZ] + l1 * r[K_WA1Z] + l2 * r[K_WA2Z]
+				elseif sx ~= 0 or sy ~= 0 then
+					-- a landing on a tilted patch (new, so nothing to warm start): this
+					-- step's contact takes the patch's normal, as a contact with a
+					-- static body does (kind 4: solved as kind 3, stored as the ground)
+					r[K_KIND] = 4
+					local l = 1 / sqrt(sx * sx + sy * sy + 1)
+					local nx, ny, nz = -sx * l, -sy * l, l
+					r[K_NX], r[K_NY], r[K_NZ] = nx, ny, nz
+					-- tangents (nx is small: t1 = (0, nz, -ny), t2 = n x t1)
+					l = 1 / sqrt(nz * nz + ny * ny)
+					local t1x, t1y, t1z = 0, nz * l, -ny * l
+					local t2x, t2y, t2z = ny * t1z - nz * t1y, nz * t1x - nx * t1z, nx * t1y - ny * t1x
+					r[K_T1X], r[K_T1Y], r[K_T1Z], r[K_T2X], r[K_T2Y], r[K_T2Z] = t1x, t1y, t1z, t2x, t2y, t2z
+					local jx, jy, jz = ray * nz - raz * ny, raz * nx - rax * nz, rax * ny - ray * nx
+					local wx = i11 * jx + i12 * jy + i13 * jz
+					local wy = i12 * jx + i22 * jy + i23 * jz
+					local wz = i13 * jx + i23 * jy + i33 * jz
+					r[K_ANX], r[K_ANY], r[K_ANZ], r[K_WANX], r[K_WANY], r[K_WANZ] = jx, jy, jz, wx, wy, wz
+					local kn = ima + (jx * wx + jy * wy + jz * wz)
+					jx, jy, jz = ray * t1z - raz * t1y, raz * t1x - rax * t1z, rax * t1y - ray * t1x
+					wx = i11 * jx + i12 * jy + i13 * jz
+					wy = i12 * jx + i22 * jy + i23 * jz
+					wz = i13 * jx + i23 * jy + i33 * jz
+					r[K_A1X], r[K_A1Y], r[K_A1Z], r[K_WA1X], r[K_WA1Y], r[K_WA1Z] = jx, jy, jz, wx, wy, wz
+					local k1 = ima + (jx * wx + jy * wy + jz * wz)
+					jx, jy, jz = ray * t2z - raz * t2y, raz * t2x - rax * t2z, rax * t2y - ray * t2x
+					wx = i11 * jx + i12 * jy + i13 * jz
+					wy = i12 * jx + i22 * jy + i23 * jz
+					wz = i13 * jx + i23 * jy + i33 * jz
+					r[K_A2X], r[K_A2Y], r[K_A2Z], r[K_WA2X], r[K_WA2Y], r[K_WA2Z] = jx, jy, jz, wx, wy, wz
+					local k2 = ima + (jx * wx + jy * wy + jz * wz)
+					r[K_MN], r[K_MT1], r[K_MT2] = 1 / kn, 1 / k1, 1 / k2
+					r[K_V0] = avx * nx + avy * ny + avz * nz + awx * r[K_ANX] + awy * r[K_ANY] + awz * r[K_ANZ]
 				end
 			else
 				r[K_NX], r[K_NY], r[K_NZ] = nx, ny, nz
@@ -1336,11 +1374,7 @@ function world.step(w)
 				end
 				r[K_MN], r[K_MT1], r[K_MT2] = 1 / kn, 1 / k1, 1 / k2
 				r[K_V0] = v0
-				if cA[i].shape == 1 and cB[i].shape == 1 then
-					r[K_MU], r[K_E] = boxMu, pairE
-				else
-					r[K_MU], r[K_E] = pairMu, pairE
-				end
+				r[K_MU], r[K_E] = pairMu, pairE
 				r[K_LN] = 0
 			end
 		end
@@ -1396,22 +1430,43 @@ function world.step(w)
 	for _ = 1, t.relaxIterations do solve(K_RELAX) end
 
 	if P then local now = pc(); P.relax = P.relax + now - pt; pt = now end
-	-- 7. restitution
-	-- (several passes: a box landing flat has four corners, and one pass
-	-- in order over them tips it and overshoots the bounce)
+	-- 7. restitution, the bounce of each contact that arrived faster than
+	-- restitutionSpeed and pressed this step: the target is -e times its
+	-- approach speed before the solve (v0). (Several passes: a box landing
+	-- flat has four corners, and one pass in order over them tips it and
+	-- overshoots the bounce.) A bounce between two pieces is solved together
+	-- with every other contact of those pieces that pressed this step (their
+	-- footing on the ground, a neighbour), held to the target they had in the
+	-- relax pass: applied alone, a baton's bounce off a standing kubb drove
+	-- the kubb into the ground and the ground threw it up the next step.
 	local rs = t.restitutionSpeed
-	local any = false
+	local any, pair = false, false
 	for i = 1, m do
 		local r = REC[i]
-		if r[K_V0] < -rs and r[K_LNMAX] > 0 and r[K_E] > 0 then any = true break end
+		if r[K_V0] < -rs and r[K_LNMAX] > 0 and r[K_E] > 0 then
+			any = true
+			local kind = r[K_KIND]
+			if kind ~= 1 then
+				pair = true
+				r[K_A].bounceStep = stamp
+				if kind == 2 then r[K_B].bounceStep = stamp end
+			end
+		end
 	end
 	if any then
 		for _ = 1, t.restitutionIterations do
 			for i = 1, m do
 				local r = REC[i]
 				local v0 = r[K_V0]
+				local a, kind = r[K_A], r[K_KIND]
+				local tgt
 				if v0 < -rs and r[K_LNMAX] > 0 and r[K_E] > 0 then
-					local a, kind = r[K_A], r[K_KIND]
+					tgt = -r[K_E] * v0
+				elseif pair and r[K_LNMAX] > 0 and (a.bounceStep == stamp
+					or (kind == 2 and r[K_B].bounceStep == stamp)) then
+					tgt = r[K_RELAX]
+				end
+				if tgt then
 					local vn
 					if kind == 1 then
 						vn = a.vz + a.wx * r[K_ANX] + a.wy * r[K_ANY]
@@ -1425,7 +1480,7 @@ function world.step(w)
 						end
 					end
 					local old = r[K_LN]
-					local lam = old - r[K_MN] * (vn + r[K_E] * v0)
+					local lam = old - r[K_MN] * (vn - tgt)
 					if lam < 0 then lam = 0 end
 					r[K_LN] = lam
 					if lam ~= old then
@@ -1456,11 +1511,17 @@ function world.step(w)
 	for i = 1, m do
 		local r = REC[i]
 		local idx = r[K_IDX]
-		if r[K_KIND] == 1 then
+		local kind = r[K_KIND]
+		if kind == 1 or kind == 4 then
 			local a = r[K_A]
 			local k = cSlot[idx]
 			local ln = r[K_LN]
-			a.gStamp[k], a.gN[k], a.gT1[k], a.gT2[k] = stamp, ln, r[K_LT1], r[K_LT2]
+			local l1, l2 = r[K_LT1], r[K_LT2]
+			if kind == 4 then
+				-- (its friction in the ground's x and y, for next step's warm start)
+				l1, l2 = l1 * r[K_T1X] + l2 * r[K_T2X], l1 * r[K_T1Y] + l2 * r[K_T2Y]
+			end
+			a.gStamp[k], a.gN[k], a.gT1[k], a.gT2[k] = stamp, ln, l1, l2
 			a.groundImpulse = a.groundImpulse + ln
 			if r[K_LNMAX] > 0 and a == proj and not w.firstContact then
 				noteContact(w, a, nil, cPx[idx], cPy[idx], cPz[idx])
@@ -1492,6 +1553,16 @@ function world.step(w)
 			local gi = b.groundImpulse
 			if gi <= 0 then b.plough = 0 end   -- off the ground: the ploughed snow is left behind
 			if gi > 0 then
+				-- the ground's push this step, as the turf feels it: all of it,
+				-- except in a step where a contact struck (faster than
+				-- restitutionSpeed), when only the weight's share: the strike is
+				-- taken by the contacts and the dig, and one hard step must not
+				-- stop a turn or a slide the plug lets go
+				local load = gi
+				if b.impact == stamp then
+					local wt = b.m * t.g * dt
+					if load > wt then load = wt end
+				end
 				if b.shape == 2 then
 					-- a baton: its spin taken in two parts, each held by an angular
 					-- impulse (lever times the ground's impulse), never past stopping
@@ -1508,11 +1579,9 @@ function world.step(w)
 					local wu = wx * ux + wy * uy + wz * uz
 					local px, py, pz = wx - wu * ux, wy - wu * uy, wz - wu * uz
 					local i11, i12, i13, i22, i23, i33 = b.i11, b.i12, b.i13, b.i22, b.i23, b.i33
-					-- (rolling resistance is the turf giving under its weight: it takes
-					-- the ground's impulse up to rollCap times the weight a step, so the
-					-- one hard step of a landing does not stop a turn the plug lets go)
-					local gr = t.rollCap * b.m * t.g * dt
-					if gi < gr then gr = gi end
+					-- (rolling resistance is the turf giving under the ground's push,
+					-- `load` above: a landing's turn loss is the plug's)
+					local gr = load
 					local L = b.dig * gi + t.batonTurnHold * surf.roll * gr
 					local p2 = px * px + py * py + pz * pz
 					if L > 0 and p2 > 1e-12 then
@@ -1548,47 +1617,47 @@ function world.step(w)
 					local v2 = vx * vx + vy * vy
 					if v2 > 1e-8 then
 						if r33 > COS_END then
-							-- upright on an end and sliding: a baton's foot catches and it
-							-- tips toward the way it is going (axis z x v)
-							if b.shape == 2 and v2 > tex.tripSpeed * tex.tripSpeed then
-								local k = tex.trip * dt
-								b.wx, b.wy = b.wx - k * vy, b.wy + k * vx
-							elseif b.shape == 1 then
-								-- a kubb (or the king) standing and sliding: its foot catches
-								-- too. The turf holds the slip of the point under its centre:
-								-- that share of the slip is taken away there, which slows the
-								-- piece and tips it the way it is going
-								local ft = tex.foot
-								if ft then
-									local h = b.z
-									local wx, wy = b.wx, b.wy
-									local sx, sy = vx - h * wy, vy + h * wx
-									local s2 = sx * sx + sy * sy
-									if s2 > tex.footSpeed * tex.footSpeed then
-										local pl = tex.plough
-										if pl then
-											local d = b.plough + sqrt(s2) * dt
-											b.plough = d
-											ft = ft + pl * d
-										end
-										ft = ft * dt
-										if ft > 1 then ft = 1 end
-										local im = b.im
-										local jx = -ft * sx / (im + h * h * b.i22)
-										local jy = -ft * sy / (im + h * h * b.i11)
-										-- r = (0, 0, -h): r x J = (h jy, -h jx, 0)
-										local tx, ty = h * jy, -h * jx
-										b.vx, b.vy = vx + im * jx, vy + im * jy
-										b.wx = wx + b.i11 * tx + b.i12 * ty
-										b.wy = wy + b.i12 * tx + b.i22 * ty
-										b.wz = b.wz + b.i13 * tx + b.i23 * ty
+							-- a piece standing on an end and sliding on snow (a kubb, the
+							-- king, a baton): its foot sinks into the snow and ploughs it,
+							-- a resistance at the foot against the slip of the point under
+							-- its centre, no more than footMu times the ground's push this
+							-- step (Coulomb, like the corners' friction) and never past
+							-- stopping the slip, so it slows the piece and tips it the way
+							-- it is going. Elsewhere the friction at the foot alone tips a
+							-- piece sliding on an end (a baton's trip, a spin added with
+							-- nothing pushed back, went 2026-11-16)
+							local fm = tex.footMu
+							if fm then
+								local h = b.z
+								local wx, wy = b.wx, b.wy
+								local sx, sy = vx - h * wy, vy + h * wx
+								local s2 = sx * sx + sy * sy
+								if s2 > tex.footSpeed * tex.footSpeed then
+									local im = b.im
+									local jx = -sx / (im + h * h * b.i22)
+									local jy = -sy / (im + h * h * b.i11)
+									local j2 = jx * jx + jy * jy
+									local cap = fm * gi
+									if j2 > cap * cap then
+										local f = cap / sqrt(j2)
+										jx, jy = jx * f, jy * f
 									end
+									-- r = (0, 0, -h): r x J = (h jy, -h jx, 0)
+									local tx, ty = h * jy, -h * jx
+									b.vx, b.vy = vx + im * jx, vy + im * jy
+									b.wx = wx + b.i11 * tx + b.i12 * ty
+									b.wy = wy + b.i12 * tx + b.i22 * ty
+									b.wz = b.wz + b.i13 * tx + b.i23 * ty
 								end
 							end
 						elseif b.shape == 2 or r33 < 0.5 then
 							-- a baton or a lying piece on grass: the blades hold it,
 							-- harder once it is slow, so it stops instead of creeping
 							-- (in snow, harder the farther it has ploughed)
+							-- (in proportion to how hard it presses: its full weight on
+							-- the ground gives the rates in full, a baton propped on a
+							-- kubb with one end in the grass less; a harder push, a
+							-- landing or a pivot, is the corners' friction's, not more)
 							local f = tex.drag
 							if v2 < tex.gripSpeed * tex.gripSpeed then f = f + tex.grip end
 							local pl = tex.plough
@@ -1597,7 +1666,9 @@ function world.step(w)
 								b.plough = d
 								f = f + pl * d
 							end
-							f = 1 - f * dt
+							local share = load / (b.m * t.g * dt)
+							if share > 1 then share = 1 end
+							f = 1 - f * share * dt
 							if f < 0 then f = 0 end
 							b.vx, b.vy = vx * f, vy * f
 							b.wx, b.wy, b.wz = b.wx * f, b.wy * f, b.wz * f

@@ -205,7 +205,18 @@ function Game:_startTurn()
 	-- half; the line runs through the center of the one closest to the
 	-- centerline. The inkast cannot legally move them (II.C.4b puts them
 	-- back), so it is fixed for the turn.
+	self:_advantage()
+	self.phase = "toss"
+	self:_next()
+end
+
+-- The advantage line from the attacker's own field kubbs as they stand now,
+-- written to the sheet. _startTurn sets it; core/match calls it again when it
+-- settles a carried standing kubb before the turn's first throw.
+function Game:_advantage()
+	local att = self.attacker
 	self.advantageY = nil
+	self.sheet:advantage(nil)
 	local own = self:fieldKubbs(att)
 	if #own > 0 then
 		local best
@@ -215,8 +226,6 @@ function Game:_startTurn()
 		self.advantageY = best.pose.y
 		self.sheet:advantage(pitch.advantageMeters(att, best.pose.y))
 	end
-	self.phase = "toss"
-	self:_next()
 end
 
 -- Pick the phase and current piece from the queues.
@@ -259,9 +268,13 @@ end
 -- at the token's count). Kubbs out of play have none. A turn saved before
 -- positions has no inkBy on its kubbs: they go to its one inkaster, or
 -- nowhere when it had several.
+-- Written as the batons begin; core/match calls it again (it starts the list
+-- afresh) when it settles the turn's kubbs before the first baton.
 function Game:_inkastPositions()
 	local t = self.sheet.current
-	if not t or #t.inkastOrder == 0 then return end
+	if not t then return end
+	t.inkastAt = nil
+	if #t.inkastOrder == 0 then return end
 	local def = self.defender
 	local list = {}
 	for _, id in ipairs(self.ids) do
