@@ -1,239 +1,83 @@
-// The session under wasmoon through src/engine (docs/ENGINE.md): a practice
-// throw, and the multiplayer proof: one browser acts through a whole match,
-// others only apply its actions, and every recording and hash agrees.
+// The web's host of kubb-engine (src/engine over vendor/engine): the bundle the build
+// ships is the engine's own, Engine.create makes the start-up calls (the pointer tune,
+// the "web <version>" label), and the engine's golden corpus (vendor/engine/golden,
+// docs/DETERMINISM.md in the engine) comes out hash for hash under this repository's
+// wasmoon. The session's own tests are the engine's (kubb-engine tests/).
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { Engine } from "../../src/engine/index.js";
-import { bundleLua } from "../../tools/lua-bundle.mjs";
+import { bundleLua, bundleText } from "../../tools/lua-bundle.mjs";
+import { clientLabel } from "../../src/net/sync.js";
 
-const sources = await bundleLua();
+const read = (p) => fs.readFileSync(new URL(`../../${p}`, import.meta.url));
+const manifest = JSON.parse(read("vendor/engine/engine.json"));
+const pkg = JSON.parse(read("package.json"));
+const sources = bundleLua();
 const START = { year: 2026, month: 11, day: 15, hour: 10, min: 0 };
 
-// The arm angles of a swing as a pointer gives them, a frame each: back to
-// `back` degrees, a quick flick forward to `stop`, held there.
-function swingArms(back, stop) {
-  const arms = [0, -5];
-  for (let a = -5; a > -back;) {
-    a = Math.max(-back, a - 400 / 60);
-    arms.push(a);
-  }
-  for (let a = -back; a < stop;) {
-    a = Math.min(stop, a + 2400 / 60);
-    arms.push(a);
-  }
-  for (let i = 0; i < 6; i++) arms.push(stop);
-  return arms;
-}
-
-test("a practice throw gives a sane recording", async () => {
-  const e = await Engine.create({ sources });
-  const v = e.newPractice({ surface: "grass" });
-  assert.equal(v.need.kind, "throw");
-  assert.equal(v.items.length, 17);
-  const plan = v.aim.plan;
-  let out;
-  for (const arm of swingArms(
-    (plan.powerLo + plan.powerHi) / 2,
-    plan.release,
-  )) {
-    out = e.frame({ dt: 1 / 60, arm });
-    if (out.event) break;
-  }
-  assert.equal(out.event, "release");
-  const rec = out.recording;
-  assert.ok(rec.frames > 30 && rec.frames < 12 * 60);
-  assert.equal(rec.frameDt, 1 / 60);
-  assert.equal(rec.projectile.how, "baton");
+test("the Lua the site ships is the engine's bundle, byte for byte", () => {
+  assert.equal(bundleText().sha256, manifest.bundle.sha256);
   assert.ok(
-    ["MISS", "HELICOPTER"].includes(rec.result.flag) ||
-      /DOWN$/.test(rec.result.flag),
+    sources["session/api"] && sources["tune/pointer"] && sources.version,
   );
-  for (const b of rec.bodies) {
-    assert.equal(b.poses.length, b.frames * 7);
-    assert.ok(b.start >= 0 && b.start + b.frames - 1 <= rec.frames);
-  }
-  const p = e.showAt(rec.duration / 2);
-  assert.ok(p.camera.f > 0);
-  assert.equal(p.items.length, 18, "the pitch, the baton and the stakes");
-  const after = e.view();
-  assert.equal(after.need.kind, "throw");
-  assert.ok(after.aim.verdicts && after.aim.verdicts.power);
-});
-
-test("two browsers play a whole match in step; a third joins mid-match", async () => {
-  const actor = await Engine.create({ sources });
-  const watcher = await Engine.create({ sources });
-  actor.newMatch({
-    seed: 5, // 42 ended on turn 3 once drills ran on (playdate-kubb #121)
-    cpu: "B",
-    start: START,
-    wind: "light",
-    raising: "hand",
-    maxTurns: 30,
-    teams: {
-      A: { name: "Home", players: [{ name: "Ann" }, { name: "Bo" }] },
-      B: { name: "Away", players: [{ name: "Cy" }] },
-    },
-  });
-  watcher.restore(actor.snapshot());
-  watcher.setControl({ sides: [], cpu: false });
-  assert.equal(watcher.hash().hash, actor.hash().hash);
-
-  let late = null;
-  let actions = 0;
-  let humanThrows = 0;
-  let guard = 0;
-  const check = (action, rec) => {
-    const w = watcher.apply(action);
-    if (rec) assert.equal(JSON.stringify(w.recording), JSON.stringify(rec));
-    assert.equal(
-      watcher.hash().hash,
-      actor.hash().hash,
-      `hash after action ${actions}`,
-    );
-    if (late) {
-      const l = late.apply(action);
-      if (rec) assert.equal(JSON.stringify(l.recording), JSON.stringify(rec));
-      assert.equal(late.hash().hash, actor.hash().hash);
-    }
-    actions++;
-  };
-
-  while (guard++ < 2000) {
-    const n = actor.need();
-    if (n.kind === "over") break;
-    if (actions === 25 && !(late instanceof Engine)) {
-      late = await Engine.create({ sources });
-      late.restore(actor.snapshot());
-      late.setControl({ sides: [], cpu: false });
-      assert.equal(late.hash().hash, actor.hash().hash);
-    }
-    if (n.kind === "raise") {
-      const action = { type: "raise", choice: n.default };
-      actor.apply(action);
-      check(action);
-    } else if (n.kind === "punish") {
-      const action = { type: "punish", x: n.cursor.x, y: n.cursor.y };
-      assert.equal(actor.apply(action).ok, true);
-      check(action);
-    } else if (n.cpu) {
-      let out;
-      for (let i = 0; i < 600 && !out?.action; i++)
-        out = actor.frame({ dt: 1 / 60 });
-      assert.ok(out.action, "the computer threw");
-      check(out.action, out.recording);
-    } else {
-      // a human swing on the dial at the plan's power and release
-      const plan = actor.aim().aim.plan;
-      const stop = plan.release + ((humanThrows % 3) - 1) * 8;
-      let out;
-      for (const arm of swingArms(plan.back, stop)) {
-        out = actor.frame({ dt: 1 / 60, arm });
-        if (out.event) break;
-      }
-      if (!out.action) out = actor.frame({ dt: 1 / 60 }); // let go: the release
-      assert.ok(out.action, `the human threw (${out.event})`);
-      assert.equal(out.action.scripted, false);
-      humanThrows++;
-      check(out.action, out.recording);
-    }
-  }
-  const n = actor.need();
-  assert.equal(n.kind, "over");
-  assert.equal(watcher.need().kind, "over");
-  assert.equal(watcher.need().file.text, n.file.text);
-  assert.ok(late instanceof Engine, "the late browser joined");
-  assert.ok(humanThrows > 5);
-  console.log(
-    `      ${actions} actions (${humanThrows} by hand), ${n.turn} turns, ${n.how}; snapshot ${actor.hash().bytes} bytes`,
-  );
-});
-
-// A finished match played again from its options and its log (lua/web/replay.lua, the
-// pitch's replay): every recording and hash the same, read only, BACK in step.
-test("a replay plays the match again: the same recordings and hashes, read only", async () => {
-  const actor = await Engine.create({ sources });
-  const setup = {
-    seed: 5,
-    cpu: "B",
-    start: START,
-    wind: "light",
-    raising: "hand",
-    maxTurns: 8,
-    teams: {
-      A: { name: "Home", players: [{ name: "Ann", key: "m1" }] },
-      B: { name: "Away", players: [{ name: "Cy" }] },
-    },
-  };
-  actor.newMatch(setup);
-  const h0 = actor.hash().hash;
-  const log = [];
-  const recs = [];
-  let guard = 0;
-  while (actor.need().kind !== "over" && guard++ < 2000) {
-    const n = actor.need();
-    let action;
-    let rec = null;
-    if (n.kind === "raise") {
-      action = { type: "raise", choice: n.default };
-      actor.apply(action);
-    } else if (n.kind === "punish") {
-      action = { type: "punish", x: n.cursor.x, y: n.cursor.y };
-      actor.apply(action);
-    } else {
-      let out;
-      if (n.cpu) {
-        for (let i = 0; i < 600 && !out?.action; i++)
-          out = actor.frame({ dt: 1 / 60 });
-      } else {
-        const plan = actor.aim().aim.plan;
-        for (const arm of swingArms(plan.back, plan.release)) {
-          out = actor.frame({ dt: 1 / 60, arm });
-          if (out.event) break;
-        }
-        if (!out.action) out = actor.frame({ dt: 1 / 60 });
-      }
-      action = out.action;
-      rec = out.recording;
-    }
-    // through JSON, as the document carries it
-    log.push({ a: JSON.parse(JSON.stringify(action)), h: actor.hash().hash });
-    recs.push(rec && JSON.stringify(rec));
-  }
-  assert.equal(actor.need().kind, "over");
-
-  const viewer = await Engine.create({ sources });
-  const v = viewer.replayLoad({ setup, h0, log });
-  assert.equal(v.replay.i, 0);
-  assert.equal(v.replay.total, log.length);
-  assert.equal(v.need.local, false, "nobody acts in a replay");
-  assert.throws(() => viewer.apply(log[0].a), /read only/);
-  assert.throws(
-    () => viewer.setControl({ sides: ["A"], cpu: true }),
-    /read only/,
-  );
-  const turnAt = [];
-  for (let i = 0; i < log.length; i++) {
-    const r = viewer.replayStep();
-    assert.equal(r.ok, true, `action ${i + 1}`);
-    assert.equal(viewer.hash().hash, log[i].h, `hash after action ${i + 1}`);
-    if (recs[i]) assert.equal(JSON.stringify(r.recording), recs[i]);
-    turnAt.push(r.replay.turn);
-  }
-  const end = viewer.replayInfo();
-  assert.equal(end.done, true);
-  assert.equal(end.differs, false);
-  assert.equal(viewer.need().file.text, actor.need().file.text);
-  // BACK from the end: the start of the turn before the last
-  const back = viewer.replayBack();
-  const last = turnAt.at(-1);
-  assert.equal(back.replay.turn, last - 1);
   assert.equal(
-    viewer.hash().hash,
-    back.replay.i ? log[back.replay.i - 1].h : h0,
+    Object.keys(sources).some((k) => k.startsWith("web/")),
+    false,
   );
-  viewer.replayRewind();
-  assert.equal(viewer.hash().hash, h0);
-  viewer.replayEnd();
-  console.log(`      replayed ${log.length} actions, ${last} turns`);
+});
+
+test("Engine.create loads the pointer tune and labels the game file", async () => {
+  const e = await Engine.create({ sources, client: clientLabel(pkg.version) });
+  assert.equal(e.version, manifest.version);
+  assert.deepEqual(e.call("useTune", { name: "pointer" }), { tune: "pointer" });
+  e.newMatch({ seed: 3, cpu: "both", start: START, maxTurns: 1 });
+  assert.equal(clientLabel(pkg.version), `web ${pkg.version}`);
+  assert.match(
+    e.sheet().text,
+    new RegExp(
+      `\\[Scored by "Throwing Wood web ${pkg.version.replaceAll(".", "\\.")}"\\]`,
+    ),
+  );
+  // the label is never in the hash: a host without one plays the same match
+  const plain = await Engine.create({ sources });
+  plain.newMatch({ seed: 3, cpu: "both", start: START, maxTurns: 1 });
+  assert.equal(plain.hash().hash, e.hash().hash);
+});
+
+test("the engine's golden corpus, every hash, under this wasmoon", async () => {
+  const corpus = JSON.parse(read("vendor/engine/golden/hashes.json"));
+  assert.equal(corpus.version, manifest.version);
+  const e = await Engine.create({
+    sources: {
+      ...sources,
+      "golden/drive": read("vendor/engine/golden/drive.lua").toString("utf8"),
+    },
+    client: clientLabel(pkg.version),
+  });
+  await e.lua.doString(`import "golden/drive"`);
+  const played = JSON.parse(
+    await e.lua.doString(`
+      local out = {}
+      for i, m in ipairs(tw.golden.matches()) do out[i] = tw.golden.play(m) end
+      return tw.web.json.encode(out)`),
+  );
+  assert.equal(played.length, corpus.matches.length);
+  let actions = 0;
+  played.forEach((m, i) => {
+    const want = corpus.matches[i];
+    assert.equal(m.name, want.name);
+    assert.equal(m.start, want.start, `${m.name}: the starting hash`);
+    assert.deepEqual(m.actions, want.actions, `${m.name}: the actions`);
+    actions += m.actions.length;
+  });
+  assert.equal(actions, 453);
+});
+
+test("wasmoon is exactly 1.16.0, the engine's reference platform", () => {
+  assert.equal(pkg.dependencies.wasmoon, "1.16.0");
+  assert.equal(
+    JSON.parse(read("node_modules/wasmoon/package.json")).version,
+    "1.16.0",
+  );
 });

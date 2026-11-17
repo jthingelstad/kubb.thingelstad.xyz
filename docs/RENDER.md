@@ -157,7 +157,7 @@ Black for bursts and prompts and Inter for labels, never italic.
 
 ## The gallery, fixtures and screenshots
 
-- `dev/fixtures/generate.mjs` plays real matches with `vendor/core` under wasmoon and writes
+- `dev/fixtures/generate.mjs` plays real matches with `vendor/engine/core` under wasmoon and writes
   the fixtures in `dev/fixtures/` (cameras, items, plans and dial numbers as the core made them):
   `node dev/fixtures/generate.mjs`, about 3 seconds.
 - `dev/render.html`, served from the repository root, draws every fixture plus the dial in each

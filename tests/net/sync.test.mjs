@@ -32,14 +32,22 @@ test("the next action is applied; anything else adopts", () => {
   assert.equal(decide(l, doc(1, 4), w(1, 4), true).why, "own");
 });
 
-test("an action too big to ride along is left off", () => {
+test("the rider carries the client and engine; one too big is left off", () => {
   assert.deepEqual(rider(1, 2, { a: 1 }), {
     n: 1,
     seq: 2,
     a: { a: 1 },
     c: "web",
   });
+  assert.deepEqual(rider(1, 2, { a: 1 }, { engine: "0.2.0" }), {
+    n: 1,
+    seq: 2,
+    a: { a: 1 },
+    c: "web",
+    e: "0.2.0",
+  });
   assert.equal(rider(1, 2, { a: "x".repeat(5000) }), undefined);
+  assert.equal(rider(1, 2, { a: "x".repeat(900) }, { bytes: 1000 }), undefined);
   assert.equal(asciiSize({ a: "é" }), JSON.stringify({ a: "x" }).length + 5);
 });
 

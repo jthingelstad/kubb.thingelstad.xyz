@@ -6,8 +6,9 @@
 //
 //   recordMatch({ game, mode, config, url });   // on the `over` need; never throws
 //
-// What is sent (`g` in the message): the mode; `client: "web"`; the build (package version, commit, the
-// hashed Lua bundle's name, the vendored core's commit); the browser's clock; the match's
+// What is sent (`g` in the message): the mode; `client: "web"`; `engine`, the kubb-engine
+// version that played it; the build (package version, commit, the hashed Lua bundle's
+// name); the browser's clock; the match's
 // options as its first snapshot carries them (seed, teams, names typed, opening, ...); the
 // first snapshot and every action applied since, with the engine's hash after each (start
 // + actions replay it, and the hashes say where this checkout's engine first goes another
@@ -57,12 +58,12 @@ export function matchRecord({ game, mode, config = {}, now = Date.now }) {
   return structuredClone({
     mode,
     client: CLIENT,
+    engine: engine.version ?? null,
     at: now(),
     build: {
       version: config.version ?? null,
       commit: config.commit ?? null,
       lua: config.luaUrl ? String(config.luaUrl).split("/").pop() : null,
-      core: config.core ?? null,
     },
     options,
     start: trail.start,

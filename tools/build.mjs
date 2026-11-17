@@ -3,9 +3,9 @@
 // pages from src/site/, and the files written from them (sitemap.xml,
 // robots.txt, llms.txt, revision.json, version.json).
 //
-// version.json is the release (src/site/release.js): the game's version and
-// build from vendor/core/version.lua, the web commit (GITHUB_SHA in CI, else
-// git rev-parse HEAD) and the core's playdate-kubb commit. The pages carry the
+// version.json is the release (src/site/release.js): the web game's version
+// (package.json), the web commit (GITHUB_SHA in CI, else git rev-parse HEAD)
+// and the vendored kubb-engine's version. The pages carry the
 // same object as config.release; the client asks for version.json to tell a
 // player when a newer deploy is out (src/net/freshness.js).
 //
@@ -27,7 +27,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { PAGES } from "../src/site/pages.mjs";
-import { makeRelease, parseCoreVersion } from "../src/site/release.js";
+import { makeRelease } from "../src/site/release.js";
+import { engineVersion } from "./lua-bundle.mjs";
 import {
   DEV_ROOMS_URL,
   GAME_READY,
@@ -35,11 +36,6 @@ import {
   SITE_TITLE,
 } from "../src/site/site.mjs";
 
-const exists = (file) =>
-  fs.access(file).then(
-    () => true,
-    () => false,
-  );
 const git = (...args) => {
   try {
     return execFileSync("git", args, {
@@ -70,21 +66,6 @@ export async function roomsUrl(production) {
   return deployment.rooms.webSocketUrl;
 }
 
-// The vendored core's commit (vendor/core.json): a report names the core it ran.
-async function coreCommit() {
-  try {
-    const core = JSON.parse(await fs.readFile("vendor/core.json", "utf8"));
-    return typeof core.commit === "string" ? core.commit : null;
-  } catch {
-    return null;
-  }
-}
-
-// The game's version and build, from the vendored core (the Playdate's pdxinfo).
-async function gameVersion() {
-  return parseCoreVersion(await fs.readFile("vendor/core/version.lua", "utf8"));
-}
-
 // A file under dist/assets/, named <name>-<hash><ext>.
 async function hashedAsset(from, name) {
   const bytes = await fs.readFile(from);
@@ -100,15 +81,11 @@ export async function buildSite({
 } = {}) {
   const pkg = JSON.parse(await fs.readFile("package.json", "utf8"));
 
-  // The Lua sources, when the engine's bundler is in place.
-  let luaFile = null;
-  if (await exists("tools/lua-bundle.mjs")) {
-    execFileSync(process.execPath, ["tools/lua-bundle.mjs"], {
-      stdio: quiet ? "ignore" : "inherit",
-    });
-    if (await exists("build/lua-sources.json"))
-      luaFile = "build/lua-sources.json";
-  }
+  // The engine's Lua sources (vendor/engine), one module map.
+  execFileSync(process.execPath, ["tools/lua-bundle.mjs"], {
+    stdio: quiet ? "ignore" : "inherit",
+  });
+  const luaFile = "build/lua-sources.json";
 
   await fs.rm("dist", { recursive: true, force: true });
   await fs.cp("public", "dist", { recursive: true });
@@ -141,15 +118,15 @@ export async function buildSite({
   if (!assets.main) throw new Error("esbuild wrote no client entry");
 
   const commit = process.env.GITHUB_SHA || git("rev-parse", "HEAD") || null;
-  const core = await coreCommit();
-  const release = makeRelease({ ...(await gameVersion()), web: commit, core });
+  const engine = engineVersion();
+  const release = makeRelease({ version: pkg.version, web: commit, engine });
   const config = {
     version: pkg.version,
     commit,
     roomsUrl: await roomsUrl(production),
     wasmUrl: await hashedAsset("node_modules/wasmoon/dist/glue.wasm", "glue"),
-    luaUrl: luaFile ? await hashedAsset(luaFile, "lua-sources") : null,
-    core,
+    luaUrl: await hashedAsset(luaFile, "lua-sources"),
+    engine,
     release,
     sounds: "/sounds/",
   };

@@ -1,19 +1,23 @@
-// The game engine for JavaScript (docs/ENGINE.md): the Playdate game's Lua
-// core and lua/web's session in wasmoon's Lua 5.4, behind a few coarse
-// calls that take and return plain objects. Browser and Node; no DOM.
+// The game engine for JavaScript (docs/ENGINE.md): kubb-engine (vendor/engine/,
+// its core and session) in wasmoon's Lua 5.4, behind a few coarse calls that
+// take and return plain objects. Browser and Node; no DOM.
 //
 //   import { Engine } from "../engine/index.js";
-//   const engine = await Engine.create({ sources, wasmUrl });
+//   const engine = await Engine.create({ sources, wasmUrl, client: "web 0.1.0" });
 //   const view = engine.newPractice({ surface: "grass" });
 //   const out = engine.frame({ dt, arm, plan, move, walk });
 //
 // sources: the module map tools/lua-bundle.mjs writes ({ "core/world":
-// "<lua>", ... }), or a URL to fetch it from. wasmUrl: wasmoon's glue.wasm
-// (the browser; Node finds it in node_modules when it is left out).
+// "<lua>", "session/api": "<lua>", ... }), or a URL to fetch it from.
+// wasmUrl: wasmoon's glue.wasm (the browser; Node finds it in node_modules
+// when it is left out). Before anything else the engine is given its tune
+// (the pointer's, the web's dial) and, when `client` is set, the label its
+// game files carry ("web <package version>"; the engine's own otherwise).
+// engine.version is the engine's version (version.lua), sent with records.
 import { LuaFactory } from "wasmoon";
 
 // The import shim (the Playdate's `import`): runs a module once, from the
-// sources map. The session's one door is kubbCall (lua/web/api.lua).
+// sources map. The session's one door is kubbCall (session/api.lua).
 const BOOT = `
 local imported = {}
 function import(name)
@@ -24,7 +28,7 @@ function import(name)
   if not s then error("import: no module " .. name, 2) end
   return assert(load(s, "@" .. name))()
 end
-import "web/api"
+import "session/api"
 `;
 
 export class EngineError extends Error {}
@@ -34,9 +38,10 @@ export class Engine {
   constructor(lua, call) {
     this.lua = lua;
     this._kubbCall = call;
+    this.version = null;
   }
 
-  static async create({ sources, wasmUrl } = {}) {
+  static async create({ sources, wasmUrl, client, tune = "pointer" } = {}) {
     if (typeof sources === "string") {
       const res = await fetch(sources);
       if (!res.ok) throw new EngineError(`lua sources: ${res.status}`);
@@ -46,14 +51,20 @@ export class Engine {
       throw new EngineError("Engine.create needs the Lua sources map");
     const factory = new LuaFactory(wasmUrl);
     const lua = await factory.createEngine();
+    // undefined, not null, for a missing module: wasmoon turns it into nil
     lua.global.set("__kubbSource", (name) =>
-      Object.hasOwn(sources, name) ? sources[name] : null,
+      Object.hasOwn(sources, name) ? sources[name] : undefined,
     );
     await lua.doString(BOOT);
     const call = lua.global.get("kubbCall");
     if (typeof call !== "function")
-      throw new EngineError("lua/web/api did not load");
-    return new Engine(lua, call);
+      throw new EngineError("session/api did not load");
+    const engine = new Engine(lua, call);
+    // docs/SESSION.md "Starting" (vendor/engine): before the first new or restore
+    engine.call("useTune", { name: tune });
+    if (client) engine.call("setClient", { label: client });
+    engine.version = engine.call("engineVersion").version;
+    return engine;
   }
 
   // The raw door: method name and argument text in, result text out.
@@ -137,7 +148,7 @@ export class Engine {
     return this.call("showAt", { t });
   }
 
-  // ---- a replay (lua/web/replay.lua) ----
+  // ---- a replay (session/replay.lua) ----
   // data: { setup, h0, log: [{ a, h }] } (src/net/lobby.js replayOf), or `start` (the
   // match's first snapshot) in place of `setup` (tools/backfill-replay.mjs). Every result
   // carries `replay`: { i, total, turn, thrown, throws, differs, done }. While a
@@ -167,7 +178,7 @@ export class Engine {
     return this.call("replayEnd");
   }
 
-  // ---- the wide view (lua/web/wide.lua) ----
+  // ---- the wide view (session/wide.lua) ----
   // box { left, top, right, bottom } in frame px turns it on: every camera
   // after this is the wide one and the pitch comes in the world frame.
   // null turns it off. Returns { camera, kind, farPx } or {}.

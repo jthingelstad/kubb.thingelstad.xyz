@@ -23,6 +23,7 @@ import { startPitch } from "./net/pitch.js";
 import { openReport } from "./ui/report.js";
 import { openSheet } from "./ui/sheet.js";
 import { recordMatch } from "./net/record.js";
+import { clientLabel } from "./net/sync.js";
 import { watchFreshness } from "./net/freshness.js";
 import { showUpdate } from "./ui/update.js";
 import { startEmbed, embedCode } from "./embed/embed.js";
@@ -73,7 +74,11 @@ const home = () => {
 async function makeEngine() {
   if (!config.luaUrl) throw new Error("this build has no Lua sources");
   const [engine] = await Promise.all([
-    Engine.create({ sources: config.luaUrl, wasmUrl: config.wasmUrl }),
+    Engine.create({
+      sources: config.luaUrl,
+      wasmUrl: config.wasmUrl,
+      client: clientLabel(config.version),
+    }),
     document.fonts?.load('900 40px "Londrina Solid"').catch(() => null),
   ]);
   return engine;
@@ -153,7 +158,7 @@ async function boot() {
     report,
     // watching: WIDE VIEW or THROWER'S VIEW (startWatch sets it)
     view: null,
-    // the release line at the foot of the menu: "0.9.5 (6) · web a2659b7 · core cca8012"
+    // the release line at the foot of the menu: "0.1.0 · web a2659b7 · engine 0.2.0"
     release: config.release?.text ?? null,
   });
 

@@ -1,4 +1,4 @@
-// The core camera (vendor/core/camera.lua) in JavaScript, for drawing.
+// The core camera (vendor/engine/core/camera.lua) in JavaScript, for drawing.
 //
 // A camera is the table of camera.new(): { px, py, pz, fx, fy, fz, rx, ry, rz,
 // ux, uy, uz, f, cx, cy, lx, ly, lz }, made and moved by the Lua session. Its

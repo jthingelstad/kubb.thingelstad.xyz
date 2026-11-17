@@ -147,7 +147,7 @@ some Kubb being played"), so the camera never moves.
   window, Team A's baseline on the left and Team B's on the right, the same size, so
   neither team is nearer. On a tall window (box width under 1.05 times its height) it
   stands high behind Team A's baseline with the pitch running up the screen.
-  `lua/web/wide.lua` `wide.tune`.
+  The engine's `session/wide.lua` `wide.tune`.
 - **Filling the window.** The client passes `engine.setWide(box)` the whole window as the
   400 x 240 frame's coordinates see it, less the HUD's margins (`layout.js` `wideBox`:
   70 px at the top for the rail, 132 on a tall window, 16 elsewhere). Lua fits the
@@ -157,7 +157,7 @@ some Kubb being played"), so the camera never moves.
   same camera and the same scale rule, so nothing is letterboxed. It is fitted again on
   every resize.
 - **One view for both teams.** The session keeps Team B's throws in Team B's view frame
-  (the pitch turned 180 degrees, core/frame). In the wide view `lua/web/api.lua` passes
+  (the pitch turned 180 degrees, core/frame). In the wide view the engine's `session/api.lua` passes
   every result through `wide.out`, which puts in the wide camera and un-turns the pieces,
   the aim, the minimap and the bursts' anchors into the world frame (Team A's) whenever
   the session's frame (`Session.frameSide`) or its last recording's (`Session.recSide`)
@@ -216,7 +216,7 @@ A finished match on a shared pitch can be watched again (Jamie, 2026-11-16: "Whe
 is finished playing on a pitch I'd like the URL to allow people to come and watch a
 replay of the match."). A replay is not a video: the match is set out again from its
 `newMatch` options and every committed action goes through this engine in order
-(`lua/web/replay.lua`), the same throws with the same physics, so it plays with the
+(the engine's `session/replay.lua`), the same throws with the same physics, so it plays with the
 current engine. What the pitch keeps is `docs/MULTIPLAYER.md` "The document"; where it is
 stored, `docs/ROOMS.md` section 10.
 
@@ -285,7 +285,7 @@ MENU, SCORE SHEET during a match (solo, watch or a shared pitch; not practice), 
 SHEET on the winner card, opens a card titled "Score sheet": "The match so far." or "The
 whole match.", a link "How to read it" to the Planet Kubb Notation page
 (thingelstad.xyz/things/planet-kubb-score/, `?ref=kubb-sheet`), the game file the
-engine writes (`engine.sheet()`, `Session:sheet()` in lua/web/session.lua: the core's
+engine writes (`engine.sheet()`, `Session:sheet()` in the engine's session/session.lua: the core's
 score sheet as it stands), SHOW POSITIONS / HIDE POSITIONS, COPY, DOWNLOAD and BACK.
 
 - Positions (the `{...}` lines after each turn) are hidden by default; the toggle shows
@@ -329,7 +329,7 @@ or "The report was not sent." with the reason, and the answers stay to send agai
   since, with the snapshots before and after the last one; practice's options and every
   throw, RESET, DRILL and surface change since the pitch was set out. With them go the
   mode, the build (`config.version`, `commit`, the hashed Lua bundle's name, and
-  `config.core`, the vendored core's commit), the viewport, the browser's clock, the turn
+  the vendored engine's version, also at the top as `engine`), the viewport, the browser's clock, the turn
   and phase, the last throw's action and result, the pieces where they stand, and on a
   shared pitch the room code, `v` and the match's `n` and `seq`. Never the user agent or
   a member id: a match's players carry their member id as `key`, so `captureReport`
@@ -361,23 +361,23 @@ on the Club level, practice plan (power band 112..128 degrees back, release at 9
 | Back down to six slowly (150 deg/s)             | nothing thrown                       |
 
 The back and stop angles register exactly. At the core's `fullFlickDps` of 1500 a natural
-flick of about 1000 deg/s read SLOW, so `lua/web/tune.lua` sets it to 1200 for the web.
+flick of about 1000 deg/s read SLOW, so the engine's `pointer` tune (`tune/pointer.lua`) sets it to 1200 for the web.
 
 The Playwright mouse and CDP touch need two animation frames a step (a round trip each),
 so `client.test.mjs` doubles the flick speed to make up for the 30 Hz stepping.
 
 ## Version and freshness
 
-One version for the game: the Playdate's `source/pdxinfo` (`version`, `buildNumber`),
-carried in the core as `vendor/core/version.lua` (`tw.version`) and so brought here by
-`npm run vendor:sync`. There is no separate engine version; the core's identity is the
-playdate-kubb commit in `vendor/core.json`, shown as a diagnostic.
+Two versions: the web game's own (`version` in `package.json`, 0.1.0) and the version of
+kubb-engine it vendors (`vendor/engine/engine.json`, read in Lua as `engineVersion`).
+The game file's "Scored by" is "Throwing Wood web <web version>" (`setClient`); records,
+reports and the `with` rider carry the engine's version as `engine` / `e`.
 
-- **The release** (`src/site/release.js`): `{ version, build, web, core, text }`, `text`
-  as `0.9.5 (6) · web a2659b7 · core cca8012`. The build (`tools/build.mjs`) reads the
-  version and build from `vendor/core/version.lua`, the web commit from `GITHUB_SHA` in
-  CI or `git rev-parse HEAD`, the core commit from `vendor/core.json`; it puts the
-  release in the game pages' config (`config.release`) and writes it as `/version.json`.
+- **The release** (`src/site/release.js`): `{ version, web, engine, text }`, `text` as
+  `0.1.0 · web a2659b7 · engine 0.2.0`. The build (`tools/build.mjs`) reads the version
+  from `package.json`, the web commit from `GITHUB_SHA` in CI or `git rev-parse HEAD`,
+  and the engine's version from `vendor/engine/engine.json`; it puts the release in the
+  game pages' config (`config.release`) and writes it as `/version.json`.
 - **Shown** small at the foot of the reading pages (home, rules, 404) and of MENU.
 - **Freshness** (`src/net/freshness.js`): the client fetches `/version.json` with
   `cache: "no-store"` when the page becomes visible again (at most once a minute) and

@@ -4,34 +4,23 @@
 // calls onStale once.
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  isStale,
-  makeRelease,
-  parseCoreVersion,
-  releaseText,
-} from "../../src/site/release.js";
+import { isStale, makeRelease, releaseText } from "../../src/site/release.js";
 import { watchFreshness } from "../../src/net/freshness.js";
 
 const A = "a2659b744210e4c5baa5b69c672e11ec87f9bfab";
 const B = "bc5199f0000000000000000000000000000000aa";
-const CORE = "cca8012ffffffffffffffffffffffffffffffff0";
 
-test("the release line is version (build) · web · core", () => {
+test("the release line is the web's version · web commit · engine version", () => {
   assert.equal(
-    releaseText({ version: "0.9.5", build: 6, web: A, core: CORE }),
-    "0.9.5 (6) · web a2659b7 · core cca8012",
+    releaseText({ version: "0.1.0", web: A, engine: "0.2.0" }),
+    "0.1.0 · web a2659b7 · engine 0.2.0",
   );
-  assert.equal(
-    makeRelease({ version: "0.9.5", build: 6, web: null, core: null }).text,
-    "0.9.5 (6) · web dev · core dev",
-  );
-});
-
-test("the game's version comes from core/version.lua's constants", () => {
-  const lua =
-    'local VERSION <const> = "0.9.5"\nlocal BUILD <const> = 6\ntw.version = {}\n';
-  assert.deepEqual(parseCoreVersion(lua), { version: "0.9.5", build: 6 });
-  assert.throws(() => parseCoreVersion("tw.version = {}"));
+  assert.deepEqual(makeRelease({ version: "0.1.0", web: null, engine: null }), {
+    version: "0.1.0",
+    web: null,
+    engine: null,
+    text: "0.1.0 · web dev · engine dev",
+  });
 });
 
 test("stale only when the deployed web commit differs", () => {

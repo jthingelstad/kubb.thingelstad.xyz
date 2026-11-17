@@ -1,4 +1,4 @@
-// src/render/camera.js against the Lua camera (vendor/core/camera.lua)
+// src/render/camera.js against the Lua camera (vendor/engine/core/camera.lua)
 // running under wasmoon: the same projection for a grid of points under
 // several cameras, the scale rule, near-plane clipping, and un-projection.
 import { test } from "node:test";

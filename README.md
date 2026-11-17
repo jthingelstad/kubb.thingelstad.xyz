@@ -56,7 +56,8 @@ AWS_PROFILE=cloud-engineer npm run infra:apply -- rooms    # create or update th
 
 ## Licence
 
-The game's core in `vendor/core/` is the Playdate game's (`vendor/LICENSE-playdate-kubb`).
+The game engine in `vendor/engine/` is kubb-engine's, under its own licence
+(`vendor/engine/LICENSE`).
 The Londrina Solid font is under the SIL Open Font License
 (`public/fonts/OFL-LondrinaSolid.txt`); Inter is in `public/shared/fonts/` with its own
 licence.

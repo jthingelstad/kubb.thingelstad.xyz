@@ -10,6 +10,8 @@ import { bundleLua } from "../../tools/lua-bundle.mjs";
 import {
   browserMatch,
   clientsOf,
+  enginesOf,
+  engineNote,
   matchesOf,
   parseRecord,
   replayMatch,
@@ -218,4 +220,19 @@ test("the client tags a match's records carry are read for the listing", () => {
     "ios",
   );
   assert.equal(browserMatch({ t: 1, game: g }).client, null);
+
+  // the engine each record names, and the note when it is not this checkout's
+  assert.deepEqual(enginesOf(match), ["1.2.0"]);
+  assert.deepEqual(enginesOf(old), []);
+  assert.equal(
+    browserMatch({ t: 1, game: { ...g, engine: "0.2.0" } }).engine,
+    "0.2.0",
+  );
+  assert.equal(browserMatch({ t: 1, game: g }).engine, null);
+  assert.equal(engineNote(["0.2.0"], "0.2.0"), "");
+  assert.equal(engineNote([], "0.2.0"), "");
+  assert.equal(
+    engineNote(["0.2.0", "0.3.0"], "0.3.0"),
+    "; played on engine 0.2.0, 0.3.0, this checkout runs 0.3.0",
+  );
 });

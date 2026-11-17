@@ -66,7 +66,7 @@ const SHARE = {
     "KUBB in cut wood letters over THROWING WOOD, a baton flying at a kubb and the king on green grass",
 };
 
-// release: the release line ("0.9.5 (6) · web a2659b7 · core cca8012",
+// release: the release line ("0.1.0 · web a2659b7 · engine 0.2.0",
 // src/site/release.js), small at the foot; none in a build without one.
 export function footer(release = null) {
   return `<footer class="foot">

@@ -201,7 +201,7 @@ export class Game {
   // Tell the engine the box the wide camera fills (the window as the frame
   // sees it, less the HUD's margins), or turn it off. Called on every resize.
   // The engine gives every camera and the pitch in its fixed view from then
-  // on (lua/web/wide.lua); what this Game already holds is fetched again.
+  // on (vendor/engine/session/wide.lua); what this Game already holds is fetched again.
   applyWide() {
     let next = null;
     if (this.wideWanted && this.W > 0) {

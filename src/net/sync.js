@@ -33,15 +33,25 @@ export function decide(local, doc, w, mine = false) {
 }
 
 // Which program made a record or a report: `client` in a one-browser match
-// and a report, `c` in a rider (docs/ROOMS.md section 7). The engine's version
-// (`engine`, `e`) is not sent yet.
+// and a report, `c` in a rider; and the engine that played it (its version,
+// engine.version): `engine` and `e` (docs/ROOMS.md sections 2.6 and 7).
 export const CLIENT = "web";
+
+// The label the engine writes into every game file ("Scored by"): "web 0.1.0".
+export const clientLabel = (version) => `${CLIENT} ${version}`;
 
 // The `with` for an action, or undefined when it would not fit the room's
 // limit (`bytes`, as ASCII JSON): then the others just adopt the snapshot.
-// `c` says this client committed it; the recorder keeps it with the action.
-export function rider(n, seq, action, bytes = 4096, size = asciiSize) {
+// `c` says this client committed it and `e` on which engine; the recorder
+// keeps both with the action.
+export function rider(
+  n,
+  seq,
+  action,
+  { bytes = 4096, engine = null, size = asciiSize } = {},
+) {
   const w = { n, seq, a: action, c: CLIENT };
+  if (engine) w.e = engine;
   return size(w) <= bytes - 64 ? w : undefined;
 }
 

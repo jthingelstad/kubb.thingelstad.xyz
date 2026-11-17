@@ -1,5 +1,5 @@
 // Generates the renderer's gallery fixtures (dev/fixtures/*.json) from real
-// runs of the game's core (vendor/core) under Node with wasmoon: matches
+// runs of the engine's core (vendor/engine/core) under Node with wasmoon: matches
 // played by core/autothrow with core/world physics, cameras from
 // tw.camera (aim, shoulder, impact), poses from tw.world bodies mid-throw.
 // Everything is in the thrower's view frame, as the session hands it to JS.

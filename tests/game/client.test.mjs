@@ -762,7 +762,7 @@ browserTest(
       assert.equal(r.lastThrow.action.type, "throw");
       assert.equal(r.actions.length, 1);
       assert.ok(r.build.lua.startsWith("lua-sources-"));
-      assert.match(r.build.core, /^[0-9a-f]{40}$/);
+      assert.match(r.engine, /^\d+\.\d+\.\d+$/);
       assert.deepEqual(
         { w: r.viewport.w, h: r.viewport.h },
         { w: 1280, h: 768 },
