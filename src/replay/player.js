@@ -2,7 +2,7 @@
 // 2026-11-16: "When a game is finished playing on a pitch I'd like the URL to allow
 // people to come and watch a replay of the match."). Not a video: the engine sets the
 // match out from its options and plays each committed action in turn
-// (lua/web/replay.lua), the same throws with the same physics, drawn as any match is.
+// (vendor/engine/session/replay.lua), the same throws with the same physics, drawn as any match is.
 //
 //   const p = await startReplay({ game, root, code, url });     // by a pitch's code
 //   const p = new ReplayPlayer({ game, root, data }); p.start(); // a replay in hand

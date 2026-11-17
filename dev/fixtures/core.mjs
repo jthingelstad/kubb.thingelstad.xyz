@@ -1,4 +1,4 @@
-// Loads the game's own Lua core (vendor/core/) under Node with wasmoon, the
+// Loads the engine's Lua core (vendor/engine/core/) under Node with wasmoon, the
 // way the browser engine does: a Lua `import` shim that runs each
 // "core/<name>" once. For the renderer's fixtures and tests only.
 import { LuaFactory } from "wasmoon";
@@ -10,7 +10,7 @@ const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
 );
-const coreDir = path.join(root, "vendor/core");
+const coreDir = path.join(root, "vendor/engine/core");
 
 export async function loadCore(modules = []) {
   const files = {};

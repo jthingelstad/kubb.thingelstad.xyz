@@ -1,15 +1,18 @@
 # The engine
 
-The game on the web is the Playdate game's own Lua core (`vendor/core/`, never edited)
-plus `lua/web/`, a screenless copy of the Playdate's match and throw scenes, running in
-wasmoon's Lua 5.4. JavaScript reaches it through `src/engine/` with a few coarse calls a
-frame; every argument and result crosses as JSON text. JavaScript draws, listens and
-talks to the network; every rule, plan, swing, flight, ruling and camera is Lua.
+The game on the web is kubb-engine (`jthingelstad/kubb-engine`, sibling checkout
+`../kubb-engine`), vendored at a release tag in `vendor/engine/` and never edited: the
+Playdate game's own Lua core (`core/`), the screenless session over it (`session/`, the
+Playdate's match and throw scenes) and the tunes (`tune/`), running in wasmoon's Lua 5.4.
+JavaScript reaches it through `src/engine/` with a few coarse calls a frame; every
+argument and result crosses as JSON text. JavaScript draws, listens and talks to the
+network; every rule, plan, swing, flight, ruling and camera is Lua.
 
-The Playdate checkout `../playdate-kubb` is the reference: `source/scenes/match.lua`,
-`throw.lua` and `settle.lua` are what `lua/web/session.lua` and `lua/web/throw.lua`
-follow, line for line where they can. Where the web differs, this file says so
-("Differences from the Playdate").
+The session's own reference is the engine's `docs/SESSION.md` (its calls, determinism,
+tunables, tests) and `docs/VERSIONING.md` (what a version number promises). This file
+is the web's side: how the site loads the engine and the `Engine` wrapper's calls. A
+change to how the game plays is made in kubb-engine, released as a tag and vendored
+here (`npm run vendor:sync -- --tag vX.Y.Z`).
 
 Everything returned to JavaScript is in **the thrower's view frame** (`core/frame`): the
 thrower stands at y = 0 on their own baseline, looking up the pitch toward +y (the far
@@ -18,22 +21,19 @@ match the frame is the throwing side's (the defending side's for raising and pun
 
 ## Files
 
-| Path                   | What                                                                                                                            |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `lua/web/api.lua`      | The one door: the global `kubbCall(method, argJson) -> resultJson`, protected (`{"error": "..."}` on a Lua error).              |
-| `lua/web/session.lua`  | `tw.web.session`: practice and match sessions (scenes/match.lua and settle.lua), actions, snapshot, restore, hash.              |
-| `lua/web/throw.lua`    | `tw.web.throw`: one throw (scenes/throw.lua): aim, dial, computer, launch, the recording, the playback camera.                  |
-| `lua/web/tune.lua`     | `tw.web.tune`: the web's values for the core's tune tables, and the web's own (see "Tunables").                                 |
-| `lua/web/json.lua`     | `tw.web.json`: deterministic JSON (sorted keys, shortest round-trip floats, integers kept apart from floats).                   |
-| `tools/lua-bundle.mjs` | Writes `build/lua-sources.json`: `{ "core/world": "<source>", "web/session": "<source>", ... }`, keys sorted.                   |
-| `src/engine/index.js`  | `Engine`: wasmoon, the `import` shim, typed wrappers over `kubbCall`. Browser and Node; no DOM.                                 |
-| `tests/lua/`           | `lua5.4 tests/lua/run.lua`: aim and dial, practice throws and the drill, matches, raising and punishment, snapshot and restore. |
-| `tests/engine/`        | `node --test tests/engine/`: the same session under wasmoon, and the multiplayer proof.                                         |
+| Path                       | What                                                                                                                                   |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `vendor/engine/`           | kubb-engine at the tag in `vendor/engine.json`: `core/`, `session/`, `tune/`, `version.lua`, its `engine.json` manifest, `golden/`.    |
+| `tools/vendor.mjs`         | `vendor:sync` reads a tag from the engine checkout's git objects; `vendor:check` holds every file and the bundle to the manifest.      |
+| `tools/lua-bundle.mjs`     | Writes `build/lua-sources.json`: `{ "core/world": "<source>", "session/api": "<source>", ... }`, keys sorted: the engine's own bundle. |
+| `src/engine/index.js`      | `Engine`: wasmoon, the `import` shim, typed wrappers over `kubbCall`. Browser and Node; no DOM.                                        |
+| `tests/engine/`            | The bundle is the engine's, the start-up calls, the engine's golden corpus hash for hash under this wasmoon, and the kept fixtures.    |
+| `tools/replay-fixture.mjs` | Writes `tests/fixtures/replay-north-south.json` again after an engine change that moves hashes.                                        |
 
-Lua modules use the Playdate's `import "core/x"` convention and the `tw.*` namespace. On
-the desktop `tests/lua/run.lua` maps `core/x` to `vendor/core/x.lua` and `web/x` to
-`lua/web/x.lua`; in wasmoon the shim in `src/engine/index.js` loads them from the sources
-map.
+Lua modules use the Playdate's `import "core/x"` convention and the `tw.*` namespace; in
+wasmoon the shim in `src/engine/index.js` loads them from the sources map. `BOOT`
+imports `session/api`, which defines the global `kubbCall(method, argJson) ->
+resultJson`.
 
 ## Starting
 
@@ -43,10 +43,15 @@ const config = readConfig(); // src/site/config.js
 const engine = await Engine.create({
   sources: config.luaUrl,
   wasmUrl: config.wasmUrl,
+  client: clientLabel(config.version), // "web 0.1.0", src/net/sync.js
 });
 ```
 
-`sources` is the module map itself or a URL to fetch it from. `wasmUrl` is wasmoon's
+`sources` is the module map itself or a URL to fetch it from. `create` makes the
+engine's start-up calls before anything else: `useTune { name = "pointer" }` (the
+web's tune, `tune/pointer.lua`) and, when `client` is given, `setClient { label }` (the
+game file's "Scored by", never in the hash). `engine.version` is the engine's version
+(`engineVersion`), which records, reports and riders carry as `engine`. `wasmUrl` is wasmoon's
 `glue.wasm`; Node finds it in `node_modules` when it is left out. Each `Engine` is its
 own Lua state holding one session. A failed call throws `EngineError` with the Lua
 message.
@@ -324,31 +329,9 @@ and `takenBack` false on the web; the fields stay so the format matches render/b
 
 ## Tunables
 
-The web changes the game only through tune tables, all in `lua/web/tune.lua`, each value
-with its reason in a comment. `tune.apply()` runs once when the session loads.
-
-- **core/swing**: `swingStartDps` 300 (core 200: a pointer let down by hand drifts back
-  at 300 to 400 deg/s), `speedWindow` 3 frames (core 2: at 60 fps two frames are 33 ms and
-  one empty coalesced pointer frame would read as a stop), `releaseStopDps` 150 (kept),
-  `fullFlickDps` 1200 (core 1000: a pointer flicks faster than a crank; 1500 at first, lowered after the browser sweeps in docs/CLIENT.md), `pullFrames` 3
-  (the same 50 ms as the core's 2 device frames), `roughFull` 4.0 (core 3.0: coalesced
-  events make an honest drag look rough), `maxSamples` 600 (10 s at 60 fps).
-- **core/autothrow**: its `flickDps` and `softDps` are remapped linearly from the core's
-  `swingStartDps..fullFlickDps` onto the web's, so each computer flick gives the same
-  flick fraction and the computer throws exactly as on the Playdate.
-- **The dial** (`tune.dial`): `pressArmDeg` 30 (a press within 30 degrees behind 6 counts
-  as starting at the bottom; a crank has to cross 6, a finger lands anywhere),
-  `upFeedS` 0.25 and `upFeedDt` 1/60 (lifting the pointer while swinging forward feeds
-  stopped frames until the core's stop test releases).
-- **The throw** (`tune.throw`): `frameDt` 1/60 (a recorded pose for every displayed
-  frame), `slewDt` 1/60 (the impact camera's slew is integrated in fixed steps so it is a
-  function of shown time), `burstLift` 0.12, `cpuThink` 0.9 and `cpuScatter` 1.0 (the
-  Playdate's), `poseDecimals` 5.
-- `throw.tune` in `lua/web/throw.lua` copies scenes/throw.lua's own tune (walk speed,
-  pitch half-width, snap radius, the arc's points, the impact camera's swing) unchanged.
-
-Physics is the core's default, unchanged. Measuring it on the web (frame time per throw
-on a phone) is optional work, not done here; the native drill throw takes about 2 ms.
+The web plays the engine's `pointer` tune (`vendor/engine/tune/pointer.lua`, each value
+with its reason; the engine's `docs/SESSION.md` "Tunables"): a pointer instead of a
+crank, 60 fps instead of the device's pace. Physics is the core's default, unchanged.
 
 ## Differences from the Playdate
 
@@ -383,16 +366,12 @@ the sequential random generators.
 ## Tests
 
 ```sh
-/opt/homebrew/opt/lua@5.4/bin/lua5.4 tests/lua/run.lua   # or: lua5.4 tests/lua/run.lua
 node --test tests/engine/
 ```
 
-`tests/lua` covers the aim defaults, target and stance, a scripted dial sweep, let-down,
-pointer-up release, the dead-zone press, a clean practice hit with its recording and
-playback, the drill, standing the pitch up again, cpu against cpu to a winner, raising
-and punishment by hand, snapshot then restore then continue, resigning, and a change of
-thrower across a restore. `tests/engine` runs a practice throw under wasmoon and the
-multiplayer proof: one Engine plays a whole match (the computer on one side, scripted
-dial swings on the other, raising by hand), a second only applies its actions from the
-starting snapshot, a third restores mid-match and applies the rest; after every action
-the recordings are identical and the hashes equal.
+The session's own tests (aim, dial, matches, raising, snapshot and restore, the
+multiplayer proof) and its golden corpus live in kubb-engine. Here `tests/engine` checks
+that the shipped bundle is the engine's byte for byte, that `Engine.create` makes the
+start-up calls, that the engine's golden corpus (`vendor/engine/golden`) comes out hash
+for hash under this repository's wasmoon (pinned at exactly 1.16.0), and that the kept
+replay fixture still plays to its hashes.

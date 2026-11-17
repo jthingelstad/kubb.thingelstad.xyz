@@ -28,28 +28,32 @@ This document only says what is different on the web.
 
 ## 2. Reuse: the core runs unchanged
 
-`vendor/core/` is `playdate-kubb/source/core/` copied byte for byte
-(`npm run vendor:sync`, `npm run vendor:check`; `vendor/core.json` records the commit and
-a hash of every file). Never edit it. It is pure Lua 5.4 and runs in the browser in
-WebAssembly (wasmoon 1.16, MIT: the reference Lua 5.4 VM compiled to wasm). Measured
-2026-11-15 under Node: whole physics matches of the unchanged core, about 5 ms a throw.
+The game is kubb-engine (`jthingelstad/kubb-engine`, the sibling checkout
+`../kubb-engine`): the Playdate game's pure Lua core, the session over it, and the tunes.
+`vendor/engine/` is one tagged release of it, byte for byte (`npm run vendor:sync -- --tag
+vX.Y.Z` reads the tag from the engine's git objects; `npm run vendor:check` holds every
+file and the bundle to the engine's `engine.json`; `vendor/engine.json` pins the tag and
+commit). Never edit it. It is pure Lua 5.4 and runs in the browser in WebAssembly
+(wasmoon 1.16.0, MIT: the reference Lua 5.4 VM compiled to wasm, pinned exactly: it is
+the engine's reference platform). Measured 2026-11-15 under Node: whole physics matches,
+about 5 ms a throw.
 
 Why not port to JavaScript: a port drifts from the Playdate game the day it is written,
 and every fix there would have to be made twice. Why it also matters for multiplayer:
 WebAssembly arithmetic is the same in every browser, so the same launch on the same pitch
 is the same throw on every screen.
 
-Tuning for the web is done by setting the core's `tune` tables at start-up from
-`lua/web/` (never by editing the core). The core's defaults were tuned for a crank and a
-slow device; what the web changes is listed in `docs/ENGINE.md` as it is decided.
+Tuning for the web is the engine's `pointer` tune (`tune/pointer.lua`), chosen at
+start-up with `useTune`; the core's defaults were tuned for a crank and a slow device.
+A change to how the game plays is made in kubb-engine, released as a tag and vendored.
 
 ## 3. Layers
 
 ```
-vendor/core/     the Playdate game's pure Lua core (never edited)
-lua/web/         web-only pure Lua: the session (match + throw scene logic without a
-                 screen), JSON in and out. Tested on desktop lua5.4 and under wasm.
-src/engine/      loads wasmoon and the Lua sources; a small typed JS API over the session
+vendor/engine/   kubb-engine at a tag (never edited): core/, session/ (match + throw
+                 scene logic without a screen, JSON in and out), tune/, golden/
+src/engine/      loads wasmoon and the engine's bundle; a small typed JS API over the
+                 session
 src/render/      canvas renderer: the pitch and pieces through the core's camera, in color
 src/game/        the client: frame loop, input (the dial, the pitch, keys, touch), HUD,
                  playback, sound, bursts
@@ -62,8 +66,8 @@ tools/           build, preview, local room server, vendor, deploy
 
 Rules that keep it honest:
 
-- Game logic lives in Lua (`lua/web/` over the core) wherever the Playdate game has it in
-  Lua, so it can be tested on the desktop without a browser. JavaScript draws, listens
+- Game logic lives in Lua, in kubb-engine, wherever the Playdate game has it in Lua, so it
+  is tested there without a browser. JavaScript draws, listens
   and talks to the network.
 - JS and Lua talk in coarse calls with JSON strings (a few a frame at most), never
   per-vertex or per-body calls.
@@ -110,14 +114,14 @@ x -2.5..2.5, y 0..8, centerline y = 4.
 
 ### 4.2 The session (engine contract, owned by the engine work)
 
-`lua/web/session.lua` is the Playdate's `scenes/match.lua` and `scenes/throw.lua` with
+The engine's `session/` is the Playdate's `scenes/match.lua` and `scenes/throw.lua` with
 the screen taken out: the same aim (target circle, stance, plan: arc, tilt, spin), the
 same plan solve, the same swing (`core/swing` fed a crank angle stream), the same launch
 (`core/throwplan`), the same world run to rest, the same rules (`core/match`). It also
 makes what the Playdate's scenes compute for the screen: the clock dial's state, the
 cameras (first person, plan view, follow, impact, the half circle), the verdicts, the
 burst pick, the knocks' times, the result flag. Its exact calls are written down in
-`docs/ENGINE.md` by the engine work; the client is built against that file.
+`docs/ENGINE.md` and the engine's `docs/SESSION.md`; the client is built against that file.
 
 A throw is computed whole at release (it takes milliseconds) and returned as a
 recording: poses of every body that moved at a fixed rate, plus the events on the

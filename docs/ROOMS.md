@@ -309,9 +309,10 @@ The server checks `client` and `engine` in `g` and `r` (`CLIENT_TAG`, `ENGINE_TA
 `bad-message` with `re` and the `id`, and nothing is kept; `null` counts as absent. They
 are kept as part of `g` or `r`. The rider is the game's and the server checks none of it
 (only its size): `c` and `e` there are kept with the action as the client sent them. The
-web client sends `client: "web"` and `c: "web"` (`CLIENT` in `src/net/sync.js`) and no
-engine version yet. `npm run games:replay` and `npm run reports:pull` print the client
-beside each match and report that says one.
+web client sends `client: "web"` and `c: "web"` (`CLIENT` in `src/net/sync.js`), and
+`engine` and `e` as the vendored kubb-engine's version (`engine.version`). `npm run
+games:replay` and `npm run reports:pull` print the client beside each match and report
+that says one, and the replays say when a record's engine is not this checkout's.
 
 ## 3. Limits
 

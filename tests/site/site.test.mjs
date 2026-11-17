@@ -369,13 +369,17 @@ test("the rooms zip is the same bytes every time and unzips", () => {
   const data = Buffer.from("export const handler = async () => ({});\n");
   const a = zipOne("index.mjs", data);
   assert.ok(a.equals(zipOne("index.mjs", data)));
-  // One deflated entry named index.mjs, right after the local header.
+  // One stored entry named index.mjs, right after the local header: the bytes
+  // as they are, so the zip (and its key) is the same on every machine, where a
+  // deflated one differed between CI's x86-64 and an arm64 Mac.
   assert.equal(a.readUInt32LE(0), 0x04034b50);
+  assert.equal(a.readUInt16LE(8), 0, "stored, not deflated");
   const nameLength = a.readUInt16LE(26);
   assert.equal(a.subarray(30, 30 + nameLength).toString(), "index.mjs");
   const size = a.readUInt32LE(18);
-  const body = a.subarray(30 + nameLength, 30 + nameLength + size);
-  assert.ok(zlib.inflateRawSync(body).equals(data));
+  assert.equal(size, data.length);
+  assert.ok(a.subarray(30 + nameLength, 30 + nameLength + size).equals(data));
+  assert.equal(a.readUInt32LE(14), zlib.crc32(data));
 });
 
 test("links to Jamie's other sites carry ?ref=kubb-<placement>", () => {

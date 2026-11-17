@@ -99,7 +99,7 @@ const config = {
   version: "0.1.0",
   commit: "abc123",
   luaUrl: "/assets/lua-sources-0123456789ab.json",
-  core: "c11f533",
+  engine: "0.2.0",
 };
 
 test("the limits and modes agree between the browser and the server", () => {
@@ -118,6 +118,8 @@ test("a finished match is sent whole, kept under games/browser/ and replays", as
   const record = matchRecord({ game, mode: "watch", config, now: () => T0 });
   assert.equal(record.mode, "watch");
   assert.equal(record.build.lua, "lua-sources-0123456789ab.json");
+  assert.equal(record.engine, game.engine.version);
+  assert.match(record.engine, /^\d+\.\d+\.\d+$/);
   assert.equal(record.options.seed, 11);
   assert.equal(record.actions.length, game.trail.actions.length);
   assert.equal(record.hashes.length, record.actions.length);
@@ -314,15 +316,23 @@ test("a match may say which client and engine played it; a bad tag is refused", 
   assert.equal(bad.recordGame.kept.length, 0);
 });
 
-test("the web client says it is the web, and invents no engine version", async () => {
-  const record = matchRecord({
-    game: await playedMatch(),
+test("the web client says it is the web, and which engine played", async () => {
+  const game = await playedMatch();
+  const record = matchRecord({ game, mode: "watch", config });
+  assert.equal(record.client, "web");
+  assert.equal(record.engine, game.engine.version);
+  assert.equal(gameMessage(record).g.client, "web");
+  assert.equal(gameMessage(record).g.engine, game.engine.version);
+  // an engine that does not say gives no made-up version
+  const quiet = matchRecord({
+    game: {
+      ...game,
+      engine: Object.assign(Object.create(game.engine), { version: null }),
+    },
     mode: "watch",
     config,
   });
-  assert.equal(record.client, "web");
-  assert.ok(!("engine" in record));
-  assert.equal(gameMessage(record).g.client, "web");
+  assert.equal(quiet.engine, null);
 });
 
 test("recordMatch sends once, never for practice, and never throws", async () => {

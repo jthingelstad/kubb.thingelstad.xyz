@@ -23,12 +23,8 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      # The game logic's tests run under Lua 5.4 (tests/lua/run.lua).
-      - run: sudo apt-get install -y --no-install-recommends lua5.4
       - run: npm ci
       - run: npm run format:check && npm run check
-        env:
-          LUA: lua5.4
       - run: pipx run --spec cfn-lint==1.57.2 cfn-lint infra/site.json infra/delivery.json infra/rooms.json
       - run: npm audit --audit-level=high
   deploy:

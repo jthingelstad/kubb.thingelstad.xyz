@@ -6,8 +6,9 @@
 //   const msg = reportMessage(state, { happened, should });        // on SEND
 //   await sendReport({ url: config.roomsUrl, message: msg });      // resolves on the ack
 //
-// What is sent (`r` in the message): the mode; `client: "web"`; the two answers; the build (package
-// version, commit, the hashed Lua bundle's name, the vendored core's commit); the viewport
+// What is sent (`r` in the message): the mode; `client: "web"`; `engine`, the kubb-engine
+// version; the two answers; the build (package version, commit, the hashed Lua bundle's
+// name); the viewport
 // size; the browser's clock; the turn and phase; the last throw's action and result; the
 // pieces where they stand (the thrower's view frame). For a match: its options (read from
 // the snapshot), the snapshot at its start or at the last adopt and every action applied
@@ -104,12 +105,12 @@ export function captureReport({
   const r = {
     mode,
     client: CLIENT,
+    engine: engine.version ?? null,
     at: now(),
     build: {
       version: config.version ?? null,
       commit: config.commit ?? null,
       lua: config.luaUrl ? String(config.luaUrl).split("/").pop() : null,
-      core: config.core ?? null,
     },
     viewport: {
       w: Math.round(win.innerWidth ?? 0),

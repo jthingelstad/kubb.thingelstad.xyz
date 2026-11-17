@@ -1,60 +1,74 @@
-// Writes the game's Lua sources as one JSON file: { "core/world": "<source>",
-// "web/session": "<source>", ... } from vendor/core/*.lua and lua/web/*.lua.
+// Writes the engine's Lua sources as one JSON file, the module map kubb-engine's
+// `make bundle` writes ({ "core/world": "<source>", "session/api": "<source>",
+// "tune/pointer": "<source>", "version": "<source>", ... }, keys sorted, no
+// whitespace), from vendor/engine/. The same sources give the same bytes, and
+// vendor:check holds their sha256 to the engine manifest's `bundle.sha256`.
 // src/engine loads it into wasmoon behind the `import` shim.
 //
 //   node tools/lua-bundle.mjs [--out build/lua-sources.json]
-//
-// The keys are sorted so the same sources always give the same bytes (the
-// build hashes the file's name from them).
-import fs from "node:fs/promises";
+import { createHash } from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const engineDir = path.join(root, "vendor", "engine");
 
-const DIRS = [
-  ["core", "vendor/core"],
-  ["web", "lua/web"],
-];
+// The engine's Lua: these folders' *.lua files and version.lua, as kubb-engine's
+// tools/bundle.mjs takes them. Module names are the paths without ".lua".
+const DIRS = ["core", "session", "tune"];
+const TOP = ["version.lua"];
 
-export async function bundleLua() {
-  const out = {};
-  for (const [prefix, dir] of DIRS) {
-    const names = (await fs.readdir(path.join(root, dir)))
-      .filter((f) => f.endsWith(".lua"))
-      .sort();
-    for (const f of names) {
-      out[`${prefix}/${f.slice(0, -4)}`] = await fs.readFile(
-        path.join(root, dir, f),
-        "utf8",
-      );
-    }
-  }
-  const sorted = {};
-  for (const k of Object.keys(out).sort()) sorted[k] = out[k];
-  return sorted;
+function engineFiles() {
+  const files = [...TOP];
+  for (const dir of DIRS)
+    for (const f of fs.readdirSync(path.join(engineDir, dir)))
+      if (f.endsWith(".lua")) files.push(`${dir}/${f}`);
+  return files.sort();
 }
 
-async function main() {
+// The module map, keys sorted.
+export function bundleLua() {
+  const out = {};
+  for (const f of engineFiles())
+    out[f.slice(0, -4)] = fs.readFileSync(path.join(engineDir, f), "utf8");
+  return out;
+}
+
+// The bundle's bytes and their sha256 (the engine manifest's bundle.sha256).
+export function bundleText() {
+  const text = JSON.stringify(bundleLua());
+  return {
+    text,
+    sha256: createHash("sha256").update(text, "utf8").digest("hex"),
+  };
+}
+
+// The vendored engine's version (vendor/engine/engine.json).
+export function engineVersion() {
+  return JSON.parse(
+    fs.readFileSync(path.join(engineDir, "engine.json"), "utf8"),
+  ).version;
+}
+
+function main() {
   let outFile = "build/lua-sources.json";
   const args = process.argv.slice(2);
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--out") outFile = args[++i];
     else throw new Error(`unknown argument ${args[i]}`);
   }
-  const sources = await bundleLua();
+  const { text, sha256 } = bundleText();
   const target = path.resolve(root, outFile);
-  await fs.mkdir(path.dirname(target), { recursive: true });
-  const text = JSON.stringify(sources);
-  await fs.writeFile(target, text);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, text);
   console.log(
-    `lua-bundle: ${Object.keys(sources).length} modules, ${text.length} bytes -> ${outFile}`,
+    `lua-bundle: kubb-engine ${engineVersion()}, ${Object.keys(JSON.parse(text)).length} modules, sha256 ${sha256.slice(0, 12)} -> ${outFile}`,
   );
 }
 
 if (
   process.argv[1] &&
   path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-) {
-  await main();
-}
+)
+  main();

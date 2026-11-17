@@ -483,7 +483,10 @@ export class Pitch {
     const seq = this.local.seq + 1;
     this.local.seq = seq;
     this.pending++;
-    const w = rider(n, seq, action, this.room.limits?.withBytes ?? 4096);
+    const w = rider(n, seq, action, {
+      bytes: this.room.limits?.withBytes ?? 4096,
+      engine: this.game.engine.version,
+    });
     if (!w) this.note("too-big-for-with", action.type);
     let over = false;
     try {

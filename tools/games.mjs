@@ -14,7 +14,9 @@
 //       throws to look at. --throws prints every throw's result. A shared pitch's match
 //       is judged action by action (each version carries the snapshot to go on from); a
 //       one-browser match carries only its start, so it is judged up to the first action
-//       that goes another way, and the rest are "unjudged".
+//       that goes another way, and the rest are "unjudged". A match whose record names
+//       another engine version than this checkout's (`engine` in a one-browser record,
+//       `e` in a room's riders) says so: its "differs" may be the engine's change.
 //
 // The pure parts (matchesOf, replayMatch, browserMatch, replayBrowser) are tested in
 // tests/net/games.test.mjs.
@@ -147,6 +149,7 @@ export function browserMatch(record) {
     end: g.end ?? null,
     name: g.name ?? null,
     client: typeof g.client === "string" ? g.client : null,
+    engine: typeof g.engine === "string" ? g.engine : null,
   };
 }
 
@@ -159,6 +162,25 @@ export function clientsOf(match) {
     if (typeof r.with?.c === "string" && !seen.includes(r.with.c))
       seen.push(r.with.c);
   return seen;
+}
+
+// The engine versions (`e`) a room match's riders carry, in the order first seen.
+// Empty for records made before clients said.
+export function enginesOf(match) {
+  const seen = [];
+  for (const r of match.steps ?? [])
+    if (typeof r.with?.e === "string" && !seen.includes(r.with.e))
+      seen.push(r.with.e);
+  return seen;
+}
+
+// "; played on engine 0.1.0, this checkout runs 0.2.0" when a record names an engine
+// other than `here`, else "". Records made before engines were named say nothing.
+export function engineNote(recorded, here) {
+  const other = recorded.filter((v) => v !== here);
+  return other.length
+    ? `; played on engine ${recorded.join(", ")}, this checkout runs ${here}`
+    : "";
 }
 
 // " [web]", " [web, ios]", or "" when nothing says.
@@ -368,7 +390,8 @@ async function replay({ room, dir, throws }) {
     console.log(`No recorded matches in ${dir}. npm run games:pull first.`);
     return;
   }
-  const engine = await Engine.create({ sources: await bundleLua() });
+  const engine = await Engine.create({ sources: bundleLua() });
+  console.log(`Replaying through kubb-engine ${engine.version}`);
   const line = (s) =>
     console.log(
       `  ${String(s.seq).padStart(4)} ${s.how ?? s.type ?? "?"} ${s.outcome}${s.flag ? ` ${s.flag}` : ""}${s.why ? ` (${s.why})` : ""}`,
@@ -379,7 +402,7 @@ async function replay({ room, dir, throws }) {
     for (const k of Object.keys(total)) total[k] += r[k];
     const when = new Date(match.t).toISOString().slice(0, 16).replace("T", " ");
     console.log(
-      `${match.room} match ${match.n}${tagged(clientsOf(match))} (${when} UTC): ${r.steps.length} actions, ${r.same} same, ${r.differs} differ, ${r.refused} refused, ${r.adopted} adopted`,
+      `${match.room} match ${match.n}${tagged(clientsOf(match))} (${when} UTC): ${r.steps.length} actions, ${r.same} same, ${r.differs} differ, ${r.refused} refused, ${r.adopted} adopted${engineNote(enginesOf(match), engine.version)}`,
     );
     for (const s of r.steps)
       if (
@@ -399,7 +422,7 @@ async function replay({ room, dir, throws }) {
     for (const k of Object.keys(one)) one[k] += r[k];
     const when = new Date(match.t).toISOString().slice(0, 16).replace("T", " ");
     console.log(
-      `${match.mode}${tagged(match.client ? [match.client] : [])} ${match.name ?? ""} (${when} UTC): ${r.steps.length} actions, ${r.same} same, ${r.differs} differ, ${r.refused} refused, ${r.unjudged} unjudged${r.unchecked ? `, ${r.unchecked} unchecked` : ""}${r.end ? `; the end ${r.end}` : ""}`,
+      `${match.mode}${tagged(match.client ? [match.client] : [])} ${match.name ?? ""} (${when} UTC): ${r.steps.length} actions, ${r.same} same, ${r.differs} differ, ${r.refused} refused, ${r.unjudged} unjudged${r.unchecked ? `, ${r.unchecked} unchecked` : ""}${r.end ? `; the end ${r.end}` : ""}${engineNote(match.engine ? [match.engine] : [], engine.version)}`,
     );
     for (const s of r.steps)
       if (

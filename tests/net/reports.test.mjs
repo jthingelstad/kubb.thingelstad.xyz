@@ -281,7 +281,7 @@ const CONFIG = {
   version: "0.1.0",
   commit: "abc123",
   luaUrl: "/assets/lua-sources-0123456789ab.json",
-  core: "c11f533",
+  engine: "0.2.0",
 };
 const WIN = { innerWidth: 1280, innerHeight: 768, devicePixelRatio: 2 };
 
@@ -302,13 +302,13 @@ test("the payload carries the match, the build, the viewport, and no person", as
   const r = msg.r;
   assert.equal(r.mode, "watch");
   assert.equal(r.client, "web");
-  assert.ok(!("engine" in r), "no engine version is made up");
+  assert.equal(r.engine, game.engine.version);
+  assert.match(r.engine, /^\d+\.\d+\.\d+$/);
   assert.equal(r.at, 42);
   assert.deepEqual(r.build, {
     version: "0.1.0",
     commit: "abc123",
     lua: "lua-sources-0123456789ab.json",
-    core: "c11f533",
   });
   assert.deepEqual(r.viewport, { w: 1280, h: 768, dpr: 2 });
   assert.equal(r.options.seed, 11);

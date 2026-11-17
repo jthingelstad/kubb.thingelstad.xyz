@@ -61,7 +61,7 @@ export function describeReport(obj, file = "") {
   lines.push(`  Replay: ${state.join("; ") || "nothing replayable"}`);
   if (r.dropped) lines.push(`  Dropped to fit: ${r.dropped.join(", ")}`);
   lines.push(
-    `  Build: ${r.build?.version ?? "?"} ${String(r.build?.commit ?? "?").slice(0, 10)}, ${r.build?.lua ?? "?"}, core ${String(r.build?.core ?? "?").slice(0, 10)}; ${r.viewport?.w ?? "?"}x${r.viewport?.h ?? "?"}`,
+    `  Build: ${r.build?.version ?? "?"} ${String(r.build?.commit ?? "?").slice(0, 10)}, ${r.build?.lua ?? "?"}, ${typeof r.engine === "string" ? `engine ${r.engine}` : `core ${String(r.build?.core ?? "?").slice(0, 10)}`}; ${r.viewport?.w ?? "?"}x${r.viewport?.h ?? "?"}`,
   );
   return lines;
 }
@@ -235,7 +235,12 @@ async function replay(file) {
   const { bundleLua } = await import("./lua-bundle.mjs");
   const obj = await readReport(file);
   console.log(describeReport(obj, file).join("\n"));
-  const engine = await Engine.create({ sources: await bundleLua() });
+  const engine = await Engine.create({ sources: bundleLua() });
+  const r = obj.report ?? {};
+  if (typeof r.engine === "string" && r.engine !== engine.version)
+    console.log(
+      `\nNote: the report was made on engine ${r.engine}; this checkout runs ${engine.version}.`,
+    );
   const out = replayReport(engine, obj);
   if (!out.kind) {
     console.log(`\nNothing to replay: ${out.why}.`);

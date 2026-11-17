@@ -25,6 +25,8 @@ const inPlay = await fixture("snap-in-play.json");
 const over = await fixture("snap-over.json");
 const replay = await fixture("replay-north-south.json");
 const overGame = JSON.parse(over).save.game;
+// the kept replay's own last snapshot (tools/replay-fixture.mjs writes it)
+const keptGame = JSON.parse(JSON.parse(replay).snap).save.game;
 
 // The room's document as the rooms keep it: the lobby's teams are member ids.
 const SECRET = "m-0123456789abcdef";
@@ -82,6 +84,7 @@ test("the function's site constants are the site's", () => {
 test("each state's words", () => {
   const winner = overGame.teams[overGame.winner].name;
   const turns = overGame.turn;
+  const keptWinner = keptGame.teams[keptGame.winner].name;
   assert.deepEqual(
     Object.fromEntries(
       Object.entries(ROOMS).map(([k, r]) => {
@@ -103,7 +106,7 @@ test("each state's words", () => {
       // the document gone, the kept replay still there
       kept: [
         "North vs South · Kubb: Throwing Wood",
-        `Final: ${winner} won, 1 to 0, in ${turns} turns. Watch the replay.`,
+        `Final: ${keptWinner} won, 1 to 0, in ${keptGame.turn} turns. Watch the replay.`,
       ],
       none: null,
     },

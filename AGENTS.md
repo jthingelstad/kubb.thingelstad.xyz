@@ -5,26 +5,28 @@
 rules this site shares with Jamie's other sites (sites list, shared type) are in
 `../../thingelstad.com/AGENTS.md`.
 
-Kubb: Throwing Wood on the web: the Playdate game's own Lua core running in the browser,
-with multiplayer on a link. The design is `docs/DESIGN.md`; read it first. The Playdate
+Kubb: Throwing Wood on the web: kubb-engine (the Playdate game's own Lua core and a
+screenless session over it, vendored in `vendor/engine/`) running in the browser, with
+multiplayer on a link. The design is `docs/DESIGN.md`; read it first. The Playdate
 game is the sibling checkout `../playdate-kubb` (private; its `docs/DESIGN.md` and
 `AGENTS.md` are the reference for how the game plays).
 
 ## Rules
 
-- **`vendor/core/` is never edited.** It is `playdate-kubb/source/core` byte for byte
-  (`npm run vendor:sync`, `npm run vendor:check`). Change the game's behaviour on the web
-  by setting the core's `tune` tables from `lua/web/`, or fix it in playdate-kubb and
-  sync. Never write in the playdate-kubb checkout from here.
+- **`vendor/engine/` is never edited.** It is kubb-engine (`../kubb-engine`) at the tag
+  in `vendor/engine.json`, byte for byte. Change how the game plays in kubb-engine,
+  release a tag, then `npm run vendor:sync -- --tag vX.Y.Z` (`vendor:check` holds it to
+  the engine's manifest). Never write in the kubb-engine or playdate-kubb checkouts from
+  here. wasmoon stays pinned at exactly 1.16.0.
 - **Manage the repository as if it were public** (the Playdate game's rule): no email
   addresses, device serials, home-directory paths or secrets in files or commits. Write
   the AWS account as `<account>` in Markdown.
-- **Game logic in Lua, tested on the desktop** (`/opt/homebrew/opt/lua@5.4/bin/lua5.4`);
-  JavaScript draws, listens and talks to the network. JS and Lua exchange JSON strings in
+- **Game logic in Lua, in kubb-engine** (tested there); this repository has no Lua of its
+  own. JavaScript draws, listens and talks to the network. JS and Lua exchange JSON strings in
   a few coarse calls a frame.
 - **The thrower's view frame everywhere** (core/frame): JS never flips the pitch.
   The wide view (watching the computer) shows the world frame instead: Lua un-turns Team
-  B's output before JS sees it (`lua/web/wide.lua`), so JS still flips nothing.
+  B's output before JS sees it (the engine's `session/wide.lua`), so JS still flips nothing.
 - Dev servers bind to 127.0.0.1 and are stopped when the work is done.
 - No italics on sans-serif type. Type and tokens come from `../../thingelstad.com/shared/`.
 
@@ -32,8 +34,8 @@ game is the sibling checkout `../playdate-kubb` (private; its `docs/DESIGN.md` a
 
 `npm ci`, then `npm run check` and `npm run format:check`. `check` runs, in order:
 `vendor:check`, `shared:check`, the `infra/site.json` sync check, every `*.test.mjs` under
-`tests/` with `node --test`, `tests/lua/run.lua` under Lua 5.4 (skipped with a notice when
-there is none; `LUA=` picks the binary), the build, and `validate:site` (links and routes
+`tests/` with `node --test` (among them the engine's golden corpus under this wasmoon and
+the kept replay fixture: `node tools/replay-fixture.mjs` writes it again), the build, and `validate:site` (links and routes
 resolve through the real viewer request function, required tags, no inline script, no email
 address or home path in `dist/`, no account id in Markdown).
 
@@ -112,7 +114,7 @@ Practice is not recorded.
   `--since <date>`.
 - `npm run games:replay` plays every recorded match through this checkout's engine and
   says which actions end on another hash than the players' browsers committed. After a
-  physics change in `vendor/core/` those are the throws that now go differently.
+  new engine those are the throws that now go differently.
   One-browser matches replay from their start against the hash after each action; after
   the first that differs the rest are unjudged.
 
@@ -165,7 +167,7 @@ actually do more with the camera on the web version because we could zoom out. W
 lot more screen. We could see a lot more."): one fixed camera high on the sideline (high
 behind Team A's baseline on a tall window) with the whole pitch filling the window, for
 the whole match. The session keeps Team B's throws in its turned view frame; in the wide
-view `lua/web/wide.lua` un-turns them into the world frame in Lua, so JS still never
+view the engine's `session/wide.lua` un-turns them into the world frame in Lua, so JS still never
 flips anything. THROWER'S VIEW / WIDE VIEW by MENU, MENU's View and the V key switch it
 (the `watchView` pref); a phone held upright falls back to the thrower's view. Played
 matches keep the thrower's view. docs/CLIENT.md "The wide view".
@@ -186,7 +188,7 @@ scans (`docs/ROOMS.md` section 9).
 A finished pitch can be watched again (Jamie, 2026-11-16: "When a game is finished playing
 on a pitch I'd like the URL to allow people to come and watch a replay of the match.").
 The match is played again through this engine from its start, action by action
-(`lua/web/replay.lua`, `src/replay/player.js`), in the wide view at the match's own pace,
+(the engine's `session/replay.lua`, `src/replay/player.js`), in the wide view at the match's own pace,
 with play/pause, NEXT THROW, BACK, 1X 2X 4X and the score sheet beside it. The winner card
 and anyone who opens the link after the end get WATCH REPLAY; after a rematch the lobby
 offers WATCH THE LAST MATCH. A replay belongs to nobody: the engine refuses every action

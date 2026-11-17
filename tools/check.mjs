@@ -1,17 +1,16 @@
 // npm run check: everything CI runs before a merge, in order, stopping at the
 // first failure.
 //
-//   1. vendor:check   vendor/core is playdate-kubb's core byte for byte
+//   1. vendor:check   vendor/engine is kubb-engine's tagged release byte for byte
 //   2. shared:check   the vendored shared type and sites.json are current
 //   3. infra/site.json carries infra/viewer-request.js and the CSP
-//   4. node --test    every *.test.mjs under tests/
-//   5. tests/lua      tests/lua/run.lua under Lua 5.4, when both exist
-//   6. build          dist/
-//   7. validate:site  the built site and the repository's Markdown
+//   4. node --test    every *.test.mjs under tests/ (the engine's golden corpus
+//                     among them, under wasmoon)
+//   5. build          dist/
+//   6. validate:site  the built site and the repository's Markdown
 //
-// Lua: LUA=<binary> picks the interpreter; otherwise Homebrew's lua@5.4, then
-// lua5.4 on the PATH (CI installs it with apt). Without one the Lua tests are
-// skipped with a notice, never silently.
+// The engine's Lua tests are the engine's (kubb-engine, make test); this
+// repository has no Lua of its own.
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -34,35 +33,12 @@ function testFiles(dir) {
     .map((e) => path.join(e.parentPath, e.name))
     .sort();
 }
-function lua() {
-  const candidates = [
-    process.env.LUA,
-    "/opt/homebrew/opt/lua@5.4/bin/lua5.4",
-    "lua5.4",
-  ].filter(Boolean);
-  for (const candidate of candidates) {
-    const probe = spawnSync(candidate, ["-v"], { encoding: "utf8" });
-    if (probe.status === 0 && /Lua 5\.4/.test(probe.stdout + probe.stderr))
-      return candidate;
-  }
-  return null;
-}
-
-if (fs.existsSync("tools/vendor.mjs"))
-  node("vendor:check", "tools/vendor.mjs", "check");
+node("vendor:check", "tools/vendor.mjs", "check");
 node("shared:check", "tools/shared.mjs", "check");
 node("infra/site.json", "tools/site-template.mjs", "check");
 const tests = testFiles("tests");
 if (tests.length)
   node(`node --test (${tests.length} files)`, "--test", ...tests);
-if (fs.existsSync("tests/lua/run.lua")) {
-  const binary = lua();
-  if (binary) run("tests/lua", binary, ["tests/lua/run.lua"]);
-  else
-    console.log(
-      "\n> tests/lua SKIPPED: no Lua 5.4 (brew install lua@5.4, or apt install lua5.4)",
-    );
-}
 node("build", "tools/build.mjs");
 node("validate:site", "tools/validate-site.mjs");
 console.log("\nAll checks passed");

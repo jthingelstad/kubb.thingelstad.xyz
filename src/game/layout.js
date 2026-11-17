@@ -108,7 +108,7 @@ export function layoutFor(W, H, safe = {}) {
   return { W, H, safe: s, tall, phone, dial, minimap, side };
 }
 
-// The wide view's box: where the whole pitch is fitted (lua/web/wide.lua), in
+// The wide view's box: where the whole pitch is fitted (vendor/engine/session/wide.lua), in
 // frame coordinates by the renderer's scale rule (k = min(W / 400, H / 240),
 // centred; the canvas shows the world beyond the 400 x 240 frame, so the box
 // is the whole window less the HUD's margins). With k, for sizes in CSS px.
