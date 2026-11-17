@@ -31,6 +31,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { MARKERS, prepareObject, publicationOrder } from "./delivery-plan.mjs";
+import { bundlePages } from "./pages-bundle.mjs";
 import { bundleRooms } from "./rooms-bundle.mjs";
 
 const REPOSITORY = "jthingelstad/kubb.thingelstad.xyz";
@@ -199,6 +200,18 @@ if (config.rooms?.functionName) {
   }
 }
 
+// The pitch pages function is the site stack's (a web function revision names its
+// package), so a deploy only says when its code has moved on: the delivery role
+// never changes infrastructure, and npm run infra:apply -- site brings it live.
+let pages = "not deployed";
+if (config.pages?.codeKey) {
+  const { key } = await bundlePages();
+  pages =
+    key === config.pages.codeKey
+      ? "unchanged"
+      : `differs (${key}): npm run infra:apply -- site`;
+}
+
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const live = async (route) => {
   const response = await fetch(new URL(route, config.productionUrl), {
@@ -258,5 +271,6 @@ console.log(
     url: config.productionUrl,
     invalidation: invalidation.Invalidation.Id,
     rooms,
+    pages,
   }),
 );

@@ -209,6 +209,26 @@ function game(mode) {
     });
 }
 
+// The embed, /e/<code> (CloudFront serves /embed/index.html for every code; Jamie,
+// 2026-11-16: "I would like an embed option that allows me to put a Kubb game
+// played as an embed on another website"): the pitch's replay, read only, in
+// another site's frame. The only page any site may frame (src/site/csp.mjs), and
+// one with no analytics: its viewers are another site's readers.
+function embed({ config, assets }) {
+  return gamePage({
+    path: "/embed/",
+    title: `A pitch · ${SITE_TITLE}`,
+    description:
+      "A match of Kubb: Throwing Wood, played again. Open the link to see the pitch.",
+    config: { ...config, mode: "embed" },
+    script: assets.main,
+    styles: ["/game.css", ...(assets.css ? [assets.css] : [])],
+    noindex: true,
+    tinylytics: false,
+    bodyClass: "game embed",
+  });
+}
+
 export const PAGES = [
   { path: "/", file: "index.html", render: home, sources: ["src/site"] },
   {
@@ -228,6 +248,14 @@ export const PAGES = [
     path: "/pitch/",
     file: "pitch/index.html",
     render: game("pitch"),
+    game: true,
+    noindex: true,
+    sources: ["src"],
+  },
+  {
+    path: "/embed/",
+    file: "embed/index.html",
+    render: embed,
     game: true,
     noindex: true,
     sources: ["src"],

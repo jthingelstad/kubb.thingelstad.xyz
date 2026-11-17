@@ -80,7 +80,8 @@ export class Cards {
   // WATCH REPLAY button (a finished pitch, src/replay/player.js), the card's
   // main action when `first`; replayLabel its words (REPLAY AGAIN); back: a
   // BACK TO THE PITCH button (the end of a replay); teams: a line naming who
-  // played (a finished pitch, for a browser that arrived after the end).
+  // played (a finished pitch, for a browser that arrived after the end); embed: an
+  // EMBED button (src/ui/embed.js); home: null leaves HOME out (an embed).
   winner(
     need,
     {
@@ -95,6 +96,7 @@ export class Cards {
       first = false,
       back = null,
       teams = null,
+      embed = null,
     },
   ) {
     const w = need.winner || {};
@@ -158,6 +160,9 @@ export class Cards {
             })
           : null,
         replay && !first ? replayBtn() : null,
+        embed
+          ? button("EMBED", embed, "", { "data-test": "winner-embed" })
+          : null,
         stopBtn,
         sheet
           ? button("SCORE SHEET", sheet, "", { "data-test": "winner-sheet" })
@@ -167,9 +172,12 @@ export class Cards {
               "data-test": "replay-back-to-pitch",
             })
           : null,
-        button("HOME", home, lead === "home" ? "go" : "", {
-          "data-default": lead === "home",
-        }),
+        // no HOME in an embed: its way out is the link to the pitch
+        home
+          ? button("HOME", home, lead === "home" ? "go" : "", {
+              "data-default": lead === "home",
+            })
+          : null,
       ),
     );
     return this.show(el);

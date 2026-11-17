@@ -8,7 +8,11 @@ import { loadViewerRequest, cloudfrontRequest } from "../../tools/preview.mjs";
 import { cacheControl, prepareObject } from "../../tools/delivery-plan.mjs";
 import { expectedTemplate } from "../../tools/site-template.mjs";
 import { zipOne } from "../../tools/rooms-bundle.mjs";
-import { contentSecurityPolicy } from "../../src/site/csp.mjs";
+import {
+  contentSecurityPolicy,
+  embedSecurityPolicy,
+} from "../../src/site/csp.mjs";
+import { zipFiles } from "../../tools/pages-bundle.mjs";
 import { pitchCode } from "../../src/site/config.js";
 import { CODE_ALPHABET, CODE_LENGTH, ref } from "../../src/site/site.mjs";
 import { ROOM_CODE } from "../../backend/rooms/core.mjs";
@@ -38,6 +42,31 @@ test("/p and /p/ go on to a new pitch, keeping the query", () => {
     assert.equal(location.includes("watch=1"), address.includes("watch"));
     assert.equal(request(location).uri, "/pitch/index.html");
   }
+});
+
+test("an embed and a share image at any code, each with the code as ?pitch=", () => {
+  for (const [address, uri, code] of [
+    ["/p/abcd2345", "/pitch/index.html", "abcd2345"],
+    ["/p/abcd2345/?solo=1", "/pitch/index.html", "abcd2345"],
+    ["/e/abcd2345", "/embed/index.html", "abcd2345"],
+    ["/e/abcd2345/", "/embed/index.html", "abcd2345"],
+    ["/og/abcd2345.png", "/share/kubb.png", "abcd2345"],
+    ["/og/abcd2345.png?v=12", "/share/kubb.png", "abcd2345"],
+  ]) {
+    const result = request(address);
+    assert.equal(result.uri, uri, address);
+    assert.equal(result.querystring.pitch.value, code, address);
+  }
+  // a viewer's own ?pitch= never names another pitch
+  assert.equal(
+    request("/e/abcd2345?pitch=zzzzzzzz").querystring.pitch.value,
+    "abcd2345",
+  );
+  // not a code: the ordinary routes, on to the 404
+  assert.equal(request("/e/ABCDEFGH").statusCode, 301);
+  assert.equal(request("/og/abcd2345.jpg").uri, "/og/abcd2345.jpg");
+  assert.equal(request("/og/ABCDEFGH.png").uri, "/og/ABCDEFGH.png");
+  assert.equal(request("/embed/").uri, "/embed/index.html");
 });
 
 test("directories serve index.html; other paths get the slash", () => {
@@ -85,13 +114,13 @@ test("the site stack: edge web ACL, logs, and the optional /ws route", async () 
   assert.equal(site.Resources.AccessLogGroup.Properties.RetentionInDays, 731);
   const fields = site.Resources.AccessLogDelivery.Properties.RecordFields;
   assert.ok(!fields.some((f) => /c-ip|cs-uri-query/.test(f)), "IP-free log");
-  const ws = config.CacheBehaviors["Fn::If"];
+  const ws = config.CacheBehaviors[0]["Fn::If"];
   assert.equal(ws[0], "HasRooms");
-  assert.equal(ws[1][0].PathPattern, "/ws");
+  assert.equal(ws[1].PathPattern, "/ws");
   // CachingDisabled and AllViewerExceptHostHeader (AWS managed policies).
-  assert.equal(ws[1][0].CachePolicyId, "4135ea2d-6df8-44a3-9df3-4b5a84be39ad");
+  assert.equal(ws[1].CachePolicyId, "4135ea2d-6df8-44a3-9df3-4b5a84be39ad");
   assert.equal(
-    ws[1][0].OriginRequestPolicyId,
+    ws[1].OriginRequestPolicyId,
     "b689b0a8-53d0-40ab-baf2-68738e2966ac",
   );
   assert.equal(site.Parameters.RoomsApiDomain.Default, "");
@@ -101,6 +130,115 @@ test("the site stack: edge web ACL, logs, and the optional /ws route", async () 
     JSON.stringify(await json("infra/delivery.json")),
     /\u2014/,
   );
+});
+
+test("only /e/ may be framed; every other route keeps DENY and 'none'", async () => {
+  const site = await json("infra/site.json");
+  const R = site.Resources;
+  const policy = (name) =>
+    R[name].Properties.ResponseHeadersPolicyConfig.SecurityHeadersConfig;
+  assert.equal(policy("Headers").FrameOptions.FrameOption, "DENY");
+  assert.match(
+    policy("Headers").ContentSecurityPolicy.ContentSecurityPolicy,
+    /frame-ancestors 'none'$/,
+  );
+  assert.equal(policy("EmbedHeaders").FrameOptions, undefined);
+  assert.equal(
+    policy("EmbedHeaders").ContentSecurityPolicy.ContentSecurityPolicy,
+    embedSecurityPolicy(),
+  );
+  assert.match(embedSecurityPolicy(), /frame-ancestors \*$/);
+  // the embed's policy is the site's in every other directive
+  assert.equal(
+    embedSecurityPolicy().replace("frame-ancestors *", ""),
+    contentSecurityPolicy().replace("frame-ancestors 'none'", ""),
+  );
+  const config = R.Distribution.Properties.DistributionConfig;
+  assert.deepEqual(config.DefaultCacheBehavior.ResponseHeadersPolicyId, {
+    Ref: "Headers",
+  });
+  const behaviors = Object.fromEntries(
+    config.CacheBehaviors.filter((b) => b.PathPattern).map((b) => [
+      b.PathPattern,
+      b,
+    ]),
+  );
+  assert.deepEqual(Object.keys(behaviors).sort(), ["/e/*", "/og/*", "/p/*"]);
+  for (const [path, b] of Object.entries(behaviors)) {
+    assert.deepEqual(b.ResponseHeadersPolicyId, {
+      Ref: path === "/e/*" ? "EmbedHeaders" : "Headers",
+    });
+    // the pages function when it is there, the static pages when it is not
+    assert.deepEqual(b.TargetOriginId, {
+      "Fn::If": ["HasPages", "pages-or-static", "website"],
+    });
+    assert.deepEqual(b.AllowedMethods, ["GET", "HEAD"]);
+    assert.equal(
+      b.FunctionAssociations[0].FunctionARN["Fn::GetAtt"][0],
+      "ViewerRequestFunction",
+    );
+  }
+  // a failing function falls over to the static page
+  const group = config.OriginGroups["Fn::If"][1].Items[0];
+  assert.deepEqual(
+    group.Members.Items.map((m) => m.OriginId),
+    ["pages", "website"],
+  );
+  assert.ok(group.FailoverCriteria.StatusCodes.Items.includes(502));
+  // the cache key: the code and the image's version, nothing from the viewer
+  const key =
+    R.PagesCachePolicy.Properties.CachePolicyConfig
+      .ParametersInCacheKeyAndForwardedToOrigin;
+  assert.deepEqual(key.QueryStringsConfig.QueryStrings.Items, ["pitch", "v"]);
+  assert.equal(key.CookiesConfig.CookieBehavior, "none");
+  assert.equal(key.HeadersConfig.HeaderBehavior, "none");
+});
+
+test("the pages function reads one table and nothing else; only the distribution invokes it", async () => {
+  const site = await json("infra/site.json");
+  const R = site.Resources;
+  const statements =
+    R.PagesRole.Properties.Policies[0].PolicyDocument.Statement;
+  const actions = statements.flatMap((s) => [s.Action].flat());
+  assert.deepEqual(actions.sort(), [
+    "dynamodb:GetItem",
+    "logs:CreateLogStream",
+    "logs:PutLogEvents",
+  ]);
+  assert.ok(!JSON.stringify(R.PagesRole).includes("s3:"), "no bucket");
+  const grant = R.PagesAccess.Properties.PolicyDocument.Statement;
+  assert.equal(grant.length, 1);
+  assert.equal(grant[0].Principal.Service, "cloudfront.amazonaws.com");
+  assert.equal(grant[0].Action, "lambda:InvokeWebFunctionEndpoint");
+  assert.match(
+    grant[0].Condition.StringEquals["aws:SourceArn"]["Fn::Sub"],
+    /:distribution\/\$\{Distribution\}$/,
+  );
+  assert.equal(R.PagesEndpoint.Properties.AuthType, "IamAuth");
+  const read = R.CodeBucketPolicy.Properties.PolicyDocument.Statement.find(
+    (s) => s.Sid === "LambdaReadsPagesRevisions",
+  );
+  assert.match(read.Resource["Fn::Sub"], /\/pages\/\*$/);
+  for (const name of [
+    "PagesRole",
+    "PagesFunction",
+    "PagesRevision",
+    "PagesEndpoint",
+    "PagesAccess",
+    "PagesOriginAccess",
+  ])
+    assert.equal(R[name].Condition, "HasPages", name);
+});
+
+test("the pages zip is the same bytes every time and lists its files", () => {
+  const entries = [
+    { name: "index.js", data: Buffer.from("export {};\n") },
+    { name: "package.json", data: Buffer.from('{"type":"module"}\n') },
+  ];
+  const a = zipFiles(entries);
+  assert.deepEqual(a, zipFiles([...entries].reverse()));
+  assert.equal(a.readUInt32LE(a.length - 22), 0x06054b50);
+  assert.equal(a.readUInt16LE(a.length - 22 + 10), 2);
 });
 
 test("the delivery role trusts only main of this repository", async () => {

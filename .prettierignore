@@ -6,3 +6,5 @@ public/shared/
 src/site/sites.json
 infra/deployment.json
 vendor/
+# captured from the engine (tests/fixtures), kept as written
+tests/fixtures/

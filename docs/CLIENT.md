@@ -16,6 +16,7 @@ the engine's.
 | `/p/<code>?solo=1`  | A match against the computer. The options card first (name, level, surface, opening, raising, wind, kubb set; remembered), then START.                                                                                                                                                              |
 | `/p/<code>?watch=1` | The computer against itself, match after match: no options card, the solo card's saved options, North against South. The winner card stays up 10 s (NEXT MATCH, STOP, HOME), then the next match starts by itself, the other team first. Seen in the wide view by default ("The wide view", below). |
 | `/p/<code>`         | A shared pitch: the lobby (name, level, Team A or B or watching, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md.                                                                                                                                   |
+| `/e/<code>`         | The embed: a kept replay alone, for a frame on another site ("The embed", below).                                                                                                                                                                                                                   |
 
 A failure to start shows a plain error card with RELOAD and HOME. The HOW TO THROW overlay
 (four steps, an animated dial) shows on the first visit and from the menu; `?nohowto` skips it.
@@ -253,6 +254,28 @@ data, ... })` fetches a replay by its pitch code and plays it. It needs nothing 
   PITCH and HOME. A replay that differs, or that did not end on the result, shows the
   match's own last snapshot instead, with "This replay may differ from the match as
   played."
+
+## The embed
+
+`/e/<code>` (`src/site/pages.mjs` `embed`, mode `embed`; `bootEmbed` in `src/main.js`,
+`startEmbed` in `src/embed/embed.js`). The pitch pages function writes the pitch's state
+into the page as `<script type="application/json" id="kubb-pitch">`
+(`{ code, state, teams, turn, final }`); without it the embed asks the room server for a
+kept replay and shows "No match here" when there is none.
+
+- **A kept replay** is a `ReplayPlayer` with `embedded: true` on a `Game` with no sound
+  and no menu: the wide view (not remembered), no score sheet beside it (SHEET opens it),
+  no BACK TO THE PITCH or HOME, REPLAY AGAIN at the end. It starts held. An
+  `IntersectionObserver` on the page holds it below half in view (`embedTune.visible`)
+  and lets go above; `hold()` never undoes a pause the viewer chose.
+- **Cards.** In play: "Match in progress" with WATCH ON KUBB.THINGELSTAD.XYZ. Waiting:
+  "Waiting for players". Finished with nothing kept: the final score. Unknown: "No match
+  here". Each links to `/p/<code>` in a new tab; none loads the engine.
+- **Attribution.** "Kubb: Throwing Wood ↗" in the corner, to `/p/<code>`, `target=_blank`
+  `rel=noopener`.
+- The page fills its frame, at least 300×188.
+- **The snippet.** EMBED on the winner card and the replay bar opens it with COPY
+  (`src/ui/embed.js`, `embedSnippet(code)`).
 
 ## Score sheet
 

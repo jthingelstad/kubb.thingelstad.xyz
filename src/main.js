@@ -8,6 +8,8 @@
 //   /p/<code>          a shared pitch: the lobby, then a match with friends
 //                      on the link (src/net/pitch.js, docs/MULTIPLAYER.md),
 //                      driving the same Game through its seam
+//   /e/<code>          the embed: the pitch's replay, read only, in another
+//                      site's frame (src/embed/embed.js)
 import { readConfig, pitchCode } from "./site/config.js";
 import { Engine } from "./engine/index.js";
 import { Game } from "./game/game.js";
@@ -23,6 +25,7 @@ import { openSheet } from "./ui/sheet.js";
 import { recordMatch } from "./net/record.js";
 import { watchFreshness } from "./net/freshness.js";
 import { showUpdate } from "./ui/update.js";
+import { startEmbed, embedCode } from "./embed/embed.js";
 
 const config = readConfig();
 const ui = document.getElementById("ui");
@@ -67,12 +70,39 @@ const home = () => {
   location.href = "/";
 };
 
-async function boot() {
+async function makeEngine() {
   if (!config.luaUrl) throw new Error("this build has no Lua sources");
   const [engine] = await Promise.all([
     Engine.create({ sources: config.luaUrl, wasmUrl: config.wasmUrl }),
     document.fonts?.load('900 40px "Londrina Solid"').catch(() => null),
   ]);
+  return engine;
+}
+
+// The embed: no menu, no sound, no how-to, nothing sent; the engine only when
+// there is a replay to play.
+async function bootEmbed() {
+  const made = await startEmbed({
+    ui,
+    code: embedCode(),
+    roomsUrl: roomsUrl(),
+    makeGame: async () => {
+      const engine = await makeEngine();
+      const cards = new Cards(ui);
+      const game = new Game({ engine, canvas, ui, sound: null, cards });
+      game.onError = fail;
+      game.start();
+      return game;
+    },
+  });
+  loading.remove();
+  if (testing) window.__kubb = { config, embed: made };
+  document.body.dataset.ready = "1";
+}
+
+async function boot() {
+  if (config.mode === "embed") return bootEmbed();
+  const engine = await makeEngine();
   const sound = new Sound(config.sounds || "/sounds/");
   const cards = new Cards(ui);
   const game = new Game({ engine, canvas, ui, sound, cards });

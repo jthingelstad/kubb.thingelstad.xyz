@@ -149,3 +149,134 @@ export function iconImage(size = 180) {
 ${king(84, 146, 136)}
 </svg>`;
 }
+
+// ---------- a pitch's share image ----------
+
+// One pitch's share image (1200 x 630; Jamie, 2026-11-16: "can we get the share
+// preview image to reflect the game that it is linked to?"): the wordmark, the two
+// teams by the names they typed, the state line, and the pitch from above with its
+// pieces as they stand, or as they fell (backend/pages/pitch.mjs piecesOf).
+//
+//   pitchCardImage({ teams: { A, B } | null, line, pieces })
+//
+// teams null (a pitch waiting for players) shows "A PITCH" instead of names: the
+// lobby holds member ids, not names. The team colours are the game's
+// (src/render/palette.js): marigold for A, violet for B.
+const TEAM_FILL = { A: "#f2b705", B: "#8e44ad" };
+const TEAM_TEXT = { A: C.ink, B: C.paper };
+const XML = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
+const xml = (s) => String(s).replace(/[&<>"]/g, (c) => XML[c]);
+
+// A name for the card: at most 18 characters, upper case.
+export function cardName(name) {
+  const s = String(name ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+  return s.length > 18 ? `${s.slice(0, 17).trimEnd()}...` : s;
+}
+
+// Type that shrinks with its length to fit `width` (Londrina is about half an em wide).
+const fit = (text, width, most, least) =>
+  Math.max(least, Math.min(most, Math.floor(width / (0.5 * text.length))));
+
+// The pitch from above, the length across the image: Team A's baseline on the
+// left (world y = 0), Team B's on the right (y = 8), the sidelines (x = -2.5, 2.5)
+// top and bottom. Pieces are drawn larger than life so they read at a glance.
+function pitchFromAbove(left, top, scale, pieces) {
+  const px = (y) => left + (y + 0.8) * scale;
+  const py = (x) => top + (x + 3.1) * scale;
+  const out = [];
+  const w = 9.6 * scale;
+  const h = 6.2 * scale;
+  out.push(
+    `<rect x="${r(left + 8)}" y="${r(top + 8)}" width="${r(w)}" height="${r(h)}" fill="${C.ink}"/>`,
+    `<rect x="${r(left)}" y="${r(top)}" width="${r(w)}" height="${r(h)}" fill="${C.grass}" stroke="${C.ink}" stroke-width="5"/>`,
+  );
+  // mown stripes, one per metre
+  for (let y = 0; y < 8; y += 2)
+    out.push(
+      `<rect x="${r(px(y))}" y="${r(py(-2.5))}" width="${r(scale)}" height="${r(5 * scale)}" fill="${C.grassDark}" opacity="0.35"/>`,
+    );
+  // the team ends, then the lines: baselines, sidelines, centre line
+  out.push(
+    `<rect x="${r(px(-0.8) + 2.5)}" y="${r(py(-2.5))}" width="${r(0.8 * scale - 2.5)}" height="${r(5 * scale)}" fill="${TEAM_FILL.A}"/>`,
+    `<rect x="${r(px(8))}" y="${r(py(-2.5))}" width="${r(0.8 * scale - 2.5)}" height="${r(5 * scale)}" fill="${TEAM_FILL.B}"/>`,
+    `<rect x="${r(px(0))}" y="${r(py(-2.5))}" width="${r(8 * scale)}" height="${r(5 * scale)}" fill="none" stroke="${C.line}" stroke-width="4"/>`,
+    `<line x1="${r(px(4))}" y1="${r(py(-2.5))}" x2="${r(px(4))}" y2="${r(py(2.5))}" stroke="${C.line}" stroke-width="3" stroke-dasharray="10 8"/>`,
+  );
+  const shadow = 5;
+  const box = (cx, cy, len, wid, deg, fill) =>
+    `<g transform="translate(${r(cx)} ${r(cy)}) rotate(${r(deg)})"><rect x="${r(-len / 2 + shadow)}" y="${r(-wid / 2 + shadow)}" width="${r(len)}" height="${r(wid)}" fill="${C.ink}"/><rect x="${r(-len / 2)}" y="${r(-wid / 2)}" width="${r(len)}" height="${r(wid)}" fill="${fill}" stroke="${C.ink}" stroke-width="3"/></g>`;
+  // the pieces stay inside the drawing: a baton past the baseline is cut at its edge
+  out.push(
+    `<clipPath id="field"><rect x="${r(left)}" y="${r(top)}" width="${r(w)}" height="${r(h)}"/></clipPath>`,
+    `<g clip-path="url(#field)">`,
+  );
+  // fallen and thrown pieces first, standing ones over them
+  const order = [...pieces].sort(
+    (a, b) => Number(a.standing) - Number(b.standing),
+  );
+  for (const p of order) {
+    const cx = px(p.y);
+    const cy = py(p.x);
+    // a piece's long axis on the ground, in degrees on the image: world y is
+    // image x and world x is image y
+    const deg = (Math.atan2(p.ax ?? 0, p.ay ?? 1) * 180) / Math.PI;
+    if (p.kind === "baton")
+      out.push(box(cx, cy, 0.3 * scale * 1.6, 9, deg, C.baton));
+    else if (p.kind === "king") {
+      if (p.standing) {
+        out.push(box(cx, cy, 30, 30, 0, C.wood));
+        out.push(
+          `<path d="M${r(cx - 9)},${r(cy + 6)} L${r(cx - 9)},${r(cy - 7)} L${r(cx - 4.5)},${r(cy - 1)} L${r(cx)},${r(cy - 9)} L${r(cx + 4.5)},${r(cy - 1)} L${r(cx + 9)},${r(cy - 7)} L${r(cx + 9)},${r(cy + 6)} Z" fill="${C.ink}"/>`,
+        );
+      } else out.push(box(cx, cy, 52, 20, deg, C.woodDark));
+    } else if (p.standing) out.push(box(cx, cy, 20, 20, 0, C.wood));
+    else out.push(box(cx, cy, 34, 15, deg, C.woodDark));
+  }
+  out.push("</g>");
+  return out.join("\n");
+}
+
+export function pitchCardImage({ teams = null, line = "", pieces = [] } = {}) {
+  const W = 1200;
+  const H = 630;
+  const TEXT = 520; // the text column's width
+  const parts = [];
+  const plate = (text, x, y, size, fill, ink) => {
+    const w = Math.ceil(text.length * size * 0.52 + size * 0.7);
+    return `<rect x="${x + 6}" y="${y - size + 6}" width="${w}" height="${Math.round(size * 1.25)}" fill="${C.ink}"/>
+<rect x="${x}" y="${y - size}" width="${w}" height="${Math.round(size * 1.25)}" fill="${fill}" stroke="${C.ink}" stroke-width="4"/>
+<text x="${x + size * 0.35}" y="${Math.round(y + size * 0.05)}" font-size="${size}" fill="${ink}">${xml(text)}</text>`;
+  };
+  parts.push(
+    `<rect x="56" y="48" width="${TEXT - 30}" height="70" fill="${C.ink}"/>`,
+    `<text x="76" y="100" font-size="44" fill="${C.paper}" letter-spacing="1">KUBB: THROWING WOOD</text>`,
+  );
+  if (teams) {
+    const a = cardName(teams.A);
+    const b = cardName(teams.B);
+    const size = Math.min(fit(a, TEXT - 60, 76, 40), fit(b, TEXT - 60, 76, 40));
+    parts.push(
+      plate(a, 56, 236, size, TEAM_FILL.A, TEAM_TEXT.A),
+      `<text x="64" y="${236 + size * 0.95}" font-size="40" fill="${C.ink}">VS</text>`,
+      plate(b, 56, 236 + size * 1.6 + 30, size, TEAM_FILL.B, TEAM_TEXT.B),
+    );
+  } else
+    parts.push(
+      `<text x="56" y="300" font-size="110" fill="${C.wood}" stroke="${C.ink}" stroke-width="8" stroke-linejoin="round" paint-order="stroke">A PITCH</text>`,
+    );
+  const l = String(line).toUpperCase();
+  parts.push(
+    `<text x="58" y="560" font-size="${fit(l, TEXT, 50, 30)}" fill="${C.ink}" letter-spacing="1">${xml(l)}</text>`,
+  );
+  const scale = 58;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+<rect width="${W}" height="${H}" fill="${C.paper}"/>
+<g font-family="Londrina Solid" font-weight="900" text-anchor="start">
+${parts.join("\n")}
+</g>
+${pitchFromAbove(W - 9.6 * scale - 44, (H - 6.2 * scale) / 2 - 4, scale, pieces)}
+</svg>`;
+}
