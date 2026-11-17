@@ -66,7 +66,9 @@ const SHARE = {
     "KUBB in cut wood letters over THROWING WOOD, a baton flying at a kubb and the king on green grass",
 };
 
-export function footer() {
+// release: the release line ("0.9.5 (6) · web a2659b7 · core cca8012",
+// src/site/release.js), small at the foot; none in a build without one.
+export function footer(release = null) {
   return `<footer class="foot">
   <div class="frame">
     <p>Made by
@@ -74,7 +76,7 @@ export function footer() {
       It is <a href="${ref(PLAYDATE_GAME, "footer")}">the Playdate game</a> in the browser. Jamie’s other projects are on <a href="${ref("https://thingelstad.xyz/", "footer")}">Things I’ve built</a>.
     </p>
     <p class="foot__small">Playdate is a trademark of Panic Inc. This game is not made by Panic. Display type: Londrina Solid, under the <a href="/fonts/OFL-LondrinaSolid.txt">SIL Open Font License</a>.</p>
-  </div>
+${release ? `    <p class="foot__small foot__release" data-release>Version ${esc(release)}</p>\n` : ""}  </div>
 </footer>`;
 }
 
@@ -88,6 +90,7 @@ export function page({
   noindex = false,
   tinylytics = false,
   scripts = [],
+  release = null,
 }) {
   return `<!doctype html>
 <html lang="en">
@@ -105,7 +108,7 @@ ${head({ title, description, path, noindex, ...SHARE })}
 <main id="main">
 ${body}
 </main>
-${footer()}
+${footer(release)}
 ${scripts.map((src) => `<script src="${src}" defer></script>`).join("\n")}
 ${analytics(tinylytics)}
 </body>

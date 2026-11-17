@@ -132,6 +132,12 @@ test("published files are typed and cached right", () => {
     "public, max-age=0, s-maxage=60, must-revalidate",
   );
   assert.throws(() => prepareObject("../x.html", Buffer.from("")));
+  // the deployed release: never kept by CloudFront or a browser
+  assert.match(cacheControl("version.json"), /no-store/);
+  assert.equal(
+    prepareObject("version.json", Buffer.from("{}")).ContentType,
+    "application/json; charset=utf-8",
+  );
 });
 
 test("the rooms zip is the same bytes every time and unzips", () => {

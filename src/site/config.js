@@ -13,6 +13,8 @@
 //   luaUrl:   "/assets/lua-sources-<hash>.json" | null,
 //             what tools/lua-bundle.mjs wrote; null when it has not run
 //   core:     "c11f533..." | null, the vendored core's playdate-kubb commit
+//   release:  { version: "0.9.5", build: 6, web, core, text }, the release this
+//             page is (src/site/release.js); /version.json is the deployed one
 //   sounds:   "/sounds/",         knock-1.wav to knock-9.wav
 // }
 //

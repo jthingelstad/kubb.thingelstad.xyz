@@ -508,6 +508,36 @@ body.game {
   gap: 10px;
   margin-top: 14px;
 }
+/* the release this page is, at the menu's foot */
+.menu-version {
+  margin: 12px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5b4a2c;
+  text-align: center;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* a new version is out (src/ui/update.js): small, under MENU on a wide
+   screen (the minimap is bottom left, the dial bottom right) */
+.update-note {
+  position: absolute;
+  right: calc(var(--safe-right) + 12px);
+  top: calc(var(--safe-top) + 66px);
+  max-width: min(420px, calc(100% - 24px));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+  font-size: 13px;
+  font-weight: 700;
+}
 
 /* the report card (src/ui/report.js) */
 .report {
@@ -998,5 +1028,18 @@ body.game {
   .loading-text,
   .shout {
     animation: none;
+  }
+}
+
+/* a tall screen: the minimap is top right and the dial bottom centre, so the
+   notice sits over the pitch just above the dial */
+@media (max-aspect-ratio: 20/21) {
+  .update-note {
+    top: auto;
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(var(--safe-bottom) + 42vh);
+    width: max-content;
   }
 }

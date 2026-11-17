@@ -21,6 +21,8 @@ import { startPitch } from "./net/pitch.js";
 import { openReport } from "./ui/report.js";
 import { openSheet } from "./ui/sheet.js";
 import { recordMatch } from "./net/record.js";
+import { watchFreshness } from "./net/freshness.js";
+import { showUpdate } from "./ui/update.js";
 
 const config = readConfig();
 const ui = document.getElementById("ui");
@@ -121,6 +123,18 @@ async function boot() {
     report,
     // watching: WIDE VIEW or THROWER'S VIEW (startWatch sets it)
     view: null,
+    // the release line at the foot of the menu: "0.9.5 (6) · web a2659b7 · core cca8012"
+    release: config.release?.text ?? null,
+  });
+
+  // A new deploy while this tab is open: say so, never reload on our own. On a
+  // shared pitch the button waits for the match to end (src/ui/update.js).
+  const canReload = () =>
+    mode !== "pitch" ||
+    !(game.mode === "match" && game.need && game.need.kind !== "over");
+  const freshness = watchFreshness({
+    release: config.release,
+    onStale: () => showUpdate(ui, { canReload }),
   });
 
   if (testing) {
@@ -135,6 +149,7 @@ async function boot() {
       watchTune,
       report,
       sheet,
+      freshness,
       recorded: [],
     };
   }
