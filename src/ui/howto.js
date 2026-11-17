@@ -7,16 +7,28 @@ import { prefs } from "../game/prefs.js";
 
 const STEPS = [
   {
+    swipe: [
+      "Start in the lower half",
+      "Put one finger below the middle of the pitch. Leave room to pull down. With a mouse, grab the dial.",
+    ],
     title: "Grab the dial",
     text: "Press on the big dial and keep holding. The arm follows your finger or mouse round its centre.",
     arm: (t) => -10 * Math.min(1, t * 2),
   },
   {
+    swipe: [
+      "Pull down to wind back",
+      "Pull straight down until the dial’s arm reaches the orange mark. A deeper pull gives you more power.",
+    ],
     title: "Wind back up the left",
     text: "Drag up the left side to the orange mark. How far back is how hard you throw.",
     arm: (t) => -10 - 110 * ease(Math.min(1, t)),
   },
   {
+    swipe: [
+      "Flick up and lift",
+      "Flick straight up past where you started. Lift at the blue mark to release. Return slowly to let the arm down.",
+    ],
     title: "Swing through and let go",
     text: "Sweep quickly down through the bottom and up the right, then let go on the blue mark. Where you let go is the arc.",
     arm: (t) => (t < 0.6 ? -120 + 210 * ease(t / 0.6) : 90),
@@ -104,8 +116,11 @@ export function showHowto(root, game = null, onDone = null) {
     if (n >= STEPS.length) return done();
     t0 = performance.now();
     count.textContent = `${i + 1} OF ${STEPS.length}`;
-    title.textContent = STEPS[i].title;
-    text.textContent = STEPS[i].text;
+    const step = STEPS[i];
+    const swipe =
+      game?.swipeEnabled && navigator.maxTouchPoints > 0 && step.swipe;
+    title.textContent = swipe ? swipe[0] : step.title;
+    text.textContent = swipe ? swipe[1] : step.text;
     back.disabled = i === 0;
     next.textContent = i === STEPS.length - 1 ? "PLAY" : "NEXT";
   }

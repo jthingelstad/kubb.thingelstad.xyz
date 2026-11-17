@@ -659,6 +659,85 @@ browserTest(
   },
 );
 
+// Send hardware-style contacts through Chromium, with a physical sample clock
+// independent of the machine running the test. Start clear of the dial and aim.
+async function pendulum(page, returnSeconds) {
+  const cdp = await page.context().newCDPSession(page);
+  const clock = Date.now() / 1000;
+  const send = (type, y, t) =>
+    cdp.send("Input.dispatchTouchEvent", {
+      type,
+      touchPoints: y == null ? [] : [{ x: 85, y, id: 1 }],
+      timestamp: clock + t,
+    });
+  try {
+    await send("touchStart", 580, 0);
+    await send("touchMove", 612, 0.12);
+    await send("touchMove", 680, 0.38);
+    await page.waitForFunction(
+      () => window.__kubb.game.out.dial.phase === "winding",
+    );
+    for (let i = 1; i <= 8; i++)
+      await send("touchMove", 680 - 22 * i, 0.38 + (returnSeconds * i) / 8);
+    await send("touchEnd", null, 0.39 + returnSeconds);
+  } finally {
+    await cdp.detach();
+  }
+}
+
+browserTest(
+  "touch pendulum lets down slowly and throws on lift after tab navigation",
+  async () => {
+    const page = await open(env, "/practice/?throw=swipe&nohowto=1", "swipe");
+    try {
+      await page.goto(env.base + "/practice/?nohowto=1");
+      await page.waitForSelector("body[data-ready='1']");
+      await waitPhase(page, "aim");
+      await pendulum(page, 1);
+      await page.waitForFunction(
+        () => window.__kubb.game.out.dial.phase === "idle",
+      );
+      assert.equal(
+        await page.evaluate(() => window.__kubb.game.trail.ops.length),
+        0,
+      );
+      await pendulum(page, 1 / 6);
+      await waitPhase(page, "play");
+      assert.equal(
+        await page.evaluate(() => window.__kubb.game.play.rec.input),
+        "touch",
+      );
+      assert.deepEqual(page.errors, []);
+    } finally {
+      await page.context().close();
+    }
+  },
+);
+
+browserTest(
+  "a fresh touch tab keeps the dial, and a mouse keeps it with swipe enabled",
+  async () => {
+    for (const [query, touch] of [
+      ["", true],
+      ["&throw=swipe", false],
+    ]) {
+      const page = await open(env, "/practice/?nohowto=1" + query, "swipe");
+      try {
+        await waitPhase(page, "aim");
+        await throwOnce(page, { touch });
+        await waitPhase(page, "play");
+        assert.equal(
+          await page.evaluate(() => window.__kubb.game.play.rec.input),
+          "pointer",
+        );
+        assert.deepEqual(page.errors, []);
+      } finally {
+        await page.context().close();
+      }
+    }
+  },
+);
+
 browserTest("a portrait phone throws by touch", async () => {
   const page = await open(env, "/practice/?nohowto=1", "portrait");
   await waitPhase(page, "aim", 10000);

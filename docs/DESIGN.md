@@ -188,6 +188,10 @@ straight. On the web the **dial is the control**:
   does on the Playdate. Point and throw still works: touch nothing but the dial and the
   defaults are a sensible throw.
 
+On touchscreens the optional `?throw=swipe` prototype uses a pendulum in the
+lower half of the screen. Pull down to wind, flick up, then lift. The same dial
+shows the arm. The default throw and mouse input remain the circular dial.
+
 ## 6. Look
 
 Woodcut in color. Black ink outlines and hard black shadows stay; the 1-bit checker grey

@@ -84,6 +84,7 @@ export class Game {
     canvas,
     ui,
     sound = null,
+    swipeEnabled = false,
     seat = { sides: ["A"], cpu: true },
     onAction = null,
     cards = null,
@@ -108,6 +109,8 @@ export class Game {
     this.planHeld = false;
     this.planToggle = false;
     this.walkOn = false; // WALK: a drag on the pitch walks the thrower
+    this.swipeEnabled = swipeEnabled;
+    this.touchSamples = [];
     this.ptr = null; // the pointer that is pressed: { id, kind, x, y, ... }
     this.dialArm = null;
     this.dialAcc = 0;
@@ -358,6 +361,7 @@ export class Game {
     };
     this.remote = null;
     this.dialArm = null;
+    this.cancelSwipe();
     const n = this.need;
     if (n.kind === "throw") {
       this.phase = "aim";
@@ -516,7 +520,9 @@ export class Game {
     // the pause holds the engine still: a zero dt would not (the session
     // reads it as a sixtieth), so the aim as it stands is drawn again
     const paused = this.zenPause > 0 || this.frozen;
-    if (!this.modal && may) {
+    if (this.modal || !may || paused) this.cancelSwipe();
+    if (!this.modal && may && !paused) {
+      if (this.touchSamples.length) input.touch = this.touchSamples.splice(0);
       if (this.ptr?.kind === "dial") input.arm = this.dialArm;
       input.plan = this.planHeld || this.planToggle;
       const m = this.keyAxes("ArrowLeft", "ArrowRight", "ArrowDown", "ArrowUp");
@@ -620,7 +626,8 @@ export class Game {
     this.planToggle = false;
     this.walkOn = false;
     this.dialArm = null;
-    if (this.ptr?.kind === "dial") this.ptr = null;
+    if (["dial", "swipe"].includes(this.ptr?.kind)) this.ptr = null;
+    this.touchSamples.length = 0;
     this.result = null;
   }
 
@@ -792,6 +799,7 @@ export class Game {
     const W = Math.max(1, Math.round(r.width || window.innerWidth));
     const H = Math.max(1, Math.round(r.height || window.innerHeight));
     const dpr = Math.min(3, window.devicePixelRatio || 1);
+    if (W !== this.W || H !== this.H) this.cancelSwipe();
     this.W = W;
     this.H = H;
     this.dpr = dpr;
@@ -876,7 +884,10 @@ export class Game {
     const watching = !may || !!aim.watching;
     if (!wide) {
       this.drawMap(aim, this.viewData?.minimap?.pieces || this.items);
-      const st = { ...dial, grabbed: this.ptr?.kind === "dial" };
+      const st = {
+        ...dial,
+        grabbed: this.ptr?.kind === "dial" || this.ptr?.kind === "swipe",
+      };
       if (watching && !st.prompt) st.prompt = "WATCH";
       drawDial(this.ctx, this.L.dial, st);
     }
@@ -1133,14 +1144,20 @@ export class Game {
     if (this.phase === "aim" && this.mayAct()) {
       const g = dialGeometry(this.L.dial);
       const aim = this.out?.aim || {};
-      if (hitTest(g, x, y)) kind = "dial";
+      const swipe = this.swipeEnabled && e.pointerType === "touch";
+      if (!swipe && hitTest(g, x, y)) kind = "dial";
       else if (this.walkOn) kind = "walk";
       else if (
         this.near(aim.marker, x, y, touch ? tune.grabTouch : tune.grabMouse)
       )
         kind = "target";
       else if (this.near(aim.thrower, x, y, touch ? 44 : 26)) kind = "stance";
+      else if (swipe && y >= this.H / 2) kind = "swipe";
       else kind = "tap";
+      if (kind === "swipe") {
+        this.sampleTouch(e, "down");
+        this.planToggle = false;
+      }
       if (kind === "dial") {
         this.dialArm = armAt(g, x, y);
         this.dialFresh = true;
@@ -1181,7 +1198,21 @@ export class Game {
   move(e) {
     const p = this.ptr;
     if (!p || p.id !== e.pointerId) return;
-    // the latest of the coalesced events: the loop samples it once a frame
+    if (p.kind === "swipe") {
+      const samples = e.getCoalescedEvents?.() || [];
+      for (const sample of samples) this.sampleTouch(sample);
+      // Some browsers omit the dispatched event from the coalesced list.
+      const last = samples.at(-1);
+      if (
+        !last ||
+        last.timeStamp !== e.timeStamp ||
+        last.clientX !== e.clientX ||
+        last.clientY !== e.clientY
+      )
+        this.sampleTouch(e);
+      return;
+    }
+    // The dial uses the latest event once a frame.
     const { x, y } = this.pos(e);
     p.x = x;
     p.y = y;
@@ -1201,6 +1232,10 @@ export class Game {
   up(e, cancelled) {
     const p = this.ptr;
     if (!p || p.id !== e.pointerId) return;
+    if (p.kind === "swipe") {
+      if (cancelled) this.cancelSwipe();
+      else this.sampleTouch(e, "up");
+    }
     this.ptr = null;
     if (p.kind === "dial")
       this.dialArm = null; // the release
@@ -1234,7 +1269,26 @@ export class Game {
     if (r && r.aim) this.out = { ...this.out, aim: r.aim, camera: r.camera };
   }
 
+  sampleTouch(e, phase) {
+    const { x, y } = this.pos(e);
+    const unit = Math.min(this.W, this.H);
+    this.touchSamples.push({
+      phase,
+      x: x / unit,
+      y: y / unit,
+      t: e.timeStamp / 1000,
+    });
+  }
+
+  cancelSwipe() {
+    if (this.ptr?.kind === "swipe" || this.touchSamples.length) {
+      if (this.ptr?.kind === "swipe") this.ptr = null;
+      this.touchSamples = [{ phase: "cancel" }];
+    }
+  }
+
   releaseAll() {
+    this.cancelSwipe();
     this.keys.clear();
     this.planHeld = false;
     if (this.ptr) {

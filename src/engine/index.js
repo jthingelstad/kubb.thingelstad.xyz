@@ -139,6 +139,7 @@ export class Engine {
   frame(input = {}) {
     const a = { dt: input.dt ?? 1 / 60 };
     if (input.arm !== undefined && input.arm !== null) a.arm = input.arm;
+    if (input.touch) a.touch = input.touch;
     if (input.plan) a.plan = true;
     if (input.move) a.move = input.move;
     if (input.walk) a.walk = input.walk;

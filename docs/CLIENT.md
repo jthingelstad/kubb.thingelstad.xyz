@@ -366,6 +366,17 @@ flick of about 1000 deg/s read SLOW, so the engine's `pointer` tune (`tune/point
 The Playwright mouse and CDP touch need two animation frames a step (a round trip each),
 so `client.test.mjs` doubles the flick speed to make up for the 30 Hz stepping.
 
+### Trying the touch pendulum
+
+Open `/practice/?throw=swipe` on a phone. The switch lasts for this tab. Start
+in the lower half, pull down to wind, then flick up and lift. The dial shows the
+arm and its power and release bands. Return slowly to let down. The target,
+stance and WALK keep their drag controls. A mouse or trackpad always uses the
+dial. The browser sends raw pointer positions in short-edge units and monotonic
+seconds (including coalesced samples) to the engine. Its `session/touch.lua`
+resamples at 120 Hz and maps them to the crank. Old and new human throws are
+played through the same action path.
+
 ## Version and freshness
 
 Two versions: the web game's own (`version` in `package.json`, 0.1.0) and the version of
