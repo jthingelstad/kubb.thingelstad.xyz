@@ -126,9 +126,10 @@ when they last connected or disconnected.
 - `claimHost()`: ask to become host (rules in section 2.4).
 - `setOpen(open)`: the host lists the room under Open games (`{ players, seats, state }`)
   or takes it off (`null`); section 9. False while not connected.
-- `keep(replay)`: the match has ended: keep its replay (`replayOf` in `src/net/lobby.js`)
-  for the document version the room holds, and the room a year; section 10. False while
-  not joined.
+- `keep(replay, v)` asks the server to keep the finished match and its room for a year
+  (section 10). Supply the positive integer document version at the end of the match.
+  Omitting it yields `bad-message`. A true return means the client sent the request.
+  It returns false while disconnected. The server sends no success acknowledgement.
 - `leave()`: leave the room for good (the member is forgotten there) and close.
 - `close()`: close without leaving: the member shows as disconnected and keeps their place.
 
@@ -146,10 +147,12 @@ when they last connected or disconnected.
 | `cast`    | `{ from, d }`                       | another member's cast                                                           |
 | `error`   | `RoomError` `{ code, message, re }` | an error not tied to an `update` (for example `rate`)                           |
 
-`doc` events only move forward: a version older than the one held is dropped, so the
-document a client holds never goes back. A client that reconnects gets the current
-document in the join (unless it already holds that version) and a `doc` event if it
-changed. The `with` of versions written while a client was away is not replayed: a
+Within a connection, `doc`, `ok` and `no` adopt only a higher document version.
+On reconnect, the document in `joined` is authoritative. After an expired room
+restarts this can be version 0 and JSON null. If the client already holds the
+current positive version the server omits the document. Otherwise the client
+adopts it and emits a `doc` event. The `with` of versions written while a client
+was away is not replayed: a
 browser that loses its place just takes the snapshot (`DESIGN.md` 4.3).
 
 ## 2. The wire protocol
@@ -160,8 +163,9 @@ through thin web wrappers (`docs/MULTIPLAYER.md`). The room server still knows n
 
 One WebSocket per browser tab. Every message is a JSON object with a type `t`, sent as
 a text frame. All text is **ASCII JSON**: every character above `~` is written as a
-backslash-u escape (`asciiJson` in both libraries), so a message's length in characters
-is its size in bytes and it can be cut anywhere.
+backslash-u escape per UTF-16 code unit (`asciiJson` in both libraries). An emoji
+outside the BMP takes twelve ASCII bytes, a lone surrogate six. The encoded text
+can be cut anywhere and its length is its byte count.
 
 ### 2.1 Frames and chunking
 
@@ -181,7 +185,12 @@ whole message never starts with `~` (it starts with `{`). Parts may arrive in an
 (on AWS each frame is its own Lambda invocation); the receiver joins the slices in `i`
 order when all `n` have arrived. The server keeps unfinished parts for 10 minutes. A
 reassembled message is at most 300 KB. The largest message is a `set` with a 256 KB
-document, about 9 parts.
+document, about 9 parts. Senders reserve 40 bytes for the header and slice the
+encoded text every 29,960 bytes. Each part is a separate WebSocket message.
+The server enforces the part count, index, frame size, reassembled size and
+upload expiry. The web client's incoming part reader only matches the header
+pattern (even a count of 0 or 1 matches). It joins the indexed slices without
+enforcing those bounds or timing out incomplete assemblies.
 
 ### 2.2 Client to server
 
@@ -236,7 +245,9 @@ the same room and member is a rejoin, for anything else it is `already-joined`.
   ones. `joined` resets all of them to its `rev`.
 - `doc`, `ok` and `no` can likewise arrive out of order: keep the highest `v`.
 - `limits` in `joined`: `{ members, docBytes, withBytes, castBytes, meBytes, frame,
-castRate, castBurst, hostGraceMs }`.
+castRate, castBurst, hostGraceMs }`. The server omits `parts`, `messageBytes`,
+  `reportBytes`, `gameBytes` and `replayBytes` from this object. Clients use
+  the fixed caps in section 3 for these.
 - `now` (in `joined`, `pong`) is the server clock in milliseconds.
 
 ### 2.4 Rules
@@ -299,7 +310,7 @@ none).
 ### 2.6 Client and engine tags
 
 For game admission, the client joins with `me = { name, level, engine }`, where `engine`
-is the engine's major.minor (`"0.3"`). START passes the current members to the engine's
+is the engine's major.minor (for example `"0.4"`). START passes the current members to the engine's
 `room.startCheck`/`room.startMatch`, which refuses explicit mismatches and stamps
 `match.engine`. `room.mayPlay` checks a running match before giving team or CPU control.
 These are client rules: the server treats both fields as opaque JSON. During the web
@@ -335,7 +346,7 @@ All in `LIMITS` in `backend/rooms/core.mjs`, the one place to change them.
 | Limit                   | Value                                                                   |
 | ----------------------- | ----------------------------------------------------------------------- |
 | members a room          | 16                                                                      |
-| document                | 256 KB as ASCII JSON (non-ASCII characters count 6 bytes each)          |
+| document                | 256 KB of encoded ASCII JSON (section 2.1)                              |
 | `with` payload          | 4 KB                                                                    |
 | a cast message          | 2 KB                                                                    |
 | a member's `me` fields  | 512 B                                                                   |
@@ -350,7 +361,7 @@ All in `LIMITS` in `backend/rooms/core.mjs`, the one place to change them.
 | unfinished upload       | 10 min                                                                  |
 | room code               | 8 to 24 of `23456789abcdefghjkmnpqrstuvwxyz` (the client makes 10)      |
 | member id               | 8 to 40 of `A-Za-z0-9_-`                                                |
-| a report                | 64 KB as ASCII JSON; each answer 1000 characters; 3 a connection        |
+| a report                | 64 KB as ASCII JSON; each answer 1000 code points; 3 a connection       |
 | a one-browser match     | 256 KB as ASCII JSON; 4000 actions; 3 a connection                      |
 | open games listed       | 20, newest first, read from at most 60 entries; made in the last 24 h   |
 | an open game's entry    | 15 min after its room last changed (the host says it again every 5 min) |
@@ -537,7 +548,7 @@ either: it checks the shape and the size, keeps the report and acknowledges it.
   answer (15 s at most) and closes, on a shared pitch too (the room's own socket may be
   reconnecting). A report longer than a frame goes in parts (section 2.1). The server
   requires `r.mode` (`practice`, `solo`, `watch` or `pitch`), `r.happened` and
-  `r.should` (text, 1000 characters each, at least one not blank), `r.room` a room code
+  `r.should` (text, at most 1000 Unicode code points each, at least one not blank), `r.room` a room code
   when present, `r.client` and `r.engine` tags when present (section 2.6), and the whole message at most 64 KB (`LIMITS.reportBytes`); everything
   else in `r` is the browser's (`src/net/report.js` lists it). The answer is
   `{ "t": "reported", "id": 1 }` or an `error` with `re: "report"` and the `id`.

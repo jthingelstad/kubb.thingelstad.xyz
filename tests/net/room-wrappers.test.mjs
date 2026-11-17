@@ -2,7 +2,7 @@
 // caching. The room rules themselves are covered by kubb-engine's vectors.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import "./room-engine.mjs";
+import { engine } from "./room-engine.mjs";
 import {
   ENGINE,
   LENIENT_ENGINES,
@@ -117,7 +117,7 @@ test("reducer nulls become undefined for room.update's no-write contract", () =>
 });
 
 test("constants, lobby arguments and values come from the engine", () => {
-  assert.equal(ENGINE, "0.3");
+  assert.equal(ENGINE, engine.version.split(".").slice(0, 2).join("."));
   assert.equal(TEAM_MAX, 6);
   assert.equal(SEATS, 12);
   assert.equal(MATCH_OPTIONS.length, 5);
@@ -148,12 +148,12 @@ test("START stamps the engine and permits unknown legacy members but refuses a d
     startMatch(null, { ...start, members: legacy }).match.engine,
     ENGINE,
   );
-  const different = [members[0], { ...members[1], me: { engine: "0.4" } }];
+  const different = [members[0], { ...members[1], me: { engine: "0.3" } }];
   assert.deepEqual(startCheck(players, different, "a").differ, ["b"]);
   assert.equal(startMatch(null, { ...start, members: different }), undefined);
   assert.equal(mayPlay(ENGINE, {}).ok, true);
-  assert.equal(mayPlay(ENGINE, { engine: "0.3.9" }).ok, true);
-  assert.equal(mayPlay(ENGINE, { engine: "0.4" }).ok, false);
+  assert.equal(mayPlay(ENGINE, { engine: ENGINE + ".9" }).ok, true);
+  assert.equal(mayPlay(ENGINE, { engine: "0.3" }).ok, false);
 });
 
 test("seat checks pass connected ids as arrays and cache between state changes", () => {

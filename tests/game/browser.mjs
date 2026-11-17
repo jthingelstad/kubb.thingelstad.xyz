@@ -18,6 +18,12 @@ export const VIEWPORTS = {
     isMobile: true,
     hasTouch: true,
   },
+  swipe: {
+    viewport: { width: 540, height: 900 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+  },
   landscape: {
     ...devices["iPhone 13 landscape"],
     viewport: { width: 844, height: 390 },

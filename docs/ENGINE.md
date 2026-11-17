@@ -143,6 +143,12 @@ release that this browser acts for, `action` is the throw to send to the room,
 `recording` is its recording, and `need` is what comes next (the throw has already been
 applied here).
 
+The optional `frame({ dt, touch: samples })` input carries the contact for the
+pendulum. Each sample gives x and y in short-edge units and time in seconds.
+Down and up carry `phase`, and cancel abandons the contact. The engine's
+`docs/SESSION.md` specifies the sampling and tuning. A human throw action and
+its recording carry the optional input tag for tuning.
+
 ### Aiming
 
 All return `{ aim, camera }`, and do nothing unless this browser may aim now.

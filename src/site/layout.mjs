@@ -109,6 +109,7 @@ ${head({ title, description, path, noindex, ...SHARE })}
 ${body}
 </main>
 ${footer(release)}
+<script type="module" src="/js/throw-mode.js"></script>
 ${scripts.map((src) => `<script src="${src}" defer></script>`).join("\n")}
 ${analytics(tinylytics)}
 </body>

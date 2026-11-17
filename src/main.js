@@ -10,6 +10,7 @@
 //                      driving the same Game through its seam
 //   /e/<code>          the embed: the pitch's replay, read only, in another
 //                      site's frame (src/embed/embed.js)
+import { swipeEnabled } from "../public/js/throw-mode.js";
 import { readConfig, pitchCode } from "./site/config.js";
 import { Engine } from "./engine/index.js";
 import { Game } from "./game/game.js";
@@ -114,7 +115,7 @@ async function boot() {
   const engine = await makeEngine();
   const sound = new Sound(config.sounds || "/sounds/");
   const cards = new Cards(ui);
-  const game = new Game({ engine, canvas, ui, sound, cards });
+  const game = new Game({ engine, canvas, ui, sound, cards, swipeEnabled });
   game.onError = fail;
   const howto = (onDone) => showHowto(ui, game, onDone);
   const code = pitchCode();

@@ -53,13 +53,15 @@ browserTest(
       );
       assert.equal(
         await guest.evaluate(() => window.__kubb.pitch.room.me.engine),
-        "0.3",
+        await guest.evaluate(() =>
+          window.__kubb.engine.version.split(".").slice(0, 2).join("."),
+        ),
       );
       await guest.evaluate(() =>
-        window.__kubb.pitch.room.setMe({ engine: "0.4" }),
+        window.__kubb.pitch.room.setMe({ engine: "0.3" }),
       );
       await host.waitForFunction(() =>
-        window.__kubb.pitch.room.members.some((m) => m.me.engine === "0.4"),
+        window.__kubb.pitch.room.members.some((m) => m.me.engine === "0.3"),
       );
       await host.click("[data-test=lobby-start]");
       await host.waitForSelector("[data-test=lobby-note]:not([hidden])");
@@ -81,7 +83,9 @@ browserTest(
       );
       await host.click("[data-test=lobby-start]");
       await host.waitForFunction(
-        () => window.__kubb.pitch.room.doc.match?.engine === "0.3",
+        () =>
+          window.__kubb.pitch.room.doc.match?.engine ===
+          window.__kubb.engine.version.split(".").slice(0, 2).join("."),
       );
       await guest.waitForFunction(() => window.__kubb.pitch.mode === "match");
       assert.deepEqual(host.errors, []);
@@ -95,14 +99,14 @@ browserTest(
 
 for (const [engine, kind, seated, text, reload] of [
   [
-    "0.4",
+    "1.0",
     "desktop",
     true,
     "This pitch is playing on a newer version of Throwing Wood. Reload to join.",
     true,
   ],
   [
-    "0.2",
+    "0.3",
     "portrait",
     false,
     "This pitch is playing on an older version of Throwing Wood. Ask the host to reload.",
