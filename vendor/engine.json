@@ -1,11 +1,11 @@
 {
   "repository": "jthingelstad/kubb-engine",
-  "tag": "v0.4.1",
-  "commit": "fcbfb9e9c53c253c718a723cd482ec54d02012bb",
+  "tag": "v0.5.0",
+  "commit": "0b2dcd5ec167f52e47e571502beda93ebfdb5776",
   "files": {
-    "engine.json": "d47650ca9812d5008dbb13cc2a837705a17660ac8b96e8165de0dada2ea73570",
+    "engine.json": "e9cc8a7bf96d7801acff0c321aa86c940c2eda7dd0fcd5e7486441877af5e7f7",
     "LICENSE": "de0c7d070681e50fdd7aa83fa32408c86867238eeedaa75ccea617fe854de4b3",
     "golden/drive.lua": "0dcf294defc9f1d828e2d274fd910fc5aaa0abd6a86b87391462e89ca369101f",
-    "golden/hashes.json": "48f54d143b1ccb1f8d919ef187cd9e46ddb6d870c97765244b90d6726fe05e62"
+    "golden/hashes.json": "cd9fb27cfd582778d39a759cf95f2e7e414af26843a6829c043e8543ca1d21e2"
   }
 }

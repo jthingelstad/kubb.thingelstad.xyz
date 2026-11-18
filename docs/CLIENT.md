@@ -318,6 +318,8 @@ played again and tested. It is kept privately and not published.", SEND and CANC
 (Escape cancels). SEND shows "Sending...", then "Sent, thank you." with BACK TO THE PITCH,
 or "The report was not sent." with the reason, and the answers stay to send again.
 
+The throw report can mark several pieces on an overhead pitch or by name. The picker uses the last throw’s rest poses, including the baton after a handoff. The report keeps the marked IDs and poses even when the full piece list is dropped to fit.
+
 - **The game while it is open**: modal, as under the menu. Nothing typed or pressed
   reaches the pitch, and a throw this browser is aiming waits (the dial and the circle
   hold). A throw already playing back finishes, the computer's turn goes on, a shared

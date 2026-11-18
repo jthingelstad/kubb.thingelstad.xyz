@@ -554,6 +554,71 @@ body.game {
 .report {
   width: min(560px, 100%);
 }
+.report-picker {
+  margin-block: 8px;
+}
+.report-picker summary {
+  cursor: pointer;
+  font-weight: 700;
+  padding: 8px 0;
+}
+.report-pitch {
+  position: relative;
+  aspect-ratio: 8 / 4.5;
+  background: #55744f;
+  border: 2px solid var(--ink);
+  margin: 5px 0 10px;
+  border-radius: 4px;
+}
+.report-lines {
+  position: absolute;
+  border: 1px solid white;
+  background: linear-gradient(
+    to right,
+    transparent 49.8%,
+    white 50%,
+    transparent 50.2%
+  );
+}
+.report-dot,
+.report-chip {
+  cursor: pointer;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  font-weight: 700;
+  border-radius: 3px;
+}
+.report-dot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  padding: 3px;
+  min-width: 18px;
+  z-index: 1;
+}
+.report-dot[data-kind="stake"] {
+  font-size: 0;
+  min-width: 8px;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border-radius: 50%;
+  z-index: auto;
+}
+.report-piece-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.report-chip {
+  padding: 5px 7px;
+}
+.report-picker [aria-pressed="true"] {
+  background: #ffc848;
+  outline: 2px solid var(--ink);
+  z-index: 2;
+}
 .report-field {
   display: grid;
   gap: 4px;

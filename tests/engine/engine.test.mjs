@@ -79,7 +79,7 @@ test("the engine's golden corpus, every hash, under this wasmoon", async () => {
     assert.deepEqual(m.actions, want.actions, `${m.name}: the actions`);
     actions += m.actions.length;
   });
-  assert.equal(actions, 453);
+  assert.equal(actions, 437);
 });
 
 test("wasmoon is exactly 1.16.0, the engine's reference platform", () => {

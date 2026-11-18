@@ -372,6 +372,17 @@ test("answers are clipped, and a report too big drops history, then pieces, neve
   );
   assert.deepEqual(small.r.dropped, ["history", "pieces"]);
   assert.equal(small.r.pieces, null);
+  const marked = reportMessage(
+    state,
+    { happened: "h", selected: ["king", "unknown", "king"] },
+    { limits: { ...REPORT_LIMITS, bytes } },
+  );
+  assert.equal(marked.r.pieces, null);
+  assert.deepEqual(
+    marked.r.selectedPieces.map((p) => p.id),
+    ["king"],
+  );
+  assert.equal(marked.r.pickPieces, undefined);
   const tiny = reportMessage(
     state,
     { happened: "h", should: "s" },
