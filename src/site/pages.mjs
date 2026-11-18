@@ -170,6 +170,56 @@ function rules({ tinylytics, config = {} }) {
   });
 }
 
+function engine({ tinylytics, config = {} }) {
+  const body = `<section class="hero">
+  <div class="frame hero__inner">
+    <h1 class="display">The Kubb Engine</h1>
+    <p class="lede">A baton clips a corner. The first kubb tips into the next. On Playdate, the web and iPhone, the same Lua code works out where the wood goes and what the throw scores.</p>
+  </div>
+  ${heroScene()}
+</section>
+<section class="frame" aria-labelledby="checks">
+  <h2 class="display" id="checks">How close to the lawn?</h2>
+  <div class="cards">
+    <article class="card">
+      <h3 class="card__title">150 scored games</h3>
+      <p>We compared the computer’s play with 150 games in the Planet Kubb archive. The sheets tell us how often a baton missed, took one kubb or toppled a whole group.</p>
+      <p>In the archive, 16% of batons aimed at field kubbs took exactly two. In a 150-game test at the computer’s pro level, 5.7% did. Taking two with one baton is still harder for the computer.</p>
+    </article>
+    <article class="card">
+      <h3 class="card__title">11 videos of real play</h3>
+      <p>We marked 220 events in YouTube footage. Most came from five tournament videos with a fixed camera. The painted pitch lines gave us a ruler for the near half of the field.</p>
+      <p>For 73 throws of a kubb, we could see both its landing and its resting place. That let us measure how far it travelled after it hit the grass.</p>
+    </article>
+    <article class="card">
+      <h3 class="card__title">1,063 physics cases</h3>
+      <p>We gave MuJoCo, a rigid-body physics simulator, the same pieces, masses and starting throws. We compared drops, strikes and chains of falling kubbs. Its solver settings gave stable enough measurements to score 1,039 cases.</p>
+      <p>One comparison caught a baton sliding too far after a bounce. Accounting for the friction during impact brought its stopping distance on grass closer to MuJoCo’s.</p>
+    </article>
+  </div>
+</section>
+<section class="frame prose" aria-labelledby="hashes">
+  <h2 class="display" id="hashes">One match on two screens</h2>
+  <p>A browser and an iPhone can sit on opposite sides of a pitch. Each plays the action locally, writes down the whole game state and calculates a short fingerprint called a hash. A difference shows up on the very action where the two states part ways.</p>
+  <p>The iPhone uses the same maths as the web. Both are checked against 453 saved hashes from 12 reference matches. In three more matches played between the two clients, all 750 actions agreed, from the first throw through the kept replay. Playdate uses the same rules and throw model with its own 32-bit arithmetic.</p>
+</section>
+<section class="frame prose" aria-labelledby="notation">
+  <h2 class="display" id="notation">What the scorekeeper writes</h2>
+  <p>Planet Kubb Notation fits a throw into a few characters. A dash is a miss. <code>2F</code> means one baton took two field kubbs. <code>K</code> means the king fell. Read the marks in order and you can follow a turn, baton by baton.</p>
+  <p>The engine writes that same notation as a match unfolds. The game can show you its score sheet, and the reader used for the archived games can score it.</p>
+</section>`;
+  return page({
+    path: "/engine/",
+    title: `The Kubb Engine · ${SITE_TITLE}`,
+    description:
+      "How Throwing Wood checks its throws against score sheets, video of real play and a second physics simulator.",
+    noindex: true,
+    body,
+    tinylytics,
+    release: config.release?.text,
+  });
+}
+
 function notFound({ tinylytics, config = {} }) {
   return page({
     path: "/404.html",
@@ -231,6 +281,13 @@ function embed({ config, assets }) {
 
 export const PAGES = [
   { path: "/", file: "index.html", render: home, sources: ["src/site"] },
+  {
+    path: "/engine/",
+    file: "engine/index.html",
+    render: engine,
+    noindex: true,
+    sources: ["src/site"],
+  },
   {
     path: "/rules/",
     file: "rules/index.html",
