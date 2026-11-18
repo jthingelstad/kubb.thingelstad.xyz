@@ -63,6 +63,7 @@ export function describeReport(obj, file = "") {
   if (r.snapshots?.before && r.last) state.push("before + last action");
   if (r.snapshots?.start && r.actions)
     state.push(`start + ${r.actions.length} actions`);
+  if (r.practice?.before) state.push("practice checkpoint + reported throw");
   if (r.practice?.ops) state.push(`practice + ${r.practice.ops.length} steps`);
   if (r.room) state.push(`recorded game: games/${r.room}/ (v ${r.v ?? "?"})`);
   lines.push(`  Replay: ${state.join("; ") || "nothing replayable"}`);
@@ -100,12 +101,21 @@ export function replayReport(engine, obj) {
   const r = obj.report ?? obj;
   const out = { kind: null, notes: [] };
   if (r.practice) {
-    if (!r.practice.ops)
-      return { ...out, why: "the practice steps were dropped" };
+    const checkpoint = r.practice.before;
+    const ops =
+      checkpoint && r.lastThrow?.action ? [r.lastThrow.action] : r.practice.ops;
+    if (!ops) return { ...out, why: "the practice steps were dropped" };
     out.kind = "practice";
-    engine.newPractice({ ...r.practice.opts });
-    if (r.practice.opts?.level) engine.setLevel(r.practice.opts.level);
-    for (const op of r.practice.ops) {
+    if (checkpoint) {
+      engine.call("restorePractice", { checkpoint });
+      out.notes.push(
+        "Replayed the reported throw from its practice checkpoint.",
+      );
+    } else {
+      engine.newPractice({ ...r.practice.opts });
+      if (r.practice.opts?.level) engine.setLevel(r.practice.opts.level);
+    }
+    for (const op of ops) {
       if (op.type === "throw") engine.apply(op);
       else if (op.type === "reset") engine.reset();
       else if (op.type === "drill") engine.setDrill(op.on);
@@ -158,7 +168,9 @@ export function replayReport(engine, obj) {
   }));
   out.drift = drift(
     pieces,
-    r.pieces?.filter((p) => p.kind !== "stake"),
+    r.practice?.before && r.last?.type !== "throw"
+      ? null
+      : r.pieces?.filter((p) => p.kind !== "stake"),
   );
   return out;
 }
