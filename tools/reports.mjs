@@ -41,6 +41,13 @@ export function describeReport(obj, file = "") {
   };
   text("What happened", r.happened);
   text("What should have happened", r.should);
+  if (Array.isArray(r.selectedPieces) && r.selectedPieces.length)
+    text(
+      "Marked pieces",
+      r.selectedPieces
+        .map((p) => `${p.kind} ${p.id} (${p.x}, ${p.y})`)
+        .join(", "),
+    );
   const n = r.need ?? {};
   const turn =
     n.turn !== undefined ? `turn ${n.turn}, throw ${n.throws ?? "?"}` : "";

@@ -24,6 +24,70 @@ const FAILURES = {
   unavailable: "Reports cannot be sent from here.",
 };
 
+// Both controls toggle the same piece. The list also reaches pieces whose
+// footprints overlap on the overhead pitch.
+function piecePicker(pieces, selected) {
+  if (!pieces.length) return null;
+  const map = h("div.report-pitch");
+  const list = h("div.report-piece-list");
+  const summary = h("summary", "Mark pieces");
+  const xs = pieces.map((p) => p.x),
+    ys = pieces.map((p) => p.y);
+  const left = Math.min(0, ...ys) - 0.6,
+    right = Math.max(8, ...ys) + 0.6;
+  const top = Math.min(-2.5, ...xs) - 0.5,
+    bottom = Math.max(2.5, ...xs) + 0.5;
+  const along = (y) => ((y - left) / (right - left)) * 100 + "%";
+  const across = (x) => ((x - top) / (bottom - top)) * 100 + "%";
+  map.append(
+    h("div.report-lines", {
+      style: {
+        left: along(0),
+        top: across(-2.5),
+        width: 800 / (right - left) + "%",
+        height: 500 / (bottom - top) + "%",
+      },
+    }),
+  );
+  for (const p of pieces) {
+    const number = p.id.startsWith(p.kind)
+      ? p.id.slice(p.kind.length)
+      : p.id.toUpperCase();
+    const label = [p.kind[0].toUpperCase() + p.kind.slice(1), number]
+      .filter(Boolean)
+      .join(" ");
+    const toggle = () => {
+      if (selected.has(p.id)) selected.delete(p.id);
+      else selected.add(p.id);
+      for (const el of [dot, item])
+        el.setAttribute("aria-pressed", String(selected.has(p.id)));
+      summary.textContent = selected.size
+        ? `Mark pieces (${selected.size})`
+        : "Mark pieces";
+    };
+    const attrs = {
+      type: "button",
+      "aria-label": label,
+      "aria-pressed": "false",
+      onclick: toggle,
+    };
+    const dot = h(
+      "button.report-dot",
+      {
+        ...attrs,
+        title: label,
+        "data-kind": p.kind,
+        style: { left: along(p.y), top: across(p.x) },
+      },
+      p.id.toUpperCase(),
+    );
+    const item = h("button.report-chip", attrs, label);
+    map.append(dot);
+    list.append(item);
+  }
+  return h("details.report-picker", summary, map, list);
+}
+
 // opts: { game, mode, config, pitch?, url, send? (for tests) }
 export function openReport(root, opts) {
   const { game } = opts;
@@ -54,10 +118,13 @@ export function openReport(root, opts) {
     "data-test": "report-status",
   });
   const actions = h("div.row");
+  const selected = new Set();
+  const picker = piecePicker(state.pickPieces, selected);
   const body = h(
     "div.card.report",
     { "data-test": "report-card" },
     h("h2.display", "Report a throw"),
+    picker,
     happenedRow,
     shouldRow,
     h("p.report-note", REPORT_SENTENCE),
@@ -89,13 +156,18 @@ export function openReport(root, opts) {
     );
   };
   async function go() {
-    const answers = { happened: happened.value, should: should.value };
+    const answers = {
+      happened: happened.value,
+      should: should.value,
+      selected: [...selected],
+    };
     if (!reportReady(answers)) {
       status.textContent = "Write what happened, or what should have happened.";
       happened.focus();
       return;
     }
     sending = true;
+    if (picker) picker.inert = true;
     happened.disabled = should.disabled = true;
     clear(actions);
     status.textContent = "Sending...";
@@ -116,6 +188,7 @@ export function openReport(root, opts) {
     } catch (err) {
       status.textContent = `The report was not sent. ${FAILURES[err?.code] ?? "Try again in a moment."}`;
       happened.disabled = should.disabled = false;
+      if (picker) picker.inert = false;
       editing();
     } finally {
       sending = false;

@@ -816,6 +816,17 @@ browserTest(
         await page.textContent("[data-test=report-card]"),
         /kept privately and not published/,
       );
+      await page.click(".report-picker summary");
+      await page.locator('.report-dot[aria-label="King"]').click();
+      await page.locator('.report-chip[aria-label="Baton 1"]').click();
+      await page.locator('.report-chip[aria-label="King"]').click();
+      assert.equal(
+        await page
+          .locator('.report-dot[aria-label="King"]')
+          .getAttribute("aria-pressed"),
+        "false",
+      );
+      await page.locator('.report-chip[aria-label="Kubb B1"]').click();
       // the game holds: modal, and typing reaches the card, not the pitch
       const before = await page.evaluate(() => {
         const g = window.__kubb.game;
@@ -867,6 +878,10 @@ browserTest(
       const r = kept.report;
       assert.equal(r.mode, "solo");
       assert.equal(r.happened, "The baton went through the kubb. ÅÄÖ");
+      assert.deepEqual(r.selectedPieces.map((p) => p.id).sort(), [
+        "b1",
+        "baton1",
+      ]);
       assert.equal(r.should, "It should have knocked it down.");
       assert.equal(r.options.cpu.join(), "B");
       assert.ok(Number.isInteger(r.options.seed));

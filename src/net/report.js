@@ -97,7 +97,7 @@ export function captureReport({
     view = null;
   }
   try {
-    const r = engine.recording();
+    const r = engine.call("reportThrow");
     if (r && r.result) rec = r;
   } catch {
     rec = null;
@@ -156,6 +156,9 @@ export function captureReport({
     r.actions = trail.actions;
   }
   r.pieces = pieces(view?.items);
+  // The next turn may already have collected the baton or turned the pitch.
+  r.pickPieces =
+    rec && rec.seq === lastThrow?.seq ? pieces(rec.items) : r.pieces;
   // A copy, never the trail's own arrays: the trail goes on growing while the card is
   // open (the computer, the other players), and the report is the game as it stood.
   return pseudonymise(structuredClone(r), memberIds({ pitch, trail }));
@@ -202,11 +205,14 @@ export function pseudonymise(r, ids) {
 // The message for the server: the captured state with the answers, cut to fit.
 export function reportMessage(
   state,
-  { happened = "", should = "" },
+  { happened = "", should = "", selected = [] },
   { id = 1, limits = REPORT_LIMITS } = {},
 ) {
   const clip = (s) => [...String(s ?? "")].slice(0, limits.chars).join("");
   const r = structuredClone(state);
+  const marked = (r.pickPieces ?? []).filter((p) => selected.includes(p.id));
+  delete r.pickPieces;
+  if (marked.length) r.selectedPieces = marked;
   r.happened = clip(happened);
   r.should = clip(should);
   const msg = { t: "report", id, r };
