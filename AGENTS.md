@@ -8,8 +8,8 @@ rules this site shares with Jamie's other sites (sites list, shared type) are in
 Kubb: Throwing Wood on the web: kubb-engine (the Playdate game's own Lua core and a
 screenless session over it, vendored in `vendor/engine/`) running in the browser, with
 multiplayer on a link. The design is `docs/DESIGN.md`; read it first. The Playdate
-game is the sibling checkout `../playdate-kubb` (private; its `docs/DESIGN.md` and
-`AGENTS.md` are the reference for how the game plays).
+game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
+`AGENTS.md` are the reference for how the game plays.
 
 ## Rules
 
@@ -18,8 +18,8 @@ game is the sibling checkout `../playdate-kubb` (private; its `docs/DESIGN.md` a
   release a tag, then `npm run vendor:sync -- --tag vX.Y.Z` (`vendor:check` holds it to
   the engine's manifest). Never write in the kubb-engine or playdate-kubb checkouts from
   here. wasmoon stays pinned at exactly 1.16.0.
-- **Manage the repository as if it were public** (the Playdate game's rule): no email
-  addresses, device serials, home-directory paths or secrets in files or commits. Write
+- **This repository is public.** Keep email addresses, device serials, home-directory
+  paths and secrets out of files and commits. Write
   the AWS account as `<account>` in Markdown.
 - **Game logic in Lua, in kubb-engine** (tested there); this repository has no Lua of its
   own. JavaScript draws, listens and talks to the network. JS and Lua exchange JSON strings in
@@ -100,7 +100,8 @@ address or home path in `dist/`, no account id in Markdown).
 - Change infrastructure with `npm run infra:plan` then `npm run infra:apply` as the
   `cloud-engineer` profile (`AWS_PROFILE=cloud-engineer`); both run through change sets and
   rewrite `infra/deployment.json`. Name stacks to limit a run (`-- site`, `-- rooms`).
-- Merging to `main` deploys: CI builds with `KUBB_PRODUCTION=true` (production rooms
+- Changes to `main` require a pull request with a passing `check` job on an up-to-date branch.
+  Merging to `main` deploys: CI builds with `KUBB_PRODUCTION=true` (production rooms
   address, analytics), `tools/deploy.mjs` uploads, invalidates, compares the live bytes and
   the wasm content type, and updates the rooms function's code when its bundle changed.
   Roll back by reverting. The same script publishes by hand as `cloud-engineer`.
