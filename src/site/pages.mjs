@@ -220,6 +220,54 @@ function engine({ tinylytics, config = {} }) {
   });
 }
 
+// The privacy policy (Jamie, 2026-11-18: "appropriately scaled for a hobby
+// project where there is no company, it's just me"). The iPhone app's App Store
+// listing links here, so it covers both the website and the app. Keep it in step
+// with what the game keeps: AGENTS.md "Recorded games", "Reports", "Replays",
+// "Analytics", and throwingwood-ios docs/DISTRIBUTION.md.
+function privacy({ tinylytics, config = {} }) {
+  const body = `<section class="frame intro">
+  <h1 class="display">Privacy</h1>
+  <p class="lede">Kubb: Throwing Wood is a hobby project. There is no company behind it, just me, Jamie Thingelstad, making a Kubb game for fun. There are no accounts and no ads, and nothing is ever sold. This page says what the game keeps and why, on this website and in the iPhone app.</p>
+</section>
+<section class="frame prose" aria-labelledby="yours">
+  <h2 class="display" id="yours">What stays with you</h2>
+  <p>Your settings, such as sound, haptics and how you throw, stay in your browser or on your phone. So does a random number that lets you rejoin a pitch after a refresh; it is not tied to who you are. Practice is never sent anywhere.</p>
+</section>
+<section class="frame prose" aria-labelledby="pitch">
+  <h2 class="display" id="pitch">Playing a match</h2>
+  <p>A match on a pitch runs through the game’s own server. It gets what the match needs: the name you type, your team, your throws, the score, and that random number. Everyone on the pitch sees your name and team. Any name will do, so use a nickname if you like.</p>
+  <p>Every match is recorded, names included: matches with friends, against the computer, and the computer playing itself. I keep these records privately and use them to test and improve the game. They are never published or shared.</p>
+  <p>When a match ends, its replay is kept for a year, and anyone with the pitch’s link can watch it, names included. An open game’s place in the list on the home page shows only how many are on the pitch and whether the match has started, never names.</p>
+  <p>If you report a throw that looked wrong, what you type and the game as it stood are kept privately in the same way. The game state can include the names of the players in that match.</p>
+</section>
+<section class="frame prose" aria-labelledby="visits">
+  <h2 class="display" id="visits">Visiting the website</h2>
+  <p>The website counts visits with Tinylytics, a small, privacy-minded counter. There are no advertising trackers. The iPhone app and embedded replays count nothing.</p>
+  <p>The site’s hosting keeps a log of requests without IP addresses, for two years. The game server keeps error logs for 30 days.</p>
+</section>
+<section class="frame prose" aria-labelledby="who">
+  <h2 class="display" id="who">Who sees it</h2>
+  <p>Only me. Everything is stored on Amazon Web Services in the United States. I don’t sell, rent or trade it, and I don’t share it with anyone for advertising or anything else.</p>
+  <p>The game doesn’t ask your age or anything about you beyond a name you choose.</p>
+</section>
+<section class="frame prose" aria-labelledby="ask">
+  <h2 class="display" id="ask">Questions, or taking your name out</h2>
+  <p>If you want your name taken out of the records, or have a question, <a href="https://www.thingelstad.com/contact/">get in touch</a>. Send the pitch’s link if you have it, and I’ll remove the records that carry your name.</p>
+  <p>If the game starts keeping something new, this page will say so first.</p>
+  <p class="foot__small">Last updated 18 November 2026.</p>
+</section>`;
+  return page({
+    path: "/privacy/",
+    title: `Privacy · ${SITE_TITLE}`,
+    description:
+      "What Kubb: Throwing Wood keeps, on the web and on iPhone, and why. A hobby project by one person: no accounts, no ads, nothing sold.",
+    body,
+    tinylytics,
+    release: config.release?.text,
+  });
+}
+
 function notFound({ tinylytics, config = {} }) {
   return page({
     path: "/404.html",
@@ -318,6 +366,12 @@ export const PAGES = [
     // no analytics in another site's frame
     analytics: false,
     sources: ["src"],
+  },
+  {
+    path: "/privacy/",
+    file: "privacy/index.html",
+    render: privacy,
+    sources: ["src/site"],
   },
   {
     path: "/404.html",
