@@ -52,6 +52,15 @@ for (const page of PAGES) {
   // Every local file or route a page names is served.
   for (const [, ref] of html.matchAll(/(?:src|href)="(\/[^"#]*)"/g))
     assert.ok(resolves(ref), `${page.file} names ${ref}, which is not served`);
+  for (const [, href] of html.matchAll(/<a\b[^>]* href="([^"]+)"/g)) {
+    const link = new URL(href, ORIGIN + page.path);
+    assert.ok(
+      page.path === "/engine/" ||
+        link.origin !== ORIGIN ||
+        !["/engine", "/engine/"].includes(link.pathname),
+      `${page.file} links to the engine page before its review`,
+    );
+  }
   // Every image has alt text (empty only when it repeats a link's words).
   for (const [tag] of html.matchAll(/<img\b[^>]*>/g))
     assert.match(tag, /\balt="/, `${page.file}: an image without alt`);
@@ -104,6 +113,10 @@ for (const page of PAGES) {
   const image = html.match(/property="og:image" content="([^"]+)"/)[1];
   assert.ok(keys.has(new URL(image).pathname.slice(1)), `og:image ${image}`);
 }
+
+// The engine page is available by direct address while awaiting editorial review.
+assert.ok(resolves("/engine/"), "/engine/ serves the engine page");
+assert.ok(!(await read("llms.txt")).includes(`${ORIGIN}/engine/`));
 
 // The pitch page is reached at /p/<code>, never at /pitch/ by a link.
 assert.ok(resolves("/p/abcdefgh"), "/p/<code> serves the game page");
