@@ -61,8 +61,7 @@ Other files, including old hashed assets used by open tabs, are retained.
 
 ## Licence
 
-The game engine in `vendor/engine/` is kubb-engine's, under its own licence
-(`vendor/engine/LICENSE`).
-The Londrina Solid font is under the SIL Open Font License
-(`public/fonts/OFL-LondrinaSolid.txt`); Inter is in `public/shared/fonts/` with its own
-licence.
+The browser game and rooms backend are under the [MIT licence](LICENSE). The
+vendored [Kubb Engine](vendor/engine/LICENSE) also uses MIT. The fonts use the SIL
+Open Font License 1.1. See the notices for [Londrina Solid](public/fonts/OFL-LondrinaSolid.txt),
+[Inter](public/shared/fonts/OFL-Inter.txt) and [Inter Tight](public/shared/fonts/OFL-InterTight.txt).
