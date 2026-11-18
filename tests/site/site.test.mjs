@@ -344,6 +344,39 @@ test("the delivery role trusts only main of this repository", async () => {
   );
 });
 
+test("the optional pitch association is served directly as JSON", async (t) => {
+  const { writeAssociation } = await import("../../tools/build.mjs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { startPreview } = await import("../../tools/preview.mjs");
+  const root = await fs.mkdtemp(join(tmpdir(), "pitch-association-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  await fs.writeFile(join(root, "404.html"), "Missing");
+  const key = ".well-known/apple-app-site-association";
+  assert.equal(request("/" + key).uri, "/" + key);
+  assert.equal(request("/.well-known/other").statusCode, 301);
+  assert.throws(() => prepareObject(".well-known/other", Buffer.alloc(0)));
+  await writeAssociation(root, "");
+  const preview = await startPreview({ port: 0, root });
+  t.after(() => preview.close());
+  const url = `http://127.0.0.1:${preview.address().port}/${key}`;
+  assert.equal((await fetch(url, { redirect: "manual" })).status, 404);
+  await assert.rejects(writeAssociation(root, "invalid"));
+  const team = "A".repeat(10);
+  await writeAssociation(root, team);
+  const bytes = await fs.readFile(join(root, key));
+  assert.equal(prepareObject(key, bytes).ContentType, "application/json");
+  const response = await fetch(url, { redirect: "manual" });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-type"), "application/json");
+  assert.deepEqual(await response.json(), {
+    applinks: {
+      apps: [],
+      details: [{ appID: team + ".com.throwingwood.app", paths: ["/p/*"] }],
+    },
+  });
+});
+
 test("published files are typed and cached right", () => {
   const wasm = prepareObject("assets/glue-abc.wasm", Buffer.from("x"));
   assert.equal(wasm.ContentType, "application/wasm");

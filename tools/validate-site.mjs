@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { mime } from "./delivery-plan.mjs";
+import { contentType } from "./delivery-plan.mjs";
 import { loadViewerRequest, cloudfrontRequest } from "./preview.mjs";
 import { PAGES } from "../src/site/pages.mjs";
 import { ORIGIN, TINYLYTICS_SITE } from "../src/site/site.mjs";
@@ -22,8 +22,7 @@ const files = await walk("dist");
 const keys = new Set(
   files.map((f) => path.relative("dist", f).split(path.sep).join("/")),
 );
-for (const file of files)
-  assert.ok(mime[path.extname(file)], `No MIME type for ${file}`);
+for (const key of keys) assert.ok(contentType(key), `No MIME type for ${key}`);
 const read = (name) => fs.readFile(path.join("dist", name), "utf8");
 
 // A local address resolves when CloudFront would serve a built file for it:

@@ -2,7 +2,13 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 
-export const mime = {
+export const associationKey = ".well-known/apple-app-site-association";
+
+export function contentType(key) {
+  return key === associationKey ? "application/json" : mime[path.extname(key)];
+}
+
+const mime = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -30,7 +36,7 @@ const NEVER = "no-store, max-age=0";
 export const MARKERS = ["revision.json", "version.json"];
 
 export function cacheControl(key) {
-  if (key === "version.json") return NEVER;
+  if (key === "version.json" || key === associationKey) return NEVER;
   // The build puts a content hash in every name under assets/.
   if (key.startsWith("assets/")) return HASHED;
   if (key.startsWith("fonts/") || key.startsWith("shared/fonts/"))
@@ -60,7 +66,7 @@ export function prepareObject(key, bytes) {
     key.includes("\\")
   )
     throw new Error(`Unsafe public key: ${key}`);
-  const type = mime[path.extname(key)];
+  const type = contentType(key);
   if (!type) throw new Error(`No MIME type for ${key}`);
   return {
     Body: bytes,

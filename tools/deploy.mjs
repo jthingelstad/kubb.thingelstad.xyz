@@ -8,12 +8,13 @@
 // first publish, before the repository exists). Either way it refuses a build
 // that is not the deploy build.
 //
-// Nothing is ever deleted: an old hashed asset stays published, so a page a
+// An old hashed asset stays published, so a page a
 // browser still holds keeps loading the client it was built with.
 import {
   S3Client,
   PutObjectCommand,
   HeadObjectCommand,
+  DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import {
   CloudFrontClient,
@@ -30,7 +31,12 @@ import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { MARKERS, prepareObject, publicationOrder } from "./delivery-plan.mjs";
+import {
+  associationKey,
+  MARKERS,
+  prepareObject,
+  publicationOrder,
+} from "./delivery-plan.mjs";
 import { bundlePages } from "./pages-bundle.mjs";
 import { bundleRooms } from "./rooms-bundle.mjs";
 
@@ -135,6 +141,18 @@ async function upload(key) {
 // markers, so a page never points at a file that is not there yet and no open
 // tab is told of a release before its pages are up.
 const ordered = publicationOrder(await files("dist"));
+// A later deploy without the team variable also withdraws a published association.
+if (!ordered.includes(associationKey)) {
+  const object = { Bucket: config.siteBucket, Key: associationKey };
+  let exists = true;
+  try {
+    await s3.send(new HeadObjectCommand(object));
+  } catch (error) {
+    if (error.$metadata?.httpStatusCode !== 404) throw error;
+    exists = false;
+  }
+  if (exists) await s3.send(new DeleteObjectCommand(object));
+}
 for (const group of [
   ordered.filter((k) => !k.endsWith(".html") && !MARKERS.includes(k)),
   ordered.filter((k) => k.endsWith(".html")),
@@ -232,6 +250,9 @@ for (const [route, file] of [
   [wasm, wasm.slice(1)],
   ["/revision.json", "revision.json"],
   ["/version.json", "version.json"],
+  ...(ordered.includes(associationKey)
+    ? [["/" + associationKey, associationKey]]
+    : []),
 ]) {
   const { response, bytes } = await live(route);
   if (
@@ -239,6 +260,12 @@ for (const [route, file] of [
     sha(bytes) !== sha(await fs.readFile(path.join("dist", file)))
   )
     throw new Error(`Published bytes differ: ${route} (${response.status})`);
+  if (
+    file === associationKey &&
+    (response.redirected ||
+      response.headers.get("content-type") !== "application/json")
+  )
+    throw new Error("The pitch association must serve JSON directly");
   if (
     route === wasm &&
     response.headers.get("content-type") !== "application/wasm"

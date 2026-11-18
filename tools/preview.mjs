@@ -10,7 +10,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
-import { mime, cacheControl } from "./delivery-plan.mjs";
+import { contentType, cacheControl } from "./delivery-plan.mjs";
 import {
   contentSecurityPolicy,
   embedSecurityPolicy,
@@ -94,12 +94,15 @@ export async function startPreview({
         );
       res.writeHead(200, {
         ...headers,
-        "content-type": mime[path.extname(file)] || "application/octet-stream",
+        "content-type": contentType(key) || "application/octet-stream",
         "cache-control": cacheControl(key),
       });
       res.end(body);
     } catch {
-      res.writeHead(404, { ...headers, "content-type": mime[".html"] });
+      res.writeHead(404, {
+        ...headers,
+        "content-type": contentType("404.html"),
+      });
       res.end(await fs.readFile(path.join(root, "404.html")));
     }
   });
