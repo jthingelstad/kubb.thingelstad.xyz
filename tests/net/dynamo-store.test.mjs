@@ -490,7 +490,6 @@ test("handler: the stack's default allow-list lets the iPhone app in, and no str
   const origins = parseOrigins(template.Parameters.AllowedOrigins.Default);
   assert.deepEqual(origins, [
     "https://throwingwood.com",
-    "https://kubb.thingelstad.xyz",
     "https://app.throwingwood.com",
     "http://localhost",
     "http://127.0.0.1",

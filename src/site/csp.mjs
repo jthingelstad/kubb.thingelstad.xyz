@@ -10,9 +10,6 @@
 export const PRODUCTION_CONNECT = [
   "'self'",
   "wss://throwingwood.com",
-  // The old address, for pages built before the move to throwingwood.com
-  // (2026-11-17) that are still open; drop it once those have aged out.
-  "wss://kubb.thingelstad.xyz",
   "wss://*.execute-api.us-east-1.amazonaws.com",
   "https://tinylytics.app",
 ];

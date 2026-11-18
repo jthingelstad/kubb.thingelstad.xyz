@@ -12,7 +12,7 @@
     },
     "AllowedOrigins": {
       "Type": "String",
-      "Default": "https://throwingwood.com,https://kubb.thingelstad.xyz,https://app.throwingwood.com,http://localhost,http://127.0.0.1",
+      "Default": "https://throwingwood.com,https://app.throwingwood.com,http://localhost,http://127.0.0.1",
       "Description": "Comma separated Origin allow-list for new connections; an origin without a port allows any port"
     }
   },
