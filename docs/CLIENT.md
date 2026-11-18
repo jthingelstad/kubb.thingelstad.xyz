@@ -319,6 +319,9 @@ played again and tested. It is kept privately and not published.", SEND and CANC
 or "The report was not sent." with the reason, and the answers stay to send again.
 
 The throw report can mark several pieces on an overhead pitch or by name. The picker uses the last throw’s rest poses, including the baton after a handoff. The report keeps the marked IDs and poses even when the full piece list is dropped to fit.
+For a long practice session, a trimmed throw report keeps an opaque checkpoint
+of the pitch before the reported throw. The report reader restores it and applies
+the last throw, including collisions with previously thrown wood.
 
 - **The game while it is open**: modal, as under the menu. Nothing typed or pressed
   reaches the pitch, and a throw this browser is aiming waits (the dial and the circle

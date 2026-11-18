@@ -536,4 +536,16 @@ test("practice: options and every step replay to the pieces the browser had", as
   // the report rounds positions to 0.1 mm
   assert.ok(out.drift.max < 1e-3, "the same pieces in the same places");
   assert.equal(out.drift.missing, 0);
+
+  const original = engine.recording();
+  r.practice.ops.unshift(
+    ...Array(3000).fill({ type: "surface", surface: "sand" }),
+  );
+  const compact = reportMessage(r, { happened: "stuck", selected: ["king"] });
+  assert.ok(asciiJson(compact).length <= REPORT_LIMITS.bytes);
+  assert.equal(compact.r.practice.ops, null);
+  assert.equal(typeof compact.r.practice.before, "string");
+  assert.equal(compact.r.selectedPieces[0].id, "king");
+  assert.equal(replayReport(fresh, compact.r).kind, "practice");
+  assert.deepEqual(fresh.recording(), original);
 });

@@ -139,6 +139,7 @@ export function captureReport({
     : null;
   if (trail?.kind === "practice") {
     r.practice = { opts: trail.opts, ops: trail.ops };
+    r.practiceBefore = rec?.seq === lastThrow?.seq ? rec?.practiceBefore : null;
   } else if (trail?.kind === "match") {
     let options = null;
     try {
@@ -212,6 +213,8 @@ export function reportMessage(
   const r = structuredClone(state);
   const marked = (r.pickPieces ?? []).filter((p) => selected.includes(p.id));
   delete r.pickPieces;
+  const practiceBefore = r.practiceBefore;
+  delete r.practiceBefore;
   if (marked.length) r.selectedPieces = marked;
   r.happened = clip(happened);
   r.should = clip(should);
@@ -223,7 +226,17 @@ export function reportMessage(
       () => {
         if (r.snapshots) r.snapshots.start = null;
         if (r.actions) r.actions = null;
-        if (r.practice) r.practice.ops = null;
+        if (r.practice && practiceBefore) {
+          r.practice.before = practiceBefore;
+          r.practice.ops = null;
+        } else if (r.practice && !r.lastThrow) {
+          r.practice.opts = {
+            ...r.practice.opts,
+            surface: r.need?.surface ?? r.practice.opts?.surface,
+            drill: r.need?.drill ?? r.practice.opts?.drill,
+          };
+          r.practice.ops = [];
+        }
       },
     ],
     ["pieces", () => (r.pieces = null)],
