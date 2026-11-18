@@ -8,3 +8,5 @@ infra/deployment.json
 vendor/
 # captured from the engine (tests/fixtures), kept as written
 tests/fixtures/
+# Canonical source bundle from the trial engine tag.
+public/practice/straight-v0.6.0.json

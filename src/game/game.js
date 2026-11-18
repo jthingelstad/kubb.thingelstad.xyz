@@ -53,6 +53,7 @@ import {
   wideBox,
 } from "./layout.js";
 import { settleItems, raiseCamera, punishCamera, poseItem } from "./scenes.js";
+import { drawStroke, strokeGeometry } from "../render/stroke.js";
 import { Hud } from "./hud.js";
 import { prefs } from "./prefs.js";
 
@@ -85,6 +86,7 @@ export class Game {
     ui,
     sound = null,
     swipeEnabled = false,
+    straight = false,
     seat = { sides: ["A"], cpu: true },
     onAction = null,
     cards = null,
@@ -109,9 +111,10 @@ export class Game {
     this.planHeld = false;
     this.planToggle = false;
     this.walkOn = false; // WALK: a drag on the pitch walks the thrower
-    this.swipeEnabled = swipeEnabled;
+    this.straight = straight;
+    this.swipeEnabled = swipeEnabled && !straight;
     this.swipeLayout =
-      swipeEnabled &&
+      this.swipeEnabled &&
       (matchMedia("(any-pointer: coarse)").matches ||
         navigator.maxTouchPoints > 0);
     this.touchPrompts =
@@ -528,7 +531,10 @@ export class Game {
     const paused = this.zenPause > 0 || this.frozen;
     if (this.modal || !may || paused) this.cancelSwipe();
     if (!this.modal && may && !paused) {
-      if (this.touchSamples.length) input.touch = this.touchSamples.splice(0);
+      if (this.touchSamples.length) {
+        if (this.straight) input.stroke = this.touchSamples.splice(0);
+        else input.touch = this.touchSamples.splice(0);
+      }
       if (this.ptr?.kind === "dial") input.arm = this.dialArm;
       input.plan = this.planHeld || this.planToggle;
       const m = this.keyAxes("ArrowLeft", "ArrowRight", "ArrowDown", "ArrowUp");
@@ -632,7 +638,7 @@ export class Game {
     this.planToggle = false;
     this.walkOn = false;
     this.dialArm = null;
-    if (["dial", "swipe"].includes(this.ptr?.kind)) this.ptr = null;
+    if (["dial", "swipe", "stroke"].includes(this.ptr?.kind)) this.ptr = null;
     this.touchSamples.length = 0;
     this.result = null;
   }
@@ -904,7 +910,14 @@ export class Game {
         if (st.prompt === "FLICK!") st.prompt = "FLICK UP!";
       }
       if (watching && !st.prompt) st.prompt = "WATCH";
-      drawDial(this.ctx, this.L.dial, st);
+      if (this.straight)
+        drawStroke(
+          this.ctx,
+          this.L.dial,
+          st,
+          this.ptr?.kind === "stroke" ? this.ptr : null,
+        );
+      else drawDial(this.ctx, this.L.dial, st);
     }
     const res =
       this.result && this.result.age < tune.flagFor ? this.result : null;
@@ -962,7 +975,8 @@ export class Game {
         advantageY: this.out?.aim?.advY ?? null,
         wind: this.out?.aim?.wind || null,
       });
-      if (s.dial) drawDial(this.ctx, this.L.dial, { ...s.dial, prompt: null });
+      if (s.dial && !this.straight)
+        drawDial(this.ctx, this.L.dial, { ...s.dial, prompt: null });
     }
     // the bursts at their anchors, in real time (smaller over the whole pitch)
     const size = wide
@@ -1167,10 +1181,14 @@ export class Game {
       const swipe = this.swipeEnabled && e.pointerType === "touch";
       // The painted control is in front of the pitch. Its face keeps the
       // press even where the projected stance or target lies underneath it.
+      const rail = this.straight && strokeGeometry(this.L.dial);
+      const onGrip =
+        rail && Math.abs(x - rail.x) <= 32 && Math.abs(y - rail.y) <= 24;
       const onDial = swipe
         ? Math.hypot(x - g.cx, y - g.cy) <= g.r
         : hitTest(g, x, y);
-      if (onDial) kind = swipe ? "swipe" : "dial";
+      if (onGrip && e.button === 0) kind = "stroke";
+      else if (!this.straight && onDial) kind = swipe ? "swipe" : "dial";
       else if (this.walkOn) kind = "walk";
       else if (
         this.near(aim.marker, x, y, touch ? tune.grabTouch : tune.grabMouse)
@@ -1179,6 +1197,11 @@ export class Game {
       else if (this.near(aim.thrower, x, y, touch ? 44 : 26)) kind = "stance";
       else if (swipe && y >= this.H / 2) kind = "swipe";
       else kind = "tap";
+      if (kind === "stroke") {
+        this.touchSamples.push({ phase: "down", x: 0, y: 0 });
+        this.planToggle = false;
+        this.walkOn = false;
+      }
       if (kind === "swipe") {
         this.sampleTouch(e, "down");
         this.planToggle = false;
@@ -1197,7 +1220,17 @@ export class Game {
     } else if (this.phase === "play") kind = "none";
     if (!kind) return;
     e.preventDefault();
-    this.ptr = { id: e.pointerId, kind, x0: x, y0: y, x, y, moved: false };
+    this.ptr = {
+      id: e.pointerId,
+      kind,
+      x0: x,
+      y0: y,
+      x,
+      y,
+      dx: 0,
+      dy: 0,
+      moved: false,
+    };
     try {
       this.canvas.setPointerCapture(e.pointerId);
     } catch {
@@ -1224,7 +1257,7 @@ export class Game {
   move(e) {
     const p = this.ptr;
     if (!p || p.id !== e.pointerId) return;
-    if (p.kind === "swipe") {
+    if (p.kind === "swipe" || p.kind === "stroke") {
       const samples = e.getCoalescedEvents?.() || [];
       for (const sample of samples) this.sampleTouch(sample);
       // Some browsers omit the dispatched event from the coalesced list.
@@ -1258,7 +1291,7 @@ export class Game {
   up(e, cancelled) {
     const p = this.ptr;
     if (!p || p.id !== e.pointerId) return;
-    if (p.kind === "swipe") {
+    if (p.kind === "swipe" || p.kind === "stroke") {
       if (cancelled) this.cancelSwipe();
       else this.sampleTouch(e, "up");
     }
@@ -1297,6 +1330,14 @@ export class Game {
 
   sampleTouch(e, phase) {
     const { x, y } = this.pos(e);
+    if (this.ptr?.kind === "stroke") {
+      const p = this.ptr,
+        travel = strokeGeometry(this.L.dial).travel;
+      p.dx = x - p.x0;
+      p.dy = y - p.y0;
+      this.touchSamples.push({ phase, x: p.dx / travel, y: p.dy / travel });
+      return;
+    }
     const unit = Math.min(this.W, this.H);
     this.touchSamples.push({
       phase,
@@ -1307,8 +1348,9 @@ export class Game {
   }
 
   cancelSwipe() {
-    if (this.ptr?.kind === "swipe" || this.touchSamples.length) {
-      if (this.ptr?.kind === "swipe") this.ptr = null;
+    const drawing = ["swipe", "stroke"].includes(this.ptr?.kind);
+    if (drawing || this.touchSamples.length) {
+      if (drawing) this.ptr = null;
       this.touchSamples = [{ phase: "cancel" }];
     }
   }

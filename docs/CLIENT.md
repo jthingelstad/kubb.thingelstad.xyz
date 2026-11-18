@@ -436,3 +436,26 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
 
 - Portrait zoom crops the outer kubbs of the far baseline; the pan follows the target.
 - `public/game.css` is linked by a plain path, not a hashed asset name.
+
+## Straight-through playtest
+
+Open `/practice/?throw=straight` on a phone or desktop. Select **8 m base**,
+**Offset pair**, or **Drill beside a kubb**. Pull the handle into the power
+band, then push through the line. A centered crossing follows the planned
+direction. Crossing to either side moves the throw that way. The existing arc, tilt/spin,
+stance and aim controls work. Reset sets out the exercise again.
+
+The practice page alone loads the canonical bundle from kubb-engine v0.6.0
+(commit 7447ddd). Its bytes come from that tag's `node tools/bundle.mjs`
+output and `vendor:check` verifies its release digest. Other practice, rooms,
+saved matches and replays continue using the primary vendor pin.
+
+### Grip trials after stroke calibration
+
+Use forehand as the reference for baton shots and backhand as the reference for
+standard kubb drilling. An experienced player may use a backhand baton from
+an advantage line to reach a very close target with more end-over-end turnover.
+Use that shot to calibrate the contact angle. For kubbs, compare a backhand
+drill with a beginner's sideways forehand toss into the same group. Record the
+first contact, bounce and final resting place. This trial establishes the basic
+stroke. Grip, turnover and nose angle are later experiments.
