@@ -21,11 +21,8 @@
 // turns 3.0 into 3 and changes the hash). The calls carry it as a string.
 import { roomCall, setRoomEngine } from "./room-engine.js";
 
-// May a member whose engine is not known (a tab still on a web build from before the
-// engine was named, kubb-engine 0.2) play? Yes for now: 0.2 and 0.3 play every match to
-// the same hashes. A member whose engine differs is refused either way. This flips to
-// strict (false) before the iPhone app ships, once every client names its engine.
-export const LENIENT_ENGINES = true;
+// Admission requires a named, matching major.minor. Patches can play together.
+export const LENIENT_ENGINES = false;
 
 // The engine's constants (room.constants), read once by useRoomEngine.
 export let DOC_VERSION;

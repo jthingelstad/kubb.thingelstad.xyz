@@ -140,18 +140,15 @@ test("constants, lobby arguments and values come from the engine", () => {
   });
 });
 
-test("START stamps the engine and permits unknown legacy members but refuses a differing engine", () => {
-  assert.equal(LENIENT_ENGINES, true);
+test("START stamps the engine and refuses untagged and differing engines", () => {
+  assert.equal(LENIENT_ENGINES, false);
   const legacy = members.map((m) => ({ ...m, me: { name: m.me.name } }));
-  assert.equal(startCheck(players, legacy, "a").ok, true);
-  assert.equal(
-    startMatch(null, { ...start, members: legacy }).match.engine,
-    ENGINE,
-  );
+  assert.equal(startCheck(players, legacy, "a").ok, false);
+  assert.equal(startMatch(null, { ...start, members: legacy }), undefined);
   const different = [members[0], { ...members[1], me: { engine: "0.3" } }];
   assert.deepEqual(startCheck(players, different, "a").differ, ["b"]);
   assert.equal(startMatch(null, { ...start, members: different }), undefined);
-  assert.equal(mayPlay(ENGINE, {}).ok, true);
+  assert.equal(mayPlay(ENGINE, {}).ok, false);
   assert.equal(mayPlay(ENGINE, { engine: ENGINE + ".9" }).ok, true);
   assert.equal(mayPlay(ENGINE, { engine: "0.3" }).ok, false);
 });

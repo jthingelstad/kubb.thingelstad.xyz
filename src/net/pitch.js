@@ -79,6 +79,12 @@ function compareVersions(a, b) {
 // `theirs`: the pitch's engine (the match's, or the host's before START); null when it
 // names none (an older build).
 export function versionNotice(mine, theirs) {
+  if (!mine)
+    return {
+      title: "Reload to play",
+      text: "This tab has not announced its engine version. Reload to join.",
+      reload: true,
+    };
   const newer = theirs != null && compareVersions(theirs, mine) > 0;
   return newer
     ? {
@@ -411,13 +417,18 @@ export class Pitch {
   // the card goes up once for each host and engine.
   checkHostEngine() {
     const r = this.room;
-    if (r.status !== "open" || r.isHost() || !sideOf(r.doc, r.you)) return;
+    if (r.status !== "open") return;
+    const mine = r.me.engine;
+    if (mine && (r.isHost() || !sideOf(r.doc, r.you))) {
+      this.engineKey = null;
+      return;
+    }
     const host = r.members.find((m) => m.id === r.host);
     const theirs = host?.me?.engine ?? null;
-    const key = `${r.host}:${theirs}`;
+    const key = JSON.stringify([mine, r.host, theirs]);
     if (key === this.engineKey) return;
     this.engineKey = key;
-    const p = mayPlay(ENGINE, { engine: theirs });
+    const p = mayPlay(mine, { engine: theirs });
     if (p.ok) return;
     this.showVersion(p, () => this.lobby.show());
   }
@@ -425,7 +436,7 @@ export class Pitch {
   // The card for an engine that is not the pitch's (mayPlay's refusal). The pitch can
   // still be watched: WATCH closes it.
   showVersion(p, after = null) {
-    const v = versionNotice(ENGINE, p.why === "differs" ? p.match : null);
+    const v = versionNotice(p.engine, p.match);
     this.note("engine", p.why, p.match ?? null);
     const close = this.cards.notice({
       kicker: `PITCH ${this.code}`,
@@ -460,6 +471,10 @@ export class Pitch {
   async start() {
     const room = this.room;
     if (!room.isHost() || this.mode !== "lobby") return;
+    if (!room.me.engine) {
+      this.checkHostEngine();
+      return;
+    }
     this.setName(this.lobby.nameInput.value);
     const doc = room.doc;
     const lu = lineup(doc, room.members);
@@ -725,7 +740,7 @@ export class Pitch {
     this.game.shownCards.clear();
     // Check every member before giving out control: a watcher can become host and
     // run the computer too. A refused engine never takes either side or the CPU.
-    const permission = mayPlay(ENGINE, m);
+    const permission = mayPlay(this.room.me.engine, m);
     this.refused = permission.ok ? null : permission;
     this.control = this.controlHere();
     this.game.seat = this.seatFor(this.control);
