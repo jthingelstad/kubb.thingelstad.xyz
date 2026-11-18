@@ -283,8 +283,7 @@ castRate, castBurst, hostGraceMs }`. The server omits `parts`, `messageBytes`,
   match. An expired room code is a new, empty room. Connection records expire after 3 hours.
 - **Origin.** On AWS `$connect` is refused (403) unless the `Origin` header is in
   `ALLOWED_ORIGINS` (the stack's `AllowedOrigins`, default `https://throwingwood.com`,
-  `https://kubb.thingelstad.xyz`, `https://app.throwingwood.com`, `http://localhost`,
-  `http://127.0.0.1`; an entry without a port allows any port). A connection with no
+  `https://app.throwingwood.com`, `http://localhost`, `http://127.0.0.1`; an entry without a port allows any port). A connection with no
   `Origin` is refused too. `https://app.throwingwood.com` is the iPhone app: no page is
   served there, it is the `Origin` the app sends on its WebSocket handshake to
   `wss://throwingwood.com/ws`. The dev server's default list is `http://localhost`,
