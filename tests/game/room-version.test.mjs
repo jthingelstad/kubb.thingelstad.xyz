@@ -40,7 +40,7 @@ async function join(code, kind = "desktop") {
 }
 
 browserTest(
-  "join advertises the engine; START refuses a mismatch and allows an untagged legacy tab",
+  "join advertises the engine; START refuses a mismatch and asks an untagged tab to reload",
   async () => {
     const code = makeRoomCode();
     const host = await join(code);
@@ -79,6 +79,26 @@ browserTest(
       await host.waitForFunction(() =>
         window.__kubb.pitch.room.members.some(
           (m) => m.id !== window.__kubb.pitch.you && !m.me.engine,
+        ),
+      );
+      await guest.waitForSelector("[data-test=engine-differs]");
+      assert.match(
+        await guest.textContent("[data-test=engine-differs]"),
+        /Reload to join/,
+      );
+      await host.click("[data-test=lobby-start]");
+      await host.waitForSelector("[data-test=lobby-note]:not([hidden])");
+      assert.equal(
+        await host.evaluate(() => window.__kubb.pitch.room.doc.started),
+        false,
+      );
+      await guest.getByRole("button", { name: "RELOAD", exact: true }).click();
+      await host.waitForFunction(() =>
+        window.__kubb.pitch.room.members.some(
+          (m) =>
+            m.id !== window.__kubb.pitch.you &&
+            m.connected &&
+            m.me.engine === window.__kubb.pitch.room.me.engine,
         ),
       );
       await host.click("[data-test=lobby-start]");

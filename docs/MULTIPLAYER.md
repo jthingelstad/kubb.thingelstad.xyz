@@ -111,11 +111,11 @@ is their API; its 8,851 recorded vector steps cover the rules. There is no secon
 JavaScript implementation. `useRoomEngine` reads the engine's constants once during
 boot; tools that use these wrappers initialize it too.
 
-`LENIENT_ENGINES` in `src/net/lobby.js` is the one transition switch, currently true.
-A member without `me.engine` is an open tab from the previous web build and may still
-play; a match without `match.engine` may still be joined. An explicitly different
-major.minor is always refused by the engine. Flip the switch to false before the
-iPhone app ships. Patch versions may differ; all peers use the pointer tune.
+Every web build from PR #40 sends its engine’s major.minor in join presence.
+`LENIENT_ENGINES` is false. START checks the host and seated players. A tab
+missing its own announcement gets RELOAD. The host sees which players need
+to reload. A running match must also name its engine. Equal major.minor
+versions can play across patch releases.
 
 Before taking control of a running match, every member calls `room.mayPlay`, including
 watchers who could become host and run the computer. A refusal gives no team or CPU
@@ -248,7 +248,7 @@ A throw taken for an absent teammate says YOUR THROW FOR <NAME>.
   every document reducer, version admission, opaque snapshots and seat caches. The
   engine's own vector tests cover the shared rules.
 - `tests/game/room-version.test.mjs` checks advertised versions, refused START,
-  lenient old tabs, both refusal cards, reload, disabled team/CPU control and idle
+  untagged tabs, both refusal cards, reload, disabled team/CPU control and idle
   room-bridge call counts, on desktop and phone against the local rooms server.
 - `tests/game/multiplayer.test.mjs` starts `tools/rooms-dev.mjs` and the preview on free
   127.0.0.1 ports and opens each player in their own browser context on one
