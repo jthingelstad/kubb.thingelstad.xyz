@@ -243,7 +243,7 @@ function privacy({ tinylytics, config = {} }) {
 </section>
 <section class="frame prose" aria-labelledby="visits">
   <h2 class="display" id="visits">Visiting the website</h2>
-  <p>The website counts visits with <a href="https://tinylytics.app/">Tinylytics</a>, a small, privacy-minded counter. There are no advertising trackers. The iPhone app and embedded replays count nothing.</p>
+  <p>The website counts visits with Tinylytics, a small, privacy-minded counter. There are no advertising trackers. The iPhone app and embedded replays count nothing.</p>
   <p>The site’s hosting keeps a log of requests without IP addresses, for two years. The game server keeps error logs for 30 days.</p>
 </section>
 <section class="frame prose" aria-labelledby="who">
