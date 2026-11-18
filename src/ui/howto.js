@@ -50,6 +50,28 @@ export function shouldShowHowto() {
 }
 
 export function showHowto(root, game = null, onDone = null) {
+  if (game?.straight) {
+    const close = () => {
+      scrim.remove();
+      game.modal--;
+      onDone?.();
+    };
+    const scrim = h(
+      "div.scrim",
+      h(
+        "div.card",
+        h("h2.display", "Straight throw"),
+        h(
+          "p",
+          "Pull the wooden handle down to the gold power band. Push up through the black line to throw. Crossing left or right changes direction. Lift early to cancel.",
+        ),
+        button("PLAY", close, "go"),
+      ),
+    );
+    game.modal++;
+    root.append(scrim);
+    return;
+  }
   let i = 0;
   let raf = 0;
   let t0 = performance.now();

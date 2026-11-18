@@ -34,6 +34,8 @@ const config = readConfig();
 const ui = document.getElementById("ui");
 const canvas = document.getElementById("pitch");
 const params = new URLSearchParams(location.search);
+const straight =
+  config.mode === "practice" && params.get("throw") === "straight";
 const watching = params.get("watch") === "1";
 const testing =
   params.get("test") === "1" ||
@@ -77,7 +79,7 @@ async function makeEngine() {
   if (!config.luaUrl) throw new Error("this build has no Lua sources");
   const [engine] = await Promise.all([
     Engine.create({
-      sources: config.luaUrl,
+      sources: straight ? "/practice/straight-v0.6.0.json" : config.luaUrl,
       wasmUrl: config.wasmUrl,
       client: clientLabel(config.version),
     }),
@@ -115,7 +117,15 @@ async function boot() {
   const engine = await makeEngine();
   const sound = new Sound(config.sounds || "/sounds/");
   const cards = new Cards(ui);
-  const game = new Game({ engine, canvas, ui, sound, cards, swipeEnabled });
+  const game = new Game({
+    engine,
+    canvas,
+    ui,
+    sound,
+    cards,
+    swipeEnabled,
+    straight,
+  });
   game.onError = fail;
   const howto = (onDone) => showHowto(ui, game, onDone);
   const code = pitchCode();
@@ -129,16 +139,17 @@ async function boot() {
           : "pitch";
   let pitch = null;
   // A report goes to the room server: none in this build, no REPORT A THROW.
-  const report = roomsUrl()
-    ? () =>
-        openReport(ui, {
-          game,
-          mode,
-          config,
-          pitch,
-          url: roomsUrl(),
-        })
-    : null;
+  const report =
+    !straight && roomsUrl()
+      ? () =>
+          openReport(ui, {
+            game,
+            mode,
+            config,
+            pitch,
+            url: roomsUrl(),
+          })
+      : null;
   const sheet = () => openSheet(ui, { game });
   // A solo or watch match, when it ends, goes to the room server to be kept
   // (src/net/record.js); a shared pitch's room records itself.
@@ -164,7 +175,9 @@ async function boot() {
     // watching: WIDE VIEW or THROWER'S VIEW (startWatch sets it)
     view: null,
     // the release line at the foot of the menu: "0.1.0 · web a2659b7 · engine 0.2.0"
-    release: config.release?.text ?? null,
+    release: straight
+      ? "Straight throw trial · engine " + engine.version
+      : (config.release?.text ?? null),
   });
 
   // A new deploy while this tab is open: say so, never reload on our own. On a
@@ -223,12 +236,37 @@ async function boot() {
   }
   game.start();
   document.body.dataset.ready = "1";
-  if (shouldShowHowto() && !params.has("nohowto") && !watching) howto();
+  if (!straight && shouldShowHowto() && !params.has("nohowto") && !watching)
+    howto();
 }
 
 // ---------- practice ----------
 
 function startPractice(game, cards) {
+  if (game.straight) {
+    const options = [
+      ["base", "8 m base"],
+      ["pair", "Offset pair"],
+      ["pile", "Drill beside a kubb"],
+    ];
+    const picker = h(
+      "select.btn.small",
+      { "aria-label": "Practice shot" },
+      options.map(([value, label]) => h("option", { value }, label)),
+    );
+    const reset = () => {
+      game.result = null;
+      game.newPractice({
+        exercise: picker.value,
+        surface: prefs.get("practiceSurface", "grass"),
+      });
+    };
+    picker.addEventListener("change", reset);
+    ui.append(h("div.tray", {}, picker, button("RESET", reset, "small")));
+    cards.root.dataset.mode = "practice";
+    reset();
+    return;
+  }
   game.newPractice({
     surface: prefs.get("practiceSurface", "grass"),
   });
