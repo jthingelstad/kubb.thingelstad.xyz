@@ -29,6 +29,7 @@ import { build } from "esbuild";
 import { PAGES } from "../src/site/pages.mjs";
 import { makeRelease } from "../src/site/release.js";
 import { engineVersion } from "./lua-bundle.mjs";
+import { associationKey } from "./delivery-plan.mjs";
 import {
   DEV_ROOMS_URL,
   GAME_READY,
@@ -75,6 +76,19 @@ async function hashedAsset(from, name) {
   return `/${file}`;
 }
 
+export async function writeAssociation(root, team) {
+  if (!team) return;
+  if (!/^[A-Z0-9]{10}$/.test(team))
+    throw new Error("APPLE_TEAM_ID must be ten uppercase letters or digits");
+  const file = path.join(root, associationKey);
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  const details = [{ appID: team + ".com.throwingwood.app", paths: ["/p/*"] }];
+  await fs.writeFile(
+    file,
+    JSON.stringify({ applinks: { apps: [], details } }) + "\n",
+  );
+}
+
 export async function buildSite({
   production = process.env.KUBB_PRODUCTION === "true",
   quiet = false,
@@ -90,6 +104,7 @@ export async function buildSite({
   await fs.rm("dist", { recursive: true, force: true });
   await fs.cp("public", "dist", { recursive: true });
   await fs.mkdir("dist/assets", { recursive: true });
+  await writeAssociation("dist", process.env.APPLE_TEAM_ID);
 
   // The client. wasmoon's Node-only branches import Node modules it never
   // reaches in a browser; they stay external.

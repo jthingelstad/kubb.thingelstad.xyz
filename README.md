@@ -43,6 +43,11 @@ AWS_PROFILE=cloud-engineer npm run infra:apply             # site and delivery (
 AWS_PROFILE=cloud-engineer npm run infra:apply -- rooms    # create or update the rooms stack
 ```
 
+For iPhone pitch links the deploy build reads the plain repository variable
+`APPLE_TEAM_ID`. When set, it publishes `/.well-known/apple-app-site-association`
+as JSON for `/p/*`. Leaving the variable empty and deploying removes the association.
+Other files, including old hashed assets used by open tabs, are retained.
+
 ## Hosting
 
 | Piece       | Where                                                                                            |

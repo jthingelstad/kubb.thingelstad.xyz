@@ -63,6 +63,7 @@ function handler(event) {
       statusDescription: "Moved Permanently",
       headers: { location: { value: HOME + uri + (query ? "?" + query : "") } },
     };
+  if (uri === "/.well-known/apple-app-site-association") return request;
   if (uri === "/p" || uri === "/p/") {
     var alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
     var code = "";

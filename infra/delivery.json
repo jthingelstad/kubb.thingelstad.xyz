@@ -105,6 +105,13 @@
                 },
                 {
                   "Effect": "Allow",
+                  "Action": "s3:DeleteObject",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:s3:::${SiteBucket}/.well-known/apple-app-site-association"
+                  }
+                },
+                {
+                  "Effect": "Allow",
                   "Action": [
                     "cloudfront:CreateInvalidation",
                     "cloudfront:GetInvalidation",
