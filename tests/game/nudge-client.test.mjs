@@ -247,6 +247,31 @@ browserTest(
   },
 );
 
+browserTest("no nudge starts while STAND is held", async () => {
+  const page = await open(env, "/practice/?nohowto=1", "desktop");
+  try {
+    await waitPhase(page, "aim", 10000);
+    await shorten(page, { wait: 0.4 });
+    const r = await page.evaluate(() => {
+      const b = document
+        .querySelector("[data-test=stand] .stand-run")
+        .getBoundingClientRect();
+      return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+    });
+    await page.mouse.move(r.x, r.y);
+    await page.mouse.down();
+    // held for several waits: the finger is busy, and the wait does not run
+    await page.waitForTimeout(1600);
+    assert.equal((await state(page)).phase, "aim");
+    assert.equal((await nudge(page)).showing, false, "not while held");
+    await page.mouse.up();
+    await waitShowing(page, 3000);
+    assert.deepEqual(page.errors, []);
+  } finally {
+    await page.context().close();
+  }
+});
+
 browserTest("a learned device, reloaded, stays learned", async () => {
   const page = await open(env, "/practice/?nohowto=1", "portrait", {
     prefs: { throwsMade: 3, meter: "linear" },
