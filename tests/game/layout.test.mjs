@@ -80,15 +80,35 @@ test("the linear meter is a long strip at the right edge, clear of the minimap",
       assert.equal(L.side, "both", "the plan buttons split, the line between");
     } else assert.equal(L.side, "left");
   }
-  // a phone held upright has about a pixel a degree or more (a finger going
-  // round the dial at 0.7 of its radius has 1.2): the straight trial's 150 px
-  // for the whole backswing, 0.8, was the cramp this meter is not to have
+  // a phone held upright has about 0.9 px a degree or more: the straight
+  // trial's 150 px for the whole backswing, 0.8, was the cramp this meter is
+  // not to have
   const scale = (W, H, safe) =>
     linearGeometry(layoutFor(W, H, safe, false, "linear").dial).scale;
-  assert.ok(scale(390, 844, notch) > 1.15, `${scale(390, 844, notch)}`);
-  assert.ok(scale(390, 664, {}) > 1.0, `${scale(390, 664, {})}`);
-  // and no more than a thumb reaches: the fling is 210 degrees
-  assert.ok(scale(390, 844, notch) < 1.35);
+  assert.ok(scale(390, 844, notch) > 0.9, `${scale(390, 844, notch)}`);
+  assert.ok(scale(390, 664, {}) > 0.9, `${scale(390, 664, {})}`);
+  // and no more than a thumb reaches: a quarter shorter than the first
+  // build's (a tester, 2026-11-19: "Make it 1/4 shorter"), about 340 px of
+  // travel on a phone held upright, where it had 447
+  const travel = (W, H, safe) =>
+    linearGeometry(layoutFor(W, H, safe, false, "linear").dial).travel;
+  assert.ok(scale(390, 844, notch) < 1.0);
+  const t = travel(390, 844, notch);
+  assert.ok(t > 320 && t < 350, `${t}`);
+});
+
+test("the shorter linear meter keeps its foot: the quarter comes off the top", () => {
+  const notch = { top: 47, bottom: 34, right: 0, left: 0 };
+  for (const [W, H, safe] of [
+    [390, 844, notch],
+    [390, 664, {}],
+    [1280, 768, {}],
+  ]) {
+    const d = layoutFor(W, H, safe, false, "linear").dial;
+    const bottom = H - (safe.bottom || 0) - tune.margin * 0.5;
+    assert.ok(Math.abs(d.y + d.height - bottom) < 1e-9, `${W}x${H} foot`);
+    assert.ok(d.height <= tune.linearHMax, `${W}x${H} height`);
+  }
 });
 
 test("the linear meter gives way to the clock where it would be cramped", () => {

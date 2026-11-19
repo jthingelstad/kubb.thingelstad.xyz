@@ -40,10 +40,14 @@ export const tune = {
   linearWMax: 96,
   // its height on a tall canvas: this much of the canvas's, but never under
   // linearHMin where there is the room (a phone's browser with its bars
-  // showing is short), so a thumb's fling is neither cramped nor out of reach
-  linearH: 0.6,
-  linearHMin: 460,
-  linearHMax: 600,
+  // showing is short), so a thumb's fling is neither cramped nor out of
+  // reach. A quarter shorter than the first build (0.6, 460, 600; a tester,
+  // 2026-11-19: "Make it 1/4 shorter"): about 340 px of travel on a phone
+  // held upright, never under linear.js minTravel. Its foot stays where it
+  // was, so the shortening comes off the top.
+  linearH: 0.47,
+  linearHMin: 390,
+  linearHMax: 450,
   // a phone held upright with a touchscreen (B, the finger track): the clock
   // is shrunk by this and raised so a finger can go round outside its rim
   // all the way (dial.js tune.trackOut), 6 o'clock included
