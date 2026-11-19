@@ -293,6 +293,16 @@ wide screen's clock lower left or right; a tall screen's clock stays centred. Al
 changes only where the finger may be and where the meter sits: the engine is fed the
 same arm degrees.
 
+The nudge (Jamie, 2026-11-19: "A couple of users have had a lot of confusion on how to
+throw. It would be awesome if we see the user not making progress on a throw to animate
+a nudge in the screen on what to do. Have the UI show it not a separate how to page."):
+when a player is stuck on their own throw (any device after two presses on the meter in
+a row that made no throw; a device with fewer than 3 throws after 8 s without touching
+the meter, one with more after 30 s with no input), a ghost knob makes one good throw on the real meter with a ghost fingertip where
+the finger goes, until the next press. `src/game/nudge.js` (pure, its numbers in one
+`tune`) and `src/render/nudge.js`; drawing only, never fed to the engine, sent or
+recorded. docs/CLIENT.md "The throw".
+
 ## Pitch lines
 
 Thin on purpose (Jamie, 2026-11-16: "in Kubb, the concept is that there really is no
