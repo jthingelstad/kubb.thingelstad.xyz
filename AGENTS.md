@@ -360,6 +360,12 @@ labels are plain words.
   the allowed ground and a ring where the thrower stands. Press and drag puts the thrower
   under the finger; the engine's `setStance` clamps it. A/D/W/S and STAND's arrow keys
   still walk. `src/game/stand-pad.js`, docs/CLIENT.md "Standing".
+- **Two hands on a phone on its side** (Jamie, 2026-11-19: "in landscape the tilt, arc,
+  stand controls should be pushed to the left hand side of the screen so the user can
+  control those with the left hand and the throw with the right hand"). On a wide
+  touchscreen the plan block is at the edge away from the meter (the right edge with
+  Meter side, Left), the minimap on its inner side; a mouse keeps it beside the meter.
+  `planAt` in `src/game/layout.js`, docs/CLIENT.md "The plan block on a wide screen".
 - Practice's tray is BATONS | KUBBS, the one in use pressed (it was one button naming the
   other mode). The rail counts in words ("5 BASE KUBBS", "TARGET 2.3 M"), not the
   engine's Playdate "BASE 5" (`railCount` in `src/game/hud.js`).
