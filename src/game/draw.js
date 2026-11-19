@@ -18,3 +18,4 @@ export {
 export { drawMinimap } from "../render/minimap.js";
 export { drawBurst, burstLength } from "../render/burst.js";
 export { project, projectView, unprojectView } from "../render/camera.js";
+export { drawNudge, fingerAt } from "../render/nudge.js";

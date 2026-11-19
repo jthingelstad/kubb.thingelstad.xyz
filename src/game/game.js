@@ -47,6 +47,8 @@ import {
   knobHit,
   bodyHit,
   linearTune,
+  drawNudge,
+  fingerAt,
   projectView,
   unprojectView,
   project,
@@ -62,6 +64,7 @@ import {
 import { settleItems, raiseCamera, punishCamera, poseItem } from "./scenes.js";
 import { Hud } from "./hud.js";
 import { prefs } from "./prefs.js";
+import { NudgeTrigger, timeline, swingOf, captionFor } from "./nudge.js";
 
 export const tune = {
   maxDt: 1 / 20, // s: a longer frame (a hitch, a background tab) is cut to this
@@ -164,6 +167,18 @@ export class Game {
     this.coarse =
       typeof matchMedia === "function" &&
       matchMedia("(pointer: coarse)").matches;
+    // the throw's nudge (src/game/nudge.js): a ghost throw on the meter for
+    // a player who is stuck; `nudgeEnd`: a press on the meter has ended and
+    // the next engine frame says whether it threw; `nudgeFreeze`: a fixed
+    // time on its timeline (tests only, through window.__kubb)
+    this.nudge = new NudgeTrigger({ throws: prefs.get("throwsMade", 0) });
+    this.nudgeEnd = false;
+    this.nudgeFreeze = null;
+    this.nudgeShown = null;
+    this.reducedMotion =
+      typeof matchMedia === "function"
+        ? matchMedia("(prefers-reduced-motion: reduce)")
+        : null;
     this.raiseSel = null;
     this.punishAt = null;
     this.running = false;
@@ -409,6 +424,7 @@ export class Game {
     const n = this.need;
     if (n.kind === "throw") {
       this.phase = "aim";
+      this.nudge.aimBegan();
       this.zenPause = this.zenPauseFor(n);
       if (this.mode === "match" && this.mayAct())
         this.engine.setLevel(this.level);
@@ -582,6 +598,7 @@ export class Game {
     // would otherwise read as a stop-start, shaky swing. A pointer held still
     // sends nothing, so after `holdFeed` the same arm is fed again: the stop.
     let out;
+    let fed = false; // the engine was fed with no arm: a press's end is judged
     if (paused) out = { ...this.out, event: undefined };
     else if (this.modal && may) out = this.out;
     else if (input.arm != null) {
@@ -600,11 +617,19 @@ export class Game {
     } else {
       this.dialAcc = 0;
       out = this.engine.frame(input);
+      fed = true;
     }
     if (out.event === "release" && out.action) {
+      if (may && (this.nudgeEnd || this.ptr?.kind === "dial"))
+        this.nudgeThrown();
       this.emit(out.action);
       this.startPlayback(out.recording, may, out);
       return;
+    }
+    if (this.nudgeEnd && fed) {
+      // a press on the meter ended with no throw: a fumble
+      this.nudgeEnd = false;
+      this.nudge.pressEnded(false);
     }
     if (!out.event) this.out = out;
     else this.out = { ...this.out, ...out };
@@ -648,6 +673,7 @@ export class Game {
 
   planStep(what, step) {
     if (this.phase !== "aim" || !this.mayAct()) return;
+    this.nudge.input();
     const r =
       what === "arc" ? this.engine.stepArc(step) : this.engine.stepSide(step);
     if (r && r.aim) this.out = { ...this.out, aim: r.aim, camera: r.camera };
@@ -873,6 +899,81 @@ export class Game {
     );
   }
 
+  // ---------- the nudge (src/game/nudge.js) ----------
+
+  // Step the nudge's trigger and say what to draw: null, or the timeline's
+  // frame. It may show only while this player's own throw waits with
+  // nothing over the pitch and nothing held. Its caption goes on the plate
+  // (st.prompt) when the plate has the engine's idle words.
+  nudgeFor(dt, st, mine) {
+    const eligible =
+      mine &&
+      this.phase === "aim" &&
+      !this.modal &&
+      !this.cards?.open &&
+      !this.wide &&
+      !this.driver &&
+      !this.frozen &&
+      !this.unattended &&
+      !this.swipeEnabled &&
+      !this.ptr &&
+      !this.nudgeEnd &&
+      !this.planHeld &&
+      !this.planToggle &&
+      !(this.zenPause > 0) &&
+      (st.phase ?? "idle") === "idle";
+    const s = this.nudge.step(dt, eligible);
+    this.nudgeShown = null;
+    if (!s.show) return null;
+    const swing = swingOf(st);
+    const reduced = !!this.reducedMotion?.matches;
+    const t = this.nudgeFreeze ?? s.t;
+    const f = timeline(t, swing, { reduced });
+    const frame = { ...f, alpha: f.alpha * s.alpha };
+    if (!(frame.alpha > 0)) return { frame, swing, caption: null };
+    const caption = captionFor(f.step);
+    if (caption && this.nudge.showing && st.prompt === "WIND BACK")
+      st.prompt = caption;
+    return { frame, swing, caption };
+  }
+
+  drawNudgeOn({ frame, swing }, st) {
+    const linear = this.L.meter === "linear";
+    const caption = linear ? LINEAR_WORDS[st.prompt] || st.prompt : st.prompt;
+    const opts = {
+      swing,
+      finger: this.coarse ? "touch" : "mouse",
+      zoneFrom: tune.zoneFrom,
+      caption,
+    };
+    drawNudge(this.ctx, this.L, frame, opts);
+    this.nudgeShown = {
+      ...frame,
+      caption: st.prompt,
+      finger: fingerAt(this.L, frame, opts),
+    };
+  }
+
+  // A throw made by this player's own press: the nudge's count goes up
+  // (kept on the device, capped) and its fumbles are forgotten.
+  nudgeThrown() {
+    this.nudgeEnd = false;
+    this.nudge.pressEnded(true);
+    prefs.set("throwsMade", this.nudge.throws);
+  }
+
+  // What the nudge is doing, for tests (window.__kubb.game).
+  nudgeState() {
+    const n = this.nudge;
+    return {
+      showing: !!this.nudgeShown,
+      learned: n.learned,
+      throws: n.throws,
+      fumbles: n.fumbles,
+      frame: this.nudgeShown,
+    };
+  }
+
   get view() {
     return { width: this.W, height: this.H, dpr: this.dpr, fit: this.fit };
   }
@@ -1000,12 +1101,14 @@ export class Game {
             ? [this.ptr.x, this.ptr.y]
             : null,
       };
+      const nudge = this.nudgeFor(dt, st, may && !watching);
       if (this.touchPrompts && !watching && this.L.meter !== "linear") {
         if (st.prompt === "WIND BACK") st.prompt = "PULL DOWN ↓";
         if (st.prompt === "FLICK!") st.prompt = "FLICK UP!";
       }
       if (watching && !st.prompt) st.prompt = "WATCH";
       this.drawMeter(st);
+      if (nudge) this.drawNudgeOn(nudge, st);
     }
     const res =
       this.result && this.result.age < tune.flagFor ? this.result : null;
@@ -1265,6 +1368,7 @@ export class Game {
     let grab = 0;
     let outside = false;
     if (this.phase === "aim" && this.mayAct()) {
+      this.nudge.input();
       const linear = this.L.meter === "linear";
       const g = linear ? this.linearG() : dialGeometry(this.L.dial);
       const aim = this.out?.aim || {};
@@ -1306,6 +1410,11 @@ export class Game {
         this.planToggle = false;
         this.walkOn = false;
       }
+      // the nudge stops on any press on the meter, the finger track or the
+      // throw zone
+      if (kind === "dial" || kind === "swipe") this.nudge.meterPressed();
+      else if (kind === "none") this.nudge.meterPressed();
+      else if (kind === "zone" || kind === "track") this.nudge.zonePressed();
       if (kind === "dial") {
         if (linear) grab = y - g.y0;
         this.dialArm = linear ? 0 : armAt(g, x, y);
@@ -1331,6 +1440,7 @@ export class Game {
       moved: false,
       grab,
       outside,
+      meter: this.phase === "aim" && kind === "none",
     };
     try {
       this.canvas.setPointerCapture(e.pointerId);
@@ -1391,6 +1501,7 @@ export class Game {
       const g = this.linearG();
       p.kind = "dial";
       p.grab = p.y0 - g.y0;
+      this.nudge.meterPressed();
       this.dialArm = 0;
       this.dialNext = armAtY(g, y - p.grab);
       this.dialFresh = true;
@@ -1402,6 +1513,7 @@ export class Game {
       // it landed, then where the finger is, as a press on the ring is
       const g = dialGeometry(this.L.dial);
       p.kind = "dial";
+      this.nudge.meterPressed();
       this.dialArm = armAt(g, p.x0, p.y0);
       this.dialNext = armAt(g, x, y);
       this.dialFresh = true;
@@ -1436,6 +1548,11 @@ export class Game {
     if (p.kind === "dial") {
       this.dialArm = null; // the release
       this.dialNext = null;
+      // the next engine frame says whether it threw (aimFrame)
+      if (this.phase === "aim") this.nudgeEnd = true;
+    } else if (p.meter) {
+      // the linear meter's body away from its knob: never a throw
+      this.nudge.pressEnded(false);
     } else if (p.kind === "target" && !cancelled) {
       const g = this.ground(p.x, p.y);
       if (g) this.aimResult(this.engine.setTarget(g.x, g.y, true));
@@ -1513,6 +1630,7 @@ export class Game {
       "KeyW",
       "KeyS",
     ];
+    this.nudge.input();
     if (aimKeys.includes(code)) {
       this.keys.add(code);
       e.preventDefault();
@@ -1542,6 +1660,7 @@ export class Game {
     btn.addEventListener("pointerdown", (e) => {
       this.sound?.unlock();
       e.preventDefault();
+      this.nudge.input();
       this.walkOn = !this.walkOn;
     });
   }
@@ -1550,6 +1669,7 @@ export class Game {
   bindPlanView(btn) {
     btn.addEventListener("pointerdown", (e) => {
       this.sound?.unlock();
+      this.nudge.input();
       if (e.pointerType === "mouse") {
         this.planHeld = true;
         const up = () => {
