@@ -176,9 +176,17 @@ strongly prefers the circle, so the dial stays and stays the default.
   at the right edge of the screen: the knob's home in the middle is the clock's 6, the
   backswing runs down from it (toward the player) and the forward swing up (toward the
   target). Grab the knob, draw back to the orange mark, fling up through the middle and let
-  go on the blue mark. The body is two columns: the lane on the left carries the targets,
-  the last throw's dots and the peak, and the channel carries the knob, so the knob and
-  the finger on it never hide a target. The prompt is a tab on its left at the knob's home.
+  go on the blue mark. The body is two columns: the lane on the left carries the targets
+  and the live peak, and the channel carries the knob and the last throw's ghosts, so the
+  knob and the finger on it never hide a target. The prompt is a tab on its left at the
+  knob's home.
+- **The last throw's marks are ghosts, not targets** (a tester, 2026-11-19, of the hollow
+  ink rings that marked it: "the target dot is in the red"). Where the last throw's back
+  and stop were, both meters draw a faded ghost of the knob (and on the clock the outer
+  part of the arm): the knob's wood at 60% of its size and 45% opacity, edged in the
+  stem's brown and never in ink (`dial.js` `tune.ghost`, `ghostAlpha`, `ghostKnob`). It
+  reads as where the arm went; the power and release bands stay the strongest things on
+  the meter. On the linear meter they lie in the channel, under the stem and the knob.
 - **It feeds the engine what the dial does**: the same `arm` in degrees
   (`armAtY`: one scale both ways, because the flick's speed is degrees a second), through
   the same feed below. So power, the flick's speed, the release and steadiness are judged
