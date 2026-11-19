@@ -3,6 +3,8 @@
 // core camera's table, a piece's pose as a renderer item, and the scenes for
 // raising and placing a punishment kubb, all in the defender's view frame.
 
+import { project } from "../render/camera.js";
+
 // A core camera table looking from eye at target, focal length f for the
 // 400 x 240 frame (principal point cx, cy).
 export function lookAt(eye, target, f = 600, cx = 200, cy = 120) {
@@ -143,4 +145,11 @@ export function raiseCamera(need) {
 // The punishment kubb: the defender's half from high over its baseline.
 export function punishCamera() {
   return lookAt(tune.punishEye, tune.punishAt, tune.punishF);
+}
+
+// The frame y of the lowest ground a punishment kubb may go on: the front of
+// a kubb on the near baseline (its centre at y = 0.035, half a side in).
+// Lowest on the screen: the camera looks straight down the pitch.
+export function punishNearY() {
+  return project(punishCamera(), 0, 0, 0)[1];
 }

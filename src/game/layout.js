@@ -24,6 +24,13 @@ export const tune = {
   anchorY: 112, // frame y that the target half sits round
   anchorAt: 0.33, // ... placed this far down a tall canvas
   stillAt: 0.42, // a tall canvas's raise and punishment scenes
+  // a short wide canvas (a phone on its side): the raise and punishment panel
+  // is a bar along the bottom (public/game.css, max-height 460px), at most
+  // stillBar px tall with its 8 px off the safe area, and the near baseline
+  // stays stillClear px above it (stillFit)
+  stillShort: 460,
+  stillBar: 80,
+  stillClear: 8,
   margin: 14, // px from the edges (plus the safe area)
   railH: 46,
   // CSS px from the top that the rail's own box (top left) takes, with its
@@ -95,10 +102,23 @@ export function worldFit(W, H, centerX = 200) {
 // The mapping for the raise and punishment scenes on a tall canvas: the
 // whole frame across (zoom 1: a half of the pitch must fit; the raise zooms in on its kubb), its middle at
 // `stillAt` of the height, above the panel at the bottom.
-export function stillFit(W, H, zoom = 1) {
-  if (!isTall(W, H)) return null;
-  const k = (W / 400) * zoom;
-  return { k, ox: W / 2 - 200 * k, oy: H * tune.stillAt - 120 * k };
+//
+// On a short wide canvas the renderer's rule holds unless the scene's lowest
+// ground the player works on (`lowest`, a frame y: the punishment scene's near
+// baseline) would come down to the bar at the bottom (`bottom`: the safe
+// area's bottom inset); then the same scale, lifted just enough. Elsewhere
+// null: the renderer's rule.
+export function stillFit(W, H, zoom = 1, { lowest = null, bottom = 0 } = {}) {
+  if (isTall(W, H)) {
+    const k = (W / 400) * zoom;
+    return { k, ox: W / 2 - 200 * k, oy: H * tune.stillAt - 120 * k };
+  }
+  if (lowest == null || H > tune.stillShort) return null;
+  const k = Math.min(W / 400, H / 240);
+  const oy = (H - 240 * k) / 2;
+  const over = oy + k * lowest - (H - bottom - tune.stillBar - tune.stillClear);
+  if (over <= 0) return null;
+  return { k, ox: (W - 400 * k) / 2, oy: oy - over };
 }
 
 // The frame x the view should centre on to keep frame x `fx` in sight with
