@@ -102,8 +102,8 @@ ${openGames(config.roomsUrl)}
   <p>Every match is recorded, with the names typed, so the game can be tested against real play: matches with friends, against the computer, and the computer against itself. Practice is not. Records are kept privately and not published. An open game’s place in the list shows only how many are on the pitch and whether it has started, never names. Feedback sent from the game’s menu, about a throw that looked wrong or anything else, is kept the same way: what you typed and the game as it stood, which can include the players’ names.</p>
 </section>
 <section class="frame about" aria-labelledby="about">
-  <h2 class="display" id="about">The Playdate game, on the web</h2>
-  <p>This is <a href="${ref(PLAYDATE_GAME, "home")}">Kubb: Throwing Wood</a>, Jamie’s Kubb game for the Playdate, running in the browser. The physics, the rules and the computer thrower are the Playdate game’s own code. The throw that the Playdate makes with its crank, you make here by dragging round a dial.</p>
+  <h2 class="display" id="about">The same game, in your browser</h2>
+  <p>This is <a href="${ref(PLAYDATE_GAME, "home")}">Kubb: Throwing Wood</a>, Jamie’s Kubb game, with the same rules, physics and computer thrower as on Playdate and iPhone. Here you throw with a finger or a mouse: pull the meter back to the orange mark, then flick it through and let go on the blue mark.</p>
   <p><a class="more" href="/rules/">How Kubb is played, and how to throw</a></p>
 </section>`;
   return page({
@@ -142,28 +142,40 @@ function rules({ tinylytics, config = {} }) {
 <section class="frame prose" aria-labelledby="throw">
   <h2 class="display" id="throw">Throwing on the web</h2>
   ${GAME_READY ? "" : `<p class="notice">The game is still being built; this is how its throw is designed to work.</p>`}
-  <p>On the Playdate the crank is your arm on a clock: six o’clock is the arm hanging down. Here the clock is a dial at the lower right of the pitch (lower middle on a phone), and you throw by dragging round it.</p>
+  <p>You throw with the meter, low on the screen beside the pitch. It is a clock or a straight track, whichever you like (MENU, Meter), on the left or the right (MENU, Meter side).</p>
   <ol class="throw-steps">
-    <li><strong>Press on the dial and wind back.</strong> Drag from the bottom up the left side. The arm follows your finger or the mouse. How far back you go is the power.</li>
-    <li><strong>Swing through and let go.</strong> Swing down through the bottom and up the right side, and let go where the baton should leave. Where you let go is the arc. Holding still at the end lets go too.</li>
-    <li><strong>Keep it smooth.</strong> A quick, steady flick throws straight. Bring the arm back down to six slowly and nothing is thrown.</li>
+    <li><strong>Pull back to the orange mark.</strong> On the clock, drag the knob from the bottom up the left side; on the track, drag the knob down. Go at any speed. How far back you go is the power.</li>
+    <li><strong>Flick through and let go on the blue mark.</strong> Swing quickly back through the bottom and up, and let go on the blue mark. Where you let go is the arc. A slow flick throws short.</li>
+    <li><strong>Or change your mind.</strong> Bring the knob back to the bottom slowly and nothing is thrown.</li>
   </ol>
+  <p>Your finger does not have to cover the meter. With a finger you can drag outside the clock’s ring, and with the track you can stroke anywhere low on the screen. For your first few throws, and after a slow one, the meter says what to do next; the last throw’s marks stay on it as faint knobs.</p>
   <table class="controls">
     <caption class="label">Before the throw</caption>
     <tbody>
-      <tr><th scope="row">Drag the circle on the pitch, or the arrow keys</th><td>Aim: the circle is where the throw should land</td></tr>
-      <tr><th scope="row">WALK, then drag on the pitch; or A and D, W and S</th><td>Walk along the line, or back from it</td></tr>
-      <tr><th scope="row">Slide ARC and TILT beside the dial, or R and F, Q and E</th><td>Plan the throw: a higher or lower arc, a baton’s tilt or a kubb’s spin</td></tr>
-      <tr><th scope="row">Side view: tap it, or hold Shift; sliding ARC or TILT shows it too</th><td>Take the camera out over your shoulder to see the arc</td></tr>
+      <tr><th scope="row">Tap the pitch, or drag; the arrow keys</th><td>Aim: the circle is where the throw should land. A tap puts it there; a finger’s drag moves it at half the finger’s speed, so you can see it.</td></tr>
+      <tr><th scope="row">ARC, or R and F</th><td>A higher arc drops in steeper. A lower one skids in.</td></tr>
+      <tr><th scope="row">TILT, or Q and E</th><td>Tilt leans the baton to steer it through a group. For a kubb it is SPIN, which keeps it steady in the air.</td></tr>
+      <tr><th scope="row">SIDE VIEW, or hold Shift</th><td>The camera out over your shoulder, with the arc drawn. Sliding ARC or TILT shows it too.</td></tr>
+      <tr><th scope="row">STAND, or A and D, W and S</th><td>Where you stand: drag the ring along your line or back from it, and up to the advantage line when there is one.</td></tr>
     </tbody>
   </table>
-  <p>Touch nothing but the dial and the throw is a sensible one at the nearest kubb. Wind into the power mark, let go at the release mark, and see what falls.</p>
+  <table class="controls">
+    <caption class="label">In a match</caption>
+    <tbody>
+      <tr><th scope="row">Touch the kubb</th><td>Raise a kubb: touch it nearer the end it should stand on, or drag it up toward that end.</td></tr>
+      <tr><th scope="row">AUTO, AUTO ALL</th><td>Let the game raise this kubb, or the rest of this turn’s. MENU, Raising does it for the rest of the game.</td></tr>
+      <tr><th scope="row">Drag or tap, then PLACE IT</th><td>Put a punishment kubb in the defenders’ half, clear of the stakes and the king.</td></tr>
+      <tr><th scope="row">SKIP, or Space</th><td>Skip to the end of a throw.</td></tr>
+      <tr><th scope="row">MENU, SEND FEEDBACK</th><td>Tell us a throw looked wrong, or anything else.</td></tr>
+    </tbody>
+  </table>
+  <p>Touch nothing but the meter and the throw is a sensible one at the nearest kubb.</p>
 </section>`;
   return page({
     path: "/rules/",
     title: `How to play Kubb · ${SITE_TITLE}`,
     description:
-      "How Kubb is played, in five short cards, and how to throw a baton on the web by dragging round the dial.",
+      "How Kubb is played, in five short cards, and how to throw on the web with a finger or a mouse.",
     body,
     tinylytics,
     release: config.release?.text,
