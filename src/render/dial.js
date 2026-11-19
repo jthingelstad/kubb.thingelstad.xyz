@@ -18,6 +18,8 @@
 //   prompt     WIND BACK, FLICK!, EASE OFF, CRANK DOWN, WATCH (or null);
 //              one ending in "!" is drawn paper on ink
 //   grabbed    true while the pointer holds the arm
+//   track      draw the finger track round the rim (a touchscreen: a finger
+//              may go round outside the ring, where it hides nothing)
 import { INK, PAPER, HUD, FONT } from "./palette.js";
 
 export const tune = {
@@ -33,6 +35,14 @@ export const tune = {
   shadow: 0.06, // the hard drop shadow, of the radius
   promptH: 0.3, // the prompt plate's height, of the radius
   grabSlop: 1.25, // a press within this many radii of the centre grabs the dial
+  // a finger may press and go round outside the ring (touch only: Jamie,
+  // 2026-11-19, "be able to touch outside the ring so that you can see
+  // where the movement is"). The arm is still the angle about the centre.
+  // The track drawn for it runs trackIn..trackOut radii (a fingertip's
+  // width outside the rim); a touch within touchReach radii grabs the dial.
+  trackIn: 1.1,
+  trackOut: 1.55,
+  touchReach: 2.1,
 };
 
 // ---------- geometry (also for input) ----------
@@ -68,6 +78,13 @@ export function armAt(g, px, py) {
 // Is a press at (px, py) on the dial?
 export function hitTest(g, px, py) {
   return Math.hypot(px - g.cx, py - g.cy) <= g.r * tune.grabSlop;
+}
+
+// Is a touch at (px, py) beside the dial: outside the grab of hitTest, out
+// to touchReach radii? (The finger track.)
+export function trackHit(g, px, py) {
+  const d = Math.hypot(px - g.cx, py - g.cy);
+  return d > g.r * tune.grabSlop && d <= g.r * tune.touchReach;
 }
 
 // Unwrap a raw pointer angle against the previous arm so the arm moves
@@ -142,14 +159,16 @@ function target(ctx, g, ri, ro, rm, ringW, a0, a1, fill, deep, lw) {
 }
 
 // A prompt plate centred on (x, y). With `right`, it is moved left so it and
-// its shadow stay inside that x (a meter at the screen's edge).
-export function plate(ctx, x, y, h, text, inverted, right = null) {
+// its shadow stay inside that x (a meter at the screen's right edge); with
+// `left`, moved right so it starts at that x (a meter at the left edge).
+export function plate(ctx, x, y, h, text, inverted, right = null, left = null) {
   ctx.font = `900 ${Math.round(h * 0.78)}px ${FONT.display}`;
   ctx.textBaseline = "middle";
   ctx.textAlign = "center";
   const w = ctx.measureText(text).width + h * 0.9;
   const sh = h * 0.12;
   if (right != null) x = Math.min(x, right - sh - w / 2);
+  if (left != null) x = Math.max(x, left + w / 2);
   ctx.fillStyle = INK;
   ctx.beginPath();
   ctx.roundRect(x - w / 2 + sh, y - h / 2 + sh, w, h, h * 0.18);
@@ -176,6 +195,25 @@ export function drawDial(ctx, rect, st) {
   ctx.save();
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
+
+  // the finger track round the rim: a faint paper band with a dashed ink
+  // line along its middle, where a finger may go round and hide nothing
+  if (st.track) {
+    const t0 = r * tune.trackIn,
+      t1 = r * tune.trackOut;
+    ctx.fillStyle = HUD.track;
+    ctx.beginPath();
+    ctx.arc(cx, cy, t1, 0, Math.PI * 2);
+    ctx.arc(cx, cy, t0, 0, Math.PI * 2, true);
+    ctx.fill();
+    ctx.strokeStyle = HUD.trackLine;
+    ctx.lineWidth = Math.max(1, r * 0.018);
+    ctx.setLineDash([r * 0.06, r * 0.08]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, (t0 + t1) / 2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
 
   // the face: hard shadow, ink frame, paper
   const sh = r * tune.shadow;

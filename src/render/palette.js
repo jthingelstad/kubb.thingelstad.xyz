@@ -161,6 +161,8 @@ export const HUD = {
   knob: "#f2e2c0",
   knobGrab: "#ffffff",
   glow: "rgba(255, 246, 200, 0.55)",
+  track: "rgba(251, 246, 234, 0.28)", // the clock's finger track (PAPER, faint)
+  trackLine: "rgba(23, 20, 15, 0.45)", // its dashed middle (INK, faint)
   peak: INK,
   prompt: PAPER,
   promptInk: INK,

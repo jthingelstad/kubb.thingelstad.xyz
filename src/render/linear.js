@@ -42,15 +42,24 @@ export const tune = {
 
 // The body and the track in rect. yF and yB are the forward and the back
 // end (arm +range and -range), y0 the knob's home; scale is px a degree.
-export function linearGeometry(rect) {
+// side is the screen edge the meter sits at (MENU, Side): the body is
+// mirrored so the lane (laneLeft..divX) is always toward the screen's
+// centre and the channel (chanX..chanX + chanW) toward its edge, and the
+// prompt tab hangs toward the centre (tabDir -1: to the body's left).
+export function linearGeometry(rect, side = "right") {
   const w = Math.min(tune.bodyMax, rect.width * 0.92);
   const sh = w * tune.shadow;
   const fr = Math.max(1.5, w * tune.frame);
-  const right = rect.x + rect.width - sh;
+  const onLeft = side === "left";
+  // the hard shadow falls right and down: on the left edge the body starts
+  // at the box's edge, on the right it stops short of it by the shadow
+  const right = onLeft ? rect.x + w : rect.x + rect.width - sh;
   const left = right - w;
   const laneW = w * tune.lane;
-  const chanX = left + laneW;
   const chanW = w - laneW;
+  const laneLeft = onLeft ? right - laneW : left;
+  const chanX = onLeft ? left : left + laneW;
+  const divX = onLeft ? laneLeft : chanX;
   const kr = chanW * tune.knob;
   const promptH = Math.max(tune.promptMin, w * tune.promptH);
   const top = rect.y;
@@ -59,6 +68,7 @@ export function linearGeometry(rect) {
   const yF = top + cap;
   const yB = bottom - cap;
   return {
+    side: onLeft ? "left" : "right",
     left,
     right,
     top,
@@ -67,10 +77,13 @@ export function linearGeometry(rect) {
     sh,
     fr,
     laneW,
+    laneLeft,
     chanX,
     chanW,
+    divX,
+    tabDir: onLeft ? 1 : -1,
     cx: chanX + chanW / 2,
-    laneX: left + laneW / 2,
+    laneX: laneLeft + laneW / 2,
     kr,
     promptH,
     yF,
@@ -132,7 +145,11 @@ function dots(ctx, g, a0, a1, color, step) {
   ctx.beginPath();
   let row = 0;
   for (let y = g.top; y < g.bottom; y += step, row++) {
-    for (let x = g.chanX + (row % 2 ? step / 2 : 0); x < g.right; x += step) {
+    for (
+      let x = g.chanX + (row % 2 ? step / 2 : 0);
+      x < g.chanX + g.chanW;
+      x += step
+    ) {
       ctx.moveTo(x + step * 0.14, y);
       ctx.arc(x, y, step * 0.14, 0, Math.PI * 2);
     }
@@ -162,7 +179,7 @@ function target(ctx, g, a0, a1, fill, deep, lw) {
   band(ctx, g, g.chanX, g.chanW, a0, a1);
   ctx.fillStyle = fill;
   ctx.fill();
-  band(ctx, g, g.left, g.laneW, a0, a1);
+  band(ctx, g, g.laneLeft, g.laneW, a0, a1);
   ctx.fillStyle = deep;
   ctx.fill();
   ctx.strokeStyle = INK;
@@ -175,8 +192,8 @@ function target(ctx, g, a0, a1, fill, deep, lw) {
   ctx.stroke();
 }
 
-export function drawLinear(ctx, rect, st) {
-  const g = linearGeometry(rect);
+export function drawLinear(ctx, rect, st, side = "right") {
+  const g = linearGeometry(rect, side);
   const R = tune.range;
   const lw = Math.max(1, g.w * 0.024);
   const live = st.phase === "winding" || st.phase === "swinging";
@@ -196,7 +213,7 @@ export function drawLinear(ctx, rect, st) {
   ctx.fillStyle = st.grabbed ? HUD.knobGrab : HUD.face;
   ctx.fillRect(g.left, g.top, g.w, g.bottom - g.top);
   ctx.fillStyle = HUD.ring;
-  ctx.fillRect(g.left, g.top, g.laneW, g.bottom - g.top);
+  ctx.fillRect(g.laneLeft, g.top, g.laneW, g.bottom - g.top);
 
   // the zones
   if (st.deadDeg > 0) {
@@ -207,7 +224,7 @@ export function drawLinear(ctx, rect, st) {
   }
   if (st.overDeg != null && st.overDeg < R) {
     hatch(ctx, g, -R - 20, -st.overDeg, HUD.over, Math.max(3, g.chanW * 0.16));
-    band(ctx, g, g.left, g.laneW, -R - 20, -st.overDeg);
+    band(ctx, g, g.laneLeft, g.laneW, -R - 20, -st.overDeg);
     ctx.fillStyle = HUD.over;
     ctx.fill();
   }
@@ -229,17 +246,19 @@ export function drawLinear(ctx, rect, st) {
   ctx.strokeStyle = INK;
   ctx.lineWidth = lw;
   ctx.beginPath();
-  ctx.moveTo(g.chanX, g.top);
-  ctx.lineTo(g.chanX, g.bottom);
+  ctx.moveTo(g.divX, g.top);
+  ctx.lineTo(g.divX, g.bottom);
   ctx.stroke();
+  // the hours run from the lane's edge into the channel
+  const into = g.side === "left" ? -1 : 1;
   for (let a = -R; a <= R; a += 30) {
     if (a === 0) continue;
     const long = a % 90 === 0;
     const y = armY(g, a);
     ctx.lineWidth = long ? lw * 2 : lw;
     ctx.beginPath();
-    ctx.moveTo(g.chanX + lw, y);
-    ctx.lineTo(g.chanX + g.chanW * (long ? tune.tickLong : tune.tick), y);
+    ctx.moveTo(g.divX + lw * into, y);
+    ctx.lineTo(g.divX + g.chanW * (long ? tune.tickLong : tune.tick) * into, y);
     ctx.stroke();
   }
   // the knob's home: the line a throw is flung through
@@ -287,12 +306,9 @@ export function drawLinear(ctx, rect, st) {
     // the glow stays in the channel: the lane beside it is for reading
     ctx.save();
     ctx.beginPath();
-    ctx.rect(
-      g.chanX,
-      g.top + g.fr,
-      g.right - g.fr - g.chanX,
-      g.bottom - g.top - 2 * g.fr,
-    );
+    const c0 = Math.max(g.chanX, g.left + g.fr);
+    const c1 = Math.min(g.chanX + g.chanW, g.right - g.fr);
+    ctx.rect(c0, g.top + g.fr, c1 - c0, g.bottom - g.top - 2 * g.fr);
     ctx.clip();
     ctx.fillStyle = HUD.glow;
     ctx.beginPath();
@@ -341,17 +357,20 @@ export function drawLinear(ctx, rect, st) {
   ctx.arc(g.cx, ky, kr * 0.16, 0, Math.PI * 2);
   ctx.fill();
 
-  // the prompt: a tab on the meter's left at the knob's home, where the eye
-  // is and a thumb on the knob is not (it takes none of the track's length)
+  // the prompt: a tab on the meter's inner side (toward the screen's
+  // centre) at the knob's home, where the eye is and a thumb on the knob is
+  // not (it takes none of the track's length)
   if (st.prompt) {
+    const inner = g.tabDir < 0 ? g.left : g.right;
     plate(
       ctx,
-      g.left,
+      inner,
       g.y0,
       g.promptH,
       st.prompt,
       st.prompt.endsWith("!"),
-      g.left - g.fr * 2,
+      g.tabDir < 0 ? g.left - g.fr * 2 : null,
+      g.tabDir > 0 ? g.right + g.sh + g.fr * 2 : null,
     );
   }
   ctx.restore();
