@@ -189,10 +189,12 @@ strongly prefers the circle, so the dial stays and stays the default.
 - **Room is the point.** The straight-through trial of 2026-11-18 was removed because,
   in Jamie's words, "it was too cramped and visually looked janky": it had 150 px for
   the whole backswing inside the dial's box (0.8 px a degree). The linear meter is the
-  whole height the screen can give it (`layoutFor`'s `meter`, `linearBox`): about 1.25 px a
-  degree on a phone held upright (a finger going round the dial at 0.7 of its radius has
-  1.2), 1.05 in a phone's browser with its bars showing, 1.45 with a mouse. It is capped
-  so a thumb's fling (210 degrees) stays in reach. Where the track would be shorter than
+  height the screen can give it up to a cap (`layoutFor`'s `meter`, `linearBox`). The first
+  build took 60% of a tall screen (447 px of travel on 390 x 844); a tester, 2026-11-19:
+  "Make it 1/4 shorter", and Jamie agreed. It is 47% now (`linearH` 0.47, never under
+  `linearHMin` 390 px, never over `linearHMax` 450): 338 px of travel there, 0.94 px a
+  degree, 0.92 in a phone's browser with its bars showing, 1.05 with a mouse. Its foot
+  stays where the thumb is, so the quarter came off the top. Where the track would be shorter than
   `minTravel` (320 px: a phone on its side, a small phone's browser) the layout's `meter`
   is `"clock"` and the dial is drawn; the menu says so under the choice. On a tall screen
   the plan splits either side of the throwing line, left of the meter.

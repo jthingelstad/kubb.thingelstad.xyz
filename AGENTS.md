@@ -277,7 +277,9 @@ the default and is never retired: Tyler strongly prefers it. The linear meter
 engine the same arm degrees, so both are judged alike and it needs no engine release. Its
 room is the point (the straight trial of 2026-11-18 went because "it was too cramped and
 visually looked janky"): where a screen cannot give the track `minTravel` the clock is
-drawn instead. docs/CLIENT.md "The throw".
+drawn instead. It is a quarter shorter than it was first built (a tester, 2026-11-19: "Make
+it 1/4 shorter", and Jamie agreed): 47% of a tall screen, 390 to 450 px, its foot where the
+thumb is. docs/CLIENT.md "The throw".
 
 The finger and the meter apart (Jamie, 2026-11-19: "if you can have the control and the
 touch be slightly distant from each other, that could make that better"): with the linear
