@@ -237,43 +237,299 @@ body.game {
   white-space: nowrap;
 }
 
+/* The plan beside the meter (hud.js place): the ARC and TILT sliders
+   (src/game/plan-sliders.js), SIDE VIEW and WALK. On a wide screen one
+   block: ARC's tall plate by the meter, TILT, SIDE VIEW and WALK stacked
+   beside it. On a tall one split either side of the throwing line: ARC
+   over SIDE VIEW on the left, TILT over WALK on the right, their feet
+   level. */
 .plans {
   position: absolute;
   display: grid;
-  grid-template-columns: auto auto;
+  grid-template-columns: 124px 70px;
+  grid-template-areas:
+    "side arc"
+    "view arc"
+    "walk arc";
   gap: 8px;
   align-items: end;
+}
+.plans.mirror {
+  grid-template-columns: 70px 124px;
+  grid-template-areas:
+    "arc side"
+    "arc view"
+    "arc walk";
 }
 #ui .plans {
   pointer-events: none;
 }
-.plans .btn {
+.plans .btn,
+.plans .slider {
   pointer-events: auto;
 }
-.plan-col {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.plans > .slider.arc {
+  grid-area: arc;
+  align-self: stretch;
 }
-.plans > .btn.view,
+.plans > .slider.side {
+  grid-area: side;
+}
+.plans > .btn.view {
+  grid-area: view;
+}
 .plans > .btn.walk {
-  grid-column: 1 / span 2;
+  grid-area: walk;
 }
 .plans.split {
-  grid-template-columns: auto 1fr auto;
-  align-items: start;
+  grid-template-columns: 88px 1fr 88px;
+  grid-template-areas:
+    "arc . side"
+    "view . walk";
 }
-.plans.split > .plan-col:nth-child(2) {
-  grid-column: 3;
-  grid-row: 1;
+.plans.split > .slider.arc {
+  align-self: end;
 }
-.plans.split > .btn.view {
-  grid-column: 1;
-  grid-row: 2;
+
+/* a slider: a paper plate with an ink rim and a hard shadow, its value on
+   a wooden header (where the finger is not), and in the body a lane of
+   scale marks beside the ink slot the wooden knob runs in. --f is the
+   knob's place on the run, 0 to 1 (bottom to top, left to right). */
+.slider {
+  --knob: 26px;
+  --slot: 6px;
+  display: flex;
+  flex-direction: column;
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  touch-action: none;
 }
-.plans.split > .btn.walk {
-  grid-column: 3;
-  grid-row: 2;
+.slider:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+.slider-head {
+  padding: 5px 4px 4px;
+  border-bottom: 2px solid var(--ink);
+  background: var(--wood);
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.slider-body {
+  position: relative;
+  flex: 1 0 auto;
+  cursor: grab;
+  touch-action: none;
+}
+.slider.held .slider-body {
+  cursor: grabbing;
+}
+.slider-run {
+  position: absolute;
+}
+.slider-slot,
+.slider-stem,
+.slider-lane,
+.slider-index,
+.slider-knob {
+  position: absolute;
+  pointer-events: none;
+}
+.slider-slot {
+  background: var(--ink);
+  border-radius: 3px;
+}
+.slider-stem {
+  background: #7a5530;
+  border-radius: 2px;
+}
+.slider-tick {
+  position: absolute;
+  background: var(--ink);
+}
+.slider-index {
+  width: 0;
+  height: 0;
+  border: 6px solid transparent;
+}
+/* the knob: a baton's end, wood with an ink rim and end-grain rings */
+.slider-knob {
+  width: var(--knob);
+  height: var(--knob);
+  margin: calc(var(--knob) / -2) 0 0 calc(var(--knob) / -2);
+  box-sizing: border-box;
+  border: 2.5px solid var(--ink);
+  border-radius: 50%;
+  background: #f2e2c0;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+.slider-knob::before,
+.slider-knob::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+}
+.slider-knob::before {
+  inset: 4px;
+  border: 1.5px solid #7a5530;
+}
+.slider-knob::after {
+  inset: 8.5px;
+  background: #7a5530;
+}
+.slider.held .slider-knob {
+  background: #ffffff;
+  transform: scale(1.08);
+}
+.slider.held {
+  background: #fffbea;
+}
+
+/* ARC, vertical: the run from a little above the foot to a little below
+   the head; the lane of marks on the inner side (toward TILT), the slot on
+   the outer, and the wooden stem up the slot from the foot to the knob */
+.slider.vertical .slider-body {
+  min-height: 84px;
+}
+.slider.vertical .slider-run {
+  inset: 15px 0 15px 0;
+}
+.slider.vertical .slider-slot {
+  left: calc(68% - var(--slot) / 2);
+  width: var(--slot);
+  top: -3px;
+  bottom: -3px;
+}
+.slider.vertical .slider-stem {
+  left: calc(68% - 1.5px);
+  width: 3px;
+  bottom: 0;
+  height: calc(var(--f) * 100%);
+}
+.slider.vertical .slider-knob {
+  left: 68%;
+  top: calc((1 - var(--f)) * 100%);
+}
+.slider.vertical .slider-lane {
+  left: 6%;
+  width: 24%;
+  top: 0;
+  bottom: 0;
+}
+.slider.vertical .slider-tick {
+  right: 0;
+  width: 45%;
+  height: 2px;
+  margin-top: -1px;
+  top: calc((1 - var(--at)) * 100%);
+}
+.slider.vertical .slider-tick.long {
+  width: 100%;
+  height: 3px;
+  margin-top: -1.5px;
+}
+.slider.vertical .slider-index {
+  left: calc(30% + 1px);
+  top: calc((1 - var(--f)) * 100%);
+  margin-top: -6px;
+  border-left-color: var(--ink);
+}
+/* the block left of the meter (mirror: ARC on the block's left) or the
+   split's left column: the lane toward the screen's centre */
+.plans.mirror .slider.vertical .slider-slot,
+.plans.split .slider.vertical .slider-slot {
+  left: calc(32% - var(--slot) / 2);
+}
+.plans.mirror .slider.vertical .slider-stem,
+.plans.split .slider.vertical .slider-stem {
+  left: calc(32% - 1.5px);
+}
+.plans.mirror .slider.vertical .slider-knob,
+.plans.split .slider.vertical .slider-knob {
+  left: 32%;
+}
+.plans.mirror .slider.vertical .slider-lane,
+.plans.split .slider.vertical .slider-lane {
+  left: 70%;
+}
+.plans.mirror .slider.vertical .slider-tick,
+.plans.split .slider.vertical .slider-tick {
+  right: auto;
+  left: 0;
+}
+.plans.mirror .slider.vertical .slider-index,
+.plans.split .slider.vertical .slider-index {
+  left: auto;
+  right: calc(30% + 1px);
+  border-left-color: transparent;
+  border-right-color: var(--ink);
+}
+
+/* TILT or SPIN, horizontal: the lane of detents above the slot (the
+   finger comes from below), the middle's mark long and heavy, the wooden
+   stem along the slot from the middle to the knob */
+.slider.horizontal .slider-body {
+  height: 48px;
+}
+.slider.horizontal .slider-run {
+  inset: 0 16px;
+}
+.slider.horizontal .slider-slot {
+  top: calc(31px - var(--slot) / 2);
+  height: var(--slot);
+  left: -4px;
+  right: -4px;
+}
+.slider.horizontal .slider-stem {
+  top: 29.5px;
+  height: 3px;
+  left: calc(min(var(--f), 0.5) * 100%);
+  right: calc((1 - max(var(--f), 0.5)) * 100%);
+  transition:
+    left 0.12s ease-out,
+    right 0.12s ease-out;
+}
+.slider.horizontal.held .slider-stem {
+  transition: none;
+}
+.slider.horizontal .slider-knob {
+  top: 31px;
+  left: calc(var(--f) * 100%);
+  transition: left 0.12s ease-out;
+}
+.slider.horizontal.held .slider-knob {
+  transition: none;
+}
+.slider.horizontal .slider-lane {
+  top: 5px;
+  height: 13px;
+  left: 0;
+  right: 0;
+}
+.slider.horizontal .slider-tick {
+  bottom: 0;
+  width: 2px;
+  height: 7px;
+  margin-left: -1px;
+  left: calc(var(--at) * 100%);
+}
+.slider.horizontal .slider-tick.centre {
+  width: 3px;
+  height: 13px;
+  margin-left: -1.5px;
+}
+.slider.horizontal .slider-index {
+  display: none;
 }
 
 .skip-btn {

@@ -26,7 +26,7 @@ export const tune = {
   lift: 0.7, // the fingertip's rise before it presses, of its radius
   shadow: 0.22, // the fingertip's hard shadow when down, of its radius
   zoneGap: 12, // px between the plate (or the plan buttons) and the fingertip's path
-  planBlock: 180, // px: a wide canvas's plan buttons, a block beside the meter (hud.js)
+  planBlock: 206, // px: a wide canvas's plan (sliders, SIDE VIEW, WALK), a block beside the meter (hud.js, game.css)
   arrow: 3, // px: the still picture's arrows
 };
 
