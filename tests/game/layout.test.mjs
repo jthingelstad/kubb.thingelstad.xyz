@@ -12,8 +12,18 @@ import {
   tune,
 } from "../../src/game/layout.js";
 import { pickTake } from "../../src/game/sound.js";
-import { lookAt, teamOf, raiseCamera } from "../../src/game/scenes.js";
-import { projectView, unprojectView } from "../../src/render/camera.js";
+import {
+  lookAt,
+  teamOf,
+  raiseCamera,
+  punishCamera,
+  punishNearY,
+} from "../../src/game/scenes.js";
+import {
+  project,
+  projectView,
+  unprojectView,
+} from "../../src/render/camera.js";
 import { linearGeometry, tune as linearTune } from "../../src/render/linear.js";
 import { dialGeometry, tune as dialTune } from "../../src/render/dial.js";
 
@@ -246,6 +256,118 @@ test("a wide canvas keeps the renderer's framing", () => {
   assert.equal(worldFit(1280, 768), null);
   assert.equal(stillFit(844, 390), null);
   assert.equal(panFor(1280, 768, 30), 200);
+});
+
+// A phone on its side (Jamie's two-hands ask, 2026-11-19, and the panel that
+// followed it): the raise and punishment panel is a bar along the bottom, at
+// most tune.stillBar px with its gap, and must cover neither the kubb being
+// raised (both end numbers, r 17 px) nor the near baseline of the half a
+// punishment kubb goes in.
+const PHONES = [
+  [852, 393, 21],
+  [932, 430, 21],
+  [844, 390, 21],
+  [667, 375, 0],
+  [568, 320, 0],
+  [800, 360, 24],
+];
+const barTop = (H, bottom) => H - bottom - tune.stillBar;
+
+test("the punishment scene's lowest ground is the near baseline", () => {
+  const cam = punishCamera();
+  assert.ok(Math.abs(punishNearY() - project(cam, 0, 0, 0)[1]) < 1e-9);
+  // the camera looks straight down the pitch: the baseline is level on screen
+  for (const x of [-2.5, -1, 1, 2.5])
+    assert.ok(Math.abs(project(cam, x, 0, 0)[1] - punishNearY()) < 1e-9);
+  // and the rest of the half is above it
+  assert.ok(project(cam, 0, 4, 0)[1] < punishNearY());
+});
+
+test("a phone on its side: the panel's bar stays under the near baseline", () => {
+  for (const [W, H, bottom] of PHONES) {
+    const fit = stillFit(W, H, 1, { lowest: punishNearY(), bottom });
+    // these phones keep the renderer's rule: the baseline is already clear
+    assert.equal(fit, null, `${W}x${H}`);
+    const view = { width: W, height: H, fit };
+    const y = projectView(view, punishCamera(), 0, 0, 0)[1];
+    assert.ok(
+      y + tune.stillClear <= barTop(H, bottom) + 1e-9,
+      `${W}x${H}: baseline ${y.toFixed(1)}, bar ${barTop(H, bottom)}`,
+    );
+  }
+});
+
+test("a window too short for the bar lifts the punishment scene, not the bar", () => {
+  const W = 640,
+    H = 300,
+    bottom = 21;
+  const fit = stillFit(W, H, 1, { lowest: punishNearY(), bottom });
+  const k = Math.min(W / 400, H / 240);
+  assert.ok(fit, "lifted");
+  assert.ok(
+    Math.abs(fit.k - k) < 1e-9 && Math.abs(fit.ox - (W - 400 * k) / 2) < 1e-9,
+  );
+  const view = { width: W, height: H, fit };
+  const cam = punishCamera();
+  const y = projectView(view, cam, 0, 0, 0)[1];
+  assert.ok(Math.abs(y + tune.stillClear - barTop(H, bottom)) < 1e-6);
+  // the king and the centre line stay on the screen
+  assert.ok(projectView(view, cam, 0, 4, 0.3)[1] > 0);
+  // a finger still lands where it points
+  const back = unprojectView(view, cam, W / 2, y - 20);
+  const there = projectView(view, cam, back.x, back.y, 0);
+  assert.ok(Math.abs(there[1] - (y - 20)) < 1e-6);
+});
+
+test("a phone on its side: the kubb being raised and both its numbers clear the bar", () => {
+  const need = { pose: { x: 0.7, y: 2.3, angle: 0.35, standing: false } };
+  const cam = raiseCamera(need);
+  const { x, y, angle } = need.pose;
+  const c = Math.cos(angle),
+    s = Math.sin(angle);
+  for (const [W, H, bottom] of PHONES) {
+    // the raise passes no lowest: the renderer's rule
+    assert.equal(stillFit(W, H, 1.8), null);
+    const view = { width: W, height: H, fit: null };
+    for (const k of [1, -1]) {
+      // the number, 7 cm past the footprint, and its 17 px circle
+      const label = projectView(
+        view,
+        cam,
+        x + k * c * 0.18,
+        y + k * s * 0.18,
+        0,
+      );
+      assert.ok(
+        label[1] + 17 < barTop(H, bottom) - tune.stillClear,
+        `${W}x${H}`,
+      );
+      assert.ok(label[0] - 17 > 0 && label[0] + 17 < W, `${W}x${H} across`);
+      // the kubb's near corners
+      for (const sd of [1, -1]) {
+        const p = projectView(
+          view,
+          cam,
+          x + k * c * 0.075 - sd * s * 0.035,
+          y + k * s * 0.075 + sd * c * 0.035,
+          0,
+        );
+        assert.ok(p[1] < barTop(H, bottom) - tune.stillClear);
+      }
+    }
+  }
+});
+
+test("tall screens and taller windows keep their framing", () => {
+  const opt = { lowest: punishNearY(), bottom: 34 };
+  assert.deepEqual(stillFit(393, 852, 1, opt), stillFit(393, 852, 1));
+  assert.deepEqual(stillFit(390, 844, 1.8, opt), stillFit(390, 844, 1.8));
+  for (const [W, H] of [
+    [1440, 900],
+    [1180, 820],
+    [1024, 500],
+  ])
+    assert.equal(stillFit(W, H, 1, opt), null, `${W}x${H}`);
 });
 
 test("a tall canvas zooms in, keeps the frame's edges and pans to the target", () => {

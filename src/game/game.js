@@ -61,7 +61,13 @@ import {
   stillFit,
   wideBox,
 } from "./layout.js";
-import { settleItems, raiseCamera, punishCamera, poseItem } from "./scenes.js";
+import {
+  settleItems,
+  raiseCamera,
+  punishCamera,
+  poseItem,
+  punishNearY,
+} from "./scenes.js";
 import {
   raiseGeometry,
   onKubb,
@@ -1467,6 +1473,10 @@ export class Game {
         this.W,
         this.H,
         n.kind === "raise" ? tune.raiseZoom : 1,
+        // a phone on its side: the near baseline above the panel's bar
+        n.kind === "punish"
+          ? { lowest: punishNearY(), bottom: this.L?.safe?.bottom || 0 }
+          : undefined,
       );
     else this.pan(200, 0, true);
     this.begin();
