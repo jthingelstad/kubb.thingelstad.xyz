@@ -131,7 +131,7 @@ browserTest(
   },
 );
 
-browserTest("in DRILL the slider is SPIN, to 3 either way", async () => {
+browserTest("throwing KUBBS the slider is SPIN, to 3 either way", async () => {
   const page = await open(env, "/practice/?nohowto=1", "desktop");
   try {
     await waitPhase(page, "aim", 10000);
@@ -404,9 +404,14 @@ for (const [kind, prefs, name] of [
           },
         ),
       );
-      assert.equal(bodies.length, 2);
+      assert.equal(bodies.length, 3);
       assert.ok(bodies[0].width >= 44, `ARC ${bodies[0].width} wide`);
       assert.ok(bodies[1].height >= 44, `TILT ${bodies[1].height} tall`);
+      // STAND is dragged both ways
+      assert.ok(
+        bodies[2].width >= 44 && bodies[2].height >= 44,
+        `STAND ${bodies[2].width} x ${bodies[2].height}`,
+      );
       assert.deepEqual(page.errors, []);
     } finally {
       await page.context().close();
