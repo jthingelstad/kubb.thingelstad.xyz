@@ -8,7 +8,9 @@ import {
   armPoint,
   armAt,
   hitTest,
+  trackHit,
   unwrapArm,
+  tune,
 } from "../../src/render/dial.js";
 
 const close = (a, b, eps = 1e-9) =>
@@ -79,4 +81,20 @@ test("a press grabs the dial within its slop", () => {
   assert.ok(hitTest(g, 100, 149));
   assert.ok(!hitTest(g, 100, 151));
   assert.ok(!hitTest(g, 0, 0));
+});
+
+test("a touch beside the ring is the finger track, out to touchReach", () => {
+  const g = { cx: 100, cy: 100, r: 50 };
+  // on the ring (and just past it, the grab slop) is the dial as before
+  assert.equal(hitTest(g, 100, 100 + 50 * 1.2), true);
+  assert.equal(trackHit(g, 100, 100 + 50 * 1.2), false);
+  // outside it, on the drawn track and beyond it to the reach
+  const mid = ((tune.trackIn + tune.trackOut) / 2) * 50;
+  assert.equal(hitTest(g, 100 - mid, 100), false);
+  assert.equal(trackHit(g, 100 - mid, 100), true);
+  assert.equal(trackHit(g, 100, 100 - 50 * (tune.touchReach - 0.01)), true);
+  assert.equal(trackHit(g, 100, 100 + 50 * (tune.touchReach + 0.01)), false);
+  // the angle there is the same arm as on the ring
+  close(armAt(g, 100 - mid, 100), -90);
+  assert.ok(tune.trackIn > 1 && tune.trackOut > tune.trackIn);
 });

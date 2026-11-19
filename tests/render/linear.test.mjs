@@ -63,3 +63,29 @@ test("a press grabs the knob at home; the rest of the body only keeps it", () =>
   assert.equal(bodyHit(g, g.cx, g.top - 20), false, "above it is not the body");
   assert.equal(bodyHit(g, g.left - 40, g.y0), false);
 });
+
+test("on the left edge the body is mirrored: the lane toward the centre", () => {
+  const R = linearGeometry(BOX); // the default is the right edge
+  assert.equal(R.side, "right");
+  assert.equal(R.tabDir, -1, "the prompt hangs left, toward the centre");
+  close(R.laneLeft, R.left);
+  close(R.divX, R.chanX);
+  close(R.chanX, R.left + R.laneW);
+  const box = { ...BOX, x: 7 };
+  const g = linearGeometry(box, "left");
+  assert.equal(g.side, "left");
+  assert.equal(g.tabDir, 1, "the prompt hangs right, toward the centre");
+  close(g.left, box.x);
+  assert.ok(g.right + g.sh <= box.x + box.width + 1e-9, "shadow in the box");
+  close(g.chanX, g.left, 1e-9);
+  close(g.laneLeft, g.right - g.laneW);
+  close(g.divX, g.laneLeft);
+  assert.ok(g.laneX > g.cx, "the lane is right of the knob");
+  close(g.cx, g.chanX + g.chanW / 2);
+  // the track itself is the same: the same arm at the same height
+  for (const k of ["w", "laneW", "chanW", "kr", "y0", "yF", "yB", "scale"])
+    close(g[k], R[k]);
+  for (const a of [-120, 0, 90]) close(armY(g, a), armY(R, a));
+  assert.equal(knobHit(g, g.cx, g.y0, tune.grabTouch), true);
+  assert.equal(bodyHit(g, g.laneX, g.yB), true);
+});
