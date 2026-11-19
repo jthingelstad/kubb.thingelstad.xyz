@@ -15,20 +15,22 @@
 // is beside it, not above, because the track's length is the meter's room.
 //
 // st is the dial's state (render/dial.js).
-import { INK, PAPER, HUD } from "./palette.js";
-import { plate } from "./dial.js";
+import { INK, PAPER, HUD, FONT } from "./palette.js";
 
 export const tune = {
   range: 180, // degrees each way: the ends are 12 o'clock
   bodyMax: 88, // px: the body is never wider than this
   lane: 0.3, // the lane's width, of the body's
   knob: 0.4, // the knob's radius, of the channel's width
-  frame: 0.045, // the ink frame, of the body's width
-  shadow: 0.06, // the hard drop shadow, of the body's width
-  corner: 0.2, // the body's corner radius, of its width
+  frame: 0.07, // the ink frame, of the body's width (the dial's is as heavy)
+  shadow: 0.075, // the hard drop shadow, of the body's width
+  corner: 0.12, // the body's corner radius, of its width
+  endPad: 0.02, // past the knob at either end, inside the frame, of the width
+  slot: 0.17, // the slot the knob runs in, of the channel's width
   tick: 0.2, // an hour's tick, of the channel's width
   tickLong: 0.36, // 6, 3, 9 and 12
   dot: 0.26, // a last-throw dot's radius, of the lane's width
+  hub: 0.95, // home's hub, of the slot's width
   promptH: 0.3, // the prompt plate's height, of the body's width
   promptMin: 18,
   grabTouch: 46, // px up or down from the knob that a finger grabs it
@@ -64,7 +66,8 @@ export function linearGeometry(rect, side = "right") {
   const promptH = Math.max(tune.promptMin, w * tune.promptH);
   const top = rect.y;
   const bottom = rect.y + rect.height - sh;
-  const cap = kr + fr * 2;
+  // the knob at either end just meets the frame
+  const cap = kr + fr + w * tune.endPad;
   const yF = top + cap;
   const yB = bottom - cap;
   return {
@@ -117,37 +120,70 @@ export function bodyHit(g, px, py) {
 }
 
 // ---------- drawing ----------
+//
+// The same instrument as the clock, laid out straight: a heavy ink frame with
+// a hard shadow, the lane as the clock's ring (targets solid across it, ink
+// edges), the channel as its face, with the hours ticked in from both sides.
+// Down the channel runs the slot the knob slides in; the wooden stem fills it
+// from home to the knob, so the swing reads as a gauge from across the
+// screen. Home is a hub in the groove (the clock's), marked across the body
+// and by an index in the lane, and the prompt is a tab hung off the body there.
+// Each end is a stop: past it the face is shaded and the lane carries a peg.
 
-function body(ctx, g, dx = 0, dy = 0, inset = 0) {
+// Every x the drawing uses, once, from the geometry: the lane may be on
+// either side of the channel, and the tab hangs on the lane's side.
+function columns(g) {
+  const laneFirst = g.side !== "left"; // the lane is on the left, toward the centre
+  const in0 = g.left + g.fr;
+  const in1 = g.right - g.fr;
+  return {
+    in0,
+    in1,
+    div: g.divX,
+    lane: laneFirst ? [in0, g.divX] : [g.divX, in1],
+    chan: laneFirst ? [g.divX, in1] : [in0, g.divX],
+    laneC: laneFirst ? (in0 + g.divX) / 2 : (g.divX + in1) / 2, // inside the frame
+    kc: g.cx,
+    // the side of the channel away from the lane, and the way out of the
+    // body on the lane's side (the tab's)
+    far: laneFirst ? in1 : in0,
+    out: g.tabDir < 0 ? g.left : g.right,
+    dir: g.tabDir,
+  };
+}
+
+function inner(ctx, g) {
   ctx.beginPath();
   ctx.roundRect(
-    g.left + inset + dx,
-    g.top + inset + dy,
-    g.w - 2 * inset,
-    g.bottom - g.top - 2 * inset,
-    Math.max(1, g.w * tune.corner - inset),
+    g.left + g.fr,
+    g.top + g.fr,
+    g.w - 2 * g.fr,
+    g.bottom - g.top - 2 * g.fr,
+    Math.max(1, g.w * tune.corner - g.fr),
   );
 }
 
-// A band from arm a0 to a1 across x..x+w.
-function band(ctx, g, x, w, a0, a1) {
-  const y1 = armY(g, a0);
-  const y0 = armY(g, a1);
+// A band from arm a0 to a1 across the span [x0, x1].
+function band(ctx, g, [x0, x1], a0, a1) {
+  const y0 = armY(g, a0);
+  const y1 = armY(g, a1);
   ctx.beginPath();
-  ctx.rect(x, Math.min(y0, y1), w, Math.abs(y1 - y0));
+  ctx.rect(x0, Math.min(y0, y1), x1 - x0, Math.abs(y1 - y0));
 }
 
-function dots(ctx, g, a0, a1, color, step) {
+function dots(ctx, g, span, a0, a1, color, step) {
   ctx.save();
-  band(ctx, g, g.chanX, g.chanW, a0, a1);
+  band(ctx, g, span, a0, a1);
   ctx.clip();
   ctx.fillStyle = color;
   ctx.beginPath();
+  const y0 = Math.min(armY(g, a0), armY(g, a1));
+  const y1 = Math.max(armY(g, a0), armY(g, a1));
   let row = 0;
-  for (let y = g.top; y < g.bottom; y += step, row++) {
+  for (let y = y0 + step / 2; y < y1 + step; y += step, row++) {
     for (
-      let x = g.chanX + (row % 2 ? step / 2 : 0);
-      x < g.chanX + g.chanW;
+      let x = span[0] + (row % 2 ? step / 2 : 0);
+      x < span[1] + step;
       x += step
     ) {
       ctx.moveTo(x + step * 0.14, y);
@@ -158,83 +194,165 @@ function dots(ctx, g, a0, a1, color, step) {
   ctx.restore();
 }
 
-function hatch(ctx, g, a0, a1, color, step) {
+function hatch(ctx, g, span, a0, a1, color, step, weight) {
   ctx.save();
-  band(ctx, g, g.chanX, g.chanW, a0, a1);
+  band(ctx, g, span, a0, a1);
   ctx.clip();
   ctx.strokeStyle = color;
-  ctx.lineWidth = step * 0.35;
+  ctx.lineWidth = step * weight;
   ctx.beginPath();
-  const h = g.bottom - g.top;
-  for (let d = -h; d < g.chanW + h; d += step) {
-    ctx.moveTo(g.chanX + d, g.top);
-    ctx.lineTo(g.chanX + d + h, g.bottom);
+  const y0 = Math.min(armY(g, a0), armY(g, a1));
+  const y1 = Math.max(armY(g, a0), armY(g, a1));
+  const h = y1 - y0;
+  for (let d = -h; d < span[1] - span[0] + h; d += step) {
+    ctx.moveTo(span[0] + d, y0);
+    ctx.lineTo(span[0] + d + h, y1);
   }
   ctx.stroke();
   ctx.restore();
 }
 
+// An ink line across the whole inside at arm a.
+function across(ctx, g, c, a, lw) {
+  const y = armY(g, a);
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.moveTo(c.in0, y);
+  ctx.lineTo(c.in1, y);
+  ctx.stroke();
+}
+
 // A target: light across the channel, deep across the lane, ink edges.
-function target(ctx, g, a0, a1, fill, deep, lw) {
-  band(ctx, g, g.chanX, g.chanW, a0, a1);
+function target(ctx, g, c, a0, a1, fill, deep, lw) {
+  band(ctx, g, c.chan, a0, a1);
   ctx.fillStyle = fill;
   ctx.fill();
-  band(ctx, g, g.laneLeft, g.laneW, a0, a1);
+  band(ctx, g, c.lane, a0, a1);
   ctx.fillStyle = deep;
   ctx.fill();
   ctx.strokeStyle = INK;
-  ctx.lineWidth = lw;
+  across(ctx, g, c, a0, lw);
+  across(ctx, g, c, a1, lw);
+}
+
+// A dot in the lane: hollow (the last throw) or solid (the live peak).
+function laneDot(ctx, g, c, a, r, lw, solid) {
+  const y = armY(g, Math.max(-tune.range, Math.min(tune.range, a)));
+  ctx.fillStyle = PAPER;
   ctx.beginPath();
-  for (const a of [a0, a1]) {
-    ctx.moveTo(g.left, armY(g, a));
-    ctx.lineTo(g.right, armY(g, a));
+  ctx.arc(c.laneC, y, r + lw, 0, Math.PI * 2);
+  ctx.fill();
+  if (solid) {
+    ctx.fillStyle = HUD.peak;
+    ctx.beginPath();
+    ctx.arc(c.laneC, y, r - lw * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = lw * 1.4;
+    ctx.beginPath();
+    ctx.arc(c.laneC, y, r, 0, Math.PI * 2);
+    ctx.stroke();
   }
+}
+
+// The prompt: a tab hung off the body on the lane's side at home, its inner
+// end tucked under the frame so it is one piece with the body.
+function tab(ctx, g, c, y, h, text, inverted) {
+  ctx.font = `900 ${Math.round(h * 0.74)}px ${FONT.display}`;
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "center";
+  const w = ctx.measureText(text).width + h * 0.8;
+  const x1 = c.out - c.dir * g.fr * 0.5; // the end under the frame
+  const x0 = x1 + c.dir * (w + g.fr * 0.5); // the free end
+  const left = Math.min(x0, x1);
+  const r = h * 0.22;
+  const radii = c.dir < 0 ? [r, 0, 0, r] : [0, r, r, 0];
+  const sh = g.sh * 0.8;
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  ctx.roundRect(left + sh, y - h / 2 + sh, Math.abs(x1 - x0), h, radii);
+  ctx.fill();
+  ctx.fillStyle = inverted ? INK : HUD.prompt;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(1.5, h * 0.1);
+  ctx.beginPath();
+  ctx.roundRect(left, y - h / 2, Math.abs(x1 - x0), h, radii);
+  ctx.fill();
   ctx.stroke();
+  ctx.fillStyle = inverted ? PAPER : HUD.promptInk;
+  ctx.fillText(text, (x0 + x1) / 2 + (c.dir * g.fr) / 4, y + h * 0.05);
 }
 
 export function drawLinear(ctx, rect, st, side = "right") {
   const g = linearGeometry(rect, side);
+  const c = columns(g);
   const R = tune.range;
   const lw = Math.max(1, g.w * 0.024);
   const live = st.phase === "winding" || st.phase === "swinging";
+  const top = g.top + g.fr;
+  const bottom = g.bottom - g.fr;
+  const slotW = Math.max(4, g.chanW * tune.slot);
   ctx.save();
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
 
-  // the body: hard shadow, ink frame, the lane and the channel
+  // the body: hard shadow, ink frame
   ctx.fillStyle = INK;
-  body(ctx, g, g.sh, g.sh);
+  ctx.beginPath();
+  ctx.roundRect(
+    g.left + g.sh,
+    g.top + g.sh,
+    g.w,
+    g.bottom - g.top,
+    g.w * tune.corner,
+  );
   ctx.fill();
-  body(ctx, g);
+  ctx.beginPath();
+  ctx.roundRect(g.left, g.top, g.w, g.bottom - g.top, g.w * tune.corner);
   ctx.fill();
   ctx.save();
-  body(ctx, g, 0, 0, g.fr);
+  inner(ctx, g);
   ctx.clip();
+
+  // the face and the ring
   ctx.fillStyle = st.grabbed ? HUD.knobGrab : HUD.face;
-  ctx.fillRect(g.left, g.top, g.w, g.bottom - g.top);
+  ctx.fillRect(c.chan[0], top, c.chan[1] - c.chan[0], bottom - top);
   ctx.fillStyle = HUD.ring;
-  ctx.fillRect(g.laneLeft, g.top, g.laneW, g.bottom - g.top);
+  ctx.fillRect(c.lane[0], top, c.lane[1] - c.lane[0], bottom - top);
 
   // the zones
   if (st.deadDeg > 0) {
-    band(ctx, g, g.chanX, g.chanW, -st.deadDeg, 0);
+    band(ctx, g, c.chan, -st.deadDeg, 0);
     ctx.fillStyle = HUD.faceShade;
     ctx.fill();
-    dots(ctx, g, -st.deadDeg, 0, HUD.dead, Math.max(3, g.chanW * 0.14));
+    dots(ctx, g, c.chan, -st.deadDeg, 0, HUD.dead, Math.max(3, g.chanW * 0.14));
   }
   if (st.overDeg != null && st.overDeg < R) {
-    hatch(ctx, g, -R - 20, -st.overDeg, HUD.over, Math.max(3, g.chanW * 0.16));
-    band(ctx, g, g.laneLeft, g.laneW, -R - 20, -st.overDeg);
+    hatch(
+      ctx,
+      g,
+      c.chan,
+      -R,
+      -st.overDeg,
+      HUD.over,
+      Math.max(3, g.chanW * 0.16),
+      0.28,
+    );
+    band(ctx, g, c.lane, -R, -st.overDeg);
     ctx.fillStyle = HUD.over;
     ctx.fill();
+    ctx.strokeStyle = INK;
+    across(ctx, g, c, -st.overDeg, lw);
   }
   // the targets: power behind the knob's home, release ahead of it
   if (st.powerHi > st.powerLo)
-    target(ctx, g, -st.powerHi, -st.powerLo, HUD.power, HUD.powerDeep, lw);
+    target(ctx, g, c, -st.powerHi, -st.powerLo, HUD.power, HUD.powerDeep, lw);
   if (st.releaseHi > st.releaseLo)
     target(
       ctx,
       g,
+      c,
       st.releaseLo,
       st.releaseHi,
       HUD.release,
@@ -242,59 +360,84 @@ export function drawLinear(ctx, rect, st, side = "right") {
       lw,
     );
 
-  // the lane's edge and the hours
+  // the ends: past each stop the face is shaded, with a peg in the lane
+  for (const [y0, y1] of [
+    [top, g.yF],
+    [g.yB, bottom],
+  ]) {
+    ctx.fillStyle = HUD.faceShade;
+    ctx.fillRect(c.in0, y0, c.in1 - c.in0, y1 - y0);
+    const py = (y0 + y1) / 2 + (y0 === top ? g.fr * 0.25 : -g.fr * 0.25);
+    const pr = Math.min((c.lane[1] - c.lane[0]) * 0.28, (y1 - y0) * 0.28);
+    // a wooden peg: the knob's end grain, small
+    ctx.fillStyle = HUD.knob;
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    ctx.arc(c.laneC, py, pr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = HUD.hand;
+    ctx.beginPath();
+    ctx.arc(c.laneC, py, Math.max(0.8, pr * 0.3), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = INK;
+  across(ctx, g, c, R, lw * 1.6);
+  across(ctx, g, c, -R, lw * 1.6);
+
+  // the lane's edge and the hours: ticked in from the lane to the slot, the
+  // quarters (3, 9 and the 6 below) right across the face
   ctx.strokeStyle = INK;
   ctx.lineWidth = lw;
   ctx.beginPath();
-  ctx.moveTo(g.divX, g.top);
-  ctx.lineTo(g.divX, g.bottom);
+  ctx.moveTo(c.div, top);
+  ctx.lineTo(c.div, bottom);
   ctx.stroke();
-  // the hours run from the lane's edge into the channel
-  const into = g.side === "left" ? -1 : 1;
-  for (let a = -R; a <= R; a += 30) {
+  const inward = Math.sign(c.kc - c.div);
+  const rail = c.kc - (inward * slotW) / 2; // the slot's near side
+  for (let a = -R + 30; a < R; a += 30) {
     if (a === 0) continue;
     const long = a % 90 === 0;
     const y = armY(g, a);
     ctx.lineWidth = long ? lw * 2 : lw;
     ctx.beginPath();
-    ctx.moveTo(g.divX + lw * into, y);
-    ctx.lineTo(g.divX + g.chanW * (long ? tune.tickLong : tune.tick) * into, y);
+    ctx.moveTo(c.div, y);
+    ctx.lineTo(c.div + (rail - c.div) * (long ? 0.78 : 0.5), y);
     ctx.stroke();
   }
-  // the knob's home: the line a throw is flung through
-  ctx.lineWidth = lw * 2.4;
+
+  // the slot the knob runs in, stop to stop: an ink groove
+  const sw = slotW;
+  ctx.fillStyle = INK;
   ctx.beginPath();
-  ctx.moveTo(g.left, g.y0);
-  ctx.lineTo(g.right, g.y0);
-  ctx.stroke();
+  ctx.roundRect(c.kc - sw / 2, g.yF - sw / 2, sw, g.yB - g.yF + sw, sw / 2);
+  ctx.fill();
+
+  // home: the line a throw is flung through and the six's index in the lane
+  ctx.strokeStyle = INK;
+  across(ctx, g, c, 0, lw * 2.4);
+  const ix = (c.lane[1] - c.lane[0]) * 0.42;
+  const iTip = c.div;
+  const iBase = c.div - inward * ix;
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  ctx.moveTo(iTip, g.y0);
+  ctx.lineTo(iBase, g.y0 - ix * 0.85);
+  ctx.lineTo(iBase, g.y0 + ix * 0.85);
+  ctx.closePath();
+  ctx.fill();
+  // the hub: the groove widens round home, where the stem starts
+  ctx.beginPath();
+  ctx.arc(c.kc, g.y0, slotW * tune.hub, 0, Math.PI * 2);
+  ctx.fill();
 
   // the last throw's dots and the live peak, in the lane
   const dr = g.laneW * tune.dot;
-  for (const a of [st.lastBack != null ? -st.lastBack : null, st.lastStop]) {
-    if (a == null) continue;
-    const y = armY(g, Math.max(-R, Math.min(R, a)));
-    ctx.fillStyle = PAPER;
-    ctx.beginPath();
-    ctx.arc(g.laneX, y, dr + lw, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = lw * 1.4;
-    ctx.beginPath();
-    ctx.arc(g.laneX, y, dr, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  if (live && st.back > 0) {
-    const y = armY(g, -Math.min(R, st.back));
-    ctx.fillStyle = PAPER;
-    ctx.beginPath();
-    ctx.arc(g.laneX, y, dr + lw, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = HUD.peak;
-    ctx.beginPath();
-    ctx.arc(g.laneX, y, dr - lw * 0.5, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore(); // the body's clip
+  if (st.lastBack != null) laneDot(ctx, g, c, -st.lastBack, dr, lw, false);
+  if (st.lastStop != null) laneDot(ctx, g, c, st.lastStop, dr, lw, false);
+  if (live && st.back > 0)
+    laneDot(ctx, g, c, -Math.min(R, st.back), dr, lw, true);
 
   // the arm and its knob: the thing you grab. At rest the knob is home;
   // held, it is where the pointer has it, the dead zone included.
@@ -306,73 +449,57 @@ export function drawLinear(ctx, rect, st, side = "right") {
     // the glow stays in the channel: the lane beside it is for reading
     ctx.save();
     ctx.beginPath();
-    const c0 = Math.max(g.chanX, g.left + g.fr);
-    const c1 = Math.min(g.chanX + g.chanW, g.right - g.fr);
-    ctx.rect(c0, g.top + g.fr, c1 - c0, g.bottom - g.top - 2 * g.fr);
+    ctx.rect(c.chan[0], top, c.chan[1] - c.chan[0], bottom - top);
     ctx.clip();
     ctx.fillStyle = HUD.glow;
     ctx.beginPath();
-    ctx.arc(g.cx, ky, kr * 1.5, 0, Math.PI * 2);
+    ctx.arc(c.kc, ky, kr * 1.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
+  // the stem: wood in the slot from home to the knob
   if (Math.abs(ky - g.y0) > 1) {
-    const armW = live || st.grabbed ? g.chanW * 0.13 : g.chanW * 0.09;
-    ctx.strokeStyle = PAPER;
-    ctx.lineWidth = armW + lw * 2.4;
+    const stW = sw - lw * 1.3;
+    ctx.fillStyle = HUD.hand;
     ctx.beginPath();
-    ctx.moveTo(g.cx, g.y0);
-    ctx.lineTo(g.cx, ky);
-    ctx.stroke();
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = armW + lw * 1.2;
-    ctx.stroke();
-    ctx.strokeStyle = HUD.hand;
-    ctx.lineWidth = armW - lw * 0.4;
-    ctx.stroke();
+    ctx.roundRect(
+      c.kc - stW / 2,
+      Math.min(ky, g.y0) - stW / 2,
+      stW,
+      Math.abs(ky - g.y0) + stW,
+      stW / 2,
+    );
+    ctx.fill();
   }
-  // home's pin
+  ctx.restore(); // the body's clip
+
+  // the knob: a little baton end, wood with an ink rim and end-grain rings
   ctx.fillStyle = INK;
   ctx.beginPath();
-  ctx.arc(g.cx, g.y0, g.chanW * 0.08, 0, Math.PI * 2);
-  ctx.fill();
-  // the knob: a little baton end, wood with an ink rim and end-grain rings
-  ctx.beginPath();
-  ctx.arc(g.cx + kr * 0.14, ky + kr * 0.14, kr, 0, Math.PI * 2);
+  ctx.arc(c.kc + kr * 0.18, ky + kr * 0.18, kr, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = st.grabbed ? HUD.knobGrab : HUD.knob;
   ctx.strokeStyle = INK;
-  ctx.lineWidth = lw * 1.6;
+  ctx.lineWidth = lw * 1.8;
   ctx.beginPath();
-  ctx.arc(g.cx, ky, kr, 0, Math.PI * 2);
+  ctx.arc(c.kc, ky, kr, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
   ctx.strokeStyle = HUD.hand;
   ctx.lineWidth = lw * 0.8;
   ctx.beginPath();
-  ctx.arc(g.cx, ky, kr * 0.55, 0, Math.PI * 2);
+  ctx.arc(c.kc, ky, kr * 0.62, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(c.kc, ky, kr * 0.36, 0, Math.PI * 2);
   ctx.stroke();
   ctx.fillStyle = HUD.hand;
   ctx.beginPath();
-  ctx.arc(g.cx, ky, kr * 0.16, 0, Math.PI * 2);
+  ctx.arc(c.kc, ky, kr * 0.14, 0, Math.PI * 2);
   ctx.fill();
 
-  // the prompt: a tab on the meter's inner side (toward the screen's
-  // centre) at the knob's home, where the eye is and a thumb on the knob is
-  // not (it takes none of the track's length)
-  if (st.prompt) {
-    const inner = g.tabDir < 0 ? g.left : g.right;
-    plate(
-      ctx,
-      inner,
-      g.y0,
-      g.promptH,
-      st.prompt,
-      st.prompt.endsWith("!"),
-      g.tabDir < 0 ? g.left - g.fr * 2 : null,
-      g.tabDir > 0 ? g.right + g.sh + g.fr * 2 : null,
-    );
-  }
+  if (st.prompt)
+    tab(ctx, g, c, g.y0, g.promptH, st.prompt, st.prompt.endsWith("!"));
   ctx.restore();
   return g;
 }
