@@ -171,6 +171,88 @@ browserTest(
   },
 );
 
+// A finger aims as on the iPhone (a tester, 2026-11-19: aiming is "very
+// touchy and hard to place"): a drag from the circle, or from anywhere on
+// the pitch, moves it half the finger's travel and never jumps it under the
+// finger; a tap still places it. The aim camera follows the circle, so this
+// is measured on the ground, under the camera of the press.
+async function touchDrag(page, from, dx, dy, steps = 8) {
+  // the ground under the press's camera: the circle, the finger's full and
+  // half travel
+  const want = await page.evaluate(
+    ([x0, y0, dx, dy]) => {
+      const g = window.__kubb.game;
+      const cam = g.out.camera;
+      const m = g.out.aim.marker;
+      const at = g.screenOf(m);
+      return {
+        m: { x: m.x, y: m.y },
+        full: g.ground(at.x + dx, at.y + dy, cam),
+        half: g.ground(at.x + dx / 2, at.y + dy / 2, cam),
+        finger: g.ground(x0 + dx, y0 + dy, cam),
+      };
+    },
+    [...from, dx, dy],
+  );
+  const cdp = await page.context().newCDPSession(page);
+  const tp = (x, y) => [{ x, y, id: 1, radiusX: 8, radiusY: 8, force: 1 }];
+  const send = (type, pts) =>
+    cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts });
+  await send("touchStart", tp(...from));
+  for (let i = 1; i <= steps; i++) {
+    await send(
+      "touchMove",
+      tp(from[0] + (dx * i) / steps, from[1] + (dy * i) / steps),
+    );
+    await nextFrame(page);
+  }
+  await send("touchEnd", []);
+  await cdp.detach();
+  await nextFrame(page);
+  const got = (await state(page)).marker;
+  return { ...want, got: { x: got.x, y: got.y } };
+}
+
+browserTest(
+  "a finger moves the circle at half its travel, from the circle or anywhere on the pitch",
+  async () => {
+    const page = await open(env, "/practice/?nohowto=1", "portrait");
+    try {
+      await waitPhase(page, "aim", 10000);
+      await watchThrows(page);
+      const near = (a, b, eps) => Math.hypot(a.x - b.x, a.y - b.y) <= eps;
+      // from the circle: 80 px right puts it where 40 px is
+      const at = await page.evaluate(() => {
+        const g = window.__kubb.game;
+        return g.screenOf(g.out.aim.marker);
+      });
+      let r = await touchDrag(page, [at.x, at.y], 80, 0);
+      const half = Math.abs(r.half.x - r.m.x);
+      assert.ok(half > 0.05, "the drag is long enough to measure");
+      assert.ok(near(r.got, r.half, half * 0.2), JSON.stringify(r));
+      assert.ok(!near(r.got, r.full, half * 0.5), "not under the finger");
+      for (let i = 0; i < 20; i++) await nextFrame(page);
+      // from the far half of the pitch, away from the circle: 40 px right
+      // (not back onto the kubb, where letting go snaps to it)
+      const at2 = await page.evaluate(() => {
+        const g = window.__kubb.game;
+        return g.screenOf(g.out.aim.marker);
+      });
+      const from = [390 * 0.25, 844 * 0.42];
+      assert.ok(Math.hypot(from[0] - at2.x, from[1] - at2.y) > 80, "away");
+      r = await touchDrag(page, from, 40, 0);
+      const h2 = Math.abs(r.half.x - r.m.x);
+      assert.ok(near(r.got, r.half, h2 * 0.2), JSON.stringify(r));
+      assert.ok(!near(r.got, r.finger, 0.3), "never jumps under the finger");
+      assert.equal((await state(page)).phase, "aim");
+      assert.deepEqual(await page.evaluate(() => window.__throws), []);
+      assert.deepEqual(page.errors, []);
+    } finally {
+      await page.context().close();
+    }
+  },
+);
+
 browserTest(
   "a solo match plays your throw, the computer's WATCH and a hand-off",
   async () => {
