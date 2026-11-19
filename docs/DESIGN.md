@@ -183,9 +183,12 @@ straight. On the web the **dial is the control**:
   get web values, fitted by play; the throw levels (Beginner, Club, Pro) stay the
   Playdate's and set how wide the targets are.
 - **Aiming is direct**: drag the target circle on the pitch (or arrow keys); drag the
-  thrower along the line (or A/D and W/S); the plan (arc, tilt or spin) is buttons beside
-  the dial and keys, and a PLAN VIEW button holds the camera out over the shoulder as B
-  does on the Playdate. Point and throw still works: touch nothing but the dial and the
+  thrower along the line (or A/D and W/S); the plan is two sliders beside
+  the dial, ARC (continuous) and TILT or SPIN (the engine's steps), and keys; a SIDE VIEW
+  toggle takes the camera out over the shoulder as B does on the Playdate, and a drag of
+  either slider shows it while it lasts (Jamie, 2026-11-19: "I'd like to make arc and tilt
+  less buttons and more a slider with continuous movement. "Plan View" is also a super
+  weird label."; docs/CLIENT.md "The plan's sliders"). Point and throw still works: touch nothing but the dial and the
   defaults are a sensible throw.
 
 On touchscreens the optional `?throw=swipe` prototype uses a pendulum in the

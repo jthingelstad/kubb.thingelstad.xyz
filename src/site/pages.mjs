@@ -153,8 +153,8 @@ function rules({ tinylytics, config = {} }) {
     <tbody>
       <tr><th scope="row">Drag the circle on the pitch, or the arrow keys</th><td>Aim: the circle is where the throw should land</td></tr>
       <tr><th scope="row">WALK, then drag on the pitch; or A and D, W and S</th><td>Walk along the line, or back from it</td></tr>
-      <tr><th scope="row">The buttons beside the dial, or R and F, Q and E</th><td>Plan the throw: a higher or lower arc, a baton’s tilt or a kubb’s spin</td></tr>
-      <tr><th scope="row">Plan view: hold it (or Shift or B), or tap it on a phone</th><td>Take the camera out over your shoulder to see the arc</td></tr>
+      <tr><th scope="row">Slide ARC and TILT beside the dial, or R and F, Q and E</th><td>Plan the throw: a higher or lower arc, a baton’s tilt or a kubb’s spin</td></tr>
+      <tr><th scope="row">Side view: tap it, or hold Shift; sliding ARC or TILT shows it too</th><td>Take the camera out over your shoulder to see the arc</td></tr>
     </tbody>
   </table>
   <p>Touch nothing but the dial and the throw is a sensible one at the nearest kubb. Wind into the power mark, let go at the release mark, and see what falls.</p>
