@@ -184,34 +184,45 @@ export class Hud {
     this.show(this.skip, !!st.playing);
   }
 
-  // The plan buttons beside the dial: to its left on a wide screen, split
-  // either side of it on a tall one. Beside the linear meter (at the right
-  // edge) a tall screen's are split across what is left of the bottom, the
-  // throwing line between them.
+  // The plan buttons beside the meter, on its inner side: in one block to
+  // its left (L.side "left") or right ("right") on a wide screen, split
+  // either side of the throwing line ("both") on a tall one. Beside the
+  // linear meter (at the right or left edge) a tall screen's are split
+  // across what is left of the bottom; round a touchscreen's clock with its
+  // finger track (L.plansFoot) they stand above the track.
   place(L) {
     if (!L) return;
-    const key = `${L.W}x${L.H}:${L.side}:${L.meter}`;
+    const key = `${L.W}x${L.H}:${L.side}:${L.meter}:${L.meterSide}:${L.plansFoot}`;
     if (this.cache.get("place") === key) return;
     this.cache.set("place", key);
     const d = L.dial;
     const s = this.plans.style;
     this.plans.classList.toggle("split", L.side === "both");
+    s.width = "";
     if (L.side === "both" && L.meter === "linear") {
-      s.left = `${L.safe.left + 8}px`;
-      s.right = `${L.W - d.x + 6}px`;
-      s.width = "";
+      const left = L.meterSide === "left";
+      s.left = left ? `${d.x + d.width + 6}px` : `${L.safe.left + 8}px`;
+      s.right = left ? `${L.safe.right + 8}px` : `${L.W - d.x + 6}px`;
       s.top = "";
       s.bottom = `${L.H - (d.y + d.height) + 10}px`;
+    } else if (L.side === "both" && L.plansFoot != null) {
+      s.left = `${L.safe.left + 8}px`;
+      s.right = `${L.safe.right + 8}px`;
+      s.top = "";
+      s.bottom = `${L.H - L.plansFoot}px`;
     } else if (L.side === "both") {
       s.left = `${L.safe.left + 8}px`;
       s.right = `${L.safe.right + 8}px`;
-      s.width = "";
       s.top = `${L.plansY + d.height * 0.18}px`;
       s.bottom = "";
+    } else if (L.side === "right") {
+      s.left = `${d.x + d.width + 6}px`;
+      s.right = "";
+      s.top = "";
+      s.bottom = `${L.H - (L.plansY + d.height) + 10}px`;
     } else {
       s.left = "";
       s.right = `${L.W - d.x + 6}px`;
-      s.width = "";
       s.top = "";
       s.bottom = `${L.H - (L.plansY + d.height) + 10}px`;
     }
