@@ -73,6 +73,7 @@ import {
 } from "./raise-touch.js";
 import { Hud } from "./hud.js";
 import { releaseAt, sideStepAt, sideStepOf } from "./plan-sliders.js";
+import { standSpan, groundAt } from "./stand-pad.js";
 import { prefs } from "./prefs.js";
 import { NudgeTrigger, timeline, swingOf, captionFor } from "./nudge.js";
 import { coachFor, slowVerdict } from "./coach.js";
@@ -114,8 +115,7 @@ export const tune = {
   remoteAimFresh: 1.5, // s a remote aim stays shown without news
   flagFor: 6, // s a result flag stays up into the next aim
   keyMove: 1, // the move and walk axes from keys
-  walkStick: 60, // px a WALK drag goes for full walking pace
-  walkDead: 8, // px a WALK drag goes before the thrower moves
+  standPeek: 1, // s STAND's caption stays up after it is let go
   holdFeed: 1 / 30 - 0.002, // s: a held pointer's arm is fed again after this
   hiddenEvery: 1, // s between steps of an unattended game in a hidden tab
   hiddenCatchUp: 90, // s of missed time one such step makes up, at most
@@ -169,7 +169,10 @@ export class Game {
     this.slide = null; // a plan slider held: { what, f, dirty }
     this.slidePeekUntil = 0;
     this.slideLast = null; // the last slider held: its caption shows through the peek
-    this.walkOn = false; // WALK: a drag on the pitch walks the thrower
+    // STAND held (src/game/stand-pad.js): { span, fx, fy, dirty }; its
+    // caption stays up `tune.standPeek` after it is let go
+    this.standDrag = null;
+    this.standPeekUntil = 0;
     this.swipeEnabled = swipeEnabled;
     this.swipeLayout =
       swipeEnabled &&
@@ -251,9 +254,10 @@ export class Game {
       slide: (what, f, phase) => this.planSlide(what, f, phase),
       step: (what, s) => this.planStep(what, s),
       skip: () => this.skip(),
+      stand: (fx, fy, phase) => this.standAt(fx, fy, phase),
+      standKey: (dx, dy) => this.standStep(dx, dy),
     });
     this.bindPlanView(this.hud.sideView);
-    this.bindWalk(this.hud.walk);
     this.bindInput();
     this.resize();
   }
@@ -633,13 +637,12 @@ export class Game {
       if (this.touchSamples.length) input.touch = this.touchSamples.splice(0);
       if (this.ptr?.kind === "dial") input.arm = this.dialArm;
       this.applySlide();
+      this.applyStand();
       input.plan = this.planWanted();
       const m = this.keyAxes("ArrowLeft", "ArrowRight", "ArrowDown", "ArrowUp");
       const w = this.keyAxes("KeyA", "KeyD", "KeyS", "KeyW");
       if (m.dx || m.dy) input.move = m;
       if (w.dx || w.dy) input.walk = w;
-      const s = this.ptr?.kind === "walk" ? this.walkAxes(this.ptr) : null;
-      if (s) input.walk = s;
     }
     // While the dial is held, the engine is fed once per pointer sample
     // (with the time since the last), not once per display frame: a pointer
@@ -700,17 +703,54 @@ export class Game {
     this.drawAim(aim, camera, dial, may, dt);
   }
 
-  // A WALK drag as a stick: right walks right, up comes forward, down
-  // steps back, at full pace `walkStick` px from where the press began.
-  walkAxes(p) {
-    const ax = (d) => {
-      if (Math.abs(d) <= tune.walkDead) return 0;
-      const v = (Math.abs(d) - tune.walkDead) / tune.walkStick;
-      return Math.sign(d) * Math.min(1, v);
-    };
-    const dx = ax(p.x - p.x0);
-    const dy = ax(p.y0 - p.y);
-    return dx || dy ? { dx, dy } : null;
+  // STAND (src/game/stand-pad.js): pressed, dragged, let go at (fx, fy) on
+  // its picture of the line, or cancelled. The place is kept and aimFrame
+  // sends it once a frame (applyStand) as the engine's setStance, the same
+  // call a drag of the thrower on the pitch makes. The ground the picture
+  // shows is fixed at the press, so it never shifts under the finger.
+  // Returns false when the press is not taken.
+  standAt(fx, fy, phase) {
+    if (phase === "down") {
+      if (this.phase !== "aim" || !this.mayAct() || this.modal) return false;
+      this.sound?.unlock();
+      this.nudge.input();
+      this.standDrag = { span: standSpan(this.out?.aim), fx, fy, dirty: true };
+      return true;
+    }
+    const d = this.standDrag;
+    if (!d) return false;
+    if (phase === "cancel") {
+      this.standDrag = null;
+      return true;
+    }
+    d.fx = fx;
+    d.fy = fy;
+    d.dirty = true;
+    if (phase === "up") {
+      this.applyStand();
+      this.standDrag = null;
+      this.standPeekUntil = performance.now() + tune.standPeek * 1000;
+    }
+    return true;
+  }
+
+  applyStand() {
+    const d = this.standDrag;
+    if (!d || !d.dirty) return;
+    d.dirty = false;
+    if (this.phase !== "aim" || !this.mayAct()) return;
+    const g = groundAt(d.span, d.fx, d.fy);
+    this.aimResult(this.engine.setStance(g.x, g.y));
+  }
+
+  // STAND's arrow keys: a step along the line (dx) or up and back (dy), m.
+  standStep(dx, dy) {
+    if (this.phase !== "aim" || !this.mayAct() || this.modal) return;
+    this.nudge.input();
+    const t = this.out?.aim?.thrower;
+    if (!t) return;
+    this.aimResult(this.engine.setStance(t.x + dx, t.y + dy));
+    this.standPeekUntil = performance.now() + tune.standPeek * 1000;
   }
 
   keyAxes(left, right, down, up) {
@@ -819,7 +859,7 @@ export class Game {
     this.phase = "play";
     this.planOff();
     this.slide = null;
-    this.walkOn = false;
+    this.standDrag = null;
     this.dialArm = null;
     this.dialNext = null;
     if (["dial", "swipe"].includes(this.ptr?.kind)) this.ptr = null;
@@ -1324,7 +1364,6 @@ export class Game {
       aiming: !this.modal && !this.cards?.open,
       mayAct: may && !watching,
       plan: this.planHeld || this.planToggle,
-      walk: this.walkOn,
       practice: this.mode === "practice",
       watching,
       flag: res && res.flag,
@@ -1341,7 +1380,9 @@ export class Game {
   // Which slider's caption shows: the one held, or the last one through the
   // side view's peek after it is let go (hud.js showCaption).
   captionWanted(now = performance.now()) {
+    if (this.standDrag) return "stand";
     if (this.slide) return this.slide.what;
+    if (now < this.standPeekUntil) return "stand";
     return now < this.slidePeekUntil ? this.slideLast : null;
   }
 
@@ -1626,7 +1667,6 @@ export class Game {
           : hitTest(g, x, y);
       if (onDial) kind = swipe ? "swipe" : "dial";
       else if (linear && bodyHit(g, x, y)) kind = "none";
-      else if (this.walkOn) kind = "walk";
       else if (
         this.near(aim.marker, x, y, touch ? tune.grabTouch : tune.grabMouse)
       )
@@ -1649,7 +1689,6 @@ export class Game {
       if (kind === "swipe") {
         this.sampleTouch(e, "down");
         this.planOff();
-        this.walkOn = false;
       }
       // the nudge stops on any press on the meter, the finger track or the
       // throw zone
@@ -1663,7 +1702,6 @@ export class Game {
         this.dialFresh = true;
         this.dialAcc = 0;
         this.planOff();
-        this.walkOn = false;
       }
     } else if (this.phase === "raise" || this.phase === "punish") {
       kind = this.phase;
@@ -1778,7 +1816,6 @@ export class Game {
       this.dialFresh = true;
       this.dialAcc = 0;
       this.planOff();
-      this.walkOn = false;
     } else if (p.kind === "track" && p.moved) {
       // a drag beside the ring after all: the engine is fed the press where
       // it landed, then where the finger is, as a press on the ring is
@@ -1790,7 +1827,6 @@ export class Game {
       this.dialFresh = true;
       this.dialAcc = 0;
       this.planOff();
-      this.walkOn = false;
     } else if (p.kind === "dial") {
       const arm =
         this.L.meter === "linear"
@@ -1934,16 +1970,6 @@ export class Game {
     } else if (code === "Space" && this.phase === "play") this.skip();
     else return;
     e.preventDefault();
-  }
-
-  // WALK: a toggle for every pointer (a mouse needs its button for the drag).
-  bindWalk(btn) {
-    btn.addEventListener("pointerdown", (e) => {
-      this.sound?.unlock();
-      e.preventDefault();
-      this.nudge.input();
-      this.walkOn = !this.walkOn;
-    });
   }
 
   // SIDE VIEW: a toggle for every pointer (Jamie, 2026-11-19: "Plan View"

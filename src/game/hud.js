@@ -2,10 +2,11 @@
 // buttons): the rail (who throws, what, the counts), the result flag and
 // verdicts after a throw, the rest distance, SLOW MOTION and WATCH, the
 // advantage line's text, and the plan beside the dial (the ARC and TILT
-// sliders, SIDE VIEW and WALK). The game calls update() once a frame; only
+// sliders, SIDE VIEW and STAND). The game calls update() once a frame; only
 // changed text touches the DOM.
 import { h, button } from "../ui/dom.js";
 import { PlanSlider, captionOf, leanOf } from "./plan-sliders.js";
+import { StandPad, standCaption } from "./stand-pad.js";
 import { linearGeometry } from "../render/linear.js";
 import { dialGeometry, tune as dialTune } from "../render/dial.js";
 
@@ -71,19 +72,16 @@ export class Hud {
       "aria-pressed": "false",
       "data-test": "side-view",
     });
-    // WALK is the Playdate's held A: while it is on, a drag on the pitch
-    // walks the thrower (left and right along the line, down to step back)
-    this.walk = button("WALK", null, "plan walk", {
-      "aria-label": "Walk the thrower",
-      "data-test": "walk",
-    });
+    // STAND: where the thrower stands, dragged on a picture of the line
+    // (src/game/stand-pad.js; it replaced WALK, the Playdate's held A)
+    this.stand = new StandPad({ onStand: a.stand, onKey: a.standKey });
     this.plans = h(
       "div.plans",
       { "data-test": "plans" },
       this.arc.el,
       this.side.el,
       this.sideView,
-      this.walk,
+      this.stand.el,
     );
     // what the held slider does (plan-sliders.js CAPTIONS), above the plan
     // where the finger on a slider is not, with a baton that leans by the
@@ -206,15 +204,21 @@ export class Hud {
         this.sideView.classList.toggle("on", on);
         this.sideView.setAttribute("aria-pressed", String(on));
       }
-      this.walk.classList.toggle("on", !!st.walk);
+      this.stand.update(aim);
       this.place(st.layout);
-      const cap = st.caption ? captionOf(st.caption, kubb) : null;
+      const cap =
+        st.caption === "stand"
+          ? standCaption(aim.thrower, aim)
+          : st.caption
+            ? captionOf(st.caption, kubb)
+            : null;
       this.showCaption(cap, p);
       // one voice at a time: a held slider's caption wins
       this.showCoach(cap ? null : st.coach || null);
     } else {
       this.arc.cancel();
       this.side.cancel();
+      this.stand.cancel();
       this.showCaption(null);
       this.showCoach(null);
     }
@@ -237,6 +241,8 @@ export class Hud {
       this.cache.delete("capPlace");
     }
     if (!cap) return;
+    if (this.capText.textContent !== cap.text)
+      this.capText.textContent = cap.text;
     if (key === "tilt") {
       const lean = leanOf(plan);
       if (this.cache.get("capLean") !== lean) {
@@ -339,10 +345,10 @@ export class Hud {
 
   // The plan beside the meter, on its inner side: in one block to its left
   // (L.side "left") or right ("right") on a wide screen, ARC's tall plate
-  // next to the meter and TILT, SIDE VIEW and WALK stacked beside it
+  // next to the meter and TILT, SIDE VIEW and STAND stacked beside it
   // ("mirror" when the block is right of the meter); split either side of
   // the throwing line ("both") on a tall one, ARC over SIDE VIEW on the
-  // left and TILT over WALK on the right. Beside the linear meter (at the
+  // left and TILT over STAND on the right. Beside the linear meter (at the
   // right or left edge) a tall screen's are split across what is left of
   // the bottom; round a touchscreen's clock with its finger track
   // (L.plansFoot) they stand above the track.
