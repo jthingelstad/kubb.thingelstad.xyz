@@ -298,7 +298,7 @@ nothing to aim at) strokes the knob as a grab of it does, and a tap there still 
 touch a press outside the clock's ring, out to 2.1 radii, turns the arm as the ring does
 (where a tap there could aim, only a drag does, and a tap still aims),
 and on a touchscreen held upright the clock is 13% smaller and raised so a finger can go
-all the way round outside its rim. A press on the ring is exactly as before. MENU, Side
+all the way round outside its rim. A press on the ring is exactly as before. MENU, Meter side
 (Jamie, 2026-11-19: "Left and right handed folks may want it on one side or the other";
 `meterSide` pref, right by default) puts the linear meter at either edge, mirrored, and a
 wide screen's clock lower left or right; a tall screen's clock stays centred. All of it
@@ -344,6 +344,29 @@ short of that nothing is sent. An end the rules refuse is never chosen: the allo
 lights for a second instead. END 1 and END 2 stay on the panel for the keyboard and screen
 readers only (hidden until focused), and the canvas names the ends. The engine gets the
 same `raise` action either way: `src/game/raise-touch.js`, docs/CLIENT.md "Match flow".
+
+## Controls are the web's own
+
+Jamie, 2026-11-19: "Can you audit the control surface from a broader level that would
+catch these type of odd engagements. It is all a hangover from us starting on play
+date". Each control is designed for the finger or the mouse first: a value has one
+control that shows it, what a control does is shown on it while it is used (never on a
+separate how-to page), no mode switch exists because the Playdate had a held button, and
+labels are plain words.
+
+- **STAND** replaced WALK (the Playdate's held A, which made the next drag on the pitch a
+  joystick). The thrower's spot is below the screen in the thrower's view, so there is
+  nothing on the pitch to drag: STAND is a plate in the plan, the line from above with
+  the allowed ground and a ring where the thrower stands. Press and drag puts the thrower
+  under the finger; the engine's `setStance` clamps it. A/D/W/S and STAND's arrow keys
+  still walk. `src/game/stand-pad.js`, docs/CLIENT.md "Standing".
+- Practice's tray is BATONS | KUBBS, the one in use pressed (it was one button naming the
+  other mode). The rail counts in words ("5 BASE KUBBS", "TARGET 2.3 M"), not the
+  engine's Playdate "BASE 5" (`railCount` in `src/game/hud.js`).
+- MENU's rows say what they set and show their value: Your level, Meter, Meter side,
+  Raising, View, Surface, Sound (On/Off, once a SOUND: ON button).
+- The home and rules pages describe the web's controls in their own words, with one line
+  that it is the same game as on Playdate and iPhone.
 
 ## Pitch lines
 
