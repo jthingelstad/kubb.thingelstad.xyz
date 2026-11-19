@@ -62,6 +62,15 @@ import {
   wideBox,
 } from "./layout.js";
 import { settleItems, raiseCamera, punishCamera, poseItem } from "./scenes.js";
+import {
+  raiseGeometry,
+  onKubb,
+  nearerEnd,
+  dragOf,
+  allowedEnd,
+  tiltItem,
+  tune as raiseTune,
+} from "./raise-touch.js";
 import { Hud } from "./hud.js";
 import { releaseAt, sideStepAt, sideStepOf } from "./plan-sliders.js";
 import { prefs } from "./prefs.js";
@@ -204,6 +213,10 @@ export class Game {
         ? matchMedia("(prefers-reduced-motion: reduce)")
         : null;
     this.raiseSel = null;
+    // the raise screen's touch (src/game/raise-touch.js): `raiseDrag` the kubb being
+    // tipped up, { i, t }; `raiseHint` the allowed end lit after a tap on a refused one
+    this.raiseDrag = null;
+    this.raiseHint = null;
     this.autoRaise = newAutoRaise(); // src/game/auto-raise.js
     this.punishAt = null;
     this.running = false;
@@ -457,8 +470,16 @@ export class Game {
     } else if (n.kind === "raise") {
       this.phase = "raise";
       this.raiseSel = null;
+      this.raiseDrag = null;
+      this.raiseHint = null;
       if (this.mode === "match" && !this.mayAct()) this.phase = "wait";
-    } else if (n.kind === "punish") {
+    }
+    // the raise screen labels the canvas with its ends (describeRaise)
+    if (n.kind !== "raise" && this.canvas?.dataset.raiseLabel) {
+      delete this.canvas.dataset.raiseLabel;
+      this.canvas.setAttribute("aria-label", "The pitch");
+    }
+    if (n.kind === "punish") {
       this.phase = "punish";
       this.punishAt = { ...n.cursor };
       this.punishCheck = this.engine.checkPunish(n.cursor.x, n.cursor.y);
@@ -883,6 +904,62 @@ export class Game {
       }
     });
     return best;
+  }
+
+  // The lying kubb as drawn on the raise screen (CSS px), or null.
+  raiseShape() {
+    const n = this.need;
+    if (!n || n.kind !== "raise") return null;
+    return raiseGeometry(this.view, raiseCamera(n), n);
+  }
+
+  // Which end a tap at (x, y) means: an end's numbered label, anywhere on the
+  // drawn kubb (the end nearer the tap), or near an end's footprint on the
+  // ground. null for a tap on none of them.
+  raisePick(x, y) {
+    let i = null;
+    this.endPoints().forEach((q, j) => {
+      if (q && Math.hypot(q.lx - x, q.ly - y) < raiseTune.labelR) i = j;
+    });
+    if (i != null) return i;
+    const g = this.raiseShape();
+    if (onKubb(g, x, y)) return nearerEnd(g, x, y);
+    const p = this.ground(x, y, raiseCamera(this.need));
+    return p ? this.raiseAt(p.x, p.y) : null;
+  }
+
+  // A tap or a drag let go on end i: stand it there, or, when the rules
+  // refuse that end, light the one they allow for a moment and send nothing.
+  raiseTap(i) {
+    const pick = allowedEnd(this.need, i);
+    if (pick.ok) return this.raise(pick.i);
+    if (pick.i != null)
+      this.raiseHint = {
+        i: pick.i,
+        until: performance.now() + raiseTune.hintMs,
+      };
+    return null;
+  }
+
+  // A drag that started on the kubb: tip it up toward the end the finger
+  // moves to (never toward a refused end: that lights the allowed one).
+  raiseDragTo(p) {
+    const g = p.raiseShape;
+    const d = dragOf(g, p.x0, p.y0, p.x, p.y);
+    if (this.need.ends[d.i]?.ok === false) {
+      this.raiseDrag = null;
+      this.raiseSel = null;
+      const pick = allowedEnd(this.need, d.i);
+      if (pick.i != null)
+        this.raiseHint = {
+          i: pick.i,
+          until: performance.now() + raiseTune.hintMs,
+        };
+      return;
+    }
+    this.raiseDrag = d;
+    // past half way the footprint it will stand on is lit
+    this.raiseSel = d.t >= raiseTune.stand ? d.i : null;
   }
 
   // Stand the kubb on end i (an index into need.ends), or the engine's own
@@ -1353,13 +1430,18 @@ export class Game {
     else this.pan(200, 0, true);
     this.begin();
     if (n.kind === "raise") {
-      const sel = this.raiseSel;
-      const end = sel != null ? n.ends[sel] : null;
-      const pose = end ? { ...end.pose, standing: true } : n.pose;
+      if (this.raiseHint && performance.now() > this.raiseHint.until)
+        this.raiseHint = null;
+      const hint = this.raiseHint?.i ?? null;
+      const sel = this.raiseSel ?? hint;
+      const drag = this.raiseDrag;
+      // the kubb: tipped part way up while it is dragged, else lying
+      const items = settleItems(n, drag ? null : n.pose);
+      if (drag) items.push(tiltItem(n, drag.i, drag.t));
       drawWorld(this.ctx, this.view, raiseCamera(n), {
         surface: v.surface,
         set: v.set,
-        items: settleItems(n, pose),
+        items,
         footprints: (n.ends || []).map((e, i) => ({
           x: e.pose.x,
           y: e.pose.y,
@@ -1369,7 +1451,8 @@ export class Game {
         })),
       });
       this.css();
-      this.drawEndLabels(n);
+      this.drawEndLabels(n, sel);
+      if (this.phase === "raise") this.describeRaise(n);
     } else if (n.kind === "punish") {
       const at = this.punishAt || n.cursor;
       const ok = !this.punishCheck || this.punishCheck.ok !== false;
@@ -1410,34 +1493,21 @@ export class Game {
     });
   }
 
-  // The ends' letters beside their footprints on the raise screen.
-  drawEndLabels(n) {
+  // The ends' numbers beside their footprints on the raise screen; `lit`
+  // the end drawn chosen (a drag past half way, or the allowed end's hint).
+  drawEndLabels(n, lit = this.raiseSel) {
     const ctx = this.ctx;
-    const cam = raiseCamera(n);
-    (n.ends || []).forEach((e, i) => {
-      // a little beyond the footprint, along the kubb from its middle
-      const dx = e.pose.x - n.pose.x,
-        dy = e.pose.y - n.pose.y;
-      const l = Math.hypot(dx, dy) || 1;
-      const pt = projectView(
-        this.view,
-        cam,
-        e.pose.x + (dx / l) * 0.07,
-        e.pose.y + (dy / l) * 0.07,
-        0,
-      );
-      if (!pt) return;
+    this.endPoints().forEach((q, i) => {
+      const e = n.ends[i];
+      if (!q) return;
+      const pt = [q.lx, q.ly];
       const r = 17;
       ctx.fillStyle = "#17140f";
       ctx.beginPath();
       ctx.arc(pt[0] + 3, pt[1] + 3, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle =
-        e.ok === false
-          ? "#c9c2b0"
-          : i === this.raiseSel
-            ? "#f2b705"
-            : "#fbf6ea";
+        e.ok === false ? "#c9c2b0" : i === lit ? "#f2b705" : "#fbf6ea";
       ctx.beginPath();
       ctx.arc(pt[0], pt[1], r, 0, Math.PI * 2);
       ctx.fill();
@@ -1452,15 +1522,47 @@ export class Game {
     });
   }
 
-  // Where the ends' labels sit in view px (for taps and tests).
+  // Where the ends' footprints (x, y) and their numbered labels (lx, ly)
+  // sit in view px (for taps and tests).
   endPoints() {
     const n = this.need;
     if (!n || n.kind !== "raise") return [];
     const cam = raiseCamera(n);
     return (n.ends || []).map((e) => {
       const p = projectView(this.view, cam, e.pose.x, e.pose.y, 0);
-      return p ? { x: p[0], y: p[1], ok: e.ok !== false } : null;
+      // the label: a little beyond the footprint, along the kubb from its middle
+      const dx = e.pose.x - n.pose.x,
+        dy = e.pose.y - n.pose.y;
+      const l = Math.hypot(dx, dy) || 1;
+      const q = projectView(
+        this.view,
+        cam,
+        e.pose.x + (dx / l) * 0.07,
+        e.pose.y + (dy / l) * 0.07,
+        0,
+      );
+      return p && q
+        ? { x: p[0], y: p[1], lx: q[0], ly: q[1], ok: e.ok !== false }
+        : null;
     });
+  }
+
+  // The canvas's label while raising, for a screen reader: which end lies
+  // where, which the rules refuse, and how to choose.
+  describeRaise(n) {
+    const pts = this.endPoints();
+    const parts = (n.ends || []).map((e, i) => {
+      const q = pts[i];
+      const other = pts[1 - i];
+      const where =
+        q && other ? (q.lx < other.lx ? " on the left" : " on the right") : "";
+      return `end ${i + 1}${where}${e.ok === false ? ` (${(e.why || "blocked").toLowerCase()})` : ""}`;
+    });
+    const label = `The pitch. A kubb lying, to be stood up: ${parts.join(", ")}. Tap the kubb nearer the end to stand it on, or use the END buttons.`;
+    if (this.canvas.getAttribute("aria-label") !== label) {
+      this.canvas.setAttribute("aria-label", label);
+      this.canvas.dataset.raiseLabel = "1";
+    }
   }
 
   // ---------- input ----------
@@ -1505,6 +1607,7 @@ export class Game {
     let kind = null;
     let grab = 0;
     let outside = false;
+    let raiseShape = null;
     if (this.phase === "aim" && this.mayAct()) {
       this.nudge.input();
       const linear = this.L.meter === "linear";
@@ -1565,6 +1668,11 @@ export class Game {
     } else if (this.phase === "raise" || this.phase === "punish") {
       kind = this.phase;
       if (kind === "punish") this.punishPointer(x, y);
+      // a press on the kubb may become a drag that tips it up (move)
+      if (kind === "raise") {
+        const g = this.raiseShape();
+        raiseShape = onKubb(g, x, y) ? g : null;
+      }
     } else if (this.phase === "play") kind = "none";
     if (!kind) return;
     e.preventDefault();
@@ -1589,6 +1697,7 @@ export class Game {
       outside,
       meter: this.phase === "aim" && kind === "none",
       rel,
+      raiseShape,
     };
     try {
       this.canvas.setPointerCapture(e.pointerId);
@@ -1703,6 +1812,7 @@ export class Game {
       const g = this.ground(x, y);
       if (g) this.aimResult(this.engine.setStance(g.x, g.y));
     } else if (p.kind === "punish") this.punishPointer(x, y);
+    else if (p.kind === "raise" && p.moved && p.raiseShape) this.raiseDragTo(p);
   }
 
   up(e, cancelled) {
@@ -1735,17 +1845,17 @@ export class Game {
       const g = this.ground(p.x, p.y);
       if (this.aimable(p.x, p.y))
         this.aimResult(this.engine.setTarget(g.x, g.y, true));
-    } else if (p.kind === "raise" && !p.moved && !cancelled) {
-      const n = this.need;
-      const g = this.ground(p.x, p.y, raiseCamera(n));
-      let i = g ? this.raiseAt(g.x, g.y) : null;
-      if (i == null) {
-        // or the end's label
-        this.endPoints().forEach((q, j) => {
-          if (q && Math.hypot(q.x - p.x, q.y - p.y) < 40) i = j;
-        });
-      }
-      if (i != null) this.raise(i);
+    } else if (p.kind === "raise") {
+      // a drag on the kubb: past half way it stands on the end it was tipped
+      // toward; short of that it lies back down and nothing is sent
+      const drag = this.raiseDrag;
+      this.raiseDrag = null;
+      this.raiseSel = null;
+      if (cancelled || this.phase !== "raise") return;
+      if (!p.moved) {
+        const i = this.raisePick(p.x, p.y);
+        if (i != null) this.raiseTap(i);
+      } else if (drag && drag.t >= raiseTune.stand) this.raiseTap(drag.i);
     }
   }
 

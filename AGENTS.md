@@ -334,6 +334,17 @@ MENU, Raising, or REST OF GAME on the panel, makes every raise automatic for the
 the match, and BY HAND takes it back. It is the player's own choice on a match that raises
 by hand, kept only for that match: `src/game/auto-raise.js`, docs/CLIENT.md "Match flow".
 
+By hand, the player touches the kubb itself (Jamie, 2026-11-19: "similar to on the
+Playdate where you can use the crank to raise the kubbs, on touch, you should be able to
+just touch the kubb and raise it. That would be more intuitive."). A tap or click anywhere
+on the drawn kubb, or within 24 px of it, stands it on the nearer end; a tap on an end's
+number still takes that end. A drag that starts on the kubb tips it up toward the end the
+finger moves to, drawn as the engine's own crank tip; let go past half way and it stands,
+short of that nothing is sent. An end the rules refuse is never chosen: the allowed end
+lights for a second instead. END 1 and END 2 stay on the panel for the keyboard and screen
+readers only (hidden until focused), and the canvas names the ends. The engine gets the
+same `raise` action either way: `src/game/raise-touch.js`, docs/CLIENT.md "Match flow".
+
 ## Pitch lines
 
 Thin on purpose (Jamie, 2026-11-16: "in Kubb, the concept is that there really is no
