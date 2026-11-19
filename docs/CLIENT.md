@@ -31,6 +31,7 @@ A failure to start shows a plain error card with RELOAD and HOME. The HOW TO THR
 | `src/game/layout.js`                          | Pure: where the dial (or the linear meter) and minimap go, the tall-canvas framing (`worldFit`, `stillFit`, `panFor`), and the wide view's box (`wideBox`).               |
 | `src/game/scenes.js`                          | The client's own cameras for raising and punishment, and the pieces in them.                                                                                              |
 | `src/game/sound.js`                           | `Sound`: the knocks and the king's chord through Web Audio; unlock on the first pointer down; mute remembered.                                                            |
+| `src/game/nudge.js`, `src/render/nudge.js`    | The throw's nudge: when it shows and the ghost's throw (pure), and its drawing over the meter ("The nudge", below).                                                       |
 | `src/game/prefs.js`                           | `prefs`: localStorage, wrapped so a blocked store only forgets.                                                                                                           |
 | `src/game/draw.js`                            | The renderer's functions the game uses, in one place.                                                                                                                     |
 | `src/ui/cards.js`                             | `Cards`: the engine's hand-off, pass and settle cards (naming who acts on a shared pitch), the winner, solo options, a plain notice, and the raise and punishment panels. |
@@ -206,6 +207,51 @@ the bottom right and the plan buttons to the dial's inner side; on the left a wi
 canvas's linear meter starts under the rail's box (`tune.railBox`). On a tall canvas the
 clock is centred and the side has no effect on it (the menu says so); the linear meter's
 plan buttons split across what the meter leaves.
+
+**The nudge** (2026-11-19). Jamie: "A couple of users have had a lot of confusion on how
+to throw. It would be awesome if we see the user not making progress on a throw to
+animate a nudge in the screen on what to do. Have the UI show it not a separate how to
+page." When a player is stuck, a ghost of the knob makes one good throw on the real meter,
+in place, and a ghost fingertip shows where the finger goes. `src/game/nudge.js` is the
+pure part (the trigger and the timeline, every number in its `tune`), `src/render/nudge.js`
+draws it from the meters' own geometry, and `Game.nudgeFor` and `drawNudgeOn` are the
+hooks, right after `drawMeter`. The HOW TO THROW card is unchanged.
+
+- **When.** Only while it is this player's own throw: the aim, `mayAct()`, no card or
+  menu (`modal`, `cards.open`), no pointer down, the dial idle, no plan view; never
+  watching, in the wide view, a replay or the embed (`driver`), the computer's or another
+  player's turn, or the `?throw=swipe` trial. Its waits count only that time. A device
+  that has made fewer than `learnedAt` (3) throws (the `throwsMade` pref, capped at 9) is
+  nudged after `wait` (8 s) in the aim without a press on the meter (taps that move the
+  circle do not count). A learned one is nudged after `fumbles` (2) presses on the meter
+  in a row that made no throw (a press let go unarmed, a release in the dead zone, a
+  press on the linear meter's body), `fumbleDelay` (0.8 s) after the last, or after
+  `idle` (30 s) with no input of any kind. Two fumbles bring it on a new device too. A
+  throw clears the fumbles. Whether a press threw is the engine's answer on the frame
+  after it ends (`nudgeEnd`).
+- **Stops** at once (a `fadeOut` of 0.15 s) on a press on the meter, the finger track or
+  the throw zone; a tap in the zone that stays a tap keeps it away `tapResume` (1.5 s).
+  While nothing changes it loops: pressed at home (0.4 s: the fingertip comes down, a ring
+  closes in), drawn back to the middle of the power band (0.9 s, eased), a beat (0.25 s),
+  the flick to the middle of the release band (0.25 s), let go (0.35 s: a ring opens out,
+  the ghost fades), a second's rest.
+- **Where.** The ghost knob and arm are dashed ink over a light paper fill; the real knob
+  stays home under it. On the clock with the finger track the fingertip rides the track at
+  the ghost's angle; otherwise it is on the ghost knob (a mouse pointer with a mouse). On
+  the linear meter it is in the throw zone on the meter's inner side, clear of the prompt
+  tab and the plan buttons (between their columns on a tall screen, past their block on
+  a wide one), moving down and up with the ghost knob. The plate follows the ghost in its
+  own words: WIND BACK, then FLICK! from the beat on (DRAW BACK, FLING! on the linear
+  meter). With `prefers-reduced-motion: reduce` it is a still picture: the ghost at the
+  back with an orange arrow for the draw back and a blue one for the flick.
+- **Drawing only.** The ghost's arm is never fed to the engine, sent or recorded.
+- **Tests.** `tests/game/nudge.test.mjs` (the trigger and the timeline) and
+  `tests/game/nudge-client.test.mjs` (Playwright: the wait on a fresh device for both
+  meters, portrait and desktop and Side Left, a press stops it, learned after 3 throws,
+  two fumbles, watching and the menu hold it off, reduced motion). They shorten the
+  waits through `window.__kubb.game.nudge.tune`, which exists only on test hosts;
+  `game.nudgeFreeze` holds the timeline at a time and `game.nudgeState()` reads it.
+  `KUBB_NUDGE_SHOTS=build/shots-nudge` saves screenshots of three moments.
 
 **The dial feed.** While the dial is held, the engine is fed once per pointer sample with
 the time since the last one (and, when the pointer is held still, every 1/30 s), not once
