@@ -15,6 +15,13 @@ import { pickTake } from "../../src/game/sound.js";
 import { lookAt, teamOf, raiseCamera } from "../../src/game/scenes.js";
 import { projectView, unprojectView } from "../../src/render/camera.js";
 import { linearGeometry, tune as linearTune } from "../../src/render/linear.js";
+import { dialGeometry, tune as dialTune } from "../../src/render/dial.js";
+
+const overlaps = (a, b) =>
+  a.x < b.x + b.width &&
+  b.x < a.x + a.width &&
+  a.y < b.y + b.height &&
+  b.y < a.y + a.height;
 
 const SIZES = [
   [1280, 768],
@@ -95,6 +102,124 @@ test("the linear meter gives way to the clock where it would be cramped", () => 
   // the clock is the default
   assert.equal(layoutFor(390, 844).meter, "clock");
   assert.equal(layoutFor(390, 844, {}, false, "clock").side, "both");
+});
+
+test("the meter's side: the linear meter at the left edge, mirrored", () => {
+  const notch = { top: 47, bottom: 34, right: 0, left: 0 };
+  for (const [W, H, safe] of [
+    [1280, 768, {}],
+    [1280, 600, {}],
+    [390, 844, notch],
+    [390, 664, {}],
+    [768, 1024, {}],
+  ]) {
+    const s = { top: 0, bottom: 0, left: 0, ...safe };
+    const L = layoutFor(W, H, safe, false, "linear", { side: "left" });
+    const R = layoutFor(W, H, safe, false, "linear");
+    const d = L.dial;
+    assert.equal(L.meter, "linear", `${W}x${H}`);
+    assert.equal(L.meterSide, "left");
+    assert.equal(R.meterSide, "right", "the right is the default");
+    assert.ok(d.x >= s.left && d.x < s.left + 20, "at the left");
+    assert.equal(d.width, R.dial.width);
+    assert.ok(d.y + d.height <= H - s.bottom, "above the home bar");
+    const g = linearGeometry(d, "left");
+    assert.ok(g.travel >= linearTune.minTravel, `${W}x${H} room`);
+    assert.ok(overlaps(L.minimap, d) === false, "clear of the minimap");
+    if (L.tall) {
+      // the rail and the practice tray (DRILL, RESET) are top left, the
+      // minimap top right: the meter starts under all of them
+      assert.ok(d.y >= L.minimap.y + L.minimap.height, "under the minimap");
+      assert.ok(d.y >= s.top + 134, "under the practice tray");
+      assert.equal(L.side, "both");
+      assert.deepEqual(L.minimap, R.minimap);
+    } else {
+      assert.ok(d.y >= s.top + tune.railBox, "under the rail's box");
+      assert.equal(L.side, "right", "the plan buttons on its inner side");
+      assert.ok(L.minimap.x > W / 2, "the minimap moved to the other corner");
+    }
+  }
+});
+
+test("the meter's side: a wide canvas's clock goes lower left, a tall one's stays centred", () => {
+  for (const [W, H] of [
+    [1280, 768],
+    [844, 390],
+    [1024, 768],
+  ]) {
+    const L = layoutFor(W, H, {}, false, "clock", { side: "left" });
+    const R = layoutFor(W, H);
+    assert.equal(L.meter, "clock");
+    assert.equal(L.meterSide, "left");
+    assert.ok(L.dial.x + L.dial.width / 2 < W / 2, `${W}x${H} to the left`);
+    // mirrored: the same size, the same height, as far in from the edge
+    assert.equal(L.dial.width, R.dial.width);
+    assert.equal(L.dial.y, R.dial.y);
+    assert.ok(Math.abs(L.dial.x - (W - R.dial.x - R.dial.width)) < 1e-9);
+    assert.ok(L.minimap.x > W / 2 && R.minimap.x < W / 2);
+    assert.equal(overlaps(L.minimap, L.dial), false);
+    assert.equal(L.side, "right");
+    assert.equal(R.side, "left");
+  }
+  for (const [W, H] of [
+    [390, 844],
+    [390, 664],
+  ]) {
+    for (const coarse of [false, true]) {
+      const L = layoutFor(W, H, {}, false, "clock", { side: "left", coarse });
+      const R = layoutFor(W, H, {}, false, "clock", { coarse });
+      assert.deepEqual(L.dial, R.dial, "the tall clock is centred either way");
+      assert.equal(L.meterSide, "centre");
+    }
+  }
+});
+
+test("a touchscreen held upright leaves room for a finger round the clock's rim", () => {
+  const notch = { top: 47, bottom: 34, right: 0, left: 0 };
+  for (const [W, H, safe] of [
+    [390, 844, notch],
+    [390, 844, {}],
+    [390, 664, {}],
+    [360, 640, {}],
+    [768, 1024, {}],
+  ]) {
+    const s = { top: 0, bottom: 0, left: 0, right: 0, ...safe };
+    const L = layoutFor(W, H, safe, false, "clock", { coarse: true });
+    const M = layoutFor(W, H, safe); // a mouse: as before
+    assert.equal(L.track, true, `${W}x${H}`);
+    assert.equal(M.track, false);
+    const g = dialGeometry(L.dial),
+      gm = dialGeometry(M.dial);
+    // shrunk by no more than about 15%
+    assert.ok(g.r >= gm.r * 0.85 && g.r < gm.r, `${g.r} vs ${gm.r}`);
+    assert.ok(Math.abs(g.cx - W / 2) < 1e-9, "still centred");
+    // the whole track is on the screen: 6 o'clock clears the bottom
+    const out = g.r * dialTune.trackOut;
+    assert.ok(g.cy + out <= H - s.bottom + 1e-9, `${W}x${H} bottom`);
+    assert.ok(g.cx - out >= s.left && g.cx + out <= W - s.right, "sides");
+    // the plan buttons stand above the track where their inner edge is
+    const dx = g.cx - (s.left + tune.planColW);
+    const top = g.cy - Math.sqrt(Math.max(0, out * out - dx * dx));
+    assert.ok(L.plansFoot != null && L.plansFoot <= top, "above the track");
+    assert.ok(L.plansFoot > L.minimap.y + L.minimap.height + 140, "room");
+  }
+  // a phone on its side, the swipe trial and the linear meter: no track
+  assert.equal(
+    layoutFor(844, 390, {}, false, "clock", { coarse: true }).track,
+    false,
+  );
+  assert.equal(
+    layoutFor(390, 844, {}, true, "clock", { coarse: true }).track,
+    false,
+  );
+  assert.deepEqual(
+    layoutFor(390, 844, {}, true, "clock", { coarse: true }).dial,
+    layoutFor(390, 844, {}, true).dial,
+  );
+  assert.equal(
+    layoutFor(390, 844, {}, false, "linear", { coarse: true }).track,
+    false,
+  );
 });
 
 test("a wide canvas keeps the renderer's framing", () => {
