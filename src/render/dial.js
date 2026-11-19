@@ -58,6 +58,19 @@ export const tune = {
 
 // The dial's centre and radius in rect: the largest circle that fits with
 // room for the prompt plate above it and the shadow.
+// Where the red overpowered zone starts, in backswing degrees: the session's
+// fixed overDeg (11 o'clock), or past the power target where the target
+// reaches further. The engine's overpower cost counts from the target's far
+// edge (throwplan.lua: past = back - powerHi), so red never covers the
+// target band (a tester, 2026-11-19: "the target dot is in the red").
+// null: no red zone.
+export function overFrom(st) {
+  if (st.overDeg == null) return null;
+  return Number.isFinite(st.powerHi)
+    ? Math.max(st.overDeg, st.powerHi)
+    : st.overDeg;
+}
+
 export function dialGeometry(rect) {
   const pad = Math.min(rect.width, rect.height) * 0.04;
   const promptRoom = 0.42; // of r, above the dial
@@ -359,18 +372,19 @@ export function drawDial(ctx, rect, st) {
       Math.max(3, r * 0.09),
     );
   }
-  if (st.overDeg != null && st.overDeg < 180) {
+  const over = overFrom(st);
+  if (over != null && over < 180) {
     hatch(
       ctx,
       g,
       r * tune.sliceIn,
       ro,
       -180,
-      -st.overDeg,
+      -over,
       HUD.over,
       Math.max(3, r * 0.1),
     );
-    slicePath(ctx, g, ri, ro, -180, -st.overDeg);
+    slicePath(ctx, g, ri, ro, -180, -over);
     ctx.fillStyle = HUD.over;
     ctx.fill();
   }

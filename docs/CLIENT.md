@@ -198,6 +198,11 @@ strongly prefers the circle, so the dial stays and stays the default.
   stem's brown and never in ink (`dial.js` `tune.ghost`, `ghostAlpha`, `ghostKnob`). It
   reads as where the arm went; the power and release bands stay the strongest things on
   the meter. On the linear meter they lie in the channel, under the stem and the knob.
+- **Red never covers the target.** The overpowered zone starts at the session's fixed
+  `overDeg` (150, 11 o'clock) or past the power band, whichever is further back
+  (`dial.js` `overFrom`, both meters), because the engine's overpower cost counts from
+  the band's far edge (`throwplan.lua`: `past = back - sol.powerHi`). A low arc at the far
+  baseline wants 154 to 170 degrees, which the fixed zone used to paint red.
 - **It feeds the engine what the dial does**: the same `arm` in degrees
   (`armAtY`: one scale both ways, because the flick's speed is degrees a second), through
   the same feed below. So power, the flick's speed, the release and steadiness are judged
