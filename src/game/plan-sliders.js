@@ -83,6 +83,34 @@ export function sideValueText(plan, kubb) {
     : `${word} ${Math.abs(v)} degrees ${dir}`;
 }
 
+// What the held slider does, in a line shown while it is held and through
+// the side view's peek after (hud.js): the same words as the iPhone's. A
+// tester, 2026-11-19: "I can't tell what tilt does at all", and no word on
+// how arc and tilt affect the toss; Jamie: "Have the UI show it not a
+// separate how to page". The HUD sets them in capitals, as its chips are.
+export const CAPTIONS = {
+  arc: "A higher arc drops in steeper. A lower one skids in.",
+  tilt: "Tilt leans the baton to steer it through a group.",
+  spin: "Spin keeps a drilled kubb steady in the air.",
+};
+
+// The caption for a held slider (what: "arc" | "side"), or null.
+export function captionOf(what, kubb) {
+  if (what === "arc") return { key: "arc", text: CAPTIONS.arc };
+  if (what === "side")
+    return kubb
+      ? { key: "spin", text: CAPTIONS.spin }
+      : { key: "tilt", text: CAPTIONS.tilt };
+  return null;
+}
+
+// The lean of the caption's baton for a plan: its tilt in degrees, right
+// positive, kept to the engine's range.
+export function leanOf(plan) {
+  const t = Math.round(plan?.tilt || 0);
+  return Math.max(-limits.tiltMax, Math.min(limits.tiltMax, t));
+}
+
 // A slider. what: "arc" | "side"; onSlide(what, f, phase) with phase
 // "down", "move" or "up" and f the place on the track (0..1, bottom to top
 // or left to right), or "cancel" when the hold ends without a release;

@@ -272,6 +272,74 @@ const overlaps = (a, b) =>
   a.y < b.y + b.height &&
   b.y < a.y + a.height;
 
+// What a held slider does, shown on the control while it is used (a
+// tester, 2026-11-19: "I can't tell what tilt does at all"; Jamie: "Have the
+// UI show it not a separate how to page").
+const caption = (page) =>
+  page.evaluate(() => {
+    const el = document.querySelector("[data-test=plan-caption]");
+    const r = el.getBoundingClientRect();
+    const wood = el.querySelector(".cap-wood");
+    return {
+      shown: !el.hidden,
+      text: el.querySelector(".cap-text").textContent,
+      what: el.dataset.what,
+      baton: !el.querySelector(".cap-baton").hidden,
+      lean: wood.style.transform,
+      box: { x: r.x, y: r.y, width: r.width, height: r.height },
+      plans: document.querySelector("[data-test=plans]").getBoundingClientRect()
+        .top,
+    };
+  });
+
+browserTest(
+  "a held slider says what it does, TILT with a leaning baton",
+  async () => {
+    const page = await open(env, "/practice/?nohowto=1", "portrait", {
+      prefs: { meter: "linear" },
+    });
+    try {
+      await waitPhase(page, "aim", 10000);
+      assert.equal((await caption(page)).shown, false, "hidden at rest");
+      const release = await dragSlider(page, "arc", [0.5, 0.6], {
+        touch: true,
+        keep: true,
+      });
+      let c = await caption(page);
+      assert.equal(c.shown, true);
+      assert.equal(c.what, "arc");
+      assert.equal(
+        c.text,
+        "A higher arc drops in steeper. A lower one skids in.",
+      );
+      assert.equal(c.baton, false);
+      assert.ok(
+        c.box.y + c.box.height <= c.plans,
+        "above the plan, clear of the finger",
+      );
+      const L = await page.evaluate(() => window.__kubb.game.L);
+      assert.ok(!overlaps(c.box, L.dial), "clear of the meter");
+      await release();
+      await page.waitForTimeout(800);
+      assert.equal((await caption(page)).shown, false, "gone after the peek");
+      const r2 = await dragSlider(page, "side", [0.5, 0.75], {
+        touch: true,
+        keep: true,
+      });
+      c = await caption(page);
+      assert.equal(c.what, "tilt");
+      assert.equal(c.text, "Tilt leans the baton to steer it through a group.");
+      assert.equal(c.baton, true);
+      assert.equal(c.lean, `rotate(${(await state(page)).plan.tilt}deg)`);
+      assert.notEqual(c.lean, "rotate(0deg)");
+      await r2();
+      assert.deepEqual(page.errors, []);
+    } finally {
+      await page.context().close();
+    }
+  },
+);
+
 for (const [kind, prefs, name] of [
   ["desktop", {}, "a wide screen, the clock on the right"],
   ["desktop", { meterSide: "left" }, "a wide screen, the clock on the left"],

@@ -291,6 +291,74 @@ body.game {
   align-self: end;
 }
 
+/* What the held slider does (hud.js showCaption): a paper line above the
+   plan, where the finger on a slider is not, shown while a slider is held
+   and through the side view's peek after. In the HUD's capitals, never
+   italic. While TILT is held a small baton beside it leans by the tilt
+   (the dashed line is upright). */
+.plan-caption {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  box-sizing: border-box;
+  padding: 4px 10px 5px;
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 2px 2px 0 var(--ink);
+  text-align: right;
+}
+.plan-caption.split {
+  justify-content: center;
+  text-align: center;
+}
+.plan-caption.from-left {
+  justify-content: flex-start;
+  text-align: left;
+}
+.plan-caption[hidden] {
+  display: none;
+}
+.cap-text {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.cap-baton {
+  position: relative;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 36px;
+}
+.cap-baton[hidden] {
+  display: none;
+}
+.cap-plumb {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  border-left: 1.5px dashed rgba(23, 20, 15, 0.45);
+}
+.cap-wood {
+  position: absolute;
+  left: calc(50% - 4px);
+  top: 3px;
+  width: 8px;
+  height: 30px;
+  box-sizing: border-box;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  background: var(--wood);
+  transform-origin: 50% 50%;
+  transition: transform 120ms ease-out;
+}
+
 /* a slider: a paper plate with an ink rim and a hard shadow, its value on
    a wooden header (where the finger is not), and in the body a lane of
    scale marks beside the ink slot the wooden knob runs in. --f is the

@@ -154,6 +154,7 @@ export class Game {
     this.planToggle = false;
     this.slide = null; // a plan slider held: { what, f, dirty }
     this.slidePeekUntil = 0;
+    this.slideLast = null; // the last slider held: its caption shows through the peek
     this.walkOn = false; // WALK: a drag on the pitch walks the thrower
     this.swipeEnabled = swipeEnabled;
     this.swipeLayout =
@@ -730,6 +731,7 @@ export class Game {
       this.sound?.unlock();
       this.nudge.input();
       this.slide = { what, f, dirty: true };
+      this.slideLast = what;
       return true;
     }
     if (!this.slide || this.slide.what !== what) return false;
@@ -1240,7 +1242,15 @@ export class Game {
       layout: this.L,
       who: this.whoActs?.(this.need) ?? null,
       wide,
+      caption: this.captionWanted(),
     });
+  }
+
+  // Which slider's caption shows: the one held, or the last one through the
+  // side view's peek after it is let go (hud.js showCaption).
+  captionWanted(now = performance.now()) {
+    if (this.slide) return this.slide.what;
+    return now < this.slidePeekUntil ? this.slideLast : null;
   }
 
   drawMap(aim, pieces, extra = {}) {
