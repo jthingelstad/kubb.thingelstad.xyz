@@ -24,6 +24,11 @@ const SIDES = [
   ["left", "Left"],
   ["right", "Right"],
 ];
+// raising kubbs for the rest of this match (src/game/auto-raise.js)
+const RAISING = [
+  ["hand", "By hand"],
+  ["auto", "Automatic"],
+];
 const SURFACES = [
   ["grass", "Grass"],
   ["sand", "Sand"],
@@ -114,6 +119,19 @@ export class Menu {
               )
             : null,
         ),
+        // shown once this browser has been asked to raise: a match whose own
+        // Raising option is Automatic never asks
+        game.mode === "match" && (game.autoRaise.seen || game.autoRaise.game)
+          ? h(
+              "div.opt",
+              { "data-test": "menu-raise" },
+              h("span.opt-label", "Raising"),
+              seg(RAISING, game.autoRaise.game ? "auto" : "hand", (v) => {
+                game.setRaise(v);
+                render();
+              }),
+            )
+          : null,
         this.hooks.view
           ? h(
               "div.opt",

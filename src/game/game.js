@@ -65,6 +65,14 @@ import { settleItems, raiseCamera, punishCamera, poseItem } from "./scenes.js";
 import { Hud } from "./hud.js";
 import { prefs } from "./prefs.js";
 import { NudgeTrigger, timeline, swingOf, captionFor } from "./nudge.js";
+import {
+  newAutoRaise,
+  setGame,
+  restOfTurn,
+  refused,
+  reset as resetAutoRaise,
+  step as stepAutoRaise,
+} from "./auto-raise.js";
 
 export const tune = {
   maxDt: 1 / 20, // s: a longer frame (a hitch, a background tab) is cut to this
@@ -180,6 +188,7 @@ export class Game {
         ? matchMedia("(prefers-reduced-motion: reduce)")
         : null;
     this.raiseSel = null;
+    this.autoRaise = newAutoRaise(); // src/game/auto-raise.js
     this.punishAt = null;
     this.running = false;
     this.zen = null; // a calm pace for watching (main's watchTune.zen), or null
@@ -241,6 +250,7 @@ export class Game {
     this.startTrail();
     this.shownCards.clear();
     this.result = null;
+    resetAutoRaise(this.autoRaise);
     this.enter(this.engine.view());
   }
 
@@ -563,6 +573,7 @@ export class Game {
     if (this.phase === "aim") this.aimFrame(dt, now);
     else if (this.phase === "play") this.playFrame(dt, now);
     else this.drawStill();
+    this.autoRaiseTick(dt);
     if (this.result) this.result.age += dt;
     this.driver?.(dt);
   }
@@ -804,6 +815,30 @@ export class Game {
     this.emit(action);
     this.enter(this.engine.view());
     return r;
+  }
+
+  // MENU, Raising, and the panel's BY HAND and REST OF GAME: "auto" raises
+  // every kubb of this match on the engine's choice (src/game/auto-raise.js).
+  setRaise(v) {
+    setGame(this.autoRaise, v === "auto");
+    this.cards?.clearPanel?.();
+  }
+
+  // AUTO ALL: this kubb and the rest of this turn's, the engine's choice.
+  raiseRest() {
+    if (this.phase !== "raise") return;
+    restOfTurn(this.autoRaise);
+    this.cards?.clearPanel?.();
+  }
+
+  autoRaiseTick(dt) {
+    const st = { phase: this.phase, need: this.need, modal: this.modal };
+    if (!stepAutoRaise(this.autoRaise, dt, st)) return;
+    const r = this.raise(null);
+    if (r && r.ok === false) {
+      refused(this.autoRaise);
+      this.cards?.clearPanel?.();
+    }
   }
 
   punishMove(x, y) {
