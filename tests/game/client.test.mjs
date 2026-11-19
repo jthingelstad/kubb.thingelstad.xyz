@@ -970,6 +970,42 @@ browserTest(
   },
 );
 
+// The track lies over ground a tap can aim at, so only a drag there turns
+// the arm: a tap still puts the circle where it lands.
+browserTest(
+  "a tap beside the clock's ring still puts the target circle there",
+  async () => {
+    const page = await open(env, "/practice/?nohowto=1", "portrait");
+    try {
+      await waitPhase(page, "aim", 10000);
+      const g = await dialGeometry(page);
+      // up and to the left of the ring, inside the touch's reach, clear of
+      // the plan buttons
+      const at = [g.cx - g.r * 0.9, g.cy - g.r * 1.3];
+      const aimable = await page.evaluate(
+        ([x, y]) => window.__kubb.game.aimable(x, y),
+        at,
+      );
+      assert.equal(aimable, true, "a tap here can aim");
+      const before = (await state(page)).marker;
+      await watchThrows(page);
+      await page.touchscreen.tap(at[0], at[1]);
+      await page.waitForFunction(
+        (x) => window.__kubb.game.out?.aim?.marker?.x !== x,
+        before.x,
+        { timeout: 3000, polling: 50 },
+      );
+      const s = await state(page);
+      assert.equal(s.phase, "aim");
+      assert.ok(s.marker.x < before.x, "moved toward the tap");
+      assert.deepEqual(await page.evaluate(() => window.__throws), []);
+      assert.deepEqual(page.errors, []);
+    } finally {
+      await page.context().close();
+    }
+  },
+);
+
 // Left or right (Jamie, 2026-11-19: "Left and right handed folks may want it
 // on one side or the other"): MENU, Side mirrors where the meter sits.
 async function clearOfMeter(page) {

@@ -1290,8 +1290,11 @@ export class Game {
       else if (swipe && y >= this.H / 2) kind = "swipe";
       // a finger beside the clock's ring, where it hides nothing: the arm is
       // the angle about the centre as on the ring (touch only)
+      // Where a tap could aim (the far half of the pitch lies under the
+      // track on a wide canvas) the press waits to see which it is: a tap
+      // still aims, a drag turns the arm (move).
       else if (!linear && !swipe && touch && trackHit(g, x, y)) {
-        kind = "dial";
+        kind = this.aimable(x, y) ? "track" : "dial";
         outside = true;
       }
       // the linear meter's throw zone: a tap there aims as any tap does; a
@@ -1348,6 +1351,12 @@ export class Game {
     return !!p && Math.hypot(p.x - x, p.y - y) <= r;
   }
 
+  // Would a tap at (x, y) put the target circle there?
+  aimable(x, y) {
+    const g = this.ground(x, y);
+    return !!g && g.y > 0.5;
+  }
+
   ground(x, y, cam = this.out?.camera) {
     return cam ? unprojectView(this.view, cam, x, y) : null;
   }
@@ -1388,6 +1397,17 @@ export class Game {
       this.dialAcc = 0;
       this.planToggle = false;
       this.walkOn = false;
+    } else if (p.kind === "track" && p.moved) {
+      // a drag beside the ring after all: the engine is fed the press where
+      // it landed, then where the finger is, as a press on the ring is
+      const g = dialGeometry(this.L.dial);
+      p.kind = "dial";
+      this.dialArm = armAt(g, p.x0, p.y0);
+      this.dialNext = armAt(g, x, y);
+      this.dialFresh = true;
+      this.dialAcc = 0;
+      this.planToggle = false;
+      this.walkOn = false;
     } else if (p.kind === "dial") {
       const arm =
         this.L.meter === "linear"
@@ -1420,13 +1440,14 @@ export class Game {
       const g = this.ground(p.x, p.y);
       if (g) this.aimResult(this.engine.setTarget(g.x, g.y, true));
     } else if (
-      (p.kind === "tap" || p.kind === "zone") &&
+      ["tap", "zone", "track"].includes(p.kind) &&
       !p.moved &&
       !cancelled
     ) {
       // a tap on the pitch puts the circle there
       const g = this.ground(p.x, p.y);
-      if (g && g.y > 0.5) this.aimResult(this.engine.setTarget(g.x, g.y, true));
+      if (this.aimable(p.x, p.y))
+        this.aimResult(this.engine.setTarget(g.x, g.y, true));
     } else if (p.kind === "raise" && !p.moved && !cancelled) {
       const n = this.need;
       const g = this.ground(p.x, p.y, raiseCamera(n));
