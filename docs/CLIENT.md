@@ -100,11 +100,15 @@ as WATCH), `play` (a recording playing back), `raise`, `punish`, `over`.
 ## The throw
 
 All by Pointer Events with pointer capture; the canvas has `touch-action: none` and the
-game page no text selection. A press is tried in this order: the dial, the target circle
-(56 px round it on touch, 30 px with a mouse), the thrower, then a tap on the pitch.
+game page no text selection. A press is tried in this order: the meter (the clock's ring,
+the linear meter's knob, then its body, which takes the press and does nothing), WALK's
+drag, the target circle (56 px round it on touch, 30 px with a mouse), the thrower, then
+the clock's finger track (touch), the linear meter's throw zone, and last a tap on the
+pitch. The plan buttons are DOM and come before all of it.
 
-- **The dial** (lower right on a wide screen, lower centre on a tall one): drag is the arm,
-  letting go is the release. Pointing and throwing work touching only the dial.
+- **The dial** (lower right on a wide screen, lower left with MENU, Side, Left; lower
+  centre on a tall one): drag is the arm, letting go is the release. Pointing and
+  throwing work touching only the dial.
 - **The target**: drag the circle, tap the pitch, or the arrow keys.
 - **Walking**: WALK beside the dial (the Playdate's held A) turns a drag on the pitch into a stick: right walks right, up comes forward, down steps back, full pace 60 px out. Turned off by the swing. Or A/D and W/S, or drag the thrower where it is on screen.
 - **The plan**: ARC up and down and TILT (a baton) or SPIN (a kubb) left and right, each
@@ -143,8 +147,55 @@ strongly prefers the circle, so the dial stays and stays the default.
   is `"clock"` and the dial is drawn; the menu says so under the choice. On a tall screen
   the plan buttons split either side of the throwing line, left of the meter.
 - **Not yet**: the meter in use is not recorded with the throw (that needs an engine
-  field), there is no steering from the stroke's straightness (an engine change too), the
-  meter is always on the right, and the touch pendulum trial (below) keeps the clock.
+  field), there is no steering from the stroke's straightness (an engine change too), and
+  the touch pendulum trial (below) keeps the clock.
+
+**The finger and the meter apart** (2026-11-19). Jamie: "When you're touching the ring,
+you can't see where you are on the ring. So it would almost be helpful to be able to
+touch outside the ring so that you can see where the movement is. Think of the same thing
+for the other control. There's visual nudges there that help you know what to do, but you
+can't see them if you're touching them. So if you can have the control and the touch be
+slightly distant from each other, that could make that better." Nothing fed to the
+engine changes in kind: both still send `arm` in degrees through the dial feed.
+
+- **Stroke anywhere on the linear meter.** A drag that starts in the throw zone, the
+  canvas below `tune.zoneFrom` (0.6 of its height, `src/game/game.js`), drives the knob
+  exactly as a grab of the knob does: the press point is the knob's home and the arm is
+  `(y0 - y) / scale` at the meter's own scale, clamped. Targets are always in the far half
+  of the pitch, and on a phone held upright the centre line is at 0.54 of the height
+  (0.59 in the browser with its bars showing), so the zone is the near half, with nothing
+  to aim at; the meter becomes a gauge watched while the finger works below the pitch. On
+  a wide canvas the whole view is far half (the centre line is below the bottom edge), so
+  field kubbs can lie in the zone there; only a drag throws, so nothing is lost. The
+  press starts as a tap: released within `tapSlop` (10 px) it puts the circle there as any
+  tap does. Moved past it, it becomes the stroke: the engine is fed arm 0 for the press
+  first (`dialNext` holds the finger's arm until that frame), then where the finger is,
+  so the engine's arming rule (a press at 0, then back) holds as for a grab. Every
+  pointer, the mouse too. The plan buttons, the knob and the meter's body, WALK's drag,
+  the circle and the thrower all come first, and `?throw=swipe` keeps the clock.
+- **Touch beside the clock's ring.** On touch and pen a press may land on the ring as
+  before (within 1.25 radii of the centre, `grabSlop`) or outside it, out to 2.1 radii
+  (`dial.js` `touchReach`), and the arm is the angle about the centre at any radius, so a
+  finger can go round outside the rim and leave the marks and the knob in view. A press
+  on the ring is exactly as before (Tyler plays the circle on a phone). A mouse is as
+  before. On a touchscreen held upright (`layoutFor`'s `coarse`, from
+  `(pointer: coarse)`) the clock is 13% smaller (`tune.trackShrink` 0.87) and raised until
+  the finger track (1.1 to 1.55 radii, drawn as a faint band with a dashed middle,
+  `st.track`) clears the bottom: on 390 x 844 the radius goes from 101 to 88 px and the
+  centre up 20 px. The plan buttons then stand above the track (`plansFoot`), in two
+  columns either side of the throwing line. A phone on its side has no room for the
+  track: touches outside the ring work where there is screen, and no track is drawn.
+
+**Left or right** (Jamie, 2026-11-19, about the linear meter: "Can you flick anywhere?
+Left and right handed folks may want it on one side or the other."). MENU, Side, Left or
+Right (the `meterSide` pref, the right by default; `game.setMeterSide`). The linear meter
+sits at that edge on every canvas, mirrored: its lane toward the screen's centre and its
+prompt tab hanging toward it (`linearGeometry(rect, side)` returns `side`, `laneLeft`,
+`chanX`, `divX` and `tabDir`). On a wide canvas the clock goes lower left, the minimap to
+the bottom right and the plan buttons to the dial's inner side; on the left a wide
+canvas's linear meter starts under the rail's box (`tune.railBox`). On a tall canvas the
+clock is centred and the side has no effect on it (the menu says so); the linear meter's
+plan buttons split across what the meter leaves.
 
 **The dial feed.** While the dial is held, the engine is fed once per pointer sample with
 the time since the last one (and, when the pointer is held still, every 1/30 s), not once
@@ -459,8 +510,14 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
   both teams' throws and plays to a winner, while a solo match has no switch; a portrait
   phone (isMobile, touch) throws by touch; the linear meter registers the same back and
   stop as the clock by mouse and by touch, the menu's Meter switches and remembers, and a
-  phone on its side keeps the clock. `tests/render/linear.test.mjs` is the meter's
-  geometry. `multiplayer.test.mjs` runs `tools/rooms-dev.mjs`
+  phone on its side keeps the clock; a stroke in the linear meter's throw zone throws with
+  POWER ON and ARC ON by touch (portrait) and mouse, and a tap there still moves the
+  circle; a touch outside the clock's ring throws on a portrait phone; with Side, Left the
+  linear meter (portrait and desktop) and the clock (desktop) lay out clear of the plan
+  buttons, the rail, MENU and the practice tray and throw, and the menu's Side switches
+  and remembers. `tests/render/linear.test.mjs` is the meter's geometry (both sides),
+  `tests/render/dial.test.mjs` the dial's (its finger track too), and `layout.test.mjs`
+  checks both sides and the finger track's room. `multiplayer.test.mjs` runs `tools/rooms-dev.mjs`
   on a free port too and plays a shared pitch (docs/MULTIPLAYER.md "Tests"). Both are
   skipped with a notice when Chromium is not installed (`npx playwright install chromium`).
 - `window.__kubb` (engine, game, sound, cards, menu, config, and on a shared pitch `pitch`)

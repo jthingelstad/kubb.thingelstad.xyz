@@ -273,11 +273,24 @@ preference for a circular meter (clock) versus a linear meter ... The logic is t
 me. Just a choice if you want to spin your thumb or crank -- or use a different hand to
 flick."): MENU, Meter, Clock or Linear, kept on the device (`meter` pref). The clock is
 the default and is never retired: Tyler strongly prefers it. The linear meter
-(`src/render/linear.js`) is the dial unrolled into a track at the right edge and feeds the
+(`src/render/linear.js`) is the dial unrolled into a track at the screen's edge and feeds the
 engine the same arm degrees, so both are judged alike and it needs no engine release. Its
 room is the point (the straight trial of 2026-11-18 went because "it was too cramped and
 visually looked janky"): where a screen cannot give the track `minTravel` the clock is
 drawn instead. docs/CLIENT.md "The throw".
+
+The finger and the meter apart (Jamie, 2026-11-19: "if you can have the control and the
+touch be slightly distant from each other, that could make that better"): with the linear
+meter on the screen a drag in the throw zone (the lower 40% of the canvas, where there is
+nothing to aim at) strokes the knob as a grab of it does, and a tap there still aims; on
+touch a press outside the clock's ring, out to 2.1 radii, turns the arm as the ring does,
+and on a touchscreen held upright the clock is 13% smaller and raised so a finger can go
+all the way round outside its rim. A press on the ring is exactly as before. MENU, Side
+(Jamie, 2026-11-19: "Left and right handed folks may want it on one side or the other";
+`meterSide` pref, right by default) puts the linear meter at either edge, mirrored, and a
+wide screen's clock lower left or right; a tall screen's clock stays centred. All of it
+changes only where the finger may be and where the meter sits: the engine is fed the
+same arm degrees.
 
 ## Pitch lines
 
