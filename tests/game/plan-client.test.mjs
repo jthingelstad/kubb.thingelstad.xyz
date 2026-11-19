@@ -211,6 +211,41 @@ browserTest(
   },
 );
 
+// MENU opened by another finger hides the sliders under the one holding
+// one: the hold ends for the game too, so the side view (and with it the
+// engine's refusal to take a swing) does not outlast the menu.
+browserTest(
+  "a slider hidden while it is held lets the side view go",
+  async () => {
+    const page = await open(env, "/practice/?nohowto=1", "portrait");
+    try {
+      await waitPhase(page, "aim", 10000);
+      const release = await dragSlider(page, "arc", [0.5, 0.6], {
+        touch: true,
+        keep: true,
+      });
+      assert.equal(await sideViewWanted(page), true, "held: the side view");
+      const menu = () =>
+        page.evaluate(() => document.querySelector("[data-test=menu]").click());
+      await menu();
+      await nextFrame(page);
+      await nextFrame(page);
+      await release();
+      await menu();
+      await nextFrame(page);
+      assert.equal(
+        await page.evaluate(() => window.__kubb.game.slide),
+        null,
+        "the game holds no slider",
+      );
+      assert.equal(await sideViewWanted(page), false, "the side view is off");
+      assert.deepEqual(page.errors, []);
+    } finally {
+      await page.context().close();
+    }
+  },
+);
+
 browserTest("SIDE VIEW is a toggle with a mouse", async () => {
   const page = await open(env, "/practice/?nohowto=1", "desktop");
   try {

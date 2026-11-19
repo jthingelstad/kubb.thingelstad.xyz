@@ -721,7 +721,7 @@ export class Game {
   }
 
   // A plan slider (src/game/plan-sliders.js): pressed, dragged, let go at f
-  // on its track. Nothing reaches the engine here: aimFrame applies the
+  // on its track, or cancelled (hidden while held). Nothing reaches the engine here: aimFrame applies the
   // latest place once a frame (applySlide), so a fast drag costs one engine
   // call a frame at most. Returns false when the press is not taken.
   planSlide(what, f, phase) {
@@ -733,6 +733,12 @@ export class Game {
       return true;
     }
     if (!this.slide || this.slide.what !== what) return false;
+    if (phase === "cancel") {
+      // the slider went away under the finger (MENU, a throw): the plan
+      // stays where the last frame left it, and no peek
+      this.slide = null;
+      return true;
+    }
     this.slide.f = f;
     this.slide.dirty = true;
     if (phase === "up") {
