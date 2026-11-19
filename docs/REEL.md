@@ -4,7 +4,10 @@ A video of a finished match's best throws, made by the server from the kept repl
 the engine's own physics, for players to share on TikTok, Shorts, Reels, YouTube or a
 blog (Jamie, 2026-11-19: "have the server generate a video that would be rendered per
 game to show highlights of the match using our physics engine to show angles and hits.
-Like a highlight reel for the game.").
+Like a highlight reel for the game."). A match played against the computer gets one too,
+on the iPhone in particular (Jamie, 2026-11-19: "So if you just play versus the computer,
+I definitely want to make sure you can then submit that and create a highlight reel to
+share with friends.").
 
 This is the design for the real feature. The prototype in `tools/reel/` renders reels
 on a laptop from a kept replay; nothing of it ships to players or runs on AWS yet.
@@ -13,8 +16,10 @@ on a laptop from a kept replay; nothing of it ships to players or runs on AWS ye
 
 ```
 node tools/reel/matches.mjs 1 3 8      # computer-against-computer matches, by seed
+node tools/reel/solo.mjs 2 11          # a person against the computer, by seed
 node tools/reel/render.mjs --replay tests/fixtures/replay-north-south.json
 node tools/reel/render.mjs --replay build/reel/matches/seed-1.json --formats tall
+node tools/reel/render.mjs --replay build/reel/matches/solo-2.json
 node tools/reel/bench.mjs              # napi-rs/canvas against Chromium, same frames
 ```
 
@@ -22,6 +27,12 @@ Output goes to `build/reel/out/`, which is never in git: `<name>-tall.mp4` (1080
 `<name>-wide.mp4` (1920x1080), `<name>.edit.json` (the edit list) and a contact sheet
 PNG per format. Both formats are H.264 High, yuv420p, 30 fps, AAC sound and faststart.
 
+- `solo.mjs` makes a match a person played against the computer, with no network and no
+  recorded games. Side A is driven as a phone drives it: a target and a stance (a second
+  engine only picks where to aim), then the dial: wind back, flick, lift. So its throws
+  are pointer throws with verdicts, not the computer's. Side B is the computer. The file
+  is what a phone keeps of a solo match: the first snapshot and every action, with no
+  hashes. Its `verifySolo` is the server's check below.
 - `scan.mjs` plays the replay through the engine (`replayLoad`, `replayStep`, wide view)
   and writes one fact per throw: who threw, what was hit and toppled, the ruling, the
   first hit, the touches and bursts, and the pieces standing before and after.
@@ -93,11 +104,56 @@ scripts, prebuilt Skia for linux-arm64). Frames go as raw RGBA over a pipe to `f
 (`VideoEncoder` to H.264, muxed in Node), which skips the readback. It was not tried;
 it would also need a Chromium build with H.264 encoding.
 
+### A match against the computer, rendered
+
+`solo.mjs` made twelve club-level matches. In two of them the person won; in the rest
+the computer did, as against a fair human hand. Each replayed from its start through the
+engine to the end the device claimed, and every one of the computer's throws was made
+again the same. Then `render.mjs`, unchanged, made reels of them:
+
+| Match     | Actions | Result                     | As kept (JSON, gzipped) | Check | Reel                 |
+| --------- | ------- | -------------------------- | ----------------------- | ----- | -------------------- |
+| `solo-2`  | 65      | Riverside wins in 9 turns  | 29 KB, 7 KB             | 1.4 s | 37.1 s; 5.3 + 5.8 MB |
+| `solo-11` | 89      | Computer wins in 10 turns  | 39 KB, 9 KB             | 1.9 s | 37.5 s; 4.8 + 5.7 MB |
+| `solo-5`  | 445     | 41 turns, the script's cap | 177 KB, 38 KB           | 11 s  | (not rendered)       |
+
+The check is the replay plus the computer's throws made again by a second engine.
+`solo.mjs` stops a match at 40 turns, as `matches.mjs` does; the iPhone sets no such
+cap, so a very long match could pass the 256 KB a kept replay may be (about 60 turns at
+these sizes) and is then too long to share. The machine's load average was 15 to 85
+while these ran, so the times are high.
+
+The edit needs three changes for these matches, not yet made in the prototype. Nothing
+else in it assumes two people:
+
+- **The person is the subject.** When the computer won, four of `solo-11`'s five moments
+  were the computer's. The person sharing it wants their own throws. In a match against
+  the computer the person's moments score half again as much, and at most two of the
+  computer's go in besides the end. The end stays what happened: a computer's king shot
+  ends the reel when the computer won.
+- **"You".** Web and iPhone both name the side "You" when the player types nothing.
+  Rendered as typed, the reel says "YOU WINS" and "You takes the king"
+  (`solo-2-you-tall.mp4`), and a public page would say it to everyone. The name on the
+  reel is asked for when the match is shared (below), and "You" is not taken as one.
+- **The title card** says the computer's level under its plate (COMPUTER, CLUB): a win
+  against the pro computer is not one against the beginner.
+
+The end card's `throwingwood.com/p/<code>` stays: a shared match gets a code like any
+pitch, and its link shows the replay as the end card's WATCH THE WHOLE MATCH promises.
+
 ## What a player sees
 
 - **Where.** MAKE A HIGHLIGHT REEL sits beside WATCH REPLAY and EMBED on the winner
-  card and on the replay bar. It shows only when the match has a kept replay, and the
-  embed does not show it.
+  card and on the replay bar of a pitch, and on the winner card of a match against the
+  computer, on the web and on the iPhone. A pitch shows it only when the match has a
+  kept replay. The embed does not show it.
+- **A match against the computer is shared first.** It has no pitch, so the button
+  opens a card before anything is sent (the words are in "Sharing a match against the
+  computer" below). The player sees the name the reel will show, can change it, and
+  sends it. Nothing goes until they press SHARE AND MAKE THE REEL. The match then has a
+  link, `throwingwood.com/p/<code>`, and is from then on a finished pitch like any other:
+  its page shows the result, WATCH REPLAY, EMBED and the reel. A match shared once keeps
+  its code: asking again gives the same link.
 - **Asking.** The button becomes MAKING YOUR REEL with a slow bar and "About a minute.
   You can keep watching." The card can be closed; the button shows the state when
   opened again.
@@ -106,13 +162,18 @@ it would also need a Chromium build with H.264 encoding.
   - DOWNLOAD TALL and DOWNLOAD WIDE save `throwing-wood-<code>-tall.mp4` and
     `-wide.mp4`.
   - SHARE, where the browser can share files, hands the tall file to the phone's share
-    sheet. COPY LINK copies `throwingwood.com/p/<code>`.
+    sheet. COPY LINK copies `throwingwood.com/p/<code>`. The iPhone's SHARE always
+    has the file (below).
   - Anyone who opens the pitch later sees WATCH THE REEL in place of MAKE.
 - **No kept replay** (a match from before replays, or one whose keep failed): no
   button. The replay bar already says nothing can be replayed there, and that covers the
   reel too.
+- **Watching the computer** (`?watch=1`, nobody played): no button. See the open
+  questions.
 - **It failed.** "The reel could not be made. TRY AGAIN" (one retry, then "Not this
-  time"). Nothing is shown to people who did not ask.
+  time"). A match against the computer that the server will not take says "This match
+  could not be shared." and stays on the device. Nothing is shown to people who did not
+  ask.
 
 ## The server
 
@@ -121,7 +182,8 @@ it would also need a Chromium build with H.264 encoding.
 A reel is keyed by **pitch code, replay version and reel version**:
 `reels/<code>/<v>-<reel>/tall.mp4`, `wide.mp4` and `edit.json`.
 
-- `v` is the kept replay's document version. A rematch is a new key.
+- `v` is the kept replay's document version. A rematch is a new key. A shared match
+  against the computer has `v` 1.
 - `reel` is a short tag of the renderer (its cameras, overlays and engine major.minor),
   so a new look renders again only when asked, never in bulk.
 
@@ -136,13 +198,131 @@ The site's own security headers apply.
 - The viewer request function lets `/reels/` through as the static path it is.
   CloudFront answers range requests from S3, so players seek.
 
+### Sharing a match against the computer
+
+A match against the computer, on the web or the iPhone, is played on one device and
+has no room. The web sends it once, privately, when it ends (`src/net/record.js`); that
+record is never published and stays so. To get a reel, the player **shares** the match:
+the device sends its replay once, when the player asks, and the server keeps it under a
+fresh code exactly as a room keeps a finished match. From then on everything above and
+below is one path: `/p/<code>` shows the result, the replay, the embed, the share card
+and the reel, and a reel request names that code.
+
+This is the choice over the alternatives:
+
+- **Render from the device's message alone, with no pitch.** The reel would have no
+  link to lead to, nothing to cache it under, and the end card's address would go
+  nowhere. Every downstream piece (cache key, share tags, embed, retention) would need a
+  second form.
+- **Render on the phone.** The iPhone has the engine and could draw the frames, but it
+  would need its own encoder, cameras and overlays in Swift, kept in step with the
+  server's, and the web would need the same again. The server already renders.
+- **Send the private record and publish from it.** The record carries the typed names
+  and the build, and was promised private. Sharing is a separate act with its own words.
+
+**The message.** On a socket of its own, with no join, as a report is sent:
+
+```
+{ "t": "share", "id": 1, "g": {
+    "client": "ios", "engine": "0.7.1",
+    "start": "<the match's first snapshot, with the shared name>",
+    "log": [ { "a": <action> }, ... ],
+    "end": { "winner": "A", "throws": 37 } } }
+```
+
+`start` and `log` are what the web's trail and the iPhone's report trail already hold
+(the replay's `start` form, as `tools/backfill-replay.mjs` uses). Before sending, the
+device writes the name from the share card into the start in place of the typed one
+(an engine call, below), so the typed name never leaves it. Names change no throw: the
+prototype's renamed match played the same to its end, on other hashes. So the device
+claims only the winner and the number of throws, and sends no hashes: the server works
+them out and keeps them in the replay.
+
+**What the rooms function checks** (it knows no Kubb, as for every other message):
+
+- the shape: `start` a string, `log` an array of objects with an object `a`, `end` an
+  object;
+- the size: the whole message at most 256 KB as ASCII JSON (`replayBytes`), at most
+  4000 actions (`gameActions`), `start` at most 16 KB;
+- `engine`: its major.minor is one the renderer carries (an environment value on the
+  rooms function, `REEL_ENGINES`, today `0.5,0.7`); otherwise `{ code: null, why:
+"engine" }`;
+- the caps below;
+- a match shared before: the key `share#<fnv of start and log>` names its code, and the
+  same code is answered. A device that loses the answer and asks again gets one link.
+
+**What the renderer checks.** The rooms function invokes the renderer with
+`InvocationType: RequestResponse` and `{ check: g }`, and waits up to 20 s. The renderer
+plays the match through the engine release of that major.minor, from `start`:
+
+1. the start is a new match of a person (side A) against the computer (side B), and
+   side A's name is 1 to 16 characters and not "You";
+2. every action is taken, none refused, and the match ends `over` with the winner and
+   the number of throws the device claims;
+3. each of the computer's throws is made again by the engine from the snapshot before
+   it, and must be the same action. The end alone does not prove them: in the
+   prototype, halving the speed of one of the computer's throws that knocked nothing
+   still reached the same end, while each such forgery was caught by this step;
+4. each of the person's throws is one the dial could make (an engine request below).
+   Until then a throw at 30 m/s is taken: the prototype's forged one was.
+
+A match that fails any of these is answered `{ code: null, why: "does-not-replay" }`
+and nothing is kept; the renderer logs the step that failed and the engine version, no
+names. One that passes comes back with the replay to keep (the start, the log, and the
+hash after each action) and the finished document for the page (teams, result, the last
+snapshot), both built by the engine. The rooms function then writes the room as a
+**sealed** pitch:
+
+- the room record with `sealed: true` and `keep = { v: 1, until }`, its document, and
+  `room#<code> | replay`, all a year on, conditional on the code being new;
+- `share#<hash>` with the code and the same expiry.
+
+A sealed room refuses `join`, `set` and `keep` (`sealed`): nobody plays on, rematches or
+replaces its match. Its page goes straight to the finished-match card. The pages
+function and the replay fetch read it as any finished pitch.
+
+**Trust.** The server cannot trust a device's log, and does not need to. What a shared
+match proves is that every throw went through this engine's physics, that the
+computer's play is the computer's own, and (with the dial check) that every throw of
+the person's is one a person could make. A match made by a program that throws well
+within those bounds is still a match that happened by the game's rules; sharing it
+shows nothing false about the game, and nothing about anyone else. That is the bar.
+
+**Sending it.** The device sends the match the player sees on the winner card. The web
+holds it in memory until the page is left; the iPhone keeps it on disk (below). A match
+that cannot be sent (offline, the server busy) stays on the device and the button can
+be pressed again.
+
+**The card.** The same words on the web and the iPhone. The button on the winner card is
+MAKE A HIGHLIGHT REEL, as on a pitch. For a match against the computer it opens:
+
+> **SHARE THIS MATCH**
+>
+> To make a reel, this match goes to throwingwood.com and gets its own link. Anyone
+> with the link can watch the replay and the reel, for a year.
+>
+> Name on the reel: [ Riverside ]
+>
+> Your side is shown by this name. The other side is Computer. Nothing else about you is
+> sent.
+>
+> SHARE AND MAKE THE REEL · NOT NOW
+
+The field holds the name typed for the match, or is empty (with "Your team's name"
+greyed in it) when that was "You" or nothing. SHARE AND MAKE THE REEL is faded until it
+holds a name. After it: "Checking the match", then the reel card's MAKING YOUR REEL, with
+the link shown and COPY LINK already working. A match already shared skips the card.
+
 ### Who may ask, and limits
 
-Anyone with the link, as for a replay or an embed: a reel shows nothing the replay does
-not.
+- **Sharing** a match against the computer: whoever holds the finished match on their
+  device, by pressing the button. It is never automatic.
+- **A reel**: anyone with the link, as for a replay or an embed. A reel shows nothing
+  the replay does not.
 
-1. A request is one message on the rooms socket: `{ "t": "reel", "room": "<code>" }`. It
-   needs no join and sits under the stage throttle the other messages have.
+1. A reel request is one message on the rooms socket: `{ "t": "reel", "room": "<code>" }`.
+   It needs no join and sits under the stage throttle the other messages have. The
+   device that has just shared a match sends it next, on the same socket.
 2. The rooms function `GetItem`s `room#<code> | replay`. No replay is answered
    `{ reel: null }`.
 3. It does a conditional `PutItem` of `room#<code> | reel`
@@ -150,37 +330,49 @@ not.
    tag.
 4. Only the request that wins invokes the renderer, with `InvocationType: Event`. Every
    later request reads the item and answers its state (`rendering`, `done` with the
-   paths, or `failed`). The browser asks again every 5 s while it renders.
+   paths, or `failed`). The device asks again every 5 s while it renders.
 
-Limits:
+Limits, beside the existing ones (the stage throttle, `gamesPerConn` and
+`reportsPerConn`):
 
 - the renderer's reserved concurrency is 2, and async invokes that are throttled wait
-  in Lambda's own queue for up to 6 hours;
-- 3 reel requests a connection;
-- a day's cap of 200 renders: a conditional counter item, `reels#<yyyy-mm-dd>`, after
-  which the answer is "Reels are busy today";
+  in Lambda's own queue for up to 6 hours. A check waits behind renders at most 20 s,
+  then is answered "busy" and stays on the device;
+- 3 reel requests and 2 shares a connection;
+- a day's cap of 200 renders (`reels#<yyyy-mm-dd>`) and 200 shares
+  (`shares#<yyyy-mm-dd>`), conditional counter items, after which the answers are
+  "Reels are busy today" and "Sharing is busy today";
+- a share at most 256 KB and 4000 actions;
 - a render that fails is retried once, then marked `failed`.
 
-At the cost below, the cap bounds a bad day at under a dollar.
+At the costs below, the two caps bound a bad day at under a dollar and a half.
 
 ### The renderer
 
-`kubb-xyz-site-reels`, in the site stack beside the pages function. Its role may:
+`kubb-xyz-site-reels`, in the site stack beside the pages function. It carries one
+engine release for each major.minor it serves (`REEL_ENGINES`; about 2 MB each), and
+plays each match on the one it was played on: a pitch's `match.engine`, a shared
+match's `engine`. Its role may:
 
 - `dynamodb:GetItem` the replay and `UpdateItem` the reel item, nothing else in the
   table;
 - `s3:PutObject` under `reels/` in the site bucket;
 - write its own logs.
 
-It never reads the private games bucket. It renders both formats in one run, uploads
-them, then marks the item `done`. A failure leaves `failed` and a log line.
+A check writes nothing: it answers the rooms function, which writes the sealed room
+with the role it already has. The rooms function's role gains `lambda:InvokeFunction`
+on this one function, for both checks and renders. The renderer never reads the private
+games bucket. It renders both formats in one run, uploads them, then marks the item
+`done`. A failure leaves `failed` and a log line.
 
 ### Retention
 
-The same as the replay: **a year from the end of the match**. An S3 lifecycle rule
-expires `reels/` after 366 days. The reel item's `exp` matches the replay's `keep.until`,
-so once the room is gone the pitch no longer links a reel. A cheaper rule (expire after
-90 days, render again on request) is an open question below.
+The same as the replay: **a year from the end of the match**, and for a shared match a
+year from when it was shared. An S3 lifecycle rule expires `reels/` after 366 days. The
+reel item's `exp` matches the replay's `keep.until`, so once the room is gone the pitch
+no longer links a reel. A cheaper rule (expire after 90 days, render again on request)
+is an open question below. A shared match's room, document, replay and `share#` key go
+together, by their TTL.
 
 ### Links and share tags
 
@@ -194,8 +386,77 @@ so once the room is gone the pitch no longer links a reel. A cheaper rule (expir
   shows the image card: its player card needs an iframe page and is left out. The
   description ends "Watch the highlights."
 
+- A shared match's title is "Riverside vs Computer · Kubb: Throwing Wood" and its
+  description "Final: Riverside won, against the computer (club), in 9 turns. Watch the
+  replay." It needs nothing new of the pages function but the level.
 - The pitch page shows WATCH THE REEL. The embed gains nothing: it stays the replay.
   A blog can link the MP4 or embed it with a `<video>` tag.
+
+## The iPhone
+
+A plan; none of it is built. The app is on engine 0.7.1.
+
+**What a finished solo match keeps today.** The save in Application Support is the
+session's snapshot after each committed action (docs/MATCH.md): the match as it stands,
+not how it got there. Home after a win deletes it. Beside it, in memory only, the report
+trail (`ReportTrail` in `PitchReport.swift`) holds the first snapshot and every action
+since, the person's and the computer's throws and every raise and punishment (all come
+through `committed`). That is exactly a replay's `start` and `log`, and the prototype's
+`solo.mjs` keeps the same thing. But:
+
+- a cold launch restores the save and starts the trail again at that checkpoint
+  ("Resuming a solo save starts its report history at that checkpoint"), so a match
+  that was resumed has lost its start and cannot be replayed;
+- the trail is gone when the app is closed after the win;
+- no hash after each action is kept (none is needed: the server works them out);
+- solo matches are not recorded at all (`recordGame` exists in `KubbRooms` but nothing
+  calls it). That is a separate matter from sharing and is left as it is here.
+
+No engine change is needed to replay them: `replayLoad({ start, log })` takes the
+trail as it is, and the computer's raises and handovers come back through the engine.
+
+**Where and what.** MAKE A HIGHLIGHT REEL on the winner card, for a solo match and for
+an online one. An online match already has its code and kept replay, so it goes
+straight to the reel request. A solo match first shows the share card, then sends
+`share` and then `reel` on one unjoined socket, through two new correlated requests in
+`RoomsClient` beside `report` and `recordGame`.
+
+**Waiting.** The card shows MAKING YOUR REEL and asks again every 5 s while it is on
+screen. In the background it stops; on return it asks once and goes on. The state is
+the server's, so nothing is lost. No push notification.
+
+**The video.** When the reel is `done` the app downloads the tall MP4 (about 5 MB) to
+Caches and shows it playing, muted, looping. SHARE opens the share sheet with the file
+itself, so it goes to Messages, Photos (Save Video), TikTok, YouTube or Files as a video
+and not a link. COPY LINK copies `throwingwood.com/p/<code>`. Saving to Photos through
+the sheet needs the add-only photo library usage string in the app.
+
+**What stays on the phone.** The finished match (start and log, step 1 below) until the next
+solo match ends, the code once shared, and the video in Caches, which iOS may purge; it
+is downloaded again from its link while the link lasts.
+
+**Offline.** The button is there. Pressing it says "No connection. The match is kept on
+this phone. TRY AGAIN" and sends nothing.
+
+**The work, in order:**
+
+1. **Keep the trail on disk** (app, about a day, can start now): write the first
+   snapshot and each action beside the save, atomically, so a resumed match keeps its
+   start; keep the finished match after Home until the next solo match ends. Every
+   match played before this ships can never be shared, so it goes first.
+2. **Engine release** with the checks below (kubb-engine, 2 to 3 days): the person's
+   throw bounds, the computer's throws made again in a replay, renaming a side in a
+   start, and the finished document of a replay. No throw changes, so no match already
+   played goes differently. The iPhone takes it as a patch of its 0.7; the web shares
+   solo matches once it is on a release with it (it is on 0.5.1 until the held PR
+   merges), and `REEL_ENGINES` lists only major.minors whose renderer release has it.
+3. **Server** (2 to 3 days, after the reel server in this document): `share`, its caps
+   and `share#` key, sealed rooms, the renderer's check and its engines.
+4. **Web** (2 days): the solo winner card's button and share card, a sealed pitch's
+   page, the reel card shared with pitches.
+5. **iPhone** (3 to 4 days): the two requests, the winner card's button for solo and
+   online, the share card with its name field, waiting, the download and share sheet,
+   offline and failure, and review pictures for each card.
 
 ## Lambda: canvas and ffmpeg, or Chromium
 
@@ -212,6 +473,14 @@ so once the room is gone the pitch no longer links a reel. A cheaper rule (expir
 Compute is priced at the us-east-1 Lambda arm64 list price of about $0.0000133 a
 GB-second. Requests and DynamoDB are fractions of a cent. Serving 11 MB a reel is about
 $0.09 a reel past CloudFront's free monthly terabyte.
+
+**A shared match** adds a check before its reel: two passes of the match, 1.4 to 11 s
+here for 65 to 445 actions (under load), so guess 3 to 25 s at 3 GB, 9 to 75 GB-s, about
+**$0.0001 to $0.001**. Its replay is one gzipped item of 7 to 38 KB, written once (7 to
+38 write units on demand, a few thousandths of a cent) and stored for a year (1,000
+shared matches are about 20 MB, under a cent a month). So a shared match and its reel
+cost about the same as a pitch's reel, **about $0.005** in all, and the 200 shares a day
+cap adds at most about $0.20 to a bad day.
 
 The Lambda durations are guesses from the measurements here. The prices are from
 memory, not checked against the pricing API for this prototype.
@@ -236,18 +505,31 @@ A reel shows the **team names only**, never players' names, member ids or anythi
 typed in the lobby. It is made from the kept replay, never from the private games
 bucket or the records.
 
+A match against the computer is different in one way: its side's name is what the
+player typed for themself, so it may be their own name. So it is asked for again on the
+share card, under words that say it will be public, and only that name is sent and kept:
+the device writes it into the match before sending, so the typed one never leaves the
+device in a share. The other side is always Computer. The share sends no player
+name, member id, build, clock or user agent; the private record of the same match (the
+web's `game` message) is a separate thing, kept privately as before, and is not linked
+to the shared code.
+
 - **Home page**, under what is recorded: "Anyone with a finished pitch's link can make a
   highlight reel: a short video of the match's best throws, with the team names, kept
-  for a year like the replay."
+  for a year like the replay. A match against the computer is shared only if you choose
+  to share it, under the name you give it then."
 - **Privacy page**: "Highlight reels are videos made on our server from a match's kept
-  replay when someone asks. They show the team names you chose, never your name. They
-  are stored with the site and anyone with the link can watch or download them. They
-  are deleted a year after the match. A video downloaded or posted elsewhere is out of
-  our hands."
+  replay when someone asks. They show the team names, never a player's name, member id
+  or anything typed in the lobby. They are stored with the site and anyone with the link can watch or download them. They
+  are deleted a year after the match. A match you played against the computer is sent
+  to us only when you press SHARE AND MAKE THE REEL: then its replay, with the name you
+  gave on that card, is kept for a year under its own link, like any pitch. A video
+  downloaded or posted elsewhere is out of our hands."
 
 ## Engine and replay-format needs
 
-These are requests for kubb-engine. The prototype works around each.
+These are requests for kubb-engine. The prototype works around each but the person's
+throw bounds, which it cannot.
 
 1. **World-frame facts in the wide view.** `setWide` un-turns Team B's pieces and burst
    anchors, but not `result.landX`/`landY` or `timeline.firstHit`. The reel turns them
@@ -263,7 +545,28 @@ These are requests for kubb-engine. The prototype works around each.
    renderer steps the match from the start (0.7 to 3.6 s). That is fine for one render;
    `replaySeek(i)` would let it render a moment alone.
 5. **Version in the key.** The kept replay has `v`, and the renderer adds the engine's
-   major.minor to the reel tag. The replay itself needs no new fields.
+   major.minor to the reel tag. The replay itself needs no new fields. A pitch's
+   major.minor is its `match.engine`; a shared match's is the `engine` it was sent with.
+6. **The computer's throws, made again.** `replay.new { ..., checkCpu = true }`: before
+   each of the computer's throws in the log, the engine chooses its own from the
+   snapshot (the choice is seeded by the match and the throw's number) and marks the
+   replay `forged` if they differ. `verifySolo` does it with a second engine.
+7. **A person's throw bounds.** A `checkThrow(action)` that says whether a throw is one
+   the dial can make at that thrower's level: speed, loft, swivel, tilt and tumble in
+   the ranges the swing can give, the swing's `back` and `stop` agreeing with its
+   verdicts, the stance on ground the rules allow and the target on the pitch. Today a
+   throw at 30 m/s is applied without a word.
+8. **A side renamed in a start.** `renameStart(start, { A = "..." })`, the snapshot
+   with the side's team and player names (and the ids made from them) changed and
+   nothing else. The prototype replaced the text, which happens to work.
+9. **The finished document of a replay.** The room document a finished match would
+   have (teams, options, result, the last snapshot), so a sealed pitch reads like any
+   other to the pages function and the pitch page, built by the engine since the rooms
+   function knows no Kubb.
+
+6 to 9 change no throw, so they can go in a patch release of each minor a client is
+on. 6 can also be done outside the engine, with a second engine as `verifySolo` does,
+for any release; 7 to 9 cannot.
 
 ## Open questions for the owner
 
@@ -275,10 +578,22 @@ These are requests for kubb-engine. The prototype works around each.
    **Recommend: a year.**
 3. **Sound on?** The knocks and the king's chord are in the reels now. Platforms mute
    by default, and players may add music there. **Recommend: keep the game's sound.**
-4. **Watch-the-computer matches.** These are recorded but have no pitch code, so they
-   have no reel. **Recommend: no reels for them.** A reel's link should lead to a pitch.
-5. **X's player card.** It needs an iframe player page; `/e/<code>` could serve it.
+4. **A match against the computer: a reel only, or a shared pitch?** Today such a
+   match is never published. Sharing it as above makes its replay public at its link
+   too, not only the video. **Recommend: a shared pitch**, one path for every reel; the
+   replay is the same match the reel is cut from, under the same name.
+5. **The name on a shared match.** The typed name is often the player's own. Asking
+   again on the share card, prefilled, and never taking "You". **Recommend: the card as
+   drafted.**
+6. **Watch-the-computer matches** (nobody played). No button. The path would take them
+   (they are the easiest to check, the whole match follows from its seed), but nobody's
+   match is being shared and every one is North against South. **Recommend: no reels
+   for them for now**; it is one condition to lift later.
+7. **X's player card.** It needs an iframe player page; `/e/<code>` could serve it.
    **Recommend: leave it out for now.** Facebook, LinkedIn, Slack and Discord preview
    the video from `og:video`.
-6. **Daily cap of 200.** **Recommend: start there**, alarm on the counter, and raise it
-   when it is reached.
+8. **Daily caps of 200 renders and 200 shares.** **Recommend: start there**, alarm on
+   the counters, and raise them when they are reached.
+9. **iPhone solo matches are not recorded** privately as the web's are. Sharing does not
+   need it. **Recommend: decide it apart from reels**; step 1 of the iPhone's work makes
+   it possible either way.
