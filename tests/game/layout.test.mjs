@@ -147,7 +147,7 @@ test("the meter's side: the linear meter at the left edge, mirrored", () => {
     assert.ok(g.travel >= linearTune.minTravel, `${W}x${H} room`);
     assert.ok(overlaps(L.minimap, d) === false, "clear of the minimap");
     if (L.tall) {
-      // the rail and the practice tray (DRILL, RESET) are top left, the
+      // the rail and the practice tray (BATONS | KUBBS, RESET) are top left, the
       // minimap top right: the meter starts under all of them
       assert.ok(d.y >= L.minimap.y + L.minimap.height, "under the minimap");
       assert.ok(d.y >= s.top + 134, "under the practice tray");

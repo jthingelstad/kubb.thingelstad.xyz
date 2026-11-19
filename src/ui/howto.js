@@ -55,10 +55,10 @@ const STEPS = [
   {
     linear: [
       "Aim if you like",
-      "Drag the target circle on the pitch. WALK, then drag on the pitch, moves the thrower along the line or back (keys: WASD). Slide ARC and TILT beside the meter; SIDE VIEW shows the arc. Or just throw: the circle starts on a good target.",
+      "Tap the pitch to put the target circle there, or drag to move it. Slide ARC and TILT beside the meter; drag the ring on STAND to stand somewhere else. Or just throw: the circle starts on a good target.",
     ],
     title: "Aim if you like",
-    text: "Drag the target circle on the pitch. WALK, then drag on the pitch, moves the thrower along the line or back (keys: WASD). Slide ARC and TILT beside the dial; SIDE VIEW shows the arc. Or just throw: the circle starts on a good target.",
+    text: "Tap the pitch to put the target circle there, or drag to move it. Slide ARC and TILT beside the dial; drag the ring on STAND to stand somewhere else. Or just throw: the circle starts on a good target.",
     arm: () => 0,
   },
 ];
