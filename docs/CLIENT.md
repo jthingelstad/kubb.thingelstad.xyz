@@ -180,11 +180,17 @@ engine changes in kind: both still send `arm` in degrees through the dial feed.
   on the ring is exactly as before (Tyler plays the circle on a phone). A mouse is as
   before. On a touchscreen held upright (`layoutFor`'s `coarse`, from
   `(pointer: coarse)`) the clock is 13% smaller (`tune.trackShrink` 0.87) and raised until
-  the finger track (1.1 to 1.55 radii, drawn as a faint band with a dashed middle,
-  `st.track`) clears the bottom: on 390 x 844 the radius goes from 101 to 88 px and the
-  centre up 20 px. The plan buttons then stand above the track (`plansFoot`), in two
-  columns either side of the throwing line. A phone on its side has no room for the
-  track: touches outside the ring work where there is screen, and no track is drawn.
+  the finger track (1.1 to 1.55 radii, `st.track`) clears the bottom: on 390 x 844 the
+  radius goes from 101 to 88 px and the centre up 20 px. The track is drawn as a thin ink
+  rail on a paper casing along its middle, only where a finger goes (12 o'clock down the
+  back side, round 6 and up the forward side to `tune.trackPast`, 14 degrees, past the
+  release band), with an hour pip every 30 degrees and the two targets laid on it; it
+  stops short of the prompt plate. While a finger holds the dial from outside the ring
+  (`st.finger`, the pointer's place), a thin spoke runs from the knob out to a ring at the
+  finger. The plan buttons then stand above the track (`plansFoot`), in two columns
+  either side of the throwing line. A phone on its side has no room for the track:
+  touches outside the ring work where there is screen (with the spoke), and no track is
+  drawn.
 
 **Left or right** (Jamie, 2026-11-19, about the linear meter: "Can you flick anywhere?
 Left and right handed folks may want it on one side or the other."). MENU, Side, Left or

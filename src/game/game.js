@@ -994,6 +994,11 @@ export class Game {
       const st = {
         ...dial,
         grabbed: this.ptr?.kind === "dial" || this.ptr?.kind === "swipe",
+        // a finger holding the clock from beside the ring (the track)
+        finger:
+          this.ptr?.kind === "dial" && this.ptr.outside
+            ? [this.ptr.x, this.ptr.y]
+            : null,
       };
       if (this.touchPrompts && !watching && this.L.meter !== "linear") {
         if (st.prompt === "WIND BACK") st.prompt = "PULL DOWN ↓";
@@ -1258,6 +1263,7 @@ export class Game {
     const touch = e.pointerType !== "mouse";
     let kind = null;
     let grab = 0;
+    let outside = false;
     if (this.phase === "aim" && this.mayAct()) {
       const linear = this.L.meter === "linear";
       const g = linear ? this.linearG() : dialGeometry(this.L.dial);
@@ -1284,7 +1290,10 @@ export class Game {
       else if (swipe && y >= this.H / 2) kind = "swipe";
       // a finger beside the clock's ring, where it hides nothing: the arm is
       // the angle about the centre as on the ring (touch only)
-      else if (!linear && !swipe && touch && trackHit(g, x, y)) kind = "dial";
+      else if (!linear && !swipe && touch && trackHit(g, x, y)) {
+        kind = "dial";
+        outside = true;
+      }
       // the linear meter's throw zone: a tap there aims as any tap does; a
       // drag becomes the stroke (move)
       else if (linear && y >= this.H * tune.zoneFrom) kind = "zone";
@@ -1318,6 +1327,7 @@ export class Game {
       y,
       moved: false,
       grab,
+      outside,
     };
     try {
       this.canvas.setPointerCapture(e.pointerId);

@@ -15,6 +15,7 @@
 
 import { linearGeometry, tune as linearTune } from "../render/linear.js";
 import { dialGeometry, tune as dialTune } from "../render/dial.js";
+import { minimapGeometry, tune as mapTune } from "../render/minimap.js";
 
 export const tune = {
   tallFrom: 1.05, // H / W above this is a tall canvas
@@ -116,6 +117,13 @@ function linearBox(W, H, s, tall, minimap, side) {
     width: w,
     height: h,
   };
+  // under the minimap (a tall canvas, the right edge) its body's outer edge
+  // lines up with the minimap plaque's (on a phone the two are as wide)
+  if (tall && side !== "left") {
+    const p = minimapGeometry(minimap);
+    box.x +=
+      p.x + p.w + p.pad + mapTune.frame - linearGeometry(box, side).right;
+  }
   return h > 0 && linearGeometry(box, side).travel >= linearTune.minTravel
     ? box
     : null;

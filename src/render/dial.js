@@ -20,6 +20,8 @@
 //   grabbed    true while the pointer holds the arm
 //   track      draw the finger track round the rim (a touchscreen: a finger
 //              may go round outside the ring, where it hides nothing)
+//   finger     [x, y] of a finger holding the dial from beside the ring, or
+//              null: a spoke from the knob out to it
 import { INK, PAPER, HUD, FONT } from "./palette.js";
 
 export const tune = {
@@ -43,6 +45,7 @@ export const tune = {
   trackIn: 1.1,
   trackOut: 1.55,
   touchReach: 2.1,
+  trackPast: 14, // the rail runs this many degrees past the release band
 };
 
 // ---------- geometry (also for input) ----------
@@ -158,14 +161,19 @@ function target(ctx, g, ri, ro, rm, ringW, a0, a1, fill, deep, lw) {
   ctx.stroke();
 }
 
+// A prompt plate's width at height h (it sets the plate's font).
+function plateWidth(ctx, h, text) {
+  ctx.font = `900 ${Math.round(h * 0.78)}px ${FONT.display}`;
+  return ctx.measureText(text).width + h * 0.9;
+}
+
 // A prompt plate centred on (x, y). With `right`, it is moved left so it and
 // its shadow stay inside that x (a meter at the screen's right edge); with
 // `left`, moved right so it starts at that x (a meter at the left edge).
 export function plate(ctx, x, y, h, text, inverted, right = null, left = null) {
-  ctx.font = `900 ${Math.round(h * 0.78)}px ${FONT.display}`;
+  const w = plateWidth(ctx, h, text);
   ctx.textBaseline = "middle";
   ctx.textAlign = "center";
-  const w = ctx.measureText(text).width + h * 0.9;
   const sh = h * 0.12;
   if (right != null) x = Math.min(x, right - sh - w / 2);
   if (left != null) x = Math.max(x, left + w / 2);
@@ -184,6 +192,64 @@ export function plate(ctx, x, y, h, text, inverted, right = null, left = null) {
   ctx.fillText(text, x, y + h * 0.04);
 }
 
+// The finger track's rail (drawDial, st.track): an arc at the middle of
+// trackIn..trackOut from 12 o'clock down the back side, round 6 and up the
+// forward side a little past the release band.
+function trackRail(ctx, g, st, lw) {
+  const rt = (g.r * (tune.trackIn + tune.trackOut)) / 2;
+  const c = (a) => ((90 - a) * Math.PI) / 180;
+  const end = Math.min(180, Math.max(st.releaseHi || 0, 90) + tune.trackPast);
+  const arc = (a0, a1) => {
+    ctx.beginPath();
+    ctx.arc(g.cx, g.cy, rt, c(a0), c(a1), true);
+  };
+  ctx.save();
+  ctx.lineCap = "round";
+  // the casing, then the rail
+  ctx.strokeStyle = PAPER;
+  ctx.lineWidth = lw * 3.4;
+  arc(-180, end);
+  ctx.stroke();
+  // the targets on it: a fat stroke in the target's colour, edged in ink
+  const seg = (a0, a1, fill) => {
+    ctx.lineCap = "butt";
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = lw * 3.4;
+    arc(a0 - 1.2, a1 + 1.2);
+    ctx.stroke();
+    ctx.strokeStyle = fill;
+    ctx.lineWidth = lw * 1.6;
+    arc(a0, a1);
+    ctx.stroke();
+  };
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = lw;
+  arc(-180, end);
+  ctx.stroke();
+  if (st.powerHi > st.powerLo) seg(-st.powerHi, -st.powerLo, HUD.power);
+  if (st.releaseHi > st.releaseLo) seg(st.releaseLo, st.releaseHi, HUD.release);
+  // the hour pips
+  ctx.lineCap = "round";
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = lw * 1.2;
+  ctx.beginPath();
+  for (let a = -150; a < end; a += 30) {
+    if (a === 0) continue;
+    const [x0, y0] = armPoint(g, a, rt - lw * 2.2);
+    const [x1, y1] = armPoint(g, a, rt + lw * 2.2);
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+  }
+  ctx.stroke();
+  // 6 o'clock, where every swing starts: a solid pip
+  const [x6, y6] = armPoint(g, 0, rt);
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  ctx.arc(x6, y6, lw * 2.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 export function drawDial(ctx, rect, st) {
   const g = dialGeometry(rect);
   const { cx, cy, r } = g;
@@ -196,23 +262,26 @@ export function drawDial(ctx, rect, st) {
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
 
-  // the finger track round the rim: a faint paper band with a dashed ink
-  // line along its middle, where a finger may go round and hide nothing
+  // the finger track beside the rim: only the way a finger goes (6 o'clock
+  // up the back side to 12, and forward past the release band), drawn as a
+  // thin ink rail on a paper casing with an hour pip every 30 degrees and the
+  // two targets laid on it. It is line, not a wash, so the pitch shows
+  // through; the prompt plate is drawn over its top.
   if (st.track) {
-    const t0 = r * tune.trackIn,
-      t1 = r * tune.trackOut;
-    ctx.fillStyle = HUD.track;
-    ctx.beginPath();
-    ctx.arc(cx, cy, t1, 0, Math.PI * 2);
-    ctx.arc(cx, cy, t0, 0, Math.PI * 2, true);
-    ctx.fill();
-    ctx.strokeStyle = HUD.trackLine;
-    ctx.lineWidth = Math.max(1, r * 0.018);
-    ctx.setLineDash([r * 0.06, r * 0.08]);
-    ctx.beginPath();
-    ctx.arc(cx, cy, (t0 + t1) / 2, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    // it yields to the prompt plate: a gap round the plate's box
+    ctx.save();
+    if (st.prompt) {
+      const h = Math.max(14, r * tune.promptH);
+      const w = plateWidth(ctx, h, st.prompt);
+      const m = h * 0.3;
+      const py = cy - r - h * 0.85;
+      ctx.beginPath();
+      ctx.rect(rect.x - r, rect.y - r, rect.width + 2 * r, rect.height + 2 * r);
+      ctx.roundRect(cx - w / 2 - m, py - h / 2 - m, w + 2 * m, h + 2 * m, m);
+      ctx.clip("evenodd");
+    }
+    trackRail(ctx, g, st, lw);
+    ctx.restore();
   }
 
   // the face: hard shadow, ink frame, paper
@@ -350,6 +419,30 @@ export function drawDial(ctx, rect, st) {
     ctx.beginPath();
     ctx.arc(hx, hy, kr * 1.7, 0, Math.PI * 2);
     ctx.fill();
+  }
+  // a finger held beside the ring: a thin spoke from the knob out to it,
+  // and a ring where it is, so what the finger covers can be read past it
+  if (st.finger) {
+    const [fx, fy] = st.finger;
+    ctx.strokeStyle = PAPER;
+    ctx.lineWidth = lw * 2.6;
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.lineTo(fx, fy);
+    ctx.stroke();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = lw * 1.1;
+    ctx.stroke();
+    const fr = r * 0.11;
+    ctx.fillStyle = PAPER;
+    ctx.beginPath();
+    ctx.arc(fx, fy, fr + lw * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = lw * 1.5;
+    ctx.beginPath();
+    ctx.arc(fx, fy, fr, 0, Math.PI * 2);
+    ctx.stroke();
   }
   const handW = live || st.grabbed ? r * 0.07 : r * 0.045;
   ctx.strokeStyle = PAPER;
