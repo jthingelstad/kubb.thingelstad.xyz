@@ -90,7 +90,7 @@ export function standCaption(thrower, aim) {
   const how =
     span.limit > span.lineY + tune.still
       ? "Stand on your line, behind it, or up to the advantage line."
-      : "Stand anywhere on your line or behind it.";
+      : "Stand on your line or behind it.";
   return { key: "stand", text: `${standText(thrower, aim)}. ${how}` };
 }
 
