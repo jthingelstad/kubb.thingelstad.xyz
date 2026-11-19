@@ -238,8 +238,9 @@ body.game {
 
 /* The plan beside the meter (hud.js place): the ARC and TILT sliders
    (src/game/plan-sliders.js), SIDE VIEW and STAND (src/game/stand-pad.js).
-   On a wide screen one block: ARC's tall plate by the meter, TILT, STAND
-   and SIDE VIEW stacked beside it. On a tall one split either side of the
+   On a wide screen one block: TILT over STAND, and ARC over SIDE VIEW by
+   the meter, so the block is no taller than TILT and STAND (it stays under
+   the linear meter's prompt and clear of the target on a short screen). On a tall one split either side of the
    throwing line: ARC over SIDE VIEW on the left, TILT over STAND on the
    right, each column's top and foot level with the other's. */
 .plans {
@@ -249,7 +250,7 @@ body.game {
   grid-template-areas:
     "side arc"
     "stand arc"
-    "view arc";
+    "stand view";
   gap: 8px;
   align-items: end;
 }
@@ -258,7 +259,7 @@ body.game {
   grid-template-areas:
     "arc side"
     "arc stand"
-    "arc view";
+    "view stand";
 }
 #ui .plans {
   pointer-events: none;
@@ -279,6 +280,13 @@ body.game {
 }
 .plans > .slider.stand {
   grid-area: stand;
+  align-self: stretch;
+}
+/* SIDE VIEW under ARC on a wide screen: two short lines in its narrow column */
+.plans:not(.split) > .btn.view {
+  padding-left: 2px;
+  padding-right: 2px;
+  line-height: 1;
 }
 .plans.split {
   grid-template-columns: 88px 1fr 88px;
