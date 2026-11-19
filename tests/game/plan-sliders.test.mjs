@@ -12,6 +12,9 @@ import {
   arcLabel,
   sideLabel,
   sideValueText,
+  CAPTIONS,
+  captionOf,
+  leanOf,
 } from "../../src/game/plan-sliders.js";
 
 test("ARC: the track is the engine's release range, up is higher", () => {
@@ -51,4 +54,28 @@ test("the words read as the buttons did", () => {
   assert.equal(sideLabel({ spin: -2 }, true), "SPIN 2L");
   assert.equal(sideValueText({ tilt: -20 }, false), "Tilt 20 degrees left");
   assert.equal(sideValueText({ spin: 3 }, true), "Spin 3 right");
+});
+
+test("the held slider's caption: the iPhone's words, TILT or SPIN by the piece", () => {
+  assert.equal(
+    captionOf("arc", false).text,
+    "A higher arc drops in steeper. A lower one skids in.",
+  );
+  assert.equal(captionOf("arc", true).text, CAPTIONS.arc);
+  assert.equal(
+    captionOf("side", false).text,
+    "Tilt leans the baton to steer it through a group.",
+  );
+  assert.equal(
+    captionOf("side", true).text,
+    "Spin keeps a drilled kubb steady in the air.",
+  );
+  assert.equal(captionOf(null, false), null);
+});
+
+test("the caption's baton leans by the plan's tilt, in the engine's range", () => {
+  assert.equal(leanOf({ tilt: 10 }), 10);
+  assert.equal(leanOf({ tilt: -15 }), -15);
+  assert.equal(leanOf({}), 0);
+  assert.equal(leanOf({ tilt: 45 }), limits.tiltMax);
 });

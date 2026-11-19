@@ -150,6 +150,17 @@ are two sliders now, and PLAN VIEW is SIDE VIEW.
 - **Dragging shows the arc.** While a slider is held, and `tune.slidePeek` (0.5 s) after,
   the engine is fed `plan` (the side view), so the player sees what the change did without
   a second button. SIDE VIEW does not light for it.
+- **The slider says what it does** (a tester, 2026-11-19: "I can't tell what tilt does at
+  all", and nothing said how arc and tilt affect the toss; Jamie: "Have the UI show it not
+  a separate how to page"). While a slider is held, and through the peek after, one line
+  above the plan says what it does, in the iPhone's words set in the HUD's capitals:
+  ARC "A higher arc drops in steeper. A lower one skids in.", TILT "Tilt leans the baton
+  to steer it through a group.", SPIN "Spin keeps a drilled kubb steady in the air."
+  (`plan-sliders.js` `CAPTIONS`, `Hud.showCaption`). It sits above the plan's block (and
+  above the linear meter's prompt tab), where the finger on the slider is not, below the
+  far half where the targets are. While TILT is held a small baton beside the words leans
+  by the plan's tilt (`leanOf`, 5 degrees a step, against a dashed upright): the web draws
+  no baton in the thrower's hand while aiming, so this is where the lean shows.
 - **Once a frame.** A drag only records where the finger is (`Game.planSlide`); `aimFrame`
   sends the latest place to the engine once a frame (`applySlide`), before its `frame`
   call. `setArc` replans and refits the camera at once (`throw.setArc` calls `replan`), so

@@ -5,7 +5,8 @@
 // sliders, SIDE VIEW and WALK). The game calls update() once a frame; only
 // changed text touches the DOM.
 import { h, button } from "../ui/dom.js";
-import { PlanSlider } from "./plan-sliders.js";
+import { PlanSlider, captionOf, leanOf } from "./plan-sliders.js";
+import { linearGeometry } from "../render/linear.js";
 
 // The verdict chips under the flag, from the core's words (throwplan.lua
 // plan.verdictText): on target, power and release read "POWER ON" and
@@ -83,6 +84,24 @@ export class Hud {
       this.sideView,
       this.walk,
     );
+    // what the held slider does (plan-sliders.js CAPTIONS), above the plan
+    // where the finger on a slider is not, with a baton that leans by the
+    // tilt while TILT is held
+    this.capWood = h("div.cap-wood");
+    this.capBaton = h(
+      "div.cap-baton",
+      { "aria-hidden": "true" },
+      h("div.cap-plumb"),
+      this.capWood,
+    );
+    this.capText = h("span.cap-text");
+    this.caption = h(
+      "div.hud.plan-caption",
+      { "data-test": "plan-caption", role: "status" },
+      this.capBaton,
+      this.capText,
+    );
+    this.caption.hidden = true;
     this.skip = button("SKIP", () => a.skip(), "small skip-btn", {
       "data-test": "skip",
     });
@@ -92,6 +111,7 @@ export class Hud {
       this.status,
       this.adv,
       this.plans,
+      this.caption,
       this.skip,
     );
   }
@@ -111,7 +131,8 @@ export class Hud {
   }
 
   // st: { aim, need, phase, playing, slow, watching, plan, practice, flag,
-  //       verdicts, restText, layout, who: { text, mine } | null, wide }
+  //       verdicts, restText, layout, who: { text, mine } | null, wide,
+  //       caption: the held slider's "arc" | "side", or null }
   update(st) {
     const aim = st.aim || {};
     const rail = aim.rail || {};
@@ -173,11 +194,65 @@ export class Hud {
       }
       this.walk.classList.toggle("on", !!st.walk);
       this.place(st.layout);
+      this.showCaption(st.caption ? captionOf(st.caption, kubb) : null, p);
     } else {
       this.arc.cancel();
       this.side.cancel();
+      this.showCaption(null);
     }
     this.show(this.skip, !!st.playing);
+  }
+
+  // The held slider's caption (cap: { key, text } or null), placed above the
+  // plan's block: across it where the plan is split, else at least 330 px
+  // wide from the block's edge away from the meter. The block is measured
+  // only when the caption appears or the layout changes. Beside the linear
+  // meter it also stays above the meter's prompt tab.
+  showCaption(cap, plan = null) {
+    const key = cap ? cap.key : "";
+    if (this.cache.get("capKey") !== key) {
+      this.cache.set("capKey", key);
+      this.caption.hidden = !cap;
+      this.caption.dataset.what = key;
+      this.capText.textContent = cap ? cap.text : "";
+      this.capBaton.hidden = key !== "tilt";
+      this.cache.delete("capPlace");
+    }
+    if (!cap) return;
+    if (key === "tilt") {
+      const lean = leanOf(plan);
+      if (this.cache.get("capLean") !== lean) {
+        this.cache.set("capLean", lean);
+        this.capWood.style.transform = `rotate(${lean}deg)`;
+      }
+    }
+    const L = this.cache.get("placeL");
+    const pk = this.cache.get("place");
+    if (!L || this.cache.get("capPlace") === pk) return;
+    this.cache.set("capPlace", pk);
+    const r = this.plans.getBoundingClientRect();
+    const s = this.caption.style;
+    // and above the linear meter's prompt tab, which hangs toward the plan
+    let top = r.top;
+    if (L.meter === "linear") {
+      const g = linearGeometry(L.dial, L.meterSide);
+      top = Math.min(top, g.y0 - g.promptH / 2 - 4);
+    }
+    s.bottom = `${L.H - top + 8}px`;
+    const split = L.side === "both";
+    const toRight = L.side === "right"; // the block is right of the meter
+    this.caption.classList.toggle("split", split);
+    this.caption.classList.toggle("from-left", !split && toRight);
+    if (split) {
+      s.left = `${r.left}px`;
+      s.right = `${L.W - r.right}px`;
+      s.width = "";
+    } else {
+      const w = Math.max(r.width, 330);
+      s.width = `${w}px`;
+      s.left = toRight ? `${r.left}px` : "";
+      s.right = toRight ? "" : `${L.W - r.right}px`;
+    }
   }
 
   // The plan beside the meter, on its inner side: in one block to its left
@@ -194,6 +269,7 @@ export class Hud {
     const key = `${L.W}x${L.H}:${L.side}:${L.meter}:${L.meterSide}:${L.plansFoot}`;
     if (this.cache.get("place") === key) return;
     this.cache.set("place", key);
+    this.cache.set("placeL", L);
     const d = L.dial;
     const s = this.plans.style;
     this.plans.classList.toggle("split", L.side === "both");
