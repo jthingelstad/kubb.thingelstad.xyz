@@ -1,6 +1,12 @@
 // The renderer's calls the game uses, in one place.
 export { drawWorld } from "../render/world.js";
-export { drawDial, dialGeometry, armAt, hitTest } from "../render/dial.js";
+export {
+  drawDial,
+  dialGeometry,
+  armAt,
+  hitTest,
+  trackHit,
+} from "../render/dial.js";
 export {
   drawLinear,
   linearGeometry,

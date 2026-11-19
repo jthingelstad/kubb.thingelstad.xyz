@@ -1,5 +1,5 @@
-// The menu, from the button in the top corner: resign, sound, level, meter, how to
-// throw, the score sheet (in a match), report a throw, the rules and home; on
+// The menu, from the button in the top corner: resign, sound, level, meter
+// and its side, how to throw, the score sheet (in a match), report a throw, the rules and home; on
 // the practice pitch also the surface; watching the computer, the view. At its
 // foot, small, the release this page is (src/site/release.js).
 import { h, button, clear } from "./dom.js";
@@ -18,6 +18,11 @@ const VIEWS = [
 const METERS = [
   ["clock", "Clock"],
   ["linear", "Linear"],
+];
+// the screen edge the meter sits at (src/game/game.js setMeterSide)
+const SIDES = [
+  ["left", "Left"],
+  ["right", "Right"],
 ];
 const SURFACES = [
   ["grass", "Grass"],
@@ -88,6 +93,24 @@ export class Menu {
                 "p.opt-note",
                 { "data-test": "menu-meter-note" },
                 "This screen is too short for the linear meter, so the clock is shown.",
+              )
+            : null,
+        ),
+        h(
+          "div.opt",
+          { "data-test": "menu-side" },
+          h("span.opt-label", "Side"),
+          seg(SIDES, game.meterSide, (v) => {
+            game.setMeterSide(v);
+            render();
+          }),
+          // a tall screen's clock is in the middle: the side is the linear
+          // meter's there
+          game.L?.tall && game.L?.meter !== "linear"
+            ? h(
+                "p.opt-note",
+                { "data-test": "menu-side-note" },
+                "On a screen held upright the clock stays in the middle; the side moves the linear meter.",
               )
             : null,
         ),
