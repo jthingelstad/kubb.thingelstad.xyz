@@ -456,7 +456,7 @@ browserTest("a finished pitch plays its match again", async () => {
     await late.textContent("[data-test=replay-count]"),
     /THROW 1 OF \d+/,
   );
-  // no REPORT A THROW in a replay: its throws are the log's, not played here
+  // no SEND FEEDBACK in a replay: its throws are the log's, not played here
   await late.click("[data-test=menu]");
   await late.waitForSelector("[data-test=menu-card]");
   assert.equal(await late.locator("[data-test=report]").count(), 0);
@@ -519,7 +519,7 @@ browserTest("a finished pitch plays its match again", async () => {
   assert.equal(await late.locator("[data-test=replay-bar]").count(), 0);
   assert.ok(
     await late.evaluate(() => !!window.__kubb.menu.hooks.report),
-    "REPORT A THROW is back",
+    "SEND FEEDBACK is back",
   );
 
   // REMATCH: the lobby offers the last match

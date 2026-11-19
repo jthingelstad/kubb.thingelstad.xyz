@@ -132,22 +132,32 @@ A player can say a throw looked wrong (Jamie, 2026-11-16: "Is it worth allowing,
 particularly on the web, a specific 'report' action that the player can type what
 happened and what should have happened so we can analyze? I think yes." and "Approved:
 build the web report action in kubb.thingelstad.xyz with a private store on AWS for the
-typed reports"). MENU, REPORT A THROW, in every mode (practice, solo, watch, a shared
-pitch), opens a card with "What happened?" and "What should have happened?" (1000
-characters each, at least one), SEND and CANCEL. The browser sends the answers with the
-game as it stood when the card opened, enough to play the reported moment again here
-(`src/net/report.js` says exactly what; no name field, no user agent, no member id). It
-goes as one `report` message on a socket of its own to the rooms server
+typed reports"), or tell us anything else (Jamie, 2026-11-19: "We have a way of reporting
+physics issues via the app -- think we should allow reports of any feedback. Not just
+physics."). MENU, SEND FEEDBACK, in every mode (practice, solo, watch, a shared pitch),
+opens the "Send feedback" card with a choice: "A throw looked wrong" (the default when
+the game has a last throw) asks "What happened?" and "What should have happened?" (1000
+characters each, at least one) and lets the player mark pieces; "Something else" asks
+"What would you like to tell us?" (one box, 2000 characters). SEND and CANCEL. Either
+way the browser sends what was typed with the game as it stood when the card opened,
+enough to play a reported throw again here (`src/net/report.js` says exactly what; no
+name field, no contact field, no user agent, no member id). There is no reply channel:
+the site promises none. It goes as one `report` message (`kind: "throw"` or
+`"feedback"`; a message with no `kind` is a throw report, as older clients and the
+iPhone app's current builds send) on a socket of its own to the rooms server
 (`docs/ROOMS.md` section 8), which writes one gzipped object to the private games bucket
 under `reports/<yyyy-mm-dd>/`, kept for good like the games.
 
 - Limits: 64 KB a report as ASCII JSON (history, then pieces, then the snapshot after
-  are dropped to fit; the answers, the snapshot before and the last action never), 3
-  reports a connection (best effort, per Lambda instance), the stage throttle.
+  are dropped to fit; what was typed, the snapshot before and the last action never), 3
+  reports a connection of either kind (best effort, per Lambda instance), the stage
+  throttle.
 - `npm run reports:pull` (as `cloud-engineer`; `--since <date>`) copies new reports to
-  `build/reports/` (never in git) and prints each: when, mode, the two answers, where the
-  replayable state is. `npm run reports:show` prints those already pulled.
-- `npm run reports:replay -- <file>` plays the report's last action from the snapshot
+  `build/reports/` (never in git) and prints each: when, kind, mode, the two answers or
+  the feedback's text, where the replayable state is. `npm run reports:show` prints those
+  already pulled.
+- `npm run reports:replay -- <file>` says a feedback report with no throw in it has
+  nothing to replay; otherwise it plays the report's last action from the snapshot
   before it through this checkout's engine (and the whole match from its start when the
   report carries it; practice from its options and steps), says whether it ends where the
   player's browser did, and prints the last throw's result and where the pieces lie.

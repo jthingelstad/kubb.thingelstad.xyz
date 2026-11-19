@@ -1315,6 +1315,10 @@ browserTest(
         0,
         "the menu closed",
       );
+      assert.ok(
+        await page.isChecked("[data-test=report-kind-throw]"),
+        "a game with a throw starts on the throw",
+      );
       assert.match(
         await page.textContent("[data-test=report-card]"),
         /kept privately and not published/,
@@ -1420,6 +1424,7 @@ browserTest(
       const send = async (page, text) => {
         await page.click("[data-test=menu]");
         await page.click("[data-test=report]");
+        await page.check("[data-test=report-kind-throw]");
         await page.fill("[data-test=report-happened]", text);
         await page.click("[data-test=report-send]");
         await page.waitForSelector(".report[data-sent='1']", {
@@ -1448,6 +1453,7 @@ browserTest(
       await watchThrows(watch);
       await watch.click("[data-test=menu]");
       await watch.click("[data-test=report]");
+      await watch.check("[data-test=report-kind-throw]");
       const n0 = await watch.evaluate(() => window.__throws.length);
       await watch.waitForFunction((n) => window.__throws.length > n, n0, {
         timeout: 30000,
@@ -1478,6 +1484,98 @@ browserTest(
       assert.deepEqual(w.options.cpu, ["A", "B"]);
       assert.deepEqual(watch.errors, []);
       await watch.context().close();
+    } finally {
+      await rooms.close();
+    }
+  },
+);
+
+browserTest(
+  "feedback about anything: the card's choice, one box, sent with the game",
+  async () => {
+    const report = memoryReporter();
+    const rooms = await startRoomsServer({ port: 0, report });
+    try {
+      const page = await open(
+        env,
+        `/practice/?nohowto=1&rooms=${encodeURIComponent(rooms.url)}`,
+      );
+      await waitPhase(page, "aim", 10000);
+      await page.click("[data-test=menu]");
+      assert.equal(
+        (await page.textContent("[data-test=report]")).trim(),
+        "SEND FEEDBACK",
+      );
+      await page.click("[data-test=report]");
+      await page.waitForSelector("[data-test=report-card]");
+      assert.match(
+        await page.textContent("[data-test=report-card] h2"),
+        /Send feedback/,
+      );
+      // no throw yet: "Something else" is chosen, its box shown and focused
+      assert.ok(await page.isChecked("[data-test=report-kind-feedback]"));
+      assert.ok(!(await page.isChecked("[data-test=report-kind-throw]")));
+      assert.ok(await page.isVisible("[data-test=report-text]"));
+      assert.ok(!(await page.isVisible("[data-test=report-happened]")));
+      await page.waitForFunction(
+        () => document.activeElement?.dataset.test === "report-text",
+      );
+      assert.match(
+        await page.textContent("[data-test=report-card]"),
+        /What would you like to tell us\?A problem, an idea, something you liked or did not\. Anything\./,
+      );
+      // a real radio group a keyboard moves through
+      const group = await page.evaluate(() => {
+        const inputs = [...document.querySelectorAll(".report-kind input")];
+        return {
+          radios: inputs.map((i) => i.type),
+          names: inputs.map((i) => i.labels[0].textContent),
+          legend: document.querySelector(".report-kind legend")?.textContent,
+        };
+      });
+      assert.deepEqual(group.radios, ["radio", "radio"]);
+      assert.deepEqual(group.names, ["A throw looked wrong", "Something else"]);
+      assert.ok(group.legend);
+      await page.focus("[data-test=report-kind-feedback]");
+      await page.keyboard.press("ArrowLeft");
+      assert.ok(await page.isChecked("[data-test=report-kind-throw]"));
+      assert.ok(await page.isVisible("[data-test=report-happened]"));
+      assert.ok(!(await page.isVisible("[data-test=report-text]")));
+      await page.keyboard.press("ArrowRight");
+      assert.ok(await page.isChecked("[data-test=report-kind-feedback]"));
+      // SEND with the box blank asks for it and sends nothing
+      await page.click("[data-test=report-send]");
+      assert.match(
+        await page.textContent("[data-test=report-status]"),
+        /Write what you would like to tell us/,
+      );
+      assert.equal(report.kept.length, 0);
+      const said = "The practice pitch could have a wind. ÅÄÖ";
+      await page.fill("[data-test=report-text]", `  ${said}\n`);
+      assert.equal(
+        await page.getAttribute("[data-test=report-text]", "maxlength"),
+        "2000",
+      );
+      await page.click("[data-test=report-send]");
+      await page.waitForFunction(
+        () =>
+          document.querySelector("[data-test=report-status]")?.textContent ===
+          "Sent, thank you.",
+        null,
+        { timeout: 10000 },
+      );
+      await page.click("[data-test=report-done]");
+      assert.equal(await page.evaluate(() => window.__kubb.game.modal), 0);
+      assert.equal(report.kept.length, 1);
+      const r = JSON.parse(report.kept[0].text).report;
+      assert.equal(r.kind, "feedback");
+      assert.equal(r.text, said);
+      assert.equal(r.mode, "practice");
+      assert.equal(r.happened, undefined);
+      assert.equal(r.should, undefined);
+      assert.ok(r.practice, "the game as it stood goes with it");
+      assert.deepEqual(page.errors, []);
+      await page.context().close();
     } finally {
       await rooms.close();
     }

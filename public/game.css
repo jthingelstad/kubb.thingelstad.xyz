@@ -930,9 +930,50 @@ body.game {
   font-weight: 700;
 }
 
-/* the report card (src/ui/report.js) */
+/* the feedback card (src/ui/report.js) */
 .report {
   width: min(560px, 100%);
+}
+/* the kind of feedback: real radio inputs drawn as the site's segmented buttons */
+.report-kind {
+  border: 0;
+  margin: 10px 0 0;
+  padding: 0;
+  min-width: 0;
+}
+.report-kind-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 1 1 auto;
+  justify-content: center;
+  text-align: center;
+}
+.report-kind-input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.report-kind-btn:has(.report-kind-input:checked) {
+  background: var(--ink);
+  color: var(--paper);
+}
+.report-kind-btn:has(.report-kind-input:focus-visible) {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+.report-kind:disabled .report-kind-btn {
+  opacity: 0.6;
+  cursor: default;
+}
+.report-part[hidden] {
+  display: none;
+}
+.report-hint {
+  margin: 0;
+  font-size: 14px;
 }
 .report-picker {
   margin-block: 8px;

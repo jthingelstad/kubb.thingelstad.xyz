@@ -1,5 +1,5 @@
 // The menu, from the button in the top corner: resign, sound, level, meter
-// and its side, how to throw, the score sheet (in a match), report a throw, the rules and home; on
+// and its side, how to throw, the score sheet (in a match), send feedback, the rules and home; on
 // the practice pitch also the surface; watching the computer, the view. At its
 // foot, small, the release this page is (src/site/release.js).
 import { h, button, clear } from "./dom.js";
@@ -193,7 +193,7 @@ export class Menu {
             : null,
           this.hooks.report
             ? button(
-                "REPORT A THROW",
+                "SEND FEEDBACK",
                 () => {
                   this.close();
                   this.hooks.report();

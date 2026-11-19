@@ -1,11 +1,13 @@
-// Reports: a player says a throw looked wrong (MENU, REPORT A THROW), in their own words,
-// and the browser sends the game as it stood, so the throw can be played again offline
-// and tested (Jamie, 2026-11-16). docs/ROOMS.md section 8.
+// Reports (MENU, SEND FEEDBACK): a player says a throw looked wrong (Jamie, 2026-11-16),
+// or tells us anything else (`kind: "feedback"`, Jamie, 2026-11-19), in their own words,
+// and the browser sends the game as it stood, so a throw can be played again offline
+// and tested. docs/ROOMS.md section 8.
 //
 //   reports/<yyyy-mm-dd>/<epoch ms, 13 digits>-<random>.json.gz
 //
 // One object a report, gzipped JSON: { t, report }. `t` is the server's clock; `report`
-// is what the browser sent (src/net/report.js), as ASCII JSON text. Nothing names the
+// is what the browser sent (src/net/report.js) with its `kind` set ("throw" when it came
+// with none), as ASCII JSON text. Nothing names the
 // person: no connection id, member id, address or browser string is added here. The
 // games bucket is private and nothing in it is ever served. tools/reports.mjs pulls them.
 

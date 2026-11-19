@@ -99,7 +99,7 @@ ${openGames(config.roomsUrl)}
     <li><strong>Throw wood.</strong> Everyone watches every throw. Knock down their kubbs, then the king.</li>
   </ol>
   <p>No one to play with? Play the computer on a pitch of your own, or throw batons on the practice pitch. Or watch the computer play itself, one match after another.</p>
-  <p>Every match is recorded, with the names typed, so the game can be tested against real play: matches with friends, against the computer, and the computer against itself. Practice is not. Records are kept privately and not published. An open game’s place in the list shows only how many are on the pitch and whether it has started, never names. A throw that looks wrong can be reported from the game’s menu; a report is kept the same way.</p>
+  <p>Every match is recorded, with the names typed, so the game can be tested against real play: matches with friends, against the computer, and the computer against itself. Practice is not. Records are kept privately and not published. An open game’s place in the list shows only how many are on the pitch and whether it has started, never names. Feedback sent from the game’s menu, about a throw that looked wrong or anything else, is kept the same way: what you typed and the game as it stood, which can include the players’ names.</p>
 </section>
 <section class="frame about" aria-labelledby="about">
   <h2 class="display" id="about">The Playdate game, on the web</h2>
@@ -232,14 +232,14 @@ function privacy({ tinylytics, config = {} }) {
 </section>
 <section class="frame prose" aria-labelledby="yours">
   <h2 class="display" id="yours">What stays with you</h2>
-  <p>Your settings, such as sound, haptics and how you throw, stay in your browser or on your phone. So does a random number that lets you rejoin a pitch after a refresh; it is not tied to who you are. Practice stays on your device unless you choose to send a throw report.</p>
+  <p>Your settings, such as sound, haptics and how you throw, stay in your browser or on your phone. So does a random number that lets you rejoin a pitch after a refresh; it is not tied to who you are. Practice stays on your device unless you choose to send feedback from it.</p>
 </section>
 <section class="frame prose" aria-labelledby="pitch">
   <h2 class="display" id="pitch">Playing a match</h2>
   <p>A match on a pitch runs through the game’s own server. It gets what the match needs: the name you type, your team, your throws, the score, and that random number. Everyone on the pitch sees your name and team. Any name will do, so use a nickname if you like.</p>
   <p>Every match is recorded, names included: matches with friends, against the computer, and the computer playing itself. I keep these records privately and use them to test and improve the game. They are never published or shared.</p>
   <p>When a match ends, its replay is kept for a year, and anyone with the pitch’s link can watch it, names included. An open game’s place in the list on the home page shows only how many are on the pitch and whether the match has started, never names.</p>
-  <p>If you report a throw that looked wrong, what you type, the pieces you mark and the game as it stood are kept privately in the same way. The game state can include the names of the players in that match.</p>
+  <p>If you send feedback from the game’s menu, about a throw that looked wrong or anything else, what you type (and any pieces you mark) and the game as it stood are kept privately in the same way, and never published. The game as it stood can include the names of the players in that match.</p>
 </section>
 <section class="frame prose" aria-labelledby="visits">
   <h2 class="display" id="visits">Visiting the website</h2>

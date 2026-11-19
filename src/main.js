@@ -128,7 +128,7 @@ async function boot() {
           ? "watch"
           : "pitch";
   let pitch = null;
-  // A report goes to the room server: none in this build, no REPORT A THROW.
+  // Feedback goes to the room server: none in this build, no SEND FEEDBACK.
   const report = roomsUrl()
     ? () =>
         openReport(ui, {
