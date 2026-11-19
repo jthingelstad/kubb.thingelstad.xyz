@@ -408,6 +408,287 @@ browserTest(
   },
 );
 
+// Touch the kubb to raise it (src/game/raise-touch.js): a raise need staged with
+// the engine's shape (two ends 11 cm out along the kubb, as core/raising.lua
+// footprints), drawn with the real raise camera and projection, and game.raise
+// recording the end it was asked for. `refuse` makes end 1 one the rules refuse.
+async function stageRaise(page, { refuse = false } = {}) {
+  await page.evaluate((refuse) => {
+    const g = window.__kubb.game;
+    window.__raised = [];
+    const pose = { x: 0.7, y: 2.3, angle: 0.35, standing: false };
+    const c = Math.cos(pose.angle),
+      s = Math.sin(pose.angle);
+    const end = (k) => ({
+      which: k,
+      ok: !(refuse && k === 1),
+      why: refuse && k === 1 ? "THAT END IS BLOCKED" : undefined,
+      pose: {
+        x: pose.x + (k === 1 ? 1 : -1) * c * 0.11,
+        y: pose.y + (k === 1 ? 1 : -1) * s * 0.11,
+        standing: true,
+        angle: pose.angle,
+      },
+    });
+    g.need = {
+      kind: "raise",
+      side: "A",
+      team: "YOU",
+      turn: 3,
+      kubb: "a3",
+      n: 1,
+      of: 1,
+      pose,
+      ends: [end(1), end(2)],
+      choices: refuse ? [{ which: 2 }] : [{ which: 1 }, { which: 2 }],
+      others: [],
+      king: { x: 0, y: 4, standing: true, angle: 0 },
+    };
+    g.raiseDrag = g.raiseHint = g.raiseSel = null;
+    g.raise = (i) => {
+      window.__raised.push(i);
+      return { ok: true };
+    };
+    g.phase = "raise";
+  }, refuse);
+  await page.waitForSelector("[data-test=raise-text]");
+  await nextFrame(page);
+}
+
+// One pointer gesture in the page: down at the first point, a move a frame
+// through the rest, up at the last (or cancelled).
+async function gesture(page, pts, { type = "mouse", cancel = false } = {}) {
+  await page.evaluate(
+    ({ pts, type, cancel }) =>
+      new Promise((done) => {
+        const c = document.getElementById("pitch");
+        const r = c.getBoundingClientRect();
+        const ev = (name, [x, y]) =>
+          c.dispatchEvent(
+            new PointerEvent(name, {
+              clientX: x + r.left,
+              clientY: y + r.top,
+              pointerId: 9,
+              pointerType: type,
+              isPrimary: true,
+              bubbles: true,
+              cancelable: true,
+              buttons: name === "pointerup" ? 0 : 1,
+            }),
+          );
+        ev("pointerdown", pts[0]);
+        let i = 1;
+        const step = () => {
+          if (i < pts.length) {
+            ev("pointermove", pts[i++]);
+            requestAnimationFrame(step);
+          } else {
+            ev(cancel ? "pointercancel" : "pointerup", pts[pts.length - 1]);
+            done();
+          }
+        };
+        requestAnimationFrame(step);
+      }),
+    { pts, type, cancel },
+  );
+}
+
+browserTest(
+  "raising by touch: a tap anywhere on the kubb, a label, a drag either way, a short drag, a refused end",
+  async () => {
+    for (const kind of ["desktop", "portrait"]) {
+      const type = kind === "portrait" ? "touch" : "mouse";
+      const page = await open(env, "/p/abcdefgh?solo=1&nohowto=1", kind);
+      await page.click("[data-test=start]");
+      await page.click("[data-test=handoff-go]");
+      await waitPhase(page, "aim", 10000);
+      await stageRaise(page);
+      const raised = () => page.evaluate(() => window.__raised);
+      const shape = () => page.evaluate(() => window.__kubb.game.raiseShape());
+      const g = await shape();
+      assert.ok(g, `${kind}: the kubb is on the screen`);
+      const [a, b] = g.caps;
+      const lerp = (t) => [a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t];
+
+      // the panel: the kubb is the control; END 1 and END 2 only for the keyboard
+      const text = await page.textContent("[data-test=raise-text]");
+      assert.match(
+        text,
+        kind === "portrait" ? /^Touch the kubb or drag it/ : /^Click the kubb/,
+      );
+      const lines = await page.evaluate(() => {
+        const el = document.querySelector("[data-test=raise-text]");
+        return Math.round(
+          el.getBoundingClientRect().height /
+            parseFloat(getComputedStyle(el).fontSize) /
+            1.2,
+        );
+      });
+      assert.ok(lines <= 2, `${kind}: the panel's line runs ${lines} lines`);
+      const endBox = await page
+        .locator("[data-test=end-1]")
+        .evaluate((el) => el.getBoundingClientRect().width);
+      assert.ok(endBox <= 1, "END 1 is out of sight");
+      await page.focus("[data-test=end-1]");
+      await page.keyboard.press("Tab");
+      await page.keyboard.press("Shift+Tab");
+      assert.ok(
+        (await page
+          .locator("[data-test=end-1]")
+          .evaluate((el) => el.getBoundingClientRect().width)) > 20,
+        "and shown when the keyboard reaches it",
+      );
+      await page.keyboard.press("Enter");
+      assert.deepEqual(await raised(), [0], "END 1 by the keyboard");
+      assert.match(
+        await page.getAttribute("#pitch", "aria-label"),
+        /end 1 on the (left|right), end 2 on the (left|right)/,
+      );
+
+      // every point of the drawn kubb, and a finger's width round it, picks
+      // the end nearer it
+      const picks = await page.evaluate(
+        ({ a, b, outline }) => {
+          const g = window.__kubb.game;
+          const out = [];
+          const xs = outline.map((p) => p[0]),
+            ys = outline.map((p) => p[1]);
+          const x0 = Math.min(...xs) - 22,
+            x1 = Math.max(...xs) + 22,
+            y0 = Math.min(...ys) - 22,
+            y1 = Math.max(...ys) + 22;
+          // inside the outline, or within 22 px of an edge
+          const near = (x, y) => {
+            let inside = true,
+              best = Infinity;
+            for (let k = 0; k < outline.length; k++) {
+              const [ax, ay] = outline[k],
+                [bx, by] = outline[(k + 1) % outline.length];
+              const ex = bx - ax,
+                ey = by - ay;
+              if (ex * (y - ay) - ey * (x - ax) < 0) inside = false;
+              const t = Math.max(
+                0,
+                Math.min(
+                  1,
+                  ((x - ax) * ex + (y - ay) * ey) / (ex * ex + ey * ey),
+                ),
+              );
+              best = Math.min(
+                best,
+                Math.hypot(x - ax - t * ex, y - ay - t * ey),
+              );
+            }
+            return inside || best <= 22;
+          };
+          for (let x = x0; x <= x1; x += 4)
+            for (let y = y0; y <= y1; y += 4) {
+              if (!near(x, y)) continue;
+              const t =
+                ((x - a.x) * (b.x - a.x) + (y - a.y) * (b.y - a.y)) /
+                ((b.x - a.x) ** 2 + (b.y - a.y) ** 2);
+              if (Math.abs(t - 0.5) < 0.03) continue; // the very middle
+              out.push([g.raisePick(x, y), t < 0.5 ? 0 : 1]);
+            }
+          return out;
+        },
+        { a, b, outline: g.outline },
+      );
+      assert.ok(picks.length > 100, `${picks.length} points tried`);
+      const wrong = picks.filter(([got, want]) => got !== want);
+      assert.equal(wrong.length, 0, `${kind}: ${wrong.length} points missed`);
+
+      // real taps: the middle of each half, and a label
+      await gesture(page, [lerp(0.25)], { type });
+      await gesture(page, [lerp(0.75)], { type });
+      const labels = await page.evaluate(() => window.__kubb.game.endPoints());
+      await gesture(page, [[labels[1].lx + 10, labels[1].ly - 8]], { type });
+      assert.deepEqual(await raised(), [0, 0, 1, 1]);
+
+      // drags: toward end 1 stands it on end 1, toward end 2 on end 2; drawn
+      // tipped part way and the footprint lit past half way
+      const L = Math.hypot(b.x - a.x, b.y - a.y);
+      const travel = Math.max(90, L * 1.1);
+      const dragTo = (from, dir, f) => {
+        const [x0, y0] = lerp(from);
+        const o = dir === a ? b : a;
+        const ux = (dir.x - o.x) / L,
+          uy = (dir.y - o.y) / L;
+        const pts = [];
+        for (let k = 0; k <= 6; k++)
+          pts.push([
+            x0 + (ux * travel * f * k) / 6,
+            y0 + (uy * travel * f * k) / 6,
+          ]);
+        return pts;
+      };
+      await page.evaluate(() => (window.__raised = []));
+      // grab near end 2 and move toward end 1
+      const toEnd1 = dragTo(0.8, a, 0.7);
+      await gesture(page, toEnd1.slice(0, -1), { type, cancel: true });
+      // the same drag held part way: tipped toward end 1, its footprint lit
+      await page.evaluate(
+        ({ pts, type }) => {
+          const c = document.getElementById("pitch");
+          const r = c.getBoundingClientRect();
+          for (const [n, [x, y]] of [
+            ["pointerdown", pts[0]],
+            ["pointermove", pts.at(-1)],
+          ])
+            c.dispatchEvent(
+              new PointerEvent(n, {
+                clientX: x + r.left,
+                clientY: y + r.top,
+                pointerId: 9,
+                pointerType: type,
+                isPrimary: true,
+                bubbles: true,
+                buttons: 1,
+              }),
+            );
+        },
+        { pts: toEnd1, type },
+      );
+      const mid = await page.evaluate(() => ({
+        drag: window.__kubb.game.raiseDrag,
+        sel: window.__kubb.game.raiseSel,
+      }));
+      assert.equal(mid.drag.i, 0);
+      assert.ok(mid.drag.t > 0.6 && mid.drag.t < 0.8, `t ${mid.drag.t}`);
+      assert.equal(mid.sel, 0, "the footprint it will stand on is lit");
+      await gesture(page, [toEnd1.at(-1)], { type, cancel: true });
+      assert.deepEqual(await raised(), [], "a cancelled drag sends nothing");
+      await gesture(page, toEnd1, { type });
+      await gesture(page, dragTo(0.2, b, 0.7), { type });
+      assert.deepEqual(await raised(), [0, 1]);
+      // short of half way it lies back down and nothing is sent
+      await gesture(page, dragTo(0.8, a, 0.35), { type });
+      await gesture(page, dragTo(0.2, b, 0.35), { type });
+      assert.deepEqual(await raised(), [0, 1]);
+      assert.equal(
+        await page.evaluate(() => window.__kubb.game.raiseDrag),
+        null,
+      );
+
+      // end 1 refused: a tap nearer it, or a drag toward it, sends nothing
+      // and lights end 2
+      await stageRaise(page, { refuse: true });
+      await gesture(page, [lerp(0.2)], { type });
+      assert.deepEqual(await raised(), []);
+      assert.equal(
+        await page.evaluate(() => window.__kubb.game.raiseHint?.i),
+        1,
+      );
+      await gesture(page, dragTo(0.8, a, 0.8), { type });
+      assert.deepEqual(await raised(), []);
+      await gesture(page, [lerp(0.8)], { type });
+      assert.deepEqual(await raised(), [1], "the allowed end still stands");
+      assert.deepEqual(page.errors, []);
+      await page.context().close();
+    }
+  },
+);
+
 browserTest(
   "watching the computer: both sides throw, in a hidden tab too, and the next match starts by itself",
   async () => {

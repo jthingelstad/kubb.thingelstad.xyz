@@ -535,11 +535,14 @@ function raisePanel(n, game) {
             }),
       ),
     );
+  // The kubb on the pitch is the control (game.js raisePick, raise-touch.js):
+  // END 1 and END 2 stay for the keyboard and screen readers, out of sight
+  // until one has the keyboard's focus.
   const ends = (n.ends || []).map((e, i) =>
     button(
       e.ok === false ? `END ${i + 1}: ${e.why || "NO ROOM"}` : `END ${i + 1}`,
       () => game.raise(i),
-      e.ok === false ? "small" : "small go",
+      e.ok === false ? "small raise-end" : "small go raise-end",
       { disabled: e.ok === false, "data-test": `end-${i + 1}` },
     ),
   );
@@ -549,7 +552,11 @@ function raisePanel(n, game) {
     kicker,
     h(
       "p.panel-text",
-      "Tap the end to stand it on. MENU, Raising does it for the rest of the game.",
+      { "data-test": "raise-text" },
+      // two lines on a 390 px phone, the MENU, Raising sentence kept
+      game.coarse
+        ? "Touch the kubb or drag it to the end to stand it on. MENU, Raising for the rest of the game."
+        : "Click the kubb to stand it up, nearer the end it should stand on. MENU, Raising does it for the rest of the game.",
     ),
     h(
       "div.row",

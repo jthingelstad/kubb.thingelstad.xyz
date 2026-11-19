@@ -32,6 +32,7 @@ A failure to start shows a plain error card with RELOAD and HOME. The HOW TO THR
 | `src/game/layout.js`                          | Pure: where the dial (or the linear meter) and minimap go, the tall-canvas framing (`worldFit`, `stillFit`, `panFor`), and the wide view's box (`wideBox`).               |
 | `src/game/scenes.js`                          | The client's own cameras for raising and punishment, and the pieces in them.                                                                                              |
 | `src/game/auto-raise.js`                      | Pure: automatic raising for the turn (AUTO ALL) or the match (MENU, Raising).                                                                                             |
+| `src/game/raise-touch.js`                     | Pure: raising by touch, where the drawn kubb is, which end a tap or drag means, its tilt.                                                                                 |
 | `src/game/sound.js`                           | `Sound`: the knocks and the king's chord through Web Audio; unlock on the first pointer down; mute remembered.                                                            |
 | `src/game/nudge.js`, `src/render/nudge.js`    | The throw's nudge: when it shows and the ghost's throw (pure), and its drawing over the meter ("The nudge", below).                                                       |
 | `src/game/prefs.js`                           | `prefs`: localStorage, wrapped so a blocked store only forgets.                                                                                                           |
@@ -448,8 +449,17 @@ throws he took for perfect had been judged long.
 
 - The engine's cards: the hand-off (whose turn, what they throw, both bases, a map), the
   pass and the settle cards. The computer's turn shows as WATCH.
-- **Raising by hand**: the kubb lying, its two ends numbered on the pitch; tap an end, or
-  END 1, END 2, AUTO (the engine's choice for this kubb). With more than one kubb still
+- **Raising by hand**: the kubb lying, its two ends numbered on the pitch. Tap or click
+  anywhere on the kubb (its drawn outline plus `tune.margin`, 24 px) and it stands on the
+  nearer end; a tap within `tune.labelR` of a number takes that end. A drag that starts on
+  the kubb tips it toward the end the finger moves to (`tiltItem`, the same pivot as the
+  engine's `tipPose`), and that end's footprint and number light past half way; let go
+  there and it stands, short of it nothing is sent. A refused end (`ok === false`) is
+  never chosen: a tap or drag toward it lights the allowed end for `tune.hintMs`. END 1
+  and END 2 are hidden until focused, for the keyboard and screen readers, and the canvas
+  label names the ends while the raise is up. All send the same `raise` choice
+  (`src/game/raise-touch.js`, pure; `Game.raisePick`, `Game.raiseDragTo`). AUTO is the
+  engine's choice for this kubb. With more than one kubb still
   to raise the panel also has AUTO ALL: the rest of this turn's are stood on the engine's
   choice, one every 0.7 s so each is seen. MENU, Raising (By hand or Automatic; the row
   appears once this browser has been asked to raise) and REST OF GAME, beside BY HAND
