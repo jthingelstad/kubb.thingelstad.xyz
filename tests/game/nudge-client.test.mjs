@@ -144,12 +144,17 @@ for (const [meter, kind, touch, side] of CASES) {
         assert.ok(f.x > 0 && f.x < L.W && f.y > 0 && f.y < L.H, "on screen");
         if (meter === "linear") {
           const g = linearGeometry(L.dial, L.meterSide);
-          // the fingertip strokes in the throw zone, beside the meter on its
-          // inner side, never on it
-          if (side === "left") assert.ok(f.x > g.right + 20, "inner side");
-          else assert.ok(f.x < g.left - 20, "inner side");
-          if (s.frame.step === "press")
-            assert.ok(f.y >= L.H * 0.6, "starts in the throw zone");
+          if (!touch) {
+            // a mouse grabs the knob: the pointer rides the ghost
+            assert.ok(Math.abs(f.x - g.cx) < 1, "on the knob");
+          } else {
+            // the fingertip strokes in the throw zone, beside the meter on
+            // its inner side, never on it
+            if (side === "left") assert.ok(f.x > g.right + 20, "inner side");
+            else assert.ok(f.x < g.left - 20, "inner side");
+            if (s.frame.step === "press")
+              assert.ok(f.y >= L.H * 0.6, "starts in the throw zone");
+          }
         } else if (L.track) {
           // the fingertip rides the finger track, beside the ring
           const g = await dialGeometry(page);
