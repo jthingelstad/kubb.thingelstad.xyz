@@ -112,7 +112,14 @@ pitch. The plan (its sliders, SIDE VIEW and WALK) is DOM and comes before all of
 - **The dial** (lower right on a wide screen, lower left with MENU, Side, Left; lower
   centre on a tall one): drag is the arm, letting go is the release. Pointing and
   throwing work touching only the dial.
-- **The target**: drag the circle, tap the pitch, or the arrow keys.
+- **The target**: drag the circle, tap the pitch, or the arrow keys. A finger aims as on
+  the iPhone (a tester, 2026-11-19: aiming is "very touchy and hard to place"): a tap
+  places the circle, and a drag from the circle or from anywhere on the pitch moves it
+  relatively at half the finger's travel (`tune.touchAim` 0.5, finger 2 : circle 1),
+  measured under the camera of the press (`Game.relAim`), so it never jumps under the
+  finger and the finger never hides it. A mouse drags the circle itself, as before. The
+  meter's presses come first: a tap in the linear meter's throw zone still aims and a
+  drag there strokes the meter; a drag on the clock's finger track still turns the arm.
 - **Walking**: WALK beside the dial (the Playdate's held A) turns a drag on the pitch into a stick: right walks right, up comes forward, down steps back, full pace 60 px out. Turned off by the swing. Or A/D and W/S, or drag the thrower where it is on screen.
 - **The plan**: the ARC and TILT (a baton) or SPIN (a kubb) sliders beside the meter
   ("The plan's sliders", below); R/F and Q/E step them.
@@ -684,7 +691,8 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
   stop as the clock by mouse and by touch, the menu's Meter switches and remembers, and a
   phone on its side keeps the clock; a stroke in the linear meter's throw zone throws with
   POWER ON and ARC ON by touch (portrait) and mouse, and a tap there still moves the
-  circle; a touch outside the clock's ring throws on a portrait phone, and a tap out there
+  circle; a finger's drag from the circle or from elsewhere on the pitch moves it half the
+  finger's travel; a touch outside the clock's ring throws on a portrait phone, and a tap out there
   still moves the circle; with Side, Left the
   linear meter (portrait and desktop) and the clock (desktop) lay out clear of the plan's
   sliders and buttons, the rail, MENU and the practice tray and throw, and the menu's Side switches

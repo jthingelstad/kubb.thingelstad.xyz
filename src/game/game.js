@@ -83,6 +83,10 @@ export const tune = {
   grabTouch: 56, // px round the target circle a finger grabs it
   grabMouse: 30,
   tapSlop: 10, // px a press may move and still be a tap
+  // a finger's aim drag moves the circle this much of its own travel (finger
+  // 2 : circle 1, the iPhone's; a tester, 2026-11-19: aiming is "very touchy
+  // and hard to place")
+  touchAim: 0.5,
   // s the side view stays out after a plan slider is let go, so the player
   // sees what the change did without a second button
   slidePeek: 0.5,
@@ -1564,6 +1568,15 @@ export class Game {
     } else if (this.phase === "play") kind = "none";
     if (!kind) return;
     e.preventDefault();
+    // a finger moves the circle relatively, at half its own travel, from
+    // where the circle was: it never jumps under the finger and the finger
+    // never hides it (relAim). Kept: the circle's screen point and the camera
+    // at the press. A mouse drags the circle itself, as before.
+    let rel = null;
+    if (touch && (kind === "target" || kind === "tap")) {
+      const at = this.screenOf(this.out?.aim?.marker);
+      if (at) rel = { x: at.x, y: at.y, cam: this.out.camera };
+    }
     this.ptr = {
       id: e.pointerId,
       kind,
@@ -1575,6 +1588,7 @@ export class Game {
       grab,
       outside,
       meter: this.phase === "aim" && kind === "none",
+      rel,
     };
     try {
       this.canvas.setPointerCapture(e.pointerId);
@@ -1603,6 +1617,20 @@ export class Game {
 
   ground(x, y, cam = this.out?.camera) {
     return cam ? unprojectView(this.view, cam, x, y) : null;
+  }
+
+  // Where a finger's aim drag puts the circle: the circle's screen point at
+  // the press plus half the finger's travel since (tune.touchAim), on the
+  // ground under the camera of the press (the aim camera follows the circle,
+  // so the press's camera keeps the drag steady). As the iPhone's: a tap
+  // places, a drag nudges.
+  relAim(p) {
+    const k = tune.touchAim;
+    return this.ground(
+      p.rel.x + (p.x - p.x0) * k,
+      p.rel.y + (p.y - p.y0) * k,
+      p.rel.cam,
+    );
   }
 
   move(e) {
@@ -1662,8 +1690,14 @@ export class Game {
       if (this.dialNext != null) this.dialNext = arm;
       else this.dialArm = arm;
       this.dialFresh = true;
+    } else if (p.kind === "tap" && p.moved && p.rel) {
+      // a finger's drag anywhere on the pitch moves the circle (relAim)
+      p.kind = "target";
+      const g = this.relAim(p);
+      if (g) this.aimResult(this.engine.setTarget(g.x, g.y, false));
     } else if (p.kind === "target") {
-      const g = this.ground(x, y);
+      if (p.rel && !p.moved) return; // a finger on the circle: a tap, so far
+      const g = p.rel ? this.relAim(p) : this.ground(x, y);
       if (g) this.aimResult(this.engine.setTarget(g.x, g.y, false));
     } else if (p.kind === "stance") {
       const g = this.ground(x, y);
@@ -1688,8 +1722,10 @@ export class Game {
       // the linear meter's body away from its knob: never a throw
       this.nudge.pressEnded(false);
     } else if (p.kind === "target" && !cancelled) {
-      const g = this.ground(p.x, p.y);
-      if (g) this.aimResult(this.engine.setTarget(g.x, g.y, true));
+      // a finger's tap on the circle places it there, as any tap does
+      const g = p.rel && p.moved ? this.relAim(p) : this.ground(p.x, p.y);
+      if (g && (p.moved || !p.rel || this.aimable(p.x, p.y)))
+        this.aimResult(this.engine.setTarget(g.x, g.y, true));
     } else if (
       ["tap", "zone", "track"].includes(p.kind) &&
       !p.moved &&
