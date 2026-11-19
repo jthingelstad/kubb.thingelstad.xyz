@@ -351,6 +351,11 @@ for (const [kind, prefs, name] of [
     "a tall phone, linear on the left",
   ],
   ["landscape", {}, "a phone on its side"],
+  [
+    "landscape",
+    { meterSide: "left" },
+    "a phone on its side, meter on the left",
+  ],
   ["shortPhone", {}, "a short tall window"],
 ]) {
   browserTest(`the plan keeps clear: ${name}`, async () => {
@@ -380,9 +385,23 @@ for (const [kind, prefs, name] of [
           ...document.querySelectorAll("[data-test=plans] > *"),
         ].map((el) => ({ name: el.dataset.test, ...box(el) }));
         const menu = box(document.querySelector("[data-test=menu]"));
-        return { plans, menu, W: innerWidth, H: innerHeight };
+        const block = box(document.querySelector("[data-test=plans]"));
+        return { plans, menu, block, W: innerWidth, H: innerHeight };
       });
       assert.equal(boxes.plans.length, 4);
+      // a wide screen's block is the size layout.js plans for (tune.planW,
+      // planH), and on a touchscreen at the edge away from the meter
+      if (L.plan) {
+        const b = boxes.block;
+        for (const k of ["x", "y", "width", "height"])
+          assert.ok(Math.abs(b[k] - L.plan[k]) < 1, `the block's ${k}`);
+      }
+      if (kind === "landscape")
+        assert.equal(
+          L.planEdge,
+          prefs.meterSide === "left" ? "right" : "left",
+          "the block at the far edge",
+        );
       const map = L.minimap;
       for (const b of boxes.plans) {
         assert.ok(b.width > 0 && b.height > 0, `${b.name} shows`);

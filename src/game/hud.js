@@ -245,7 +245,9 @@ export class Hud {
 
   // The held slider's caption (cap: { key, text } or null), placed above the
   // plan's block: across it where the plan is split, else at least 330 px
-  // wide from the block's edge away from the meter. The block is measured
+  // wide from the block's edge away from the meter (or, at a wide
+  // touchscreen's edge, from the block's edge at the screen's edge, so it
+  // grows toward the middle). The block is measured
   // only when the caption appears or the layout changes. Beside the linear
   // meter it also stays above the meter's prompt tab.
   showCaption(cap, plan = null) {
@@ -282,7 +284,9 @@ export class Hud {
     }
     s.bottom = `${L.H - top + 8}px`;
     const split = L.side === "both";
-    const toRight = L.side === "right"; // the block is right of the meter
+    // it grows away from the meter beside it, or from the screen's edge
+    // the block is at (a wide touchscreen, L.planEdge)
+    const toRight = L.planEdge ? L.planEdge === "left" : L.side === "right";
     this.caption.classList.toggle("split", split);
     this.caption.classList.toggle("from-left", !split && toRight);
     if (split) {
@@ -369,10 +373,13 @@ export class Hud {
   // left and TILT over STAND on the right. Beside the linear meter (at the
   // right or left edge) a tall screen's are split across what is left of
   // the bottom; round a touchscreen's clock with its finger track
-  // (L.plansFoot) they stand above the track.
+  // (L.plansFoot) they stand above the track. On a wide touchscreen the
+  // block is at the screen's edge away from the meter instead (L.planEdge,
+  // layout.js planAt), the same way round: TILT and STAND at the screen's
+  // edge, ARC and SIDE VIEW toward the middle.
   place(L) {
     if (!L) return;
-    const key = `${L.W}x${L.H}:${L.side}:${L.meter}:${L.meterSide}:${L.plansFoot}`;
+    const key = `${L.W}x${L.H}:${L.side}:${L.planEdge}:${L.meter}:${L.meterSide}:${L.plansFoot}`;
     if (this.cache.get("place") === key) return;
     this.cache.set("place", key);
     this.cache.set("placeL", L);
@@ -397,6 +404,16 @@ export class Hud {
       s.right = `${L.safe.right + 8}px`;
       s.top = `${L.plansY + d.height * 0.18}px`;
       s.bottom = "";
+    } else if (L.planEdge === "left") {
+      s.left = `${L.plan.x}px`;
+      s.right = "";
+      s.top = "";
+      s.bottom = `${L.H - (L.plan.y + L.plan.height)}px`;
+    } else if (L.planEdge === "right") {
+      s.left = "";
+      s.right = `${L.W - (L.plan.x + L.plan.width)}px`;
+      s.top = "";
+      s.bottom = `${L.H - (L.plan.y + L.plan.height)}px`;
     } else if (L.side === "right") {
       s.left = `${d.x + d.width + 6}px`;
       s.right = "";

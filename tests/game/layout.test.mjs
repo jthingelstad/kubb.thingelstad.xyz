@@ -322,3 +322,150 @@ test("a knock never repeats the last take and prefers a quiet one", () => {
     1,
   );
 });
+
+// The plan block on a wide touchscreen (Jamie, 2026-11-19: "in landscape the
+// tilt, arc, stand controls should be pushed to the left hand side of the
+// screen so the user can control those with the left hand and the throw
+// with the right hand"): at the edge away from the meter, the minimap on its
+// inner side, nothing on the throwing line. The iPhone app ports these.
+test("a wide touchscreen puts the plan block at the edge away from the meter", () => {
+  const notch = { left: 59, right: 59, bottom: 21, top: 0 };
+  const cases = [
+    [852, 393, notch, "clock"], // a phone on its side
+    [932, 430, notch, "clock"], // a big one
+    [667, 375, {}, "clock"], // a small one, no notch
+    [844, 390, {}, "clock"],
+    [1180, 820, { top: 24, bottom: 20 }, "clock"], // a tablet on its side
+    [1180, 820, { top: 24, bottom: 20 }, "linear"],
+    [1024, 768, {}, "linear"],
+  ];
+  for (const [W, H, safe, meter] of cases) {
+    const s = { top: 0, right: 0, bottom: 0, left: 0, ...safe };
+    for (const side of ["right", "left"]) {
+      const tag = `${W}x${H} ${meter} meter ${side}`;
+      const L = layoutFor(W, H, safe, false, meter, { side, coarse: true });
+      assert.equal(L.meter, meter, tag);
+      const edge = side === "right" ? "left" : "right";
+      assert.equal(L.planEdge, edge, tag);
+      // the block's side of the meter is as before (hud.js mirrors by it)
+      assert.equal(L.side, side === "right" ? "left" : "right", tag);
+      const p = L.plan;
+      assert.equal(p.width, tune.planW);
+      assert.equal(p.height, tune.planH);
+      if (edge === "left")
+        assert.equal(p.x, s.left + tune.planEdge, `${tag}: at the left`);
+      else
+        assert.equal(
+          p.x + p.width,
+          W - s.right - tune.planEdge,
+          `${tag}: at the right`,
+        );
+      // its foot level with the meter's, as it was beside it
+      const d = L.dial;
+      assert.ok(
+        Math.abs(p.y + p.height - (d.y + d.height - tune.planFoot)) < 1e-9,
+        tag,
+      );
+      assert.ok(p.y >= s.top + tune.railBox, `${tag}: under the rail`);
+      // the minimap on its inner side, its foot where it was
+      const m = L.minimap;
+      const was = layoutFor(W, H, safe, false, meter, { side });
+      assert.equal(m.y, was.minimap.y, tag);
+      assert.equal(m.width, was.minimap.width, tag);
+      if (edge === "left") assert.equal(m.x, p.x + p.width + tune.planGap);
+      else assert.equal(m.x + m.width, p.x - tune.planGap);
+      // nothing overlaps, nothing on the throwing line, all inside the safe area
+      const mid = W / 2;
+      const meterBox =
+        meter === "clock"
+          ? (() => {
+              const g = dialGeometry(d);
+              const reach = g.r * dialTune.touchReach;
+              // the clock and its touch zone beside the ring
+              return {
+                x: g.cx - reach,
+                y: g.cy - reach,
+                width: 2 * reach,
+                height: 2 * reach,
+              };
+            })()
+          : d;
+      for (const [name, r] of [
+        ["block", p],
+        ["minimap", m],
+      ]) {
+        assert.ok(
+          r.x + r.width <= mid - tune.planClear || r.x >= mid + tune.planClear,
+          `${tag}: the ${name} is off the throwing line`,
+        );
+        assert.ok(!overlaps(r, meterBox), `${tag}: the ${name} and the meter`);
+        assert.ok(r.x >= s.left && r.x + r.width <= W - s.right, tag);
+        assert.ok(r.y + r.height <= H - s.bottom, tag);
+      }
+      assert.ok(!overlaps(p, m), `${tag}: the block and the minimap`);
+      // the meter itself is where it was
+      assert.deepEqual(d, was.dial, tag);
+    }
+  }
+});
+
+test("the plan block's numbers on the phones the iPhone app ports", () => {
+  const notch = { left: 59, right: 59, bottom: 21, top: 0 };
+  const rect = (r) =>
+    [r.x, r.y, r.width, r.height].map((v) => Math.round(v * 10) / 10);
+  const at = (W, H, safe, side) => {
+    const L = layoutFor(W, H, safe, false, "clock", { side, coarse: true });
+    return { plan: rect(L.plan), minimap: rect(L.minimap) };
+  };
+  assert.deepEqual(at(852, 393, notch, "right"), {
+    plan: [67, 187, 202, 168],
+    minimap: [281, 235.4, 62.9, 122.6],
+  });
+  assert.deepEqual(at(852, 393, notch, "left"), {
+    plan: [583, 187, 202, 168],
+    minimap: [508.1, 235.4, 62.9, 122.6],
+  });
+  assert.deepEqual(at(932, 430, notch, "right"), {
+    plan: [67, 224, 202, 168],
+    minimap: [281, 260.8, 68.8, 134.2],
+  });
+  assert.deepEqual(at(667, 375, {}, "right"), {
+    plan: [8, 190, 202, 168],
+    minimap: [222, 250.4, 56.7, 110.6],
+  });
+});
+
+test("a mouse keeps the plan block beside the meter, a tall canvas has none", () => {
+  for (const [W, H] of [
+    [1440, 900],
+    [1280, 768],
+    [852, 393],
+  ]) {
+    for (const side of ["right", "left"]) {
+      const L = layoutFor(W, H, {}, false, "clock", { side });
+      assert.equal(L.planEdge, null);
+      const d = L.dial;
+      if (side === "right") {
+        assert.equal(L.plan.x + L.plan.width, d.x - tune.planBeside);
+        assert.ok(L.minimap.x < W / 2, "the minimap keeps its corner");
+        assert.equal(L.minimap.x, tune.margin);
+      } else {
+        assert.equal(L.plan.x, d.x + d.width + tune.planBeside);
+        assert.ok(L.minimap.x > W / 2);
+      }
+    }
+  }
+  for (const coarse of [false, true]) {
+    const L = layoutFor(393, 852, { top: 59, bottom: 34 }, false, "clock", {
+      coarse,
+    });
+    assert.equal(L.plan, null);
+    assert.equal(L.planEdge, null);
+    assert.equal(L.side, "both");
+  }
+  // a touchscreen too narrow to keep the block and the minimap off the
+  // throwing line keeps them by the meter
+  const N = layoutFor(560, 520, {}, false, "clock", { coarse: true });
+  assert.equal(N.tall, false);
+  assert.equal(N.planEdge, null);
+});

@@ -1,5 +1,6 @@
 // Where things go on the screen: the dial, the minimap, the plan buttons' side
-// and the world's framing, from the canvas size and the safe-area insets.
+// (and on a wide canvas the plan block's rect) and the world's framing, from
+// the canvas size and the safe-area insets.
 // Pure: tested in tests/game/layout.test.mjs.
 //
 // The world's framing (docs/CLIENT.md "Framing"). On a landscape screen the
@@ -55,6 +56,26 @@ export const tune = {
   // CSS px a column of plan buttons takes beside the screen's edge (the
   // buttons are about 86 wide, 8 off the edge): they sit above the track
   planColW: 100,
+  // The plan block on a wide canvas (hud.js place; game.css .plans: TILT
+  // over STAND in a 124 px column, ARC over SIDE VIEW in a 70 px one, 8 px
+  // apart). layout.js measures nothing, so these are the block's CSS size;
+  // tests/game/plan-client.test.mjs holds the real block to them.
+  planW: 202,
+  planH: 168,
+  // On a wide touchscreen the block is at the screen's edge away from the
+  // meter, for the other hand (Jamie, 2026-11-19: "in landscape the tilt,
+  // arc, stand controls should be pushed to the left hand side of the
+  // screen so the user can control those with the left hand and the throw
+  // with the right hand"): this many px inside the safe area, its foot
+  // level with the meter's foot as beside it (planFoot above the meter's
+  // box's foot). The minimap goes on its inner side, `planGap` from it, its
+  // foot where it was; the two must stay `planClear` px short of the
+  // throwing line (the screen's centre) or the block stays by the meter.
+  planEdge: 8,
+  planFoot: 10,
+  planBeside: 6, // px between the meter and the block beside it
+  planGap: 12,
+  planClear: 24,
 };
 
 export function isTall(W, H) {
@@ -143,7 +164,10 @@ function linearBox(W, H, s, tall, minimap, side) {
 // a touchscreen, so a tall canvas's clock leaves room for a finger to go
 // round outside its rim (the layout's `track`).
 // The layout's `side` is where the plan buttons go: "left" or "right" of
-// the meter, or "both" (split either side of the throwing line).
+// the meter, or "both" (split either side of the throwing line). On a wide
+// canvas `plan` is the block's rect and `planEdge` the screen edge it is
+// anchored at on a touchscreen ("left" or "right"; null beside the meter):
+// planAt.
 export function layoutFor(
   W,
   H,
@@ -222,7 +246,9 @@ export function layoutFor(
   if (linear) {
     // the plan buttons sit on its inner side, their feet level with its
     // foot: in one block on a wide canvas, split either side of the
-    // throwing line on a tall one (hud.js place)
+    // throwing line on a tall one (hud.js place); a wide touchscreen's
+    // block goes to the far edge (planAt)
+    const side = tall ? "both" : onLeft ? "right" : "left";
     return {
       W,
       H,
@@ -232,14 +258,15 @@ export function layoutFor(
       dial: linear,
       plansY: linear.y,
       plansFoot: null,
-      minimap,
-      side: tall ? "both" : onLeft ? "right" : "left",
+      ...planAt(W, s, tall, coarse, side, linear, linear.y, minimap),
+      side,
       meter: "linear",
       meterSide,
       track: false,
     };
   }
   const plansY = dial.y; // keep the side buttons in reach, beside the downstroke
+  const plan = planAt(W, s, tall, coarse, side, dial, plansY, minimap);
   // The resting knob is at six. Leave a finger room below it for a full
   // downstroke, clear of the bottom safe area, in the touch trial.
   if (swipe) dial.y -= Math.min(W, H) * 0.2;
@@ -252,12 +279,57 @@ export function layoutFor(
     dial,
     plansY,
     plansFoot,
-    minimap,
+    ...plan,
     side,
     meter: "clock",
     // a tall canvas's clock is centred whichever side is chosen
     meterSide: tall ? "centre" : meterSide,
     track,
+  };
+}
+
+// The plan block on a wide canvas: { plan, planEdge, minimap }. plan is the
+// block's rect (from tune.planW and planH, its foot planFoot above the
+// meter's box's foot); planEdge is the screen edge it is anchored at,
+// "left" or "right", or null where it sits beside the meter (`side`: the
+// block is left or right of it). A touchscreen's block is at the edge away
+// from the meter, so one hand sets the plan and the other throws, and the
+// minimap leaves its corner for the block's inner side; a mouse keeps the
+// block beside the meter (one hand does everything, so near is better), as
+// does a canvas too narrow to keep the block and the minimap off the
+// throwing line. A tall canvas has no block (null plan, the same minimap).
+function planAt(W, s, tall, coarse, side, meter, plansY, minimap) {
+  if (tall) return { plan: null, planEdge: null, minimap };
+  const w = tune.planW,
+    h = tune.planH;
+  const y = plansY + meter.height - tune.planFoot - h;
+  const beside = {
+    plan: {
+      x:
+        side === "left"
+          ? meter.x - tune.planBeside - w
+          : meter.x + meter.width + tune.planBeside,
+      y,
+      width: w,
+      height: h,
+    },
+    planEdge: null,
+    minimap,
+  };
+  if (!coarse) return beside;
+  // the block's edge is the one away from the meter: the meter is right of
+  // a block on its left
+  const edge = side === "left" ? "left" : "right";
+  const x =
+    edge === "left" ? s.left + tune.planEdge : W - s.right - tune.planEdge - w;
+  const mx =
+    edge === "left" ? x + w + tune.planGap : x - tune.planGap - minimap.width;
+  const inner = edge === "left" ? mx + minimap.width : W - mx;
+  if (inner > W / 2 - tune.planClear) return beside;
+  return {
+    plan: { x, y, width: w, height: h },
+    planEdge: edge,
+    minimap: { ...minimap, x: mx },
   };
 }
 
