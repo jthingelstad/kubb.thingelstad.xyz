@@ -438,6 +438,18 @@ sight; the pan holds while the circle is dragged. The raise and punishment scene
 through the same `view.fit`, so a finger lands where it points (tested in
 `layout.test.mjs`).
 
+On a short wide canvas (a phone on its side, 460 px high or less) the raise and
+punishment panel is a bar along the bottom (see "Match flow"), and the scenes keep the
+renderer's rule: on the phones measured the near baseline is already clear of it. The
+rule `stillFit` holds is that the punishment scene's near baseline (`punishNearY()`,
+frame y 164.0: the camera looks straight down the pitch, so the whole baseline is level)
+sits at least `tune.stillClear` (8 px) above the bar's top, taken as `tune.stillBar`
+(80 px: the bar's two-line height, 71 px, with its 8 px off the safe area) above the
+safe area's bottom inset. Where the renderer's rule would bring the baseline lower, as on
+a 640 x 300 window, the scene is lifted by just the difference at the same scale and
+nothing else moves. The raise needs no lift: its kubb, both numbers and a drag along it
+sit near frame y 91, far above the bar. Taller canvases and tall screens are unchanged.
+
 The raise and punishment cameras are the client's own (`src/game/scenes.js`): across the
 lying kubb from the defender's side, and high over the defender's baseline.
 
@@ -533,6 +545,16 @@ throws he took for perfect had been judged long.
   `src/game/auto-raise.js` (pure, its 0.7 s in `tune`), `Game.autoRaiseTick`.
 - **Punishment**: drag or tap the kubb in the defender's half; the stakes and the king carry
   keep-out circles and a refused spot says why (TOO NEAR A STAKE); PLACE IT when allowed.
+- **The panel on a phone on its side** (a screen 460 px high or less): the raise and
+  punishment panel is a bar across the bottom, 12 px in from the safe area's sides and 8
+  px up from its bottom, at most 760 px wide and centred. The kicker sits on its first
+  line and the words under it (one line, or two for raising by hand), the buttons in one
+  row at the right (AUTO and AUTO ALL; BY HAND and REST OF GAME; PLACE IT), and a refused
+  spot's reason beside the kicker, so the bar is 61 px tall, 71 px with two lines. It
+  covers grass outside the pitch only: never the kubb being raised or its numbers, never
+  the half a punishment kubb goes in (`stillFit` above). END 1 and END 2 join the row
+  when the keyboard reaches them. On a shared pitch the bar shows only for the player
+  who acts; the others see the status pill and no panel, as before.
 - **The winner**: REMATCH (back to the options; on a shared pitch the host's only, back to
   the lobby with the same teams), SCORE SHEET and HOME.
 - **The menu**: its rows (Your level, the player's own throw tolerance; Meter; Meter side;
@@ -801,7 +823,9 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
   sliders and buttons, the rail, MENU and the practice tray and throw, and the menu's Meter side switches
   and remembers. `tests/render/linear.test.mjs` is the meter's geometry (both sides),
   `tests/render/dial.test.mjs` the dial's (its finger track too), and `layout.test.mjs`
-  checks both sides and the finger track's room. `multiplayer.test.mjs` runs `tools/rooms-dev.mjs`
+  checks both sides and the finger track's room, and on a phone on its side that the
+  panel's bar clears the kubb being raised and the punishment half's near baseline (and
+  lifts the scene on a window too short for it). `multiplayer.test.mjs` runs `tools/rooms-dev.mjs`
   on a free port too and plays a shared pitch (docs/MULTIPLAYER.md "Tests"). Both are
   skipped with a notice when Chromium is not installed (`npx playwright install chromium`).
 - `window.__kubb` (engine, game, sound, cards, menu, config, and on a shared pitch `pitch`)
