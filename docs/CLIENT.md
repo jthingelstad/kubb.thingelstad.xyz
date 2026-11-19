@@ -179,11 +179,12 @@ are two sliders now, and PLAN VIEW is SIDE VIEW.
 - **Online**, the aim is still cast from `Pitch.tick` every `tickMs` (200 ms) and only when
   `aimKey` changed: a drag that changes the aim every frame sends at most 5 casts a second,
   as walking or dragging the circle does, under the room's 10 a second.
-- **Where.** A wide screen: one block on the meter's inner side, ARC's tall plate by the
-  meter and TILT, SIDE VIEW and STAND stacked beside it (`mirror` when the block is right
-  of the meter; ARC stretches to the stack's height). A tall one: split either side of the
-  throwing line, ARC over SIDE VIEW on the left and TILT over STAND on the right
-  (`Hud.place`).
+- **Where.** A wide screen: one block on the meter's inner side, TILT over STAND, and
+  ARC over SIDE VIEW by the meter (`mirror` when the block is right of the meter). It is
+  no taller than TILT and STAND, so it stays under the linear meter's prompt on a
+  desktop and clear of the target circle on a phone on its side. A tall one: split
+  either side of the throwing line, ARC over SIDE VIEW on the left and TILT over STAND
+  on the right (`Hud.place`).
 - B still peeks as Shift does (the Playdate's B button) but is not documented on the
   page.
 
