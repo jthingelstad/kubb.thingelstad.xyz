@@ -710,6 +710,16 @@ export class Game {
     );
   }
 
+  // A throw begins (a press on the meter, its finger track or throw zone):
+  // the side view goes at once, the toggle's and the half second after a
+  // slider's. The engine takes no swing while the plan view is wanted
+  // (session/throw aimFrame), so a throw started right after a slider was
+  // let go would lose its backswing otherwise.
+  planOff() {
+    this.planToggle = false;
+    this.slidePeekUntil = 0;
+  }
+
   // A plan slider (src/game/plan-sliders.js): pressed, dragged, let go at f
   // on its track. Nothing reaches the engine here: aimFrame applies the
   // latest place once a frame (applySlide), so a fast drag costs one engine
@@ -772,7 +782,7 @@ export class Game {
       last: null,
     };
     this.phase = "play";
-    this.planToggle = false;
+    this.planOff();
     this.slide = null;
     this.walkOn = false;
     this.dialArm = null;
@@ -1504,7 +1514,7 @@ export class Game {
       else kind = "tap";
       if (kind === "swipe") {
         this.sampleTouch(e, "down");
-        this.planToggle = false;
+        this.planOff();
         this.walkOn = false;
       }
       // the nudge stops on any press on the meter, the finger track or the
@@ -1518,7 +1528,7 @@ export class Game {
         this.dialNext = null;
         this.dialFresh = true;
         this.dialAcc = 0;
-        this.planToggle = false;
+        this.planOff();
         this.walkOn = false;
       }
     } else if (this.phase === "raise" || this.phase === "punish") {
@@ -1603,7 +1613,7 @@ export class Game {
       this.dialNext = armAtY(g, y - p.grab);
       this.dialFresh = true;
       this.dialAcc = 0;
-      this.planToggle = false;
+      this.planOff();
       this.walkOn = false;
     } else if (p.kind === "track" && p.moved) {
       // a drag beside the ring after all: the engine is fed the press where
@@ -1615,7 +1625,7 @@ export class Game {
       this.dialNext = armAt(g, x, y);
       this.dialFresh = true;
       this.dialAcc = 0;
-      this.planToggle = false;
+      this.planOff();
       this.walkOn = false;
     } else if (p.kind === "dial") {
       const arm =

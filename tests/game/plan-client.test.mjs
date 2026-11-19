@@ -15,6 +15,8 @@ import {
   dialGeometry,
   dragSlider,
   nextFrame,
+  sweep,
+  swing,
   VIEWPORTS,
 } from "./browser.mjs";
 import { sideFraction } from "../../src/game/plan-sliders.js";
@@ -182,6 +184,32 @@ browserTest("a drag shows the side view, and it goes soon after", async () => {
     await page.context().close();
   }
 });
+
+// The engine takes no swing while the plan view is wanted, so the half
+// second of side view after a slider must end the moment a throw begins.
+browserTest(
+  "a throw started right after a slider is let go is a whole throw",
+  async () => {
+    const page = await open(env, "/practice/?nohowto=1", "desktop");
+    try {
+      await waitPhase(page, "aim", 10000);
+      await dragSlider(page, "arc", [0.5, 0.6]);
+      assert.equal(await sideViewWanted(page), true, "the peek is on");
+      const p = (await state(page)).plan;
+      const arms = sweep({
+        back: (p.powerLo + p.powerHi) / 2,
+        stop: p.release,
+        backDps: 900,
+        flickDps: 3600,
+      });
+      await swing(page, arms);
+      await waitPhase(page, "play", 3000);
+      assert.deepEqual(page.errors, []);
+    } finally {
+      await page.context().close();
+    }
+  },
+);
 
 browserTest("SIDE VIEW is a toggle with a mouse", async () => {
   const page = await open(env, "/practice/?nohowto=1", "desktop");
