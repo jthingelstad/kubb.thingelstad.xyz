@@ -464,7 +464,7 @@ throws he took for perfect had been judged long.
   keep-out circles and a refused spot says why (TOO NEAR A STAKE); PLACE IT when allowed.
 - **The winner**: REMATCH (back to the options; on a shared pitch the host's only, back to
   the lobby with the same teams), SCORE SHEET and HOME.
-- **The menu**: level, sound, how to throw, score sheet (a match), resign, report a throw,
+- **The menu**: level, sound, how to throw, score sheet (a match), resign, send feedback,
   rules, home; Escape closes it.
 
 ## Replays
@@ -567,13 +567,28 @@ member id. Practice is not recorded. A build without a rooms address records not
 
 ## Reports
 
-MENU, REPORT A THROW (shown in every mode whenever the build has a rooms address) closes
-the menu and opens the report card: "What happened?" and "What should have happened?"
-(1000 characters each; SEND with both blank asks for one), the sentence "This sends what
-you typed with this game as it stands (its options, names and throws), so the throw can be
-played again and tested. It is kept privately and not published.", SEND and CANCEL
-(Escape cancels). SEND shows "Sending...", then "Sent, thank you." with BACK TO THE PITCH,
-or "The report was not sent." with the reason, and the answers stay to send again.
+MENU, SEND FEEDBACK (shown in every mode whenever the build has a rooms address) closes
+the menu and opens the "Send feedback" card. It starts with a choice, two real radio
+inputs drawn as the site's segmented buttons in a fieldset with a hidden legend (arrow
+keys move between them): "A throw looked wrong" and "Something else". The first is chosen
+when this game has a last throw to report (`state.lastThrow`), otherwise the second.
+
+- **A throw looked wrong**: "What happened?" and "What should have happened?" (1000
+  characters each; SEND with both blank asks for one), the pieces to mark, and the
+  sentence "This sends what you typed with this game as it stands (its options, names and
+  throws), so the throw can be played again and tested. It is kept privately and not
+  published." Sent as `kind: "throw"` with `happened`, `should` and `selectedPieces`.
+- **Something else**: "What would you like to tell us?" with "A problem, an idea,
+  something you liked or did not. Anything." under it, one box of 2000 characters (SEND
+  with it blank asks for it), and the same sentence without "so the throw can be played
+  again and tested". Sent as `kind: "feedback"` with `text` (trimmed) and neither answer;
+  the game context goes with it just the same.
+
+What was typed in the other kind stays in its box while the player switches, but only the
+chosen kind is sent. SEND and CANCEL (Escape cancels). SEND shows "Sending...", then
+"Sent, thank you." with BACK TO THE PITCH, or "The report was not sent." ("Your feedback
+was not sent." for the other kind) with the reason, and what was typed stays to send
+again. There is no contact field and no reply.
 
 The throw report can mark several pieces on an overhead pitch or by name. The picker uses the last throw’s rest poses, including the baton after a handoff. The report keeps the marked IDs and poses even when the full piece list is dropped to fit.
 For a long practice session, a trimmed throw report keeps an opaque checkpoint
@@ -598,9 +613,10 @@ the last throw, including collisions with previously thrown wood.
   swaps every member id for `member1`, `member2`, ... throughout (the snapshot strings
   too, the same way everywhere, so it still replays). It copies the history when the
   card opens, so what is played while it is open is not in the report. `reportMessage` holds it to 64 KB, dropping the history, then the
-  pieces, then the snapshot after (listed in `r.dropped`); never the answers.
-- `tests/net/reports.test.mjs` covers the payload and the replay; `client.test.mjs` sends
-  one from a solo match, practice and watching, against `tools/rooms-dev.mjs`.
+  pieces, then the snapshot after (listed in `r.dropped`); never what was typed.
+- `tests/net/reports.test.mjs` covers both kinds' payloads, the server's checks and the
+  replay; `client.test.mjs` sends a throw report from a solo match, practice and
+  watching, and feedback from practice, against `tools/rooms-dev.mjs`.
 
 ## Swing feel
 

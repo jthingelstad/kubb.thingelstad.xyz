@@ -1,13 +1,20 @@
-// Reports (MENU, REPORT A THROW; docs/ROOMS.md section 8): what the player typed and the
+// Reports (MENU, SEND FEEDBACK; docs/ROOMS.md section 8): what the player typed and the
 // game as it stood when they opened the card, sent once to the room server on a socket of
-// its own, which keeps it privately so the throw can be played again offline.
+// its own, which keeps it privately so a throw can be played again offline.
 //
 //   const state = captureReport({ game, mode, config, pitch });   // when the card opens
-//   const msg = reportMessage(state, { happened, should });        // on SEND
+//   const msg = reportMessage(state, { kind: "throw", happened, should, selected });
+//   const msg = reportMessage(state, { kind: "feedback", text });  // on SEND
 //   await sendReport({ url: config.roomsUrl, message: msg });      // resolves on the ack
 //
-// What is sent (`r` in the message): the mode; `client: "web"`; `engine`, the kubb-engine
-// version; the two answers; the build (package version, commit, the hashed Lua bundle's
+// Two kinds: `kind: "throw"`, a throw that looked wrong, carries the two answers
+// (`happened`, `should`) and any pieces marked (`selectedPieces`); `kind: "feedback"`,
+// anything else, carries one `text` (trimmed, 1 to REPORT_LIMITS.feedbackChars) and no
+// answers. Both carry the same game context. The server takes a report with no `kind` as
+// a throw report (older clients).
+//
+// What is sent (`r` in the message): the kind; the mode; `client: "web"`; `engine`, the
+// kubb-engine version; what was typed; the build (package version, commit, the hashed Lua bundle's
 // name); the viewport
 // size; the browser's clock; the turn and phase; the last throw's action and result; the
 // pieces where they stand (the thrower's view frame). For a match: its options (read from
@@ -32,9 +39,11 @@ import { CLIENT } from "./sync.js";
 export const REPORT_LIMITS = Object.freeze({
   bytes: 64 * 1024,
   chars: 1000,
+  feedbackChars: 2000,
 });
 
 export const REPORT_MODES = ["practice", "solo", "watch", "pitch"];
+export const REPORT_KINDS = ["throw", "feedback"];
 
 const r4 = (x) => (typeof x === "number" ? Math.round(x * 1e4) / 1e4 : x);
 
@@ -203,21 +212,28 @@ export function pseudonymise(r, ids) {
   return JSON.parse(text);
 }
 
-// The message for the server: the captured state with the answers, cut to fit.
+// The message for the server: the captured state with what was typed, cut to fit.
 export function reportMessage(
   state,
-  { happened = "", should = "", selected = [] },
+  { kind = "throw", happened = "", should = "", selected = [], text = "" },
   { id = 1, limits = REPORT_LIMITS } = {},
 ) {
-  const clip = (s) => [...String(s ?? "")].slice(0, limits.chars).join("");
+  const clip = (s, n = limits.chars) =>
+    [...String(s ?? "")].slice(0, n).join("");
   const r = structuredClone(state);
   const marked = (r.pickPieces ?? []).filter((p) => selected.includes(p.id));
   delete r.pickPieces;
   const practiceBefore = r.practiceBefore;
   delete r.practiceBefore;
-  if (marked.length) r.selectedPieces = marked;
-  r.happened = clip(happened);
-  r.should = clip(should);
+  if (kind === "feedback") {
+    r.kind = "feedback";
+    r.text = clip(String(text ?? "").trim(), limits.feedbackChars);
+  } else {
+    r.kind = "throw";
+    if (marked.length) r.selectedPieces = marked;
+    r.happened = clip(happened);
+    r.should = clip(should);
+  }
   const msg = { t: "report", id, r };
   const size = () => asciiJson(msg).length;
   const drops = [
@@ -250,7 +266,13 @@ export function reportMessage(
   return msg;
 }
 
-export function reportReady({ happened = "", should = "" }) {
+export function reportReady({
+  kind = "throw",
+  happened = "",
+  should = "",
+  text = "",
+}) {
+  if (kind === "feedback") return Boolean(String(text).trim());
   return Boolean(String(happened).trim() || String(should).trim());
 }
 

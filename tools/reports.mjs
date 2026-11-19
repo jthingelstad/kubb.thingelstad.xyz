@@ -1,4 +1,4 @@
-// Players' reports (MENU, REPORT A THROW; backend/rooms/reports.mjs): fetch them, read
+// Players' reports (MENU, SEND FEEDBACK: a throw or anything else; backend/rooms/reports.mjs): fetch them, read
 // them, and play the reported moment again through this checkout's engine.
 //
 //   node tools/reports.mjs pull [--since 2026-11-16] [--dir build/reports]
@@ -8,7 +8,8 @@
 //   node tools/reports.mjs show [--dir build/reports] [file ...]
 //       prints reports already pulled (all of them, or the files named).
 //   node tools/reports.mjs replay <file>
-//       a match: restores the snapshot before the last action and applies it, and says
+//       feedback (`kind: "feedback"`) with no throw in it has nothing to replay; one that
+//       carries a throw replays as a throw report does. A match: restores the snapshot before the last action and applies it, and says
 //       whether this engine ends on the reported snapshot; with the whole history, also
 //       replays the match from its start. Practice: sets the pitch out with the report's
 //       options and runs its throws and changes again. Prints the last throw's result and
@@ -28,19 +29,30 @@ const when = (t) =>
     ? new Date(t).toISOString().slice(0, 19).replace("T", " ") + " UTC"
     : "?";
 
+// What a report is about: "throw" (also one kept with no `kind`, from before feedback) or
+// "feedback".
+export const reportKind = (r) =>
+  r?.kind === "feedback" ? "feedback" : "throw";
+
 // A pulled report ({ t, report }) as lines to print. `file` is where it lies.
 export function describeReport(obj, file = "") {
   const r = obj.report ?? {};
   const lines = [];
   const where = r.room ? ` room ${r.room} v ${r.v ?? "?"}` : "";
   const client = typeof r.client === "string" ? ` [${r.client}]` : "";
-  lines.push(`${when(obj.t)}  ${r.mode ?? "?"}${client}${where}  ${file}`);
+  const kind = reportKind(r);
+  lines.push(
+    `${when(obj.t)}  ${kind}  ${r.mode ?? "?"}${client}${where}  ${file}`,
+  );
   const text = (label, s) => {
     const body = String(s ?? "").trim();
     lines.push(`  ${label}: ${body ? body.replace(/\s*\n\s*/g, " / ") : "-"}`);
   };
-  text("What happened", r.happened);
-  text("What should have happened", r.should);
+  if (kind === "feedback") text("Feedback", r.text);
+  else {
+    text("What happened", r.happened);
+    text("What should have happened", r.should);
+  }
   if (Array.isArray(r.selectedPieces) && r.selectedPieces.length)
     text(
       "Marked pieces",
@@ -100,6 +112,9 @@ function drift(here, reported) {
 export function replayReport(engine, obj) {
   const r = obj.report ?? obj;
   const out = { kind: null, notes: [] };
+  // Feedback about anything carries the game as it stood; only a throw in it replays.
+  if (reportKind(r) === "feedback" && !r.lastThrow)
+    return { ...out, why: "it is feedback, and it carries no throw" };
   if (r.practice) {
     const checkpoint = r.practice.before;
     const ops =

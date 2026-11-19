@@ -1,6 +1,7 @@
-// The report card (MENU, REPORT A THROW; docs/CLIENT.md "Reports"): two answers, what
-// happened and what should have happened, sent with the game as it stood when the card
-// opened (src/net/report.js). While it is open the game is modal, as under the menu: no
+// The feedback card (MENU, SEND FEEDBACK; docs/CLIENT.md "Reports"): first a choice, "A
+// throw looked wrong" (two answers, what happened and what should have happened, and the
+// pieces to mark) or "Something else" (one box, anything at all; Jamie, 2026-11-19), sent
+// with the game as it stood when the card opened (src/net/report.js). While it is open the game is modal, as under the menu: no
 // input reaches the pitch and a throw being aimed here waits, but a throw already playing
 // back, the computer's turn and an unattended match (watching the computer) go on. The
 // rest of the root is inert until it closes, so a card shown under it takes no focus.
@@ -15,13 +16,20 @@ import {
 
 export const REPORT_SENTENCE =
   "This sends what you typed with this game as it stands (its options, names and throws), so the throw can be played again and tested. It is kept privately and not published.";
+export const FEEDBACK_SENTENCE =
+  "This sends what you typed with this game as it stands (its options, names and throws). It is kept privately and not published.";
+
+const KINDS = [
+  ["throw", "A throw looked wrong"],
+  ["feedback", "Something else"],
+];
 
 const FAILURES = {
-  "too-many": "Too many reports at once. Try again in a moment.",
-  "too-big": "That report is too long to send.",
+  "too-many": "Too many sent at once. Try again in a moment.",
+  "too-big": "That is too long to send.",
   timeout: "The server did not answer.",
   closed: "The server could not be reached.",
-  unavailable: "Reports cannot be sent from here.",
+  unavailable: "Feedback cannot be sent from here.",
 };
 
 // Both controls toggle the same piece. The list also reaches pieces whose
@@ -113,6 +121,28 @@ export function openReport(root, opts) {
     "What should have happened?",
     "report-should",
   );
+  const feedback = h("textarea.report-text", {
+    id: "report-feedback-text",
+    maxlength: REPORT_LIMITS.feedbackChars,
+    rows: 4,
+    spellcheck: "true",
+    "aria-describedby": "report-feedback-hint",
+    "data-test": "report-text",
+  });
+  const feedbackRow = h(
+    "div.report-field",
+    h(
+      "label.opt-label",
+      { for: "report-feedback-text" },
+      "What would you like to tell us?",
+    ),
+    h(
+      "p.report-hint",
+      { id: "report-feedback-hint" },
+      "A problem, an idea, something you liked or did not. Anything.",
+    ),
+    feedback,
+  );
   const status = h("p.report-status", {
     role: "status",
     "data-test": "report-status",
@@ -120,17 +150,59 @@ export function openReport(root, opts) {
   const actions = h("div.row");
   const selected = new Set();
   const picker = piecePicker(state.pickPieces, selected);
-  const body = h(
-    "div.card.report",
-    { "data-test": "report-card" },
-    h("h2.display", "Report a throw"),
+  const note = h("p.report-note");
+  const throwPart = h(
+    "div.report-part",
+    { "data-kind": "throw" },
     picker,
     happenedRow,
     shouldRow,
-    h("p.report-note", REPORT_SENTENCE),
+  );
+  const feedbackPart = h(
+    "div.report-part",
+    { "data-kind": "feedback" },
+    feedbackRow,
+  );
+  // A throw to report: the throw kind first; otherwise anything else.
+  let kind = state.lastThrow ? "throw" : "feedback";
+  const radios = KINDS.map(([value, label]) => {
+    const input = h("input.report-kind-input", {
+      type: "radio",
+      name: "report-kind",
+      value,
+      "data-test": `report-kind-${value}`,
+      onchange: () => input.checked && show(value),
+    });
+    input.checked = value === kind;
+    return [input, h("label.seg-btn.report-kind-btn", input, label)];
+  });
+  const kinds = h(
+    "fieldset.report-kind.seg",
+    h("legend.visually-hidden", "What is it about?"),
+    radios.map(([, label]) => label),
+  );
+  const show = (k) => {
+    kind = k;
+    throwPart.hidden = k !== "throw";
+    feedbackPart.hidden = k !== "feedback";
+    note.textContent = k === "throw" ? REPORT_SENTENCE : FEEDBACK_SENTENCE;
+    body.dataset.kind = k;
+    status.textContent = "";
+  };
+  const firstField = () => (kind === "throw" ? happened : feedback);
+  const typing = [happened, should, feedback];
+  const body = h(
+    "div.card.report",
+    { "data-test": "report-card" },
+    h("h2.display", "Send feedback"),
+    kinds,
+    throwPart,
+    feedbackPart,
+    note,
     status,
     actions,
   );
+  show(kind);
   const scrim = h("div.scrim.report-scrim", body);
   let closed = false;
   let sending = false;
@@ -155,20 +227,31 @@ export function openReport(root, opts) {
       button("CANCEL", close, "", { "data-test": "report-cancel" }),
     );
   };
+  const lock = (on) => {
+    if (picker) picker.inert = on;
+    kinds.disabled = on;
+    for (const el of typing) el.disabled = on;
+  };
   async function go() {
-    const answers = {
-      happened: happened.value,
-      should: should.value,
-      selected: [...selected],
-    };
+    const answers =
+      kind === "throw"
+        ? {
+            kind,
+            happened: happened.value,
+            should: should.value,
+            selected: [...selected],
+          }
+        : { kind, text: feedback.value };
     if (!reportReady(answers)) {
-      status.textContent = "Write what happened, or what should have happened.";
-      happened.focus();
+      status.textContent =
+        kind === "throw"
+          ? "Write what happened, or what should have happened."
+          : "Write what you would like to tell us.";
+      firstField().focus();
       return;
     }
     sending = true;
-    if (picker) picker.inert = true;
-    happened.disabled = should.disabled = true;
+    lock(true);
     clear(actions);
     status.textContent = "Sending...";
     try {
@@ -186,9 +269,8 @@ export function openReport(root, opts) {
         }),
       );
     } catch (err) {
-      status.textContent = `The report was not sent. ${FAILURES[err?.code] ?? "Try again in a moment."}`;
-      happened.disabled = should.disabled = false;
-      if (picker) picker.inert = false;
+      status.textContent = `${kind === "throw" ? "The report" : "Your feedback"} was not sent. ${FAILURES[err?.code] ?? "Try again in a moment."}`;
+      lock(false);
       editing();
     } finally {
       sending = false;
@@ -201,6 +283,6 @@ export function openReport(root, opts) {
   const quieted = [...root.children].filter((el) => el !== scrim && !el.inert);
   for (const el of quieted) el.inert = true;
   window.addEventListener("keydown", esc);
-  requestAnimationFrame(() => happened.focus({ preventScroll: true }));
+  requestAnimationFrame(() => firstField().focus({ preventScroll: true }));
   return { close, state };
 }

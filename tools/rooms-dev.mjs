@@ -11,7 +11,8 @@
 // iPhone app sends, so a simulator build can talk to this server). A connection with no Origin at all (Node's own
 // WebSocket in the tests, command-line tools) is let in here; API Gateway's handler refuses it.
 //
-// Reports (MENU, REPORT A THROW): run from the command line it keeps them as files,
+// Reports (MENU, SEND FEEDBACK: a throw report or feedback about anything, checked by
+// core.mjs checkReport as on AWS): run from the command line it keeps them as files,
 // build/reports-dev/<yyyy-mm-dd>/<ms>-<random>.json.gz, the bucket's shape, so
 // `npm run reports:replay -- <file>` reads them. startRoomsServer({ report }) takes any
 // reporter (backend/rooms/reports.mjs memoryReporter in the tests); none refuses reports.

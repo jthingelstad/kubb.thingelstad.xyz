@@ -144,7 +144,7 @@ export class ReplayPlayer {
         get: () => this.chosen(),
         set: (v) => this.choose(v),
       };
-      // REPORT A THROW is for a throw as it was played; a replay's is the log's
+      // SEND FEEDBACK reports a game as it was played here; a replay's throws are the log's
       this.menu.hooks.report = null;
     }
     window.addEventListener("keydown", this.onKey);

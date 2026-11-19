@@ -537,23 +537,35 @@ with }` to `record` (`backend/rooms/recorder.mjs`), which writes one gzipped JSO
 
 ## 8. Reports
 
-A player who saw a throw go wrong says so from the game's menu (REPORT A THROW), and the
-browser sends what they typed with the game as it stood, so the moment can be played again
-offline (Jamie, 2026-11-16; `AGENTS.md` "Reports"). The room server knows no Kubb here
-either: it checks the shape and the size, keeps the report and acknowledges it.
+A player who saw a throw go wrong says so from the game's menu (SEND FEEDBACK, "A throw
+looked wrong"), or tells us anything else ("Something else"), and the browser sends what
+they typed with the game as it stood, so a reported moment can be played again offline
+(Jamie, 2026-11-16 and 2026-11-19; `AGENTS.md` "Reports"). The room server knows no Kubb
+here either: it checks the shape and the size, keeps the report and acknowledges it.
 
 - **The message.** `{ "t": "report", "id": 1, "r": { ... } }`, sent on any connection,
   joined to a room or not. The browser opens a socket of its own for it, waits for the
   answer (15 s at most) and closes, on a shared pitch too (the room's own socket may be
   reconnecting). A report longer than a frame goes in parts (section 2.1). The server
-  requires `r.mode` (`practice`, `solo`, `watch` or `pitch`), `r.happened` and
-  `r.should` (text, at most 1000 Unicode code points each, at least one not blank), `r.room` a room code
-  when present, `r.client` and `r.engine` tags when present (section 2.6), and the whole message at most 64 KB (`LIMITS.reportBytes`); everything
-  else in `r` is the browser's (`src/net/report.js` lists it). The answer is
-  `{ "t": "reported", "id": 1 }` or an `error` with `re: "report"` and the `id`.
+  requires `r.kind` absent, `null`, `"throw"` or `"feedback"` (`REPORT_KINDS`; absent
+  or `null` is a throw report, the shape clients built before feedback send, the iPhone
+  app's current builds among them), `r.mode` (`practice`, `solo`, `watch` or `pitch`),
+  `r.room` a room code when present, `r.client` and `r.engine` tags when present
+  (section 2.6), and the whole message at most 64 KB (`LIMITS.reportBytes`). By kind:
+  - `throw`: `r.happened` and `r.should`, text, at most 1000 Unicode code points each
+    (`LIMITS.reportChars`), at least one not blank.
+  - `feedback`: `r.text`, text, 1 to 2000 Unicode code points after trimming
+    (`LIMITS.feedbackChars`), and neither `happened` nor `should`.
+
+  Everything else in `r` is the browser's (`src/net/report.js` lists it): a feedback
+  report carries the same game context as a throw report. The answer is
+  `{ "t": "reported", "id": 1 }` or an `error` with `re: "report"` and the `id`
+  (`bad-message` for a bad kind or a missing or blank text, `too-big` for text too long).
+
 - **What is kept.** One gzipped JSON object a report in the games bucket:
   `reports/<yyyy-mm-dd>/<epoch ms, 13 digits>-<8 random>.json.gz`, holding
-  `{ t, report }`: the server's time and `r` as it came. The server adds nothing that
+  `{ t, report }`: the server's time and `r` as it came, with `kind` set (`"throw"` for
+  one that came with none). The server adds nothing that
   names the sender: no connection id, member id, address or browser string (the
   browser has already swapped the players' member ids for `member1`, `member2`, ...;
   so a report joins its recorded game by `room` and `v`, not by member). Kept for
@@ -561,11 +573,12 @@ either: it checks the shape and the size, keeps the report and acknowledges it.
 - **Joining a recorded game.** A shared pitch's report carries `room` and the document
   version `v` it had, so it joins `games/<room>/` at that version instead of copying it.
   It also carries its own snapshots, so it replays without the records.
-- **Limits.** 3 reports a connection, counted in the Lambda instance (a best effort, as
+- **Limits.** 3 reports a connection, of either kind, counted in the Lambda instance (a best effort, as
   the cast buckets are); the stage throttle is the hard cap. A report that cannot be
   written is answered `failed` and does not count.
 - **Reading them.** `npm run reports:pull`, then `npm run reports:replay -- <file>`
-  (`tools/reports.mjs`). The local server (`node tools/rooms-dev.mjs`) writes them to
+  (`tools/reports.mjs`; they print the kind and a feedback's text, and a feedback report
+  with no throw in it has nothing to replay). The local server (`node tools/rooms-dev.mjs`) writes them to
   `build/reports-dev/` in the same shape; `startRoomsServer({ report })` takes any
   reporter (the tests use `memoryReporter`), and without one reports are `unavailable`.
 

@@ -59,7 +59,8 @@ export const LIMITS = Object.freeze({
   connTtl: 3 * 3600, // seconds a connection record lives (connections last 2 hours)
   partTtl: 600, // seconds an unfinished upload is kept
   reportBytes: 64 * 1024, // a whole `report` message, as ASCII JSON
-  reportChars: 1000, // each of a report's two typed answers, in characters
+  reportChars: 1000, // each of a throw report's two typed answers, in characters
+  feedbackChars: 2000, // a feedback report's one text, in characters after trimming
   reportsPerConn: 3, // reports one connection may send
   gameBytes: 256 * 1024, // a whole `game` message (a match played in one browser)
   gameActions: 4000, // the actions one such match may carry
@@ -90,6 +91,11 @@ export const REPORT_MODES = Object.freeze([
   "watch",
   "pitch",
 ]);
+
+// What a report is about: a throw that looked wrong (its two answers, `happened` and
+// `should`), or anything else (one `text`). A report with no `kind` is a throw report:
+// clients built before feedback (the iPhone app's current builds) send none.
+export const REPORT_KINDS = Object.freeze(["throw", "feedback"]);
 
 // Room codes are made by the client: 8 to 24 characters with no 0, 1, i, l or o.
 export const ROOM_CODE = /^[2-9a-hjkmnp-z]{8,24}$/;
@@ -189,8 +195,10 @@ export class RoomError extends Error {
 const isObject = (x) =>
   x !== null && typeof x === "object" && !Array.isArray(x);
 
-// A `report` message checked: { t: "report", id?, r: { mode, happened, should, client?, engine?, ... } }.
-// `bytes` is the message's size. Throws a RoomError, or returns the report object.
+// A `report` message checked: { t: "report", id?, r: { kind?, mode, ..., client?, engine?, ... } }.
+// A throw report (`kind` "throw" or absent) carries `happened` and `should`; a feedback
+// report (`kind` "feedback") carries `text` and neither answer. `bytes` is the message's
+// size. Throws a RoomError, or returns the report object to keep, with its `kind` set.
 export function checkReport(msg, bytes, limits = LIMITS) {
   const id = msg.id ?? null;
   const fail = (code, message) => {
@@ -200,23 +208,40 @@ export function checkReport(msg, bytes, limits = LIMITS) {
     fail("too-big", `A report is limited to ${limits.reportBytes} bytes.`);
   const r = msg.r;
   if (!isObject(r)) fail("bad-message", "`r` must be the report.");
+  const kind = r.kind ?? "throw";
+  if (!REPORT_KINDS.includes(kind))
+    fail("bad-message", "The report's `kind` is not one the game has.");
   if (!REPORT_MODES.includes(r.mode))
     fail("bad-message", "The report's `mode` is not one the game has.");
-  for (const k of ["happened", "should"]) {
-    if (typeof r[k] !== "string") fail("bad-message", `\`${k}\` must be text.`);
-    if ([...r[k]].length > limits.reportChars)
+  if (kind === "throw") {
+    for (const k of ["happened", "should"]) {
+      if (typeof r[k] !== "string")
+        fail("bad-message", `\`${k}\` must be text.`);
+      if ([...r[k]].length > limits.reportChars)
+        fail(
+          "too-big",
+          `Each answer is limited to ${limits.reportChars} characters.`,
+        );
+    }
+    if (!r.happened.trim() && !r.should.trim())
+      fail("bad-message", "Say what happened, or what should have happened.");
+  } else {
+    if (typeof r.text !== "string") fail("bad-message", "`text` must be text.");
+    const text = r.text.trim();
+    if (!text) fail("bad-message", "Say what you would like to tell us.");
+    if ([...text].length > limits.feedbackChars)
       fail(
         "too-big",
-        `Each answer is limited to ${limits.reportChars} characters.`,
+        `Feedback is limited to ${limits.feedbackChars} characters.`,
       );
+    if (r.happened !== undefined || r.should !== undefined)
+      fail("bad-message", "Feedback carries `text`, not a throw's answers.");
   }
-  if (!r.happened.trim() && !r.should.trim())
-    fail("bad-message", "Say what happened, or what should have happened.");
   if (r.room !== undefined && r.room !== null)
     if (typeof r.room !== "string" || !ROOM_CODE.test(r.room))
       fail("bad-room", "That is not a room code.");
   checkTags(r, fail);
-  return r;
+  return { ...r, kind };
 }
 
 // A `game` message checked: { t: "game", id?, g: { mode, start, actions, hashes?, client?, engine?, ... } }.

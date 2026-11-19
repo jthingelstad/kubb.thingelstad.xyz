@@ -1,4 +1,4 @@
-// Reports (MENU, REPORT A THROW): the room server's `report` message, the object it keeps
+// Reports (MENU, SEND FEEDBACK: a throw or anything else): the room server's `report` message, the object it keeps
 // (backend/rooms/reports.mjs), the browser's payload (src/net/report.js) and the replay of
 // the reported moment (tools/reports.mjs).
 import assert from "node:assert/strict";
@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { gunzipSync, gzipSync } from "node:zlib";
 import {
   LIMITS,
+  REPORT_KINDS,
   REPORT_MODES,
   asciiJson,
   createRooms,
@@ -19,6 +20,7 @@ import {
 } from "../../backend/rooms/reports.mjs";
 import {
   REPORT_LIMITS,
+  REPORT_KINDS as CLIENT_KINDS,
   REPORT_MODES as CLIENT_MODES,
   captureReport,
   reportMessage,
@@ -63,7 +65,9 @@ const minimal = (extra = {}) => ({
 test("the limits and modes agree between the browser and the server", () => {
   assert.equal(REPORT_LIMITS.bytes, LIMITS.reportBytes);
   assert.equal(REPORT_LIMITS.chars, LIMITS.reportChars);
+  assert.equal(REPORT_LIMITS.feedbackChars, LIMITS.feedbackChars);
   assert.deepEqual([...CLIENT_MODES], [...REPORT_MODES]);
+  assert.deepEqual([...CLIENT_KINDS], [...REPORT_KINDS]);
   assert.ok(LIMITS.reportBytes < 128 * 1024, "inside API Gateway's message");
 });
 
@@ -155,6 +159,94 @@ test("refusals: too big, empty, too long, a bad mode, not JSON, too many", async
   // another connection may still send
   await h.say("c3", minimal());
   assert.equal(h.last("c3").t, "reported");
+});
+
+const feedback = (extra = {}) => ({
+  t: "report",
+  id: 7,
+  r: { kind: "feedback", mode: "solo", text: "Love the sound.", ...extra },
+});
+
+test("a report with no kind is a throw report, kept with kind throw (older clients)", async () => {
+  const h = harness();
+  const msg = minimal({ selectedPieces: [{ id: "king", kind: "king" }] });
+  assert.equal(msg.r.kind, undefined, "the iPhone app's current shape");
+  await h.say("c1", msg);
+  assert.deepEqual(h.last("c1"), { t: "reported", id: 7 });
+  const r = JSON.parse(h.report.kept[0].text).report;
+  assert.equal(r.kind, "throw");
+  assert.equal(r.happened, "The kubb fell through.");
+  assert.equal(r.should, "");
+  assert.equal(r.selectedPieces[0].id, "king");
+  // null is absent too; and "throw" said outright is the same
+  await h.say("c2", minimal({ kind: null }));
+  await h.say("c3", minimal({ kind: "throw" }));
+  for (const k of [1, 2])
+    assert.equal(JSON.parse(h.report.kept[k].text).report.kind, "throw");
+});
+
+test("feedback about anything: one text, kept with its kind and the game context", async () => {
+  const h = harness();
+  await h.say(
+    "c1",
+    feedback({ mode: "pitch", room: ROOM, v: 3, phase: "aim", pieces: [] }),
+  );
+  assert.deepEqual(h.last("c1"), { t: "reported", id: 7 });
+  const kept = h.report.kept[0];
+  assert.ok(kept.key.startsWith("reports/2025-11-16/"), "the same prefix");
+  const r = JSON.parse(kept.text).report;
+  assert.equal(r.kind, "feedback");
+  assert.equal(r.text, "Love the sound.");
+  assert.equal(r.room, ROOM);
+  assert.equal(r.v, 3);
+  assert.equal(r.happened, undefined);
+  assert.equal(r.should, undefined);
+  // 2000 characters after trimming, whatever the white space around them
+  await h.say("c2", feedback({ text: `  ${"é".repeat(2000)}\n\n` }));
+  assert.equal(h.last("c2").t, "reported");
+});
+
+test("feedback refusals: a bad kind, no text, blank, too long, the throw's answers", async () => {
+  const h = harness();
+  const refused = async (msg, code) => {
+    await h.say("c1", msg);
+    const e = h.last("c1");
+    assert.equal(e.t, "error", JSON.stringify(msg.r));
+    assert.equal(e.code, code, JSON.stringify(msg.r));
+    assert.equal(e.re, "report");
+    assert.equal(e.id, 7);
+  };
+  for (const kind of ["idea", "Feedback", "", 1, true, ["feedback"], {}])
+    await refused(feedback({ kind }), "bad-message");
+  await refused(feedback({ text: undefined }), "bad-message");
+  await refused(feedback({ text: 5 }), "bad-message");
+  await refused(feedback({ text: "" }), "bad-message");
+  await refused(feedback({ text: " \n\t " }), "bad-message");
+  await refused(feedback({ text: "é".repeat(2001) }), "too-big");
+  await refused(feedback({ happened: "x" }), "bad-message");
+  await refused(feedback({ should: "" }), "bad-message");
+  await refused(feedback({ mode: "arcade" }), "bad-message");
+  await refused(feedback({ room: "BAD" }), "bad-room");
+  await refused(feedback({ client: "Web" }), "bad-message");
+  await refused(feedback({ pad: "x".repeat(LIMITS.reportBytes) }), "too-big");
+  // a throw report is still judged as one: its answers, not a text
+  await refused(minimal({ kind: "throw", happened: undefined }), "bad-message");
+  await refused(
+    { t: "report", id: 7, r: { kind: "throw", mode: "solo", text: "hi" } },
+    "bad-message",
+  );
+  assert.equal(h.report.kept.length, 0, "nothing refused is kept");
+});
+
+test("feedback and throw reports share the 3 a connection", async () => {
+  const h = harness();
+  await h.say("c1", feedback());
+  await h.say("c1", minimal());
+  await h.say("c1", feedback());
+  assert.equal(h.last("c1").t, "reported");
+  await h.say("c1", feedback());
+  assert.equal(h.last("c1").code, "too-many");
+  assert.equal(h.report.kept.length, 3);
 });
 
 test("a report may say which client and engine sent it; a bad tag is refused", async () => {
@@ -393,6 +485,69 @@ test("answers are clipped, and a report too big drops history, then pieces, neve
   assert.deepEqual(tiny.r.dropped, ["history", "pieces", "after"]);
   assert.equal(typeof tiny.r.snapshots.before, "string", "never cut");
   assert.equal(tiny.r.last.type, "throw", "never cut");
+});
+
+test("feedback: one trimmed text with the same game context, cut the same way, never the text", async () => {
+  const game = await soloGame(1);
+  const state = captureReport({ game, mode: "solo", config: CONFIG, win: WIN });
+  const msg = reportMessage(state, {
+    kind: "feedback",
+    text: "  The menu is hard to find.\n",
+    happened: "ignored",
+    selected: ["king"],
+  });
+  const r = msg.r;
+  assert.equal(r.kind, "feedback");
+  assert.equal(r.text, "The menu is hard to find.");
+  for (const k of ["happened", "should", "selectedPieces", "pickPieces"])
+    assert.equal(r[k], undefined, k);
+  assert.equal(r.mode, "solo");
+  assert.equal(typeof r.snapshots.before, "string", "the game goes with it");
+  assert.equal(r.lastThrow.action.type, "throw");
+  assert.equal(
+    reportMessage(state, { kind: "feedback", text: "x".repeat(5000) }).r.text
+      .length,
+    REPORT_LIMITS.feedbackChars,
+  );
+  assert.equal(reportMessage(state, { happened: "h" }).r.kind, "throw");
+  assert.ok(!reportReady({ kind: "feedback", text: " \n" }));
+  assert.ok(!reportReady({ kind: "feedback", happened: "a" }));
+  assert.ok(reportReady({ kind: "feedback", text: "a" }));
+
+  state.actions = Array.from({ length: 300 }, () => state.last);
+  const text = "é".repeat(REPORT_LIMITS.feedbackChars);
+  const tiny = reportMessage(
+    state,
+    { kind: "feedback", text },
+    { limits: { ...REPORT_LIMITS, bytes: 10 } },
+  );
+  assert.deepEqual(tiny.r.dropped, ["history", "pieces", "after"]);
+  assert.equal(tiny.r.text, text, "never cut");
+
+  // through the server; the tools print it, and replay its throw
+  const h = harness();
+  await h.raw("c1", asciiJson(msg));
+  assert.equal(h.last("c1").t, "reported");
+  const kept = parseRecord(gzipSync(h.report.kept[0].text));
+  const lines = describeReport(kept, "x.json.gz").join("\n");
+  assert.match(lines, /feedback {2}solo \[web\]/);
+  assert.match(lines, /Feedback: The menu is hard to find\./);
+  assert.doesNotMatch(lines, /What happened/);
+  const engine = await Engine.create({ sources });
+  assert.equal(replayReport(engine, kept).same, true, "its throw replays");
+
+  // feedback from before any throw has nothing to replay
+  const fresh = {
+    report: { kind: "feedback", mode: "solo", text: "Hi", lastThrow: null },
+  };
+  const out = replayReport(engine, fresh);
+  assert.equal(out.kind, null);
+  assert.match(out.why, /feedback/);
+  // a kept throw report from before kinds reads as a throw
+  assert.match(
+    describeReport({ t: T0, report: { mode: "solo", happened: "a" } }).join(),
+    /throw {2}solo/,
+  );
 });
 
 test("the report is the game as the card opened, whatever is played after", async () => {
