@@ -285,3 +285,68 @@ export async function watchThrows(page) {
     };
   });
 }
+
+// A plan slider's point for place f (0..1: bottom to top for ARC, left to
+// right for TILT), in CSS px; which: "arc" | "side". `across` (0..1) is
+// where across the body the pointer goes.
+export async function sliderPoint(page, which, f, across = 0.5) {
+  return page.evaluate(
+    ({ which, f, across }) => {
+      const el = document.querySelector(`[data-test=${which}]`);
+      const run = el.querySelector(".slider-run").getBoundingClientRect();
+      const body = el.querySelector(".slider-body").getBoundingClientRect();
+      if (which === "arc")
+        return [body.left + body.width * across, run.bottom - run.height * f];
+      return [run.left + run.width * f, body.top + body.height * across];
+    },
+    { which, f, across },
+  );
+}
+
+// Drag a plan slider through the places fs, a frame a step, with the mouse
+// or a finger (CDP touch). keep: leave it held (call the returned release()).
+export async function dragSlider(
+  page,
+  which,
+  fs,
+  { touch = false, keep = false } = {},
+) {
+  const pts = [];
+  for (const f of fs) pts.push(await sliderPoint(page, which, f));
+  let release;
+  if (!touch) {
+    await page.mouse.move(...pts[0]);
+    await page.mouse.down();
+    await nextFrame(page);
+    for (const p of pts.slice(1)) {
+      await page.mouse.move(...p);
+      await nextFrame(page);
+    }
+    release = () => page.mouse.up();
+  } else {
+    const cdp = await page.context().newCDPSession(page);
+    const tp = ([x, y]) => [{ x, y, id: 2, radiusX: 8, radiusY: 8, force: 1 }];
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: tp(pts[0]),
+    });
+    await nextFrame(page);
+    for (const p of pts.slice(1)) {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: tp(p),
+      });
+      await nextFrame(page);
+    }
+    release = async () => {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      });
+      await cdp.detach();
+    };
+  }
+  await nextFrame(page);
+  if (!keep) await release();
+  return release;
+}
