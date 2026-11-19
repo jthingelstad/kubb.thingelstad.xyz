@@ -40,6 +40,12 @@ import {
   dialGeometry,
   armAt,
   hitTest,
+  drawLinear,
+  linearGeometry,
+  armAtY,
+  knobHit,
+  bodyHit,
+  linearTune,
   projectView,
   unprojectView,
   project,
@@ -77,6 +83,14 @@ export const tune = {
 };
 
 const ZERO = { dx: 0, dy: 0 };
+
+// The engine's prompts are the crank's; on the linear meter they read as
+// its own motion.
+const LINEAR_WORDS = {
+  "WIND BACK": "DRAW BACK",
+  "FLICK!": "FLING!",
+  "CRANK DOWN": "BACK TO MIDDLE",
+};
 
 export class Game {
   constructor({
@@ -127,6 +141,8 @@ export class Game {
     this.listeners = [];
     this.panX = 200;
     this.level = prefs.get("level", "club");
+    // the throw's meter, this device's: the clock or the linear one (MENU)
+    this.meter = prefs.get("meter", "clock") === "linear" ? "linear" : "clock";
     this.raiseSel = null;
     this.punishAt = null;
     this.running = false;
@@ -790,7 +806,23 @@ export class Game {
     }
   }
 
+  // The throw's meter: "clock" (the dial) or "linear" (the straight track).
+  // A preference of this device's; the engine is fed the same arm by both.
+  setMeter(meter) {
+    this.meter = meter === "linear" ? "linear" : "clock";
+    prefs.set("meter", this.meter);
+    if (this.W) this.resize();
+  }
+
   // ---------- drawing ----------
+
+  // The meter on the screen: the linear one where the player chose it and it
+  // has room (layout.js), else the clock.
+  drawMeter(st) {
+    if (this.L.meter !== "linear") return drawDial(this.ctx, this.L.dial, st);
+    const prompt = LINEAR_WORDS[st.prompt] || st.prompt;
+    return drawLinear(this.ctx, this.L.dial, { ...st, prompt });
+  }
 
   get view() {
     return { width: this.W, height: this.H, dpr: this.dpr, fit: this.fit };
@@ -813,6 +845,7 @@ export class Game {
     this.canvas.height = Math.round(H * dpr);
     const cs = getComputedStyle(document.documentElement);
     const inset = (n) => parseFloat(cs.getPropertyValue(n)) || 0;
+    const was = this.L?.meter;
     this.L = layoutFor(
       W,
       H,
@@ -823,7 +856,14 @@ export class Game {
         left: inset("--safe-left"),
       },
       this.swipeLayout,
+      this.meter,
     );
+    // a held knob is let go when the meter under it changes (a phone turned
+    // on its side mid-swing): its place on one is no angle on the other
+    if (was && was !== this.L.meter && this.ptr?.kind === "dial") {
+      this.ptr = null;
+      this.dialArm = null;
+    }
     this.fit = worldFit(W, H, this.panX);
     if (this.engine) this.applyWide();
   }
@@ -899,12 +939,12 @@ export class Game {
         ...dial,
         grabbed: this.ptr?.kind === "dial" || this.ptr?.kind === "swipe",
       };
-      if (this.touchPrompts && !watching) {
+      if (this.touchPrompts && !watching && this.L.meter !== "linear") {
         if (st.prompt === "WIND BACK") st.prompt = "PULL DOWN ↓";
         if (st.prompt === "FLICK!") st.prompt = "FLICK UP!";
       }
       if (watching && !st.prompt) st.prompt = "WATCH";
-      drawDial(this.ctx, this.L.dial, st);
+      this.drawMeter(st);
     }
     const res =
       this.result && this.result.age < tune.flagFor ? this.result : null;
@@ -962,7 +1002,7 @@ export class Game {
         advantageY: this.out?.aim?.advY ?? null,
         wind: this.out?.aim?.wind || null,
       });
-      if (s.dial) drawDial(this.ctx, this.L.dial, { ...s.dial, prompt: null });
+      if (s.dial) this.drawMeter({ ...s.dial, prompt: null });
     }
     // the bursts at their anchors, in real time (smaller over the whole pitch)
     const size = wide
@@ -1161,16 +1201,26 @@ export class Game {
     const { x, y } = this.pos(e);
     const touch = e.pointerType !== "mouse";
     let kind = null;
+    let grab = 0;
     if (this.phase === "aim" && this.mayAct()) {
-      const g = dialGeometry(this.L.dial);
+      const linear = this.L.meter === "linear";
+      const g = linear
+        ? linearGeometry(this.L.dial)
+        : dialGeometry(this.L.dial);
       const aim = this.out?.aim || {};
-      const swipe = this.swipeEnabled && e.pointerType === "touch";
+      const swipe = !linear && this.swipeEnabled && e.pointerType === "touch";
       // The painted control is in front of the pitch. Its face keeps the
       // press even where the projected stance or target lies underneath it.
-      const onDial = swipe
-        ? Math.hypot(x - g.cx, y - g.cy) <= g.r
-        : hitTest(g, x, y);
+      // The linear meter is grabbed by its knob, which is home: the press is
+      // the arm at 6 wherever on the knob it lands, and the rest of the body
+      // only keeps the press from the pitch.
+      const onDial = linear
+        ? knobHit(g, x, y, touch ? linearTune.grabTouch : linearTune.grabMouse)
+        : swipe
+          ? Math.hypot(x - g.cx, y - g.cy) <= g.r
+          : hitTest(g, x, y);
       if (onDial) kind = swipe ? "swipe" : "dial";
+      else if (linear && bodyHit(g, x, y)) kind = "none";
       else if (this.walkOn) kind = "walk";
       else if (
         this.near(aim.marker, x, y, touch ? tune.grabTouch : tune.grabMouse)
@@ -1185,7 +1235,8 @@ export class Game {
         this.walkOn = false;
       }
       if (kind === "dial") {
-        this.dialArm = armAt(g, x, y);
+        if (linear) grab = y - g.y0;
+        this.dialArm = linear ? 0 : armAt(g, x, y);
         this.dialFresh = true;
         this.dialAcc = 0;
         this.planToggle = false;
@@ -1197,7 +1248,16 @@ export class Game {
     } else if (this.phase === "play") kind = "none";
     if (!kind) return;
     e.preventDefault();
-    this.ptr = { id: e.pointerId, kind, x0: x, y0: y, x, y, moved: false };
+    this.ptr = {
+      id: e.pointerId,
+      kind,
+      x0: x,
+      y0: y,
+      x,
+      y,
+      moved: false,
+      grab,
+    };
     try {
       this.canvas.setPointerCapture(e.pointerId);
     } catch {
@@ -1244,7 +1304,10 @@ export class Game {
     p.y = y;
     if (Math.hypot(x - p.x0, y - p.y0) > tune.tapSlop) p.moved = true;
     if (p.kind === "dial") {
-      this.dialArm = armAt(dialGeometry(this.L.dial), x, y);
+      this.dialArm =
+        this.L.meter === "linear"
+          ? armAtY(linearGeometry(this.L.dial), y - p.grab)
+          : armAt(dialGeometry(this.L.dial), x, y);
       this.dialFresh = true;
     } else if (p.kind === "target") {
       const g = this.ground(x, y);

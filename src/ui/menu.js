@@ -1,4 +1,4 @@
-// The menu, from the button in the top corner: resign, sound, level, how to
+// The menu, from the button in the top corner: resign, sound, level, meter, how to
 // throw, the score sheet (in a match), report a throw, the rules and home; on
 // the practice pitch also the surface; watching the computer, the view. At its
 // foot, small, the release this page is (src/site/release.js).
@@ -13,6 +13,11 @@ const LEVELS = [
 const VIEWS = [
   ["wide", "Wide"],
   ["thrower", "Thrower's"],
+];
+// the throw's meter (src/game/game.js setMeter)
+const METERS = [
+  ["clock", "Clock"],
+  ["linear", "Linear"],
 ];
 const SURFACES = [
   ["grass", "Grass"],
@@ -68,6 +73,23 @@ export class Menu {
             game.setLevel(v);
             render();
           }),
+        ),
+        h(
+          "div.opt",
+          { "data-test": "menu-meter" },
+          h("span.opt-label", "Meter"),
+          seg(METERS, game.meter, (v) => {
+            game.setMeter(v);
+            render();
+          }),
+          // chosen, but this screen has not the height for it (layout.js)
+          game.meter === "linear" && game.L?.meter !== "linear"
+            ? h(
+                "p.opt-note",
+                { "data-test": "menu-meter-note" },
+                "This screen is too short for the linear meter, so the clock is shown.",
+              )
+            : null,
         ),
         this.hooks.view
           ? h(

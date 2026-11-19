@@ -1,8 +1,10 @@
 // HOW TO THROW: four short steps with a small dial that swings by itself
 // (wind back up the left, swing through, let go). Shown on the first visit
-// and from the menu; remembered once dismissed.
+// and from the menu; remembered once dismissed. With the linear meter on the
+// screen (MENU, Meter) the steps and the picture are that meter's.
 import { h, button } from "./dom.js";
 import { drawDial } from "../render/dial.js";
+import { drawLinear } from "../render/linear.js";
 import { prefs } from "../game/prefs.js";
 
 const STEPS = [
@@ -10,6 +12,10 @@ const STEPS = [
     swipe: [
       "Start on the dial or the grass",
       "Close this guide to play. Touch the wooden knob or the grass in the lower half of the screen, then pull straight down.",
+    ],
+    linear: [
+      "Grab the knob",
+      "Press on the wooden knob in the middle of the meter and keep holding. It follows your finger or mouse down and up.",
     ],
     title: "Grab the dial",
     text: "Press on the big dial and keep holding. The arm follows your finger or mouse round its centre.",
@@ -20,6 +26,10 @@ const STEPS = [
       "Pull down to wind back",
       "Pull straight down until the dial’s arm reaches the orange mark. A deeper pull gives you more power.",
     ],
+    linear: [
+      "Draw back",
+      "Drag the knob down to the orange mark. How far back is how hard you throw.",
+    ],
     title: "Wind back up the left",
     text: "Drag up the left side to the orange mark. How far back is how hard you throw.",
     arm: (t) => -10 - 110 * ease(Math.min(1, t)),
@@ -29,12 +39,20 @@ const STEPS = [
       "Flick up and lift",
       "Flick straight up past where you started. Lift at the blue mark to release. Return slowly to let the arm down.",
     ],
+    linear: [
+      "Fling forward and let go",
+      "Sweep quickly up through the middle, then let go on the blue mark. Where you let go is the arc.",
+    ],
     title: "Swing through and let go",
     text: "Sweep quickly down through the bottom and up the right, then let go on the blue mark. Where you let go is the arc.",
     arm: (t) => (t < 0.6 ? -120 + 210 * ease(t / 0.6) : 90),
     release: true,
   },
   {
+    linear: [
+      "Aim if you like",
+      "Drag the target circle on the pitch. WALK, then drag on the pitch, moves the thrower along the line or back (keys: WASD). ARC and TILT sit beside the meter. Or just throw: the circle starts on a good target.",
+    ],
     title: "Aim if you like",
     text: "Drag the target circle on the pitch. WALK, then drag on the pitch, moves the thrower along the line or back (keys: WASD). ARC and TILT sit beside the dial. Or just throw: the circle starts on a good target.",
     arm: () => 0,
@@ -53,7 +71,13 @@ export function showHowto(root, game = null, onDone = null) {
   let i = 0;
   let raf = 0;
   let t0 = performance.now();
-  const canvas = h("canvas.howto-dial", { width: 180, height: 200 });
+  // the picture is the meter on the screen: the linear one is tall and narrow
+  const linear = game?.L?.meter === "linear";
+  const [cw, ch] = linear ? [180, 250] : [180, 200];
+  const canvas = h(linear ? "canvas.howto-dial.linear" : "canvas.howto-dial", {
+    width: cw,
+    height: ch,
+  });
   const title = h("h3.display");
   const text = h("p");
   const count = h("p.kicker");
@@ -79,8 +103,8 @@ export function showHowto(root, game = null, onDone = null) {
   if (game) game.modal++;
 
   const dpr = Math.min(3, window.devicePixelRatio || 1);
-  canvas.width = 180 * dpr;
-  canvas.height = 200 * dpr;
+  canvas.width = cw * dpr;
+  canvas.height = ch * dpr;
   const ctx = canvas.getContext("2d");
   const frame = (now) => {
     raf = requestAnimationFrame(frame);
@@ -88,11 +112,20 @@ export function showHowto(root, game = null, onDone = null) {
     const t = ((now - t0) / 1000) % 2.2;
     const arm = s.arm(Math.min(1, t / 1.6));
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, 180, 200);
-    const prompt = i === 1 ? "WIND BACK" : i === 2 ? "FLICK!" : null;
-    drawDial(
+    ctx.clearRect(0, 0, cw, ch);
+    const prompt = linear
+      ? [null, "DRAW BACK", "FLING!"][i] || null
+      : i === 1
+        ? "WIND BACK"
+        : i === 2
+          ? "FLICK!"
+          : null;
+    (linear ? drawLinear : drawDial)(
       ctx,
-      { x: 0, y: 0, width: 180, height: 200 },
+      // (the prompt's plate is on the meter's left: the room is for it)
+      linear
+        ? { x: 104, y: 0, width: 72, height: ch }
+        : { x: 0, y: 0, width: cw, height: ch },
       {
         phase: i === 1 || i === 2 ? "winding" : "idle",
         arm,
@@ -117,9 +150,9 @@ export function showHowto(root, game = null, onDone = null) {
     t0 = performance.now();
     count.textContent = `${i + 1} OF ${STEPS.length}`;
     const step = STEPS[i];
-    const swipe = game?.touchPrompts && step.swipe;
-    title.textContent = swipe ? swipe[0] : step.title;
-    text.textContent = swipe ? swipe[1] : step.text;
+    const words = linear ? step.linear : game?.touchPrompts && step.swipe;
+    title.textContent = words ? words[0] : step.title;
+    text.textContent = words ? words[1] : step.text;
     back.disabled = i === 0;
     next.textContent = i === STEPS.length - 1 ? "PLAY" : "NEXT";
   }

@@ -185,16 +185,24 @@ export class Hud {
   }
 
   // The plan buttons beside the dial: to its left on a wide screen, split
-  // either side of it on a tall one.
+  // either side of it on a tall one. Beside the linear meter (at the right
+  // edge) a tall screen's are split across what is left of the bottom, the
+  // throwing line between them.
   place(L) {
     if (!L) return;
-    const key = `${L.W}x${L.H}:${L.side}`;
+    const key = `${L.W}x${L.H}:${L.side}:${L.meter}`;
     if (this.cache.get("place") === key) return;
     this.cache.set("place", key);
     const d = L.dial;
     const s = this.plans.style;
     this.plans.classList.toggle("split", L.side === "both");
-    if (L.side === "both") {
+    if (L.side === "both" && L.meter === "linear") {
+      s.left = `${L.safe.left + 8}px`;
+      s.right = `${L.W - d.x + 6}px`;
+      s.width = "";
+      s.top = "";
+      s.bottom = `${L.H - (d.y + d.height) + 10}px`;
+    } else if (L.side === "both") {
       s.left = `${L.safe.left + 8}px`;
       s.right = `${L.safe.right + 8}px`;
       s.width = "";

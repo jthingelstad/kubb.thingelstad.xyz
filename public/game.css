@@ -471,6 +471,12 @@ body.game {
   align-items: center;
   margin-top: 8px;
 }
+/* a line under an option: why it is not as chosen */
+.opt-note {
+  grid-column: 2;
+  margin: 0;
+  font-size: 13px;
+}
 .opt-label {
   font-size: 13px;
   font-weight: 800;
@@ -698,6 +704,10 @@ body.game {
 .howto-dial {
   width: 180px;
   height: 200px;
+}
+/* the linear meter's picture (MENU, Meter) */
+.howto-dial.linear {
+  height: 250px;
 }
 
 /* the raise and punishment panels: at the bottom, the pitch above */
@@ -1205,6 +1215,9 @@ body.embed .replay-controls {
   .howto-dial {
     width: 140px;
     height: 156px;
+  }
+  .howto-dial.linear {
+    height: 194px;
   }
   .center {
     top: calc(var(--safe-top) + 64px);

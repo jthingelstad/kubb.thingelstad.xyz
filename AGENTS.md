@@ -266,6 +266,19 @@ Tinylytics, `script.js` form, only in the deploy build (`KUBB_PRODUCTION=true`) 
 on the production hostname (`public/js/analytics.js` checks it in the browser). The site id
 is `TINYLYTICS_SITE` in `src/site/site.mjs`; while it is `null` no script is added.
 
+## The meter
+
+The throw's meter is the player's choice (Jamie, 2026-11-19: "I'm considering a player
+preference for a circular meter (clock) versus a linear meter ... The logic is the same to
+me. Just a choice if you want to spin your thumb or crank -- or use a different hand to
+flick."): MENU, Meter, Clock or Linear, kept on the device (`meter` pref). The clock is
+the default and is never retired: Tyler strongly prefers it. The linear meter
+(`src/render/linear.js`) is the dial unrolled into a track at the right edge and feeds the
+engine the same arm degrees, so both are judged alike and it needs no engine release. Its
+room is the point (the straight trial of 2026-11-18 went because "it was too cramped and
+visually looked janky"): where a screen cannot give the track `minTravel` the clock is
+drawn instead. docs/CLIENT.md "The throw".
+
 ## Pitch lines
 
 Thin on purpose (Jamie, 2026-11-16: "in Kubb, the concept is that there really is no

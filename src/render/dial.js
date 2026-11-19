@@ -141,12 +141,15 @@ function target(ctx, g, ri, ro, rm, ringW, a0, a1, fill, deep, lw) {
   ctx.stroke();
 }
 
-function plate(ctx, x, y, h, text, inverted) {
+// A prompt plate centred on (x, y). With `right`, it is moved left so it and
+// its shadow stay inside that x (a meter at the screen's edge).
+export function plate(ctx, x, y, h, text, inverted, right = null) {
   ctx.font = `900 ${Math.round(h * 0.78)}px ${FONT.display}`;
   ctx.textBaseline = "middle";
   ctx.textAlign = "center";
   const w = ctx.measureText(text).width + h * 0.9;
   const sh = h * 0.12;
+  if (right != null) x = Math.min(x, right - sh - w / 2);
   ctx.fillStyle = INK;
   ctx.beginPath();
   ctx.roundRect(x - w / 2 + sh, y - h / 2 + sh, w, h, h * 0.18);
