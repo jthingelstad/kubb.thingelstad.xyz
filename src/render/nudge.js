@@ -34,6 +34,10 @@ export const tune = {
 export function fingerAt(L, f, opts) {
   if (L.meter === "linear") {
     const g = linearGeometry(L.dial, L.meterSide);
+    // a mouse grabs the knob: its pointer rides the ghost. (The still
+    // picture keeps the zone's, where its arrows have room.)
+    if (opts.finger === "mouse" && f.step !== "still")
+      return { x: g.cx, y: armY(g, clampArm(f.arm)) };
     const z = zonePath(L, g, opts);
     return { x: z.x, y: z.y0 + (armY(g, clampArm(f.arm)) - g.y0) };
   }

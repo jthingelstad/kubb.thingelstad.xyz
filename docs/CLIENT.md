@@ -238,9 +238,10 @@ hooks, right after `drawMeter`. The HOW TO THROW card is unchanged.
 - **Where.** The ghost knob and arm are dashed ink over a light paper fill; the real knob
   stays home under it. On the clock with the finger track the fingertip rides the track at
   the ghost's angle; otherwise it is on the ghost knob (a mouse pointer with a mouse). On
-  the linear meter it is in the throw zone on the meter's inner side, clear of the prompt
-  tab and the plan buttons (between their columns on a tall screen, past their block on
-  a wide one), moving down and up with the ghost knob. The plate follows the ghost in its
+  the linear meter on touch it is in the throw zone on the meter's inner side, clear of
+  the prompt tab and the plan buttons (between their columns on a tall screen, past their
+  block on a wide one), moving down and up with the ghost knob; a mouse's pointer rides
+  the ghost knob, which a mouse grabs. The plate follows the ghost in its
   own words: WIND BACK, then FLICK! from the beat on (DRAW BACK, FLING! on the linear
   meter). With `prefers-reduced-motion: reduce` it is a still picture: the ghost at the
   back with an orange arrow for the draw back and a blue one for the flick.
