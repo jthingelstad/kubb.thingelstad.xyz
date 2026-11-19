@@ -872,6 +872,206 @@ browserTest(
   },
 );
 
+// One practice throw, watched: the result the engine judged.
+async function judgedThrow(page, opts) {
+  const plan = (await state(page)).plan;
+  await watchThrows(page);
+  await throwOnce(page, opts);
+  await waitPhase(page, "play", 5000);
+  await waitPhase(page, "aim", 20000);
+  const throws = await page.evaluate(() => window.__throws);
+  assert.equal(throws.length, 1);
+  const r = throws[0].result;
+  assert.ok(Math.abs(r.back - (plan.powerLo + plan.powerHi) / 2) < 1.5);
+  assert.ok(Math.abs(r.stop - plan.release) < 1.5);
+  assert.equal(r.verdicts.power, "ON");
+  assert.equal(r.verdicts.release, "ON");
+  return r;
+}
+
+// Stroke anywhere (Jamie, 2026-11-19): with the linear meter on the screen a
+// drag in the throw zone (the lower part of the canvas) drives the knob as
+// a grab of it does, so the finger works away from the meter it watches.
+for (const [kind, touch] of [
+  ["portrait", true],
+  ["desktop", false],
+]) {
+  browserTest(
+    `a stroke in the throw zone throws on the linear meter (${kind})`,
+    async () => {
+      const page = await open(env, "/practice/?nohowto=1", kind, {
+        prefs: { meter: "linear" },
+      });
+      try {
+        await waitPhase(page, "aim", 10000);
+        const { W, H, meter, dial } = await page.evaluate(() => {
+          const g = window.__kubb.game;
+          return { W: g.W, H: g.H, meter: g.L.meter, dial: g.L.dial };
+        });
+        assert.equal(meter, "linear");
+        // well away from the meter, between the plan buttons
+        const from = [W * 0.4, H * 0.65];
+        assert.ok(from[0] < dial.x - 60, "the stroke is not on the meter");
+        await judgedThrow(page, { touch, from });
+        assert.deepEqual(page.errors, []);
+      } finally {
+        await page.context().close();
+      }
+    },
+  );
+}
+
+browserTest(
+  "a tap in the throw zone still puts the target circle there",
+  async () => {
+    const page = await open(env, "/practice/?nohowto=1", "portrait", {
+      prefs: { meter: "linear" },
+    });
+    try {
+      await waitPhase(page, "aim", 10000);
+      const before = (await state(page)).marker;
+      await watchThrows(page);
+      await page.touchscreen.tap(390 * 0.3, 844 * 0.66);
+      await page.waitForFunction(
+        (x) => window.__kubb.game.out?.aim?.marker?.x !== x,
+        before.x,
+        { timeout: 3000, polling: 50 },
+      );
+      const s = await state(page);
+      assert.equal(s.phase, "aim");
+      assert.ok(s.marker.x < before.x, "moved toward the tap");
+      assert.deepEqual(await page.evaluate(() => window.__throws), []);
+      assert.deepEqual(page.errors, []);
+    } finally {
+      await page.context().close();
+    }
+  },
+);
+
+// Touch beside the ring (Jamie, 2026-11-19): a finger may go round outside
+// the clock's rim, where it hides nothing; a phone held upright leaves the
+// room for it all the way round.
+browserTest(
+  "a touch outside the clock's ring throws on a portrait phone",
+  async () => {
+    const page = await open(env, "/practice/?nohowto=1", "portrait");
+    try {
+      await waitPhase(page, "aim", 10000);
+      const L = await page.evaluate(() => window.__kubb.game.L);
+      assert.equal(L.meter, "clock");
+      assert.equal(L.track, true, "the finger track is drawn");
+      const g = await dialGeometry(page);
+      assert.ok(g.cy + g.r * 1.55 <= 844, "6 o'clock outside the rim fits");
+      await judgedThrow(page, { touch: true, radius: 1.35 });
+      assert.deepEqual(page.errors, []);
+    } finally {
+      await page.context().close();
+    }
+  },
+);
+
+// Left or right (Jamie, 2026-11-19: "Left and right handed folks may want it
+// on one side or the other"): MENU, Side mirrors where the meter sits.
+async function clearOfMeter(page) {
+  const L = await page.evaluate(() => window.__kubb.game.L);
+  let m;
+  if (L.meter === "linear") m = L.dial;
+  else {
+    const g = await dialGeometry(page);
+    // the face and the prompt plate over it
+    m = {
+      x: g.cx - g.r,
+      y: g.cy - g.r * 1.45,
+      width: 2 * g.r,
+      height: g.r * 2.45,
+    };
+  }
+  const boxes = await page.evaluate(() =>
+    [
+      ...document.querySelectorAll(
+        "[data-test=plans] .btn, [data-test=rail], [data-test=menu], [data-test=tray] .btn",
+      ),
+    ]
+      .filter((el) => !el.closest("[hidden]") && el.offsetParent)
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        return {
+          name: el.textContent,
+          x: r.x,
+          y: r.y,
+          width: r.width,
+          height: r.height,
+        };
+      }),
+  );
+  assert.ok(boxes.length >= 8, `the HUD is up: ${boxes.length}`);
+  for (const b of boxes) {
+    const hit =
+      b.x < m.x + m.width &&
+      m.x < b.x + b.width &&
+      b.y < m.y + m.height &&
+      m.y < b.y + b.height;
+    assert.ok(!hit, `${b.name} is clear of the meter`);
+  }
+  return L;
+}
+
+for (const [kind, meter, touch] of [
+  ["portrait", "linear", true],
+  ["desktop", "linear", false],
+  ["desktop", "clock", false],
+]) {
+  browserTest(
+    `the meter on the left: ${meter} (${kind}) lays out clear and throws`,
+    async () => {
+      const page = await open(env, "/practice/?nohowto=1", kind, {
+        prefs: { meter, meterSide: "left" },
+      });
+      try {
+        await waitPhase(page, "aim", 10000);
+        const L = await clearOfMeter(page);
+        assert.equal(L.meter, meter);
+        assert.equal(L.meterSide, "left");
+        assert.ok(L.dial.x + L.dial.width < L.W / 2, "on the left");
+        if (!L.tall) assert.ok(L.minimap.x > L.W / 2, "the minimap moved");
+        await judgedThrow(page, { touch });
+        assert.deepEqual(page.errors, []);
+      } finally {
+        await page.context().close();
+      }
+    },
+  );
+}
+
+browserTest("the menu's Side moves the meter and remembers", async () => {
+  const page = await open(env, "/practice/?nohowto=1", "desktop", {
+    prefs: { meter: "linear" },
+  });
+  try {
+    await waitPhase(page, "aim", 10000);
+    const side = () => page.evaluate(() => window.__kubb.game.L.meterSide);
+    assert.equal(await side(), "right", "the right is the default");
+    await clearOfMeter(page);
+    await page.click("[data-test=menu]");
+    await page.click("[data-test=menu-side] >> text=Left");
+    assert.equal(await side(), "left");
+    assert.equal(
+      await page.evaluate(() => localStorage.getItem("kubb:meterSide")),
+      '"left"',
+    );
+    await page.reload();
+    await page.waitForSelector("body[data-ready='1']");
+    await waitPhase(page, "aim", 10000);
+    assert.equal(await side(), "left", "kept over a reload");
+    await page.click("[data-test=menu]");
+    await page.click("[data-test=menu-side] >> text=Right");
+    assert.equal(await side(), "right");
+    assert.deepEqual(page.errors, []);
+  } finally {
+    await page.context().close();
+  }
+});
+
 browserTest(
   "a solo match's report: the card holds the aim, and the report arrives with the throw to replay",
   async () => {
