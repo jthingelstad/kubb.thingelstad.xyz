@@ -1,11 +1,12 @@
 // Helpers for the browser tests (tests/game/client.test.mjs) and the
 // screenshot and swing-feel runs: build dist once, serve it through
-// tools/preview.mjs on a free 127.0.0.1 port, and drive the game's dial with
-// a scripted pointer.
+// tools/preview.mjs on a free 127.0.0.1 port, and drive the game's meter (the
+// dial or the linear one, whichever the page shows) with a scripted pointer.
 import fs from "node:fs/promises";
 import { chromium, devices } from "playwright";
 import { buildSite } from "../../tools/build.mjs";
 import { startPreview } from "../../tools/preview.mjs";
+import { linearGeometry, armY } from "../../src/render/linear.js";
 
 export const VIEWPORTS = {
   desktop: { viewport: { width: 1280, height: 768 }, deviceScaleFactor: 1 },
@@ -84,8 +85,13 @@ async function withLock(dir, fn, staleMs = 180000) {
 }
 
 // A page on `path`, with its console errors collected in page.errors.
-export async function open(env, path, kind = "desktop") {
+// prefs: the player's saved choices (src/game/prefs.js), set before it loads.
+export async function open(env, path, kind = "desktop", { prefs = {} } = {}) {
   const ctx = await env.browser.newContext(VIEWPORTS[kind]);
+  await ctx.addInitScript((prefs) => {
+    for (const [k, v] of Object.entries(prefs))
+      localStorage.setItem(`kubb:${k}`, JSON.stringify(v));
+  }, prefs);
   const page = await ctx.newPage();
   page.errors = [];
   page.on("console", (m) => {
@@ -129,6 +135,22 @@ function at(g, arm, R) {
   return [g.cx + R * Math.sin(a), g.cy + R * Math.cos(a)];
 }
 
+// Where the pointer goes for each arm angle on the meter the page shows:
+// round the dial at `radius` of its own, or up and down the linear meter's
+// channel from its knob.
+async function pointsFor(page, arms, radius) {
+  const L = await page.evaluate(() => {
+    const { meter, dial } = window.__kubb.game.L;
+    return { meter, dial };
+  });
+  if (L.meter === "linear") {
+    const g = linearGeometry(L.dial);
+    return arms.map((a) => [g.cx, armY(g, a)]);
+  }
+  const g = await dialGeometry(page);
+  return arms.map((a) => at(g, a, g.r * radius));
+}
+
 // The arm angles of a swing, one a frame: from 6 o'clock back to `back`
 // degrees at `backDps`, then forward through the bottom to `stop` at
 // `flickDps`. hold: frames held at the stop before letting go.
@@ -152,9 +174,7 @@ export function sweep({
 // Drive the dial with the mouse (or touch, via CDP touch events), a frame
 // at a time: press at the first arm, move through the rest, let go.
 export async function swing(page, arms, { touch = false, radius = 0.7 } = {}) {
-  const g = await dialGeometry(page);
-  const R = g.r * radius;
-  const pts = arms.map((a) => at(g, a, R));
+  const pts = await pointsFor(page, arms, radius);
   if (!touch) {
     await page.mouse.move(pts[0][0], pts[0][1]);
     await page.mouse.down();
@@ -194,9 +214,7 @@ export async function swingInPage(
   arms,
   { radius = 0.7, type = "mouse" } = {},
 ) {
-  const g = await dialGeometry(page);
-  const R = g.r * radius;
-  const pts = arms.map((a) => at(g, a, R));
+  const pts = await pointsFor(page, arms, radius);
   await page.evaluate(
     ({ pts, type }) =>
       new Promise((done) => {

@@ -1,5 +1,5 @@
 // src/game/layout.js and the pure parts of src/game/sound.js and
-// src/game/scenes.js: where the dial and minimap go, the tall-canvas framing
+// src/game/scenes.js: where the dial (or the linear meter) and minimap go, the tall-canvas framing
 // (its un-projection must match its projection), and the knock take choice.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -14,6 +14,7 @@ import {
 import { pickTake } from "../../src/game/sound.js";
 import { lookAt, teamOf, raiseCamera } from "../../src/game/scenes.js";
 import { projectView, unprojectView } from "../../src/render/camera.js";
+import { linearGeometry, tune as linearTune } from "../../src/render/linear.js";
 
 const SIZES = [
   [1280, 768],
@@ -45,6 +46,55 @@ test("the dial sits inside the screen, lower right wide and lower centre tall", 
       m.x >= 0 && m.x + m.width <= W && m.y >= 0 && m.y + m.height <= H,
     );
   }
+});
+
+test("the linear meter is a long strip at the right edge, clear of the minimap", () => {
+  const notch = { top: 47, bottom: 34, right: 0, left: 0 };
+  for (const [W, H, safe] of [
+    [1280, 768, {}],
+    [390, 844, notch], // a phone, the page on its own
+    [390, 664, {}], // the same phone's browser with its bars showing
+    [768, 1024, {}],
+    [360, 640, {}],
+  ]) {
+    const s = { top: 0, bottom: 0, ...safe };
+    const L = layoutFor(W, H, safe, false, "linear");
+    const d = L.dial;
+    assert.equal(L.meter, "linear", `${W}x${H}`);
+    assert.ok(d.x + d.width <= W && d.x + d.width > W - 20, "at the right");
+    assert.ok(d.y + d.height <= H - s.bottom, "above the home bar");
+    assert.ok(d.y >= s.top + tune.railH, "below the rail's row");
+    assert.ok(d.width >= tune.linearWMin && d.width <= tune.linearWMax);
+    const g = linearGeometry(d);
+    assert.ok(g.travel >= linearTune.minTravel, `${W}x${H} room: ${g.travel}`);
+    if (L.tall) {
+      const m = L.minimap;
+      assert.ok(d.y >= m.y + m.height, "under the minimap");
+      assert.equal(L.side, "both", "the plan buttons split, the line between");
+    } else assert.equal(L.side, "left");
+  }
+  // a phone held upright has about a pixel a degree or more (a finger going
+  // round the dial at 0.7 of its radius has 1.2): the straight trial's 150 px
+  // for the whole backswing, 0.8, was the cramp this meter is not to have
+  const scale = (W, H, safe) =>
+    linearGeometry(layoutFor(W, H, safe, false, "linear").dial).scale;
+  assert.ok(scale(390, 844, notch) > 1.15, `${scale(390, 844, notch)}`);
+  assert.ok(scale(390, 664, {}) > 1.0, `${scale(390, 664, {})}`);
+  // and no more than a thumb reaches: the fling is 210 degrees
+  assert.ok(scale(390, 844, notch) < 1.35);
+});
+
+test("the linear meter gives way to the clock where it would be cramped", () => {
+  // a phone on its side has no height for it, nor a small phone's browser
+  const L = layoutFor(844, 390, {}, false, "linear");
+  assert.equal(L.meter, "clock");
+  assert.deepEqual(L.dial, layoutFor(844, 390).dial);
+  assert.equal(layoutFor(375, 553, {}, false, "linear").meter, "clock");
+  // and the touch trial keeps the clock it was built on
+  assert.equal(layoutFor(390, 844, {}, true, "linear").meter, "clock");
+  // the clock is the default
+  assert.equal(layoutFor(390, 844).meter, "clock");
+  assert.equal(layoutFor(390, 844, {}, false, "clock").side, "both");
 });
 
 test("a wide canvas keeps the renderer's framing", () => {

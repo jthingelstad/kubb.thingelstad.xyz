@@ -28,7 +28,7 @@ A failure to start shows a plain error card with RELOAD and HOME. The HOW TO THR
 | `src/main.js`                                 | Boot, the routes above, the practice tray, the solo flow; hands `/p/<code>` to `src/net/pitch.js`.                                                                        |
 | `src/game/game.js`                            | `Game`: the loop, input, playback, the raise and punishment scenes, framing. The seam.                                                                                    |
 | `src/game/hud.js`                             | `Hud`: the rail (who throws, what, the counts), the verdict flag and chips, the rest distance, SLOW MOTION and WATCH, the advantage, the plan buttons.                    |
-| `src/game/layout.js`                          | Pure: where the dial and minimap go, the tall-canvas framing (`worldFit`, `stillFit`, `panFor`), and the wide view's box (`wideBox`).                                     |
+| `src/game/layout.js`                          | Pure: where the dial (or the linear meter) and minimap go, the tall-canvas framing (`worldFit`, `stillFit`, `panFor`), and the wide view's box (`wideBox`).               |
 | `src/game/scenes.js`                          | The client's own cameras for raising and punishment, and the pieces in them.                                                                                              |
 | `src/game/sound.js`                           | `Sound`: the knocks and the king's chord through Web Audio; unlock on the first pointer down; mute remembered.                                                            |
 | `src/game/prefs.js`                           | `prefs`: localStorage, wrapped so a blocked store only forgets.                                                                                                           |
@@ -38,7 +38,7 @@ A failure to start shows a plain error card with RELOAD and HOME. The HOW TO THR
 | `src/net/pitch.js`                            | `Pitch`: the shared pitch's controller: joins the room, runs the lobby, drives the Game through the seam, aim casts, shouts, host hand-over.                              |
 | `src/net/lobby.js`, `seats.js`, `sync.js`     | Thin wrappers over kubb-engine's `room.*` rules; cached seat/actor reads keep these calls out of the render loop (docs/MULTIPLAYER.md).                                   |
 | `src/net/room.js`                             | The room client (docs/ROOMS.md).                                                                                                                                          |
-| `src/ui/menu.js`                              | `Menu`: level, surface (practice), sound, how to throw, resign (a match), report a throw, rules, home.                                                                    |
+| `src/ui/menu.js`                              | `Menu`: level, meter (clock or linear), surface (practice), sound, how to throw, resign (a match), report a throw, rules, home.                                           |
 | `src/ui/report.js`, `src/net/report.js`       | The report card, and what a report carries and how it is sent (below, and docs/ROOMS.md section 8).                                                                       |
 | `src/ui/sheet.js`                             | The score sheet card (below).                                                                                                                                             |
 | `src/net/record.js`, `src/net/ask.js`         | What a solo or watch match's record carries and how it is sent; `ask`, the one-message socket reports and records share.                                                  |
@@ -111,6 +111,40 @@ game page no text selection. A press is tried in this order: the dial, the targe
   button labelled with its value; R/F and Q/E.
 - **Plan view**: held with a mouse, a toggle on touch; Shift or B held.
 - Space skips a playback.
+
+**The meter is the player's choice** (MENU, Meter: Clock or Linear; the `meter` pref, this
+device's, the clock by default). Jamie, 2026-11-19: "I'm considering a player preference
+for a circular meter (clock) versus a linear meter ... The logic is the same to me. Just a
+choice if you want to spin your thumb or crank -- or use a different hand to flick." Tyler
+strongly prefers the circle, so the dial stays and stays the default.
+
+- **The linear meter** (`src/render/linear.js`) is the dial unrolled into a straight track
+  at the right edge of the screen: the knob's home in the middle is the clock's 6, the
+  backswing runs down from it (toward the player) and the forward swing up (toward the
+  target). Grab the knob, draw back to the orange mark, fling up through the middle and let
+  go on the blue mark. The body is two columns: the lane on the left carries the targets,
+  the last throw's dots and the peak, and the channel carries the knob, so the knob and
+  the finger on it never hide a target. The prompt is a tab on its left at the knob's home.
+- **It feeds the engine what the dial does**: the same `arm` in degrees
+  (`armAtY`: one scale both ways, because the flick's speed is degrees a second), through
+  the same feed below. So power, the flick's speed, the release and steadiness are judged
+  exactly as on the clock, a throw's action is the same on a shared pitch, and the choice
+  needs no engine release. A press on the knob is the arm at 6 wherever on the knob it
+  lands (the grab is relative); a press elsewhere on the body only keeps the press from
+  the pitch behind it.
+- **Room is the point.** The straight-through trial of 2026-11-18 was removed because,
+  in Jamie's words, "it was too cramped and visually looked janky": it had 150 px for
+  the whole backswing inside the dial's box (0.8 px a degree). The linear meter is the
+  whole height the screen can give it (`layoutFor`'s `meter`, `linearBox`): about 1.25 px a
+  degree on a phone held upright (a finger going round the dial at 0.7 of its radius has
+  1.2), 1.05 in a phone's browser with its bars showing, 1.45 with a mouse. It is capped
+  so a thumb's fling (210 degrees) stays in reach. Where the track would be shorter than
+  `minTravel` (320 px: a phone on its side, a small phone's browser) the layout's `meter`
+  is `"clock"` and the dial is drawn; the menu says so under the choice. On a tall screen
+  the plan buttons split either side of the throwing line, left of the meter.
+- **Not yet**: the meter in use is not recorded with the throw (that needs an engine
+  field), there is no steering from the stroke's straightness (an engine change too), the
+  meter is always on the right, and the touch pendulum trial (below) keeps the clock.
 
 **The dial feed.** While the dial is held, the engine is fed once per pointer sample with
 the time since the last one (and, when the pointer is held still, every 1/30 s), not once
@@ -423,7 +457,10 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
   and starts the next match by itself after the winner card; watching starts in the wide
   view, switches by the button and V (remembered over a reload), keeps one camera through
   both teams' throws and plays to a winner, while a solo match has no switch; a portrait
-  phone (isMobile, touch) throws by touch. `multiplayer.test.mjs` runs `tools/rooms-dev.mjs`
+  phone (isMobile, touch) throws by touch; the linear meter registers the same back and
+  stop as the clock by mouse and by touch, the menu's Meter switches and remembers, and a
+  phone on its side keeps the clock. `tests/render/linear.test.mjs` is the meter's
+  geometry. `multiplayer.test.mjs` runs `tools/rooms-dev.mjs`
   on a free port too and plays a shared pitch (docs/MULTIPLAYER.md "Tests"). Both are
   skipped with a notice when Chromium is not installed (`npx playwright install chromium`).
 - `window.__kubb` (engine, game, sound, cards, menu, config, and on a shared pitch `pitch`)

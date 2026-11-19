@@ -785,6 +785,93 @@ browserTest("a portrait phone throws by touch", async () => {
   await page.context().close();
 });
 
+// The linear meter (MENU, Meter): the same arm to the engine as the clock's,
+// so the same swing registers the same back and stop and is judged the same.
+for (const [kind, touch] of [
+  ["desktop", false],
+  ["portrait", true],
+]) {
+  browserTest(
+    `the linear meter throws as the clock does (${kind})`,
+    async () => {
+      const page = await open(env, "/practice/?nohowto=1", kind, {
+        prefs: { meter: "linear" },
+      });
+      await waitPhase(page, "aim", 10000);
+      const L = await page.evaluate(() => window.__kubb.game.L);
+      assert.equal(L.meter, "linear");
+      assert.ok(L.dial.height > L.dial.width * 4, "a long strip");
+      const plan = (await state(page)).plan;
+      await watchThrows(page);
+      await throwOnce(page, { touch });
+      await waitPhase(page, "play", 5000);
+      await waitPhase(page, "aim", 20000);
+      const throws = await page.evaluate(() => window.__throws);
+      assert.equal(throws.length, 1);
+      const r = throws[0].result;
+      assert.ok(Math.abs(r.back - (plan.powerLo + plan.powerHi) / 2) < 1.5);
+      assert.ok(Math.abs(r.stop - plan.release) < 1.5);
+      assert.equal(r.verdicts.power, "ON");
+      assert.equal(r.verdicts.release, "ON");
+      assert.deepEqual(page.errors, []);
+      await page.context().close();
+    },
+  );
+}
+
+browserTest(
+  "the menu's Meter switches the clock and the linear meter and remembers",
+  async () => {
+    const page = await open(env, "/practice/?nohowto=1");
+    await waitPhase(page, "aim", 10000);
+    const meter = () => page.evaluate(() => window.__kubb.game.L.meter);
+    assert.equal(await meter(), "clock", "the clock is the default");
+    await page.click("[data-test=menu]");
+    await page.click("[data-test=menu-meter] >> text=Linear");
+    assert.equal(await meter(), "linear");
+    assert.equal(
+      await page.evaluate(() => localStorage.getItem("kubb:meter")),
+      '"linear"',
+    );
+    await page.reload();
+    await page.waitForSelector("body[data-ready='1']");
+    await waitPhase(page, "aim", 10000);
+    assert.equal(await meter(), "linear", "kept over a reload");
+    // a press on the meter away from its knob neither throws nor moves the aim
+    const before = (await state(page)).marker;
+    const d = await page.evaluate(() => window.__kubb.game.L.dial);
+    await page.mouse.click(d.x + d.width / 2, d.y + d.height - 30);
+    const s = await state(page);
+    assert.equal(s.phase, "aim");
+    assert.deepEqual(s.marker, before);
+    await page.click("[data-test=menu]");
+    await page.click("[data-test=menu-meter] >> text=Clock");
+    assert.equal(await meter(), "clock");
+    assert.deepEqual(page.errors, []);
+    await page.context().close();
+  },
+);
+
+browserTest(
+  "a phone on its side keeps the clock: the linear meter has no room",
+  async () => {
+    const page = await open(env, "/practice/?nohowto=1", "landscape", {
+      prefs: { meter: "linear" },
+    });
+    await waitPhase(page, "aim", 10000);
+    assert.equal(
+      await page.evaluate(() => window.__kubb.game.L.meter),
+      "clock",
+    );
+    await watchThrows(page);
+    await throwOnce(page, { touch: true });
+    await waitPhase(page, "play", 5000);
+    assert.equal((await page.evaluate(() => window.__throws)).length, 1);
+    assert.deepEqual(page.errors, []);
+    await page.context().close();
+  },
+);
+
 browserTest(
   "a solo match's report: the card holds the aim, and the report arrives with the throw to replay",
   async () => {

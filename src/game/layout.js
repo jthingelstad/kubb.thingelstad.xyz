@@ -13,6 +13,8 @@
 // and the near pitch below carries the dial. The mapping travels as
 // view.fit, which drawWorld and every un-projection use.
 
+import { linearGeometry, tune as linearTune } from "../render/linear.js";
+
 export const tune = {
   tallFrom: 1.05, // H / W above this is a tall canvas
   tallZoom: 1.3, // of the width-fit scale
@@ -27,6 +29,16 @@ export const tune = {
   wideTop: 70,
   wideTopTall: 132,
   wideEdge: 16,
+  // the linear meter's box (MENU, Meter): a tall strip at the right edge
+  linearW: 0.2, // its width, of the canvas's
+  linearWMin: 64,
+  linearWMax: 96,
+  // its height on a tall canvas: this much of the canvas's, but never under
+  // linearHMin where there is the room (a phone's browser with its bars
+  // showing is short), so a thumb's fling is neither cramped nor out of reach
+  linearH: 0.6,
+  linearHMin: 460,
+  linearHMax: 600,
 };
 
 export function isTall(W, H) {
@@ -63,8 +75,39 @@ export function panFor(W, H, fx, room = 40) {
   return Math.max(lo, Math.min(hi, 200));
 }
 
+// The linear meter's box, or null where its track would be cramped (a phone
+// on its side): the right edge, under the minimap on a tall canvas and under
+// the rail's row on a wide one, down to the bottom.
+function linearBox(W, H, s, tall, minimap) {
+  const m = tune.margin;
+  const w = Math.max(
+    tune.linearWMin,
+    Math.min(tune.linearWMax, W * tune.linearW),
+  );
+  const top = tall
+    ? minimap.y + minimap.height + m * 0.7
+    : s.top + tune.railH + m * 1.5;
+  const bottom = H - s.bottom - m * 0.5;
+  const h = Math.min(
+    bottom - top,
+    tall ? Math.max(H * tune.linearH, tune.linearHMin) : tune.linearHMax,
+    tune.linearHMax,
+  );
+  const box = {
+    x: W - s.right - m * 0.5 - w,
+    y: bottom - h,
+    width: w,
+    height: h,
+  };
+  return h > 0 && linearGeometry(box).travel >= linearTune.minTravel
+    ? box
+    : null;
+}
+
 // The screen's regions in CSS px. safe = { top, right, bottom, left }.
-export function layoutFor(W, H, safe = {}, swipe = false) {
+// `meter` is the player's ("clock" or "linear"); the layout's own `meter` is
+// the one drawn, the clock where the linear one has no room.
+export function layoutFor(W, H, safe = {}, swipe = false, meter = "clock") {
   const s = { top: 0, right: 0, bottom: 0, left: 0, ...safe };
   const m = tune.margin;
   const tall = isTall(W, H);
@@ -105,11 +148,41 @@ export function layoutFor(W, H, safe = {}, swipe = false) {
     };
     side = "left";
   }
+  const linear =
+    meter === "linear" && !swipe ? linearBox(W, H, s, tall, minimap) : null;
+  if (linear) {
+    // the plan buttons sit to its left, their feet level with its foot: in
+    // one block on a wide canvas, split either side of the throwing line on
+    // a tall one (hud.js place)
+    return {
+      W,
+      H,
+      safe: s,
+      tall,
+      phone,
+      dial: linear,
+      plansY: linear.y,
+      minimap,
+      side: tall ? "both" : "left",
+      meter: "linear",
+    };
+  }
   const plansY = dial.y; // keep the side buttons in reach, beside the downstroke
   // The resting knob is at six. Leave a finger room below it for a full
   // downstroke, clear of the bottom safe area, in the touch trial.
   if (swipe) dial.y -= Math.min(W, H) * 0.2;
-  return { W, H, safe: s, tall, phone, dial, plansY, minimap, side };
+  return {
+    W,
+    H,
+    safe: s,
+    tall,
+    phone,
+    dial,
+    plansY,
+    minimap,
+    side,
+    meter: "clock",
+  };
 }
 
 // The wide view's box: where the whole pitch is fitted (vendor/engine/session/wide.lua), in
