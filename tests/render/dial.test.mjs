@@ -10,6 +10,7 @@ import {
   hitTest,
   trackHit,
   unwrapArm,
+  overFrom,
   tune,
 } from "../../src/render/dial.js";
 
@@ -97,4 +98,16 @@ test("a touch beside the ring is the finger track, out to touchReach", () => {
   // the angle there is the same arm as on the ring
   close(armAt(g, 100 - mid, 100), -90);
   assert.ok(tune.trackIn > 1 && tune.trackOut > tune.trackIn);
+});
+
+test("the red zone starts past the power target: red never covers the band", () => {
+  // a usual throw: the band ends short of 11 o'clock, the red starts there
+  assert.equal(overFrom({ overDeg: 150, powerLo: 112, powerHi: 128 }), 150);
+  // a long throw (the far baseline from 8 m): the band reaches past 150,
+  // so the red starts where the engine's overpower cost does, at powerHi
+  assert.equal(overFrom({ overDeg: 150, powerLo: 148, powerHi: 164 }), 164);
+  // no target yet: the fixed zone
+  assert.equal(overFrom({ overDeg: 150 }), 150);
+  // no red zone at all
+  assert.equal(overFrom({ powerHi: 164 }), null);
 });

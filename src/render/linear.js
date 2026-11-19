@@ -16,7 +16,7 @@
 //
 // st is the dial's state (render/dial.js).
 import { INK, PAPER, HUD, FONT } from "./palette.js";
-import { ghostKnob, tune as dialTune } from "./dial.js";
+import { ghostKnob, overFrom, tune as dialTune } from "./dial.js";
 
 export const tune = {
   range: 180, // degrees each way: the ends are 12 o'clock
@@ -323,22 +323,23 @@ export function drawLinear(ctx, rect, st, side = "right") {
     ctx.fill();
     dots(ctx, g, c.chan, -st.deadDeg, 0, HUD.dead, Math.max(3, g.chanW * 0.14));
   }
-  if (st.overDeg != null && st.overDeg < R) {
+  const over = overFrom(st);
+  if (over != null && over < R) {
     hatch(
       ctx,
       g,
       c.chan,
       -R,
-      -st.overDeg,
+      -over,
       HUD.over,
       Math.max(3, g.chanW * 0.16),
       0.28,
     );
-    band(ctx, g, c.lane, -R, -st.overDeg);
+    band(ctx, g, c.lane, -R, -over);
     ctx.fillStyle = HUD.over;
     ctx.fill();
     ctx.strokeStyle = INK;
-    across(ctx, g, c, -st.overDeg, lw);
+    across(ctx, g, c, -over, lw);
   }
   // the targets: power behind the knob's home, release ahead of it
   if (st.powerHi > st.powerLo)
