@@ -85,7 +85,8 @@ export function sideValueText(plan, kubb) {
 
 // A slider. what: "arc" | "side"; onSlide(what, f, phase) with phase
 // "down", "move" or "up" and f the place on the track (0..1, bottom to top
-// or left to right); onKey(what, step) for the arrow keys.
+// or left to right), or "cancel" when the hold ends without a release;
+// onKey(what, step) for the arrow keys.
 export class PlanSlider {
   constructor(what, { onSlide, onKey }) {
     this.what = what;
@@ -210,11 +211,14 @@ export class PlanSlider {
     });
   }
 
-  // A pointer let go while the slider is hidden (a throw began): forget it.
+  // The slider is hidden while it is held (MENU opened with another finger,
+  // a throw began): the hold ends here and the game is told, so its side
+  // view does not wait for a release that will be ignored.
   cancel() {
     if (!this.drag) return;
     this.drag = null;
     this.el.classList.remove("held");
+    this.onSlide(this.what, 0, "cancel");
   }
 
   // Each frame the plans show: plan is the engine's aim.plan.
