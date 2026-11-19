@@ -136,15 +136,18 @@ function at(g, arm, R) {
 }
 
 // Where the pointer goes for each arm angle on the meter the page shows:
-// round the dial at `radius` of its own, or up and down the linear meter's
-// channel from its knob.
-async function pointsFor(page, arms, radius) {
+// round the dial at `radius` of its own (past 1.25, outside the ring: the
+// finger track), or up and down the linear meter's channel from its knob.
+// from: [x, y], a stroke on the linear meter that starts there instead of
+// on the knob (the throw zone), at the meter's own scale.
+async function pointsFor(page, arms, radius, from = null) {
   const L = await page.evaluate(() => {
-    const { meter, dial } = window.__kubb.game.L;
-    return { meter, dial };
+    const { meter, dial, meterSide } = window.__kubb.game.L;
+    return { meter, dial, meterSide };
   });
   if (L.meter === "linear") {
-    const g = linearGeometry(L.dial);
+    const g = linearGeometry(L.dial, L.meterSide);
+    if (from) return arms.map((a) => [from[0], from[1] - a * g.scale]);
     return arms.map((a) => [g.cx, armY(g, a)]);
   }
   const g = await dialGeometry(page);
@@ -173,8 +176,12 @@ export function sweep({
 
 // Drive the dial with the mouse (or touch, via CDP touch events), a frame
 // at a time: press at the first arm, move through the rest, let go.
-export async function swing(page, arms, { touch = false, radius = 0.7 } = {}) {
-  const pts = await pointsFor(page, arms, radius);
+export async function swing(
+  page,
+  arms,
+  { touch = false, radius = 0.7, from = null } = {},
+) {
+  const pts = await pointsFor(page, arms, radius, from);
   if (!touch) {
     await page.mouse.move(pts[0][0], pts[0][1]);
     await page.mouse.down();
