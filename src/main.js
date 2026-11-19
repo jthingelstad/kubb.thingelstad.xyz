@@ -232,27 +232,46 @@ function startPractice(game, cards) {
   game.newPractice({
     surface: prefs.get("practiceSurface", "grass"),
   });
+  // What practice throws: BATONS or KUBBS, both shown, the one in use
+  // pressed. It was one DRILL button labelled with the mode it switched to
+  // (BATONS while drilling), a Playdate menu toggle; the rail says the same
+  // word as the pressed button.
+  const pick = (kubbs) => {
+    if (!!game.need?.drill !== kubbs)
+      game.practiceDo(() => game.engine.setDrill(kubbs), {
+        type: "drill",
+        on: kubbs,
+      });
+    mark();
+  };
+  const batons = button("BATONS", () => pick(false), "small", {
+    "aria-pressed": "true",
+    "data-test": "batons",
+  });
+  const kubbs = button("KUBBS", () => pick(true), "small", {
+    "aria-pressed": "false",
+    "aria-label": "Kubbs (drilling)",
+    "data-test": "drill",
+  });
+  const mark = () => {
+    const on = !!game.need?.drill;
+    batons.setAttribute("aria-pressed", String(!on));
+    kubbs.setAttribute("aria-pressed", String(on));
+  };
   const tray = h(
     "div.tray",
     { "data-test": "tray" },
-    button("DRILL", () => toggleDrill(), "small", {
-      "aria-pressed": "false",
-      "data-test": "drill",
-    }),
+    h("div.tray-pair", { role: "group", "aria-label": "Throw" }, batons, kubbs),
     button(
       "RESET",
-      () => game.practiceDo(() => game.engine.reset(), { type: "reset" }),
+      () => {
+        game.practiceDo(() => game.engine.reset(), { type: "reset" });
+        mark();
+      },
       "small",
       { "data-test": "reset" },
     ),
   );
-  const drillBtn = tray.firstChild;
-  const toggleDrill = () => {
-    const on = !(game.need && game.need.drill);
-    game.practiceDo(() => game.engine.setDrill(on), { type: "drill", on });
-    drillBtn.setAttribute("aria-pressed", String(!!game.need?.drill));
-    drillBtn.textContent = game.need?.drill ? "BATONS" : "DRILL";
-  };
   document.getElementById("ui").append(tray);
   cards.root.dataset.mode = "practice";
 }

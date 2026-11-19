@@ -39,6 +39,21 @@ export function verdictChips(vs) {
   return [...off, ...on];
 }
 
+// The rail's counts in plain words. The engine's rail is the Playdate's
+// (session.lua aimView): "FIELD 2", "BASE 5", "KING", and a drilled kubb's
+// "2.3 M" (how far out the circle is). A new player read "BASE 5" as a level or a score; it is how many
+// of the far team's kubbs are still standing on their baseline.
+export function railCount(t) {
+  const m = /^(FIELD|BASE) (\d+)$/.exec(t || "");
+  if (m) {
+    const n = Number(m[2]);
+    return `${n} ${m[1]} ${n === 1 ? "KUBB" : "KUBBS"}`;
+  }
+  if (/^\d+\.\d M$/.test(t || "")) return `TARGET ${t}`;
+  if (t === "KING") return "AT THE KING";
+  return t || "";
+}
+
 export class Hud {
   constructor(root, actions) {
     this.root = root;
@@ -155,11 +170,14 @@ export class Hud {
       const kind = (rail.kind || aim.projectile || "").toUpperCase();
       w = rail.n && rail.of ? `${kind} ${rail.n} OF ${rail.of}` : kind;
     }
-    if (st.practice) w = aim.drill ? "DRILLING" : "BATONS";
+    if (st.practice) w = aim.drill ? "KUBBS" : "BATONS";
     // the wide view's rail says the turn too: the whole match at a glance
     if (st.wide && st.need?.turn && w) w = `TURN ${st.need.turn}  ·  ${w}`;
     this.text(what, w);
-    this.text(counts, [rail.r1, rail.r2].filter(Boolean).join("  ·  "));
+    this.text(
+      counts,
+      [rail.r1, rail.r2].filter(Boolean).map(railCount).join("  ·  "),
+    );
     this.show(this.rail, !!(rail.name || w));
 
     const [flag, verdicts, rest] = this.center.children;

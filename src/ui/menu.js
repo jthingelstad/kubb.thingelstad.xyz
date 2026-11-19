@@ -29,6 +29,10 @@ const RAISING = [
   ["hand", "By hand"],
   ["auto", "Automatic"],
 ];
+const SOUND = [
+  ["on", "On"],
+  ["off", "Off"],
+];
 const SURFACES = [
   ["grass", "Grass"],
   ["sand", "Sand"],
@@ -78,7 +82,7 @@ export class Menu {
         h("h2.display", "Menu"),
         h(
           "div.opt",
-          h("span.opt-label", "Level"),
+          h("span.opt-label", "Your level"),
           seg(LEVELS, game.level, (v) => {
             game.setLevel(v);
             render();
@@ -104,7 +108,7 @@ export class Menu {
         h(
           "div.opt",
           { "data-test": "menu-side" },
-          h("span.opt-label", "Side"),
+          h("span.opt-label", "Meter side"),
           seg(SIDES, game.meterSide, (v) => {
             game.setMeterSide(v);
             render();
@@ -153,18 +157,22 @@ export class Menu {
               }),
             )
           : null,
+        // the sound as a choice that shows which it is, as every row above
+        // (it was one button, SOUND: ON, that read as its own state)
+        sound
+          ? h(
+              "div.opt",
+              { "data-test": "mute" },
+              h("span.opt-label", "Sound"),
+              seg(SOUND, sound.muted ? "off" : "on", (v) => {
+                sound.unlock();
+                sound.setMuted(v === "off");
+                render();
+              }),
+            )
+          : null,
         h(
           "div.menu-list",
-          button(
-            sound && sound.muted ? "SOUND: OFF" : "SOUND: ON",
-            () => {
-              sound?.unlock();
-              sound?.setMuted(!sound.muted);
-              render();
-            },
-            "",
-            { "data-test": "mute" },
-          ),
           button("HOW TO THROW", () => {
             this.close();
             howto();

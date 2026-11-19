@@ -4,7 +4,7 @@
 // is in client.test.mjs.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { verdictChips } from "../../src/game/hud.js";
+import { verdictChips, railCount } from "../../src/game/hud.js";
 
 const on = {
   power: "ON",
@@ -66,4 +66,13 @@ test("no verdicts, or a match saved before the side verdict", () => {
   const { side, ...noSide } = on;
   assert.equal(side, "STRAIGHT");
   assert.equal(verdictChips(noSide).length, 3);
+});
+
+// The rail's counts said "BASE 5", which a new player read as a level.
+test("the rail counts kubbs in plain words", () => {
+  assert.equal(railCount("BASE 5"), "5 BASE KUBBS");
+  assert.equal(railCount("FIELD 1"), "1 FIELD KUBB");
+  assert.equal(railCount("KING"), "AT THE KING");
+  assert.equal(railCount("2.3 M"), "TARGET 2.3 M");
+  assert.equal(railCount(""), "");
 });
