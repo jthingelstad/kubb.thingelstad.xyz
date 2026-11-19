@@ -209,7 +209,7 @@ when there is one, and a ring where the thrower stands.
   `setStance`, which clamps it to the line's ends, `backMax` and the forward limit, as its
   walk keys are. JS does not clamp. Nothing is thrown and the target circle stays.
 - While held, and `tune.standPeek` (1 s) after, the caption above the plan says where and
-  what: "1.2 M LEFT, 0.5 M BACK. Stand anywhere on your line or behind it." (or "... or
+  what: "1.2 M LEFT, 0.5 M BACK. Stand on your line or behind it." (or "... or
   up to the advantage line."). The aria-label carries the same words.
 - With the focus, the arrow keys step it `tune.keyStep` (0.25 m). A/D/W/S still walk as
   the engine's keys do. The pitch's presses (a tap aims, a drag moves the circle, the
