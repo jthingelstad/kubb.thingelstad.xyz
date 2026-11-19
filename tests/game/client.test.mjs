@@ -1123,7 +1123,7 @@ async function clearOfMeter(page) {
   const boxes = await page.evaluate(() =>
     [
       ...document.querySelectorAll(
-        "[data-test=plans] .btn, [data-test=rail], [data-test=menu], [data-test=tray] .btn",
+        "[data-test=plans] .btn, [data-test=plans] .slider, [data-test=rail], [data-test=menu], [data-test=tray] .btn",
       ),
     ]
       .filter((el) => !el.closest("[hidden]") && el.offsetParent)
