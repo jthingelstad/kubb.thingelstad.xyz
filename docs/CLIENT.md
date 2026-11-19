@@ -329,6 +329,29 @@ hooks, right after `drawMeter`. The HOW TO THROW card is unchanged.
   `game.nudgeFreeze` holds the timeline at a time and `game.nudgeState()` reads it.
   `KUBB_NUDGE_SHOTS=build/shots-nudge` saves screenshots of three moments.
 
+**The coach line** (2026-11-19). A tester: "Does it matter how quickly or slowly I track
+my finger". It does, but only one way, and the meter now says so in place (Jamie: "Have
+the UI show it not a separate how to page"). A line of words sits just over the meter's
+prompt and follows the stroke: PULL BACK TO THE ORANGE MARK at rest, NO RUSH GOING BACK
+while drawing back short of the power band, and NOW FLICK FAST AND STOP ON THE BLUE MARK
+from the band on (the marks are the HOW TO THROW card's words). That is the engine: the
+pull back sets the power at any speed, a flick slower than `fullFlickDps` delivers only
+part of it (the verdict SLOW), and the throw leaves where the flick stops.
+`src/game/coach.js` is the pure part (`coachFor`, `stageOf`, `slowVerdict`; tested in
+`tests/game/coach.test.mjs`); `Hud.showCoach` places it.
+
+- **When.** On a device with fewer than 3 throws (the nudge's `throwsMade` count), and on
+  the throw after one of this player's own the engine called SLOW, whatever the count;
+  that throw's line is led by SLOW FLICK. FLICK FASTER. in the SLOW chip's ink. Only on
+  this player's own aim (the plan showing), never while watching, in the wide view, while
+  the nudge's ghost plays the same stroke, or while a slider's caption is up (one voice at
+  a time).
+- **Where.** Centred over the clock's prompt plate, or over the linear meter's tab from
+  the meter's inner edge, 8 px above it, at most 280 px wide and short of any plan control
+  level with it, so it never covers the sliders, the minimap or MENU. It takes no presses:
+  a tap through it still aims.
+- **Drawing only.** Never fed to the engine, sent or recorded.
+
 **The dial feed.** While the dial is held, the engine is fed once per pointer sample with
 the time since the last one (and, when the pointer is held still, every 1/30 s), not once
 per display frame. A pointer that reports at half the frame rate (a busy page, a 120 Hz

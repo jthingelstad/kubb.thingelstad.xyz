@@ -7,6 +7,7 @@
 import { h, button } from "../ui/dom.js";
 import { PlanSlider, captionOf, leanOf } from "./plan-sliders.js";
 import { linearGeometry } from "../render/linear.js";
+import { dialGeometry, tune as dialTune } from "../render/dial.js";
 
 // The verdict chips under the flag, from the core's words (throwplan.lua
 // plan.verdictText): on target, power and release read "POWER ON" and
@@ -102,6 +103,17 @@ export class Hud {
       this.capText,
     );
     this.caption.hidden = true;
+    // the throw's coach (coach.js): a line over the meter's prompt that
+    // follows the stroke, for a learner and after a SLOW flick
+    this.coachLead = h("span.coach-lead");
+    this.coachLine = h("span.coach-line");
+    this.coach = h(
+      "div.hud.coach",
+      { "data-test": "coach", role: "status" },
+      this.coachLead,
+      this.coachLine,
+    );
+    this.coach.hidden = true;
     this.skip = button("SKIP", () => a.skip(), "small skip-btn", {
       "data-test": "skip",
     });
@@ -112,6 +124,7 @@ export class Hud {
       this.adv,
       this.plans,
       this.caption,
+      this.coach,
       this.skip,
     );
   }
@@ -132,7 +145,8 @@ export class Hud {
 
   // st: { aim, need, phase, playing, slow, watching, plan, practice, flag,
   //       verdicts, restText, layout, who: { text, mine } | null, wide,
-  //       caption: the held slider's "arc" | "side", or null }
+  //       caption: the held slider's "arc" | "side", or null,
+  //       coach: coach.js coachFor's { stage, lead, line }, or null }
   update(st) {
     const aim = st.aim || {};
     const rail = aim.rail || {};
@@ -194,11 +208,15 @@ export class Hud {
       }
       this.walk.classList.toggle("on", !!st.walk);
       this.place(st.layout);
-      this.showCaption(st.caption ? captionOf(st.caption, kubb) : null, p);
+      const cap = st.caption ? captionOf(st.caption, kubb) : null;
+      this.showCaption(cap, p);
+      // one voice at a time: a held slider's caption wins
+      this.showCoach(cap ? null : st.coach || null);
     } else {
       this.arc.cancel();
       this.side.cancel();
       this.showCaption(null);
+      this.showCoach(null);
     }
     this.show(this.skip, !!st.playing);
   }
@@ -252,6 +270,70 @@ export class Hud {
       s.width = `${w}px`;
       s.left = toRight ? `${r.left}px` : "";
       s.right = toRight ? "" : `${L.W - r.right}px`;
+    }
+  }
+
+  // The coach line (coach: { stage, lead, line } or null) just over the
+  // meter's prompt, so the two read as one: centred over the clock's plate,
+  // or over the linear meter's tab from the meter's inner edge. Its width
+  // stops short of any plan control level with it. Placed once per layout.
+  showCoach(coach) {
+    this.coach.hidden = !coach;
+    if (!coach) return;
+    this.text(this.coachLead, coach.lead || "");
+    this.text(this.coachLine, coach.line);
+    if (this.cache.get("coachStage") !== coach.stage) {
+      this.cache.set("coachStage", coach.stage);
+      this.coach.dataset.stage = coach.stage;
+    }
+    const L = this.cache.get("placeL");
+    const pk = this.cache.get("place");
+    if (!L || this.cache.get("coachPlace") === pk) return;
+    this.cache.set("coachPlace", pk);
+    const linear = L.meter === "linear";
+    const d = L.dial;
+    let bottom, anchor, align; // anchor: the x the line is centred on or ends at
+    if (linear) {
+      const g = linearGeometry(d, L.meterSide);
+      bottom = g.y0 - g.promptH / 2 - 8;
+      align = L.meterSide === "left" ? "left" : "right";
+      anchor = align === "right" ? d.x : d.x + d.width;
+    } else {
+      const g = dialGeometry(d);
+      const ph = Math.max(14, g.r * dialTune.promptH);
+      bottom = g.cy - g.r - ph * 0.85 - ph / 2 - 8;
+      align = "center";
+      anchor = g.cx;
+    }
+    // the room left and right of the anchor, short of the screen's safe
+    // edges and of plan controls level with the line (up to 76 px above it)
+    let lo = L.safe.left + 8;
+    let hi = L.W - L.safe.right - 8;
+    for (const el of this.plans.children) {
+      const r = el.getBoundingClientRect();
+      if (!r.width || r.bottom < bottom - 76 || r.top > bottom) continue;
+      if (r.right <= anchor) lo = Math.max(lo, r.right + 8);
+      else if (r.left >= anchor) hi = Math.min(hi, r.left - 8);
+    }
+    const max = 280;
+    const s = this.coach.style;
+    s.bottom = `${L.H - bottom}px`;
+    this.coach.dataset.align = align;
+    if (align === "center") {
+      const w = Math.min(max, 2 * Math.min(anchor - lo, hi - anchor));
+      s.width = `${w}px`;
+      s.left = `${anchor - w / 2}px`;
+      s.right = "";
+    } else if (align === "right") {
+      const w = Math.min(max, anchor - lo);
+      s.width = `${w}px`;
+      s.left = "";
+      s.right = `${Math.ceil(L.W - anchor)}px`; // whole px: never onto the meter
+    } else {
+      const w = Math.min(max, hi - anchor);
+      s.width = `${w}px`;
+      s.left = `${Math.ceil(anchor)}px`;
+      s.right = "";
     }
   }
 

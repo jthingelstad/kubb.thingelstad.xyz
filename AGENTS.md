@@ -305,6 +305,15 @@ the finger goes, until the next press. `src/game/nudge.js` (pure, its numbers in
 `tune`) and `src/render/nudge.js`; drawing only, never fed to the engine, sent or
 recorded. docs/CLIENT.md "The throw".
 
+The coach line (a tester, 2026-11-19: "Does it matter how quickly or slowly I track my
+finger"; Jamie: "Have the UI show it not a separate how to page"): over the meter's prompt,
+for a device with fewer than 3 throws and for the throw after a SLOW verdict, a line that
+follows the stroke: PULL BACK TO THE ORANGE MARK, NO RUSH GOING BACK, NOW FLICK FAST AND
+STOP ON THE BLUE MARK, led by SLOW FLICK. FLICK FASTER. after a slow one. The pull back's
+speed does not matter; the flick's does. `src/game/coach.js` (pure); drawing only.
+The red overpowered zone starts past the power band when the band reaches past 11
+o'clock (`dial.js` `overFrom`), as the engine's overpower cost does.
+
 ## Raising
 
 A player can hand the raising to the engine mid-match (Jamie, 2026-11-19: "When raising
