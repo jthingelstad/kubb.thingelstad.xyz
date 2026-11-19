@@ -409,9 +409,11 @@ browserTest(
 );
 
 // Touch the kubb to raise it (src/game/raise-touch.js): a raise need staged with
-// the engine's shape (two ends 11 cm out along the kubb, as core/raising.lua
-// footprints), drawn with the real raise camera and projection, and game.raise
-// recording the end it was asked for. `refuse` makes end 1 one the rules refuse.
+// the engine's shape (session.lua raiseInfo: two ends 11 cm out along the kubb,
+// end 1 first, as core/raising.lua footprints; compared with the engine's own in
+// the test after this one), drawn with the real raise camera and projection, and
+// game.raise recording the end it was asked for. `refuse` makes end 1 one the
+// rules refuse.
 async function stageRaise(page, { refuse = false } = {}) {
   await page.evaluate((refuse) => {
     const g = window.__kubb.game;
@@ -421,6 +423,7 @@ async function stageRaise(page, { refuse = false } = {}) {
       s = Math.sin(pose.angle);
     const end = (k) => ({
       which: k,
+      inBounds: true,
       ok: !(refuse && k === 1),
       why: refuse && k === 1 ? "THAT END IS BLOCKED" : undefined,
       pose: {
@@ -439,8 +442,15 @@ async function stageRaise(page, { refuse = false } = {}) {
       n: 1,
       of: 1,
       pose,
+      mode: "choice",
       ends: [end(1), end(2)],
-      choices: refuse ? [{ which: 2 }] : [{ which: 1 }, { which: 2 }],
+      choices: (refuse ? [2] : [1, 2]).map((k) => ({
+        which: k,
+        pose: end(k).pose,
+        displaced: false,
+        crowded: false,
+      })),
+      default: 1,
       others: [],
       king: { x: 0, y: 4, standing: true, angle: 0 },
     };
@@ -686,6 +696,206 @@ browserTest(
       assert.deepEqual(page.errors, []);
       await page.context().close();
     }
+  },
+);
+
+// The engine's own raises, not a staged one: the computer's throws of a seeded
+// match (both sides, played here in Node) are applied in the page to a pass and
+// play match that raises by hand, up to its nth raise, which the page then
+// draws. With seed 5 the 1st raise is South's (Team B's turned frame), the 2nd
+// North's, and the 5th South's with end 1 refused by the rules.
+const REAL_RAISE_SEED = 5;
+function realRaiseOptions(cpu, raising) {
+  return {
+    seed: REAL_RAISE_SEED,
+    cpu,
+    raising,
+    first: "A",
+    start: { year: 2026, month: 11, day: 19, hour: 9, min: 0 },
+    teams: {
+      A: { name: "North", players: [{ name: "North" }] },
+      B: { name: "South", players: [{ name: "South" }] },
+    },
+  };
+}
+async function realRaiseThrows(count = 40) {
+  const engine = await Engine.create({ sources: await bundleLua() });
+  engine.newMatch(realRaiseOptions("both", "auto"));
+  const acts = [];
+  for (let f = 0; acts.length < count && f < 200000; f++) {
+    const out = engine.frame({ dt: 1 / 20 });
+    if (out.action) acts.push(out.action);
+  }
+  return acts;
+}
+async function toRealRaise(page, acts, nth) {
+  const r = await page.evaluate(
+    ({ acts, o, nth }) => {
+      const g = window.__kubb.game;
+      g.seat = { sides: ["A", "B"], cpu: false };
+      g.localSide = null;
+      g.newMatch(o);
+      const e = g.engine;
+      let k = 0,
+        seen = 0;
+      for (let step = 0; step < 500; step++) {
+        const n = e.view().need;
+        if (n.kind === "throw") {
+          if (k >= acts.length) return { error: "out of throws" };
+          e.apply(acts[k++]);
+        } else if (n.kind === "raise") {
+          if (seen++ === nth) break;
+          e.apply({ type: "raise" });
+        } else if (n.kind === "punish")
+          e.apply({ type: "punish", x: n.cursor.x, y: n.cursor.y });
+        else return { error: n.kind };
+      }
+      g.enter(e.view());
+      // what the game sends the engine from here on
+      window.__sent = [];
+      if (!e.__wrapped) {
+        const apply = e.apply.bind(e);
+        e.apply = (a) => {
+          window.__sent.push(a);
+          return apply(a);
+        };
+        e.__wrapped = true;
+      }
+      return { need: g.need };
+    },
+    { acts, o: realRaiseOptions([], "hand"), nth },
+  );
+  assert.ok(!r.error, `reaching raise ${nth}: ${r.error}`);
+  await page.click("[data-test=settle] .btn");
+  await waitPhase(page, "raise", 10000);
+  await nextFrame(page);
+  return r.need;
+}
+
+browserTest(
+  "raising by touch on the engine's own raises: both teams' frames, a tap on each half, a drag, a refused end",
+  async () => {
+    const acts = await realRaiseThrows();
+    const page = await open(env, "/p/abcdefgh?solo=1&nohowto=1", "portrait");
+    await page.click("[data-test=start]");
+    await page.click("[data-test=handoff-go]");
+    await waitPhase(page, "aim", 10000);
+    // where the game draws it: the kubb's end caps, and the two footprints
+    const drawn = () =>
+      page.evaluate(() => {
+        const g = window.__kubb.game;
+        return { shape: g.raiseShape(), feet: g.endPoints() };
+      });
+    const lerp = ([a, b], t) => [a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t];
+    // the end the engine stood it on, from the action the game sent
+    const sentEnd = async (need) => {
+      const sent = await page.evaluate(() => window.__sent);
+      assert.equal(sent.length, 1, JSON.stringify(sent));
+      assert.equal(sent[0].type, "raise");
+      const which = need.choices[sent[0].choice - 1].which;
+      return need.ends.findIndex((e) => e.which === which);
+    };
+    // and where the kubb stands now: on that end's footprint (the next view
+    // may be in the other team's frame: the mirror x, 8 - y)
+    const standsOn = async (need, i) => {
+      const piece = await page.evaluate((id) => {
+        const v = window.__kubb.game.engine.view();
+        const all = JSON.stringify(v).match(
+          new RegExp(`\\{[^{}]*"id":"${id}"[^{}]*"z":[^{}]*\\}`),
+        );
+        return all && JSON.parse(all[0]);
+      }, need.kubb);
+      assert.ok(piece && !piece.toppled, "the kubb stands");
+      const f = need.ends[i].pose;
+      const d = Math.min(
+        Math.hypot(piece.x - f.x, piece.y - f.y),
+        Math.hypot(piece.x + f.x, piece.y - (8 - f.y)),
+      );
+      assert.ok(
+        d < 0.005,
+        `stands ${d.toFixed(3)} m from end ${i + 1}'s footprint`,
+      );
+    };
+    const nearestFoot = (feet, [x, y]) =>
+      Math.hypot(feet[0].x - x, feet[0].y - y) <
+      Math.hypot(feet[1].x - x, feet[1].y - y)
+        ? 0
+        : 1;
+
+    // a tap on each half, Team B's raise then Team A's
+    const picked = { A: [], B: [] };
+    for (const [nth, side, t] of [
+      [0, "B", 0.25],
+      [0, "B", 0.75],
+      [1, "A", 0.25],
+      [1, "A", 0.75],
+    ]) {
+      const need = await toRealRaise(page, acts, nth);
+      assert.equal(need.side, side);
+      assert.deepEqual(
+        need.ends.map((e) => e.ok),
+        [true, true],
+      );
+      const { shape, feet } = await drawn();
+      const at = lerp(shape.caps, t);
+      const want = nearestFoot(feet, at);
+      await gesture(page, [at], { type: "touch" });
+      assert.equal(await sentEnd(need), want, `${side} tap at ${t}`);
+      await standsOn(need, want);
+      picked[side].push(want);
+    }
+    assert.deepEqual(
+      [picked.A.sort(), picked.B.sort()],
+      [
+        [0, 1],
+        [0, 1],
+      ],
+      "each half of the kubb is its own end",
+    );
+
+    // a drag toward the end drawn farther from where it starts
+    {
+      const need = await toRealRaise(page, acts, 0);
+      const { shape, feet } = await drawn();
+      const [a, b] = shape.caps;
+      const from = lerp(shape.caps, 0.2);
+      const want = nearestFoot(feet, [b.x, b.y]);
+      const L = Math.hypot(b.x - a.x, b.y - a.y);
+      const go = Math.max(90, L * 1.1) * 0.8;
+      const pts = [];
+      for (let k = 0; k <= 6; k++)
+        pts.push([
+          from[0] + ((b.x - a.x) / L) * go * (k / 6),
+          from[1] + ((b.y - a.y) / L) * go * (k / 6),
+        ]);
+      await gesture(page, pts, { type: "touch" });
+      assert.equal(await sentEnd(need), want, "the drag's end");
+      await standsOn(need, want);
+    }
+
+    // the rules refuse end 1: a tap nearer it sends nothing, the other stands
+    {
+      const need = await toRealRaise(page, acts, 4);
+      assert.deepEqual(
+        need.ends.map((e) => e.ok),
+        [false, true],
+      );
+      const { shape, feet } = await drawn();
+      const near1 = [0.2, 0.8].find(
+        (t) => nearestFoot(feet, lerp(shape.caps, t)) === 0,
+      );
+      await gesture(page, [lerp(shape.caps, near1)], { type: "touch" });
+      assert.deepEqual(await page.evaluate(() => window.__sent), []);
+      assert.equal(
+        await page.evaluate(() => window.__kubb.game.raiseHint?.i),
+        1,
+      );
+      await gesture(page, [lerp(shape.caps, 1 - near1)], { type: "touch" });
+      assert.equal(await sentEnd(need), 1);
+      await standsOn(need, 1);
+    }
+    assert.deepEqual(page.errors, []);
+    await page.context().close();
   },
 );
 
