@@ -176,7 +176,11 @@ engine changes in kind: both still send `arm` in degrees through the dial feed.
 - **Touch beside the clock's ring.** On touch and pen a press may land on the ring as
   before (within 1.25 radii of the centre, `grabSlop`) or outside it, out to 2.1 radii
   (`dial.js` `touchReach`), and the arm is the angle about the centre at any radius, so a
-  finger can go round outside the rim and leave the marks and the knob in view. A press
+  finger can go round outside the rim and leave the marks and the knob in view. Where a
+  tap out there could aim (ground the circle can go to lies under the track: all of it on
+  a wide canvas), the press waits (`track`): let go within `tapSlop` it is the tap, and
+  the circle goes there; moved, it is the dial's, fed to the engine as the press where it
+  landed and then where the finger is. A press
   on the ring is exactly as before (Tyler plays the circle on a phone). A mouse is as
   before. On a touchscreen held upright (`layoutFor`'s `coarse`, from
   `(pointer: coarse)`) the clock is 13% smaller (`tune.trackShrink` 0.87) and raised until
@@ -518,7 +522,8 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
   stop as the clock by mouse and by touch, the menu's Meter switches and remembers, and a
   phone on its side keeps the clock; a stroke in the linear meter's throw zone throws with
   POWER ON and ARC ON by touch (portrait) and mouse, and a tap there still moves the
-  circle; a touch outside the clock's ring throws on a portrait phone; with Side, Left the
+  circle; a touch outside the clock's ring throws on a portrait phone, and a tap out there
+  still moves the circle; with Side, Left the
   linear meter (portrait and desktop) and the clock (desktop) lay out clear of the plan
   buttons, the rail, MENU and the practice tray and throw, and the menu's Side switches
   and remembers. `tests/render/linear.test.mjs` is the meter's geometry (both sides),

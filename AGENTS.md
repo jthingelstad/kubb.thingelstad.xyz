@@ -283,7 +283,8 @@ The finger and the meter apart (Jamie, 2026-11-19: "if you can have the control 
 touch be slightly distant from each other, that could make that better"): with the linear
 meter on the screen a drag in the throw zone (the lower 40% of the canvas, where there is
 nothing to aim at) strokes the knob as a grab of it does, and a tap there still aims; on
-touch a press outside the clock's ring, out to 2.1 radii, turns the arm as the ring does,
+touch a press outside the clock's ring, out to 2.1 radii, turns the arm as the ring does
+(where a tap there could aim, only a drag does, and a tap still aims),
 and on a touchscreen held upright the clock is 13% smaller and raised so a finger can go
 all the way round outside its rim. A press on the ring is exactly as before. MENU, Side
 (Jamie, 2026-11-19: "Left and right handed folks may want it on one side or the other";
