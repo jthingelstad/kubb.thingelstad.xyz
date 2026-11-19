@@ -1762,6 +1762,11 @@ body.embed .replay-controls {
     border-top: 2px solid var(--ink);
     background: var(--paper);
   }
+  /* the newest shout only: on a touchscreen the plan block stands at the
+     left edge under it, and on the left a clock (layout.js planAt) */
+  .shouts > .shout:not(:last-child) {
+    display: none;
+  }
   /* the raise and punishment panel sits to the side, off the baseline */
   .panel {
     left: auto;
