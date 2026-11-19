@@ -66,6 +66,7 @@ import { Hud } from "./hud.js";
 import { releaseAt, sideStepAt, sideStepOf } from "./plan-sliders.js";
 import { prefs } from "./prefs.js";
 import { NudgeTrigger, timeline, swingOf, captionFor } from "./nudge.js";
+import { coachFor, slowVerdict } from "./coach.js";
 import {
   newAutoRaise,
   setGame,
@@ -171,6 +172,7 @@ export class Game {
     this.dialFresh = false;
     this.remote = null;
     this.result = null; // the last throw's flag, verdicts, rest text
+    this.coachSlow = false; // this player's last throw was SLOW (coach.js)
     this.shownCards = new Set();
     this.listeners = [];
     this.panX = 200;
@@ -836,6 +838,7 @@ export class Game {
           restText: r.restText,
           age: 0,
         };
+        if (p.local) this.coachSlow = slowVerdict(r.verdicts);
       } else p.t += dt * (s.speed || 1);
     } else {
       p.hold += dt;
@@ -1205,6 +1208,7 @@ export class Game {
     });
     this.css();
     const watching = !may || !!aim.watching;
+    let coach = null;
     if (!wide) {
       this.drawMap(aim, this.viewData?.minimap?.pieces || this.items);
       const st = {
@@ -1224,6 +1228,12 @@ export class Game {
       if (watching && !st.prompt) st.prompt = "WATCH";
       this.drawMeter(st);
       if (nudge) this.drawNudgeOn(nudge, st);
+      // the coach is words for the thrower: not while watching, nor over
+      // the nudge's ghost, which shows the same stroke
+      coach =
+        watching || this.nudgeShown
+          ? null
+          : coachFor({ throws: this.nudge.throws, slow: this.coachSlow, dial });
     }
     const res =
       this.result && this.result.age < tune.flagFor ? this.result : null;
@@ -1243,6 +1253,7 @@ export class Game {
       who: this.whoActs?.(this.need) ?? null,
       wide,
       caption: this.captionWanted(),
+      coach,
     });
   }
 
