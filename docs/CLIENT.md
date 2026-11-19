@@ -27,7 +27,8 @@ A failure to start shows a plain error card with RELOAD and HOME. The HOW TO THR
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/main.js`                                 | Boot, the routes above, the practice tray, the solo flow; hands `/p/<code>` to `src/net/pitch.js`.                                                                        |
 | `src/game/game.js`                            | `Game`: the loop, input, playback, the raise and punishment scenes, framing. The seam.                                                                                    |
-| `src/game/hud.js`                             | `Hud`: the rail (who throws, what, the counts), the verdict flag and chips, the rest distance, SLOW MOTION and WATCH, the advantage, the plan buttons.                    |
+| `src/game/hud.js`                             | `Hud`: the rail (who throws, what, the counts), the verdict flag and chips, the rest distance, SLOW MOTION and WATCH, the advantage, the plan (sliders, SIDE VIEW, WALK). |
+| `src/game/plan-sliders.js`                    | The plan's ARC and TILT/SPIN sliders (`PlanSlider`, DOM) and their scales and words (pure, `tests/game/plan-sliders.test.mjs`).                                           |
 | `src/game/layout.js`                          | Pure: where the dial (or the linear meter) and minimap go, the tall-canvas framing (`worldFit`, `stillFit`, `panFor`), and the wide view's box (`wideBox`).               |
 | `src/game/scenes.js`                          | The client's own cameras for raising and punishment, and the pieces in them.                                                                                              |
 | `src/game/auto-raise.js`                      | Pure: automatic raising for the turn (AUTO ALL) or the match (MENU, Raising).                                                                                             |
@@ -106,17 +107,64 @@ game page no text selection. A press is tried in this order: the meter (the cloc
 the linear meter's knob, then its body, which takes the press and does nothing), WALK's
 drag, the target circle (56 px round it on touch, 30 px with a mouse), the thrower, then
 the clock's finger track (touch), the linear meter's throw zone, and last a tap on the
-pitch. The plan buttons are DOM and come before all of it.
+pitch. The plan (its sliders, SIDE VIEW and WALK) is DOM and comes before all of it.
 
 - **The dial** (lower right on a wide screen, lower left with MENU, Side, Left; lower
   centre on a tall one): drag is the arm, letting go is the release. Pointing and
   throwing work touching only the dial.
 - **The target**: drag the circle, tap the pitch, or the arrow keys.
 - **Walking**: WALK beside the dial (the Playdate's held A) turns a drag on the pitch into a stick: right walks right, up comes forward, down steps back, full pace 60 px out. Turned off by the swing. Or A/D and W/S, or drag the thrower where it is on screen.
-- **The plan**: ARC up and down and TILT (a baton) or SPIN (a kubb) left and right, each
-  button labelled with its value; R/F and Q/E.
-- **Plan view**: held with a mouse, a toggle on touch; Shift or B held.
+- **The plan**: the ARC and TILT (a baton) or SPIN (a kubb) sliders beside the meter
+  ("The plan's sliders", below); R/F and Q/E step them.
+- **Side view** (the engine's plan view: the camera out over the shoulder, the planned arc
+  dashed): SIDE VIEW is a toggle for every pointer; held Shift peeks; dragging a slider
+  shows it. Starting a throw turns it off.
 - Space skips a playback.
+
+**The plan's sliders** (2026-11-19, `src/game/plan-sliders.js`). Jamie: "I'd like to make
+arc and tilt less buttons and more a slider with continuous movement. "Plan View" is also
+a super weird label. Need a different word. ... It is all a hangover from us starting on
+play date". The four step buttons were the Playdate's "hold B and press the d-pad"; they
+are two sliders now, and PLAN VIEW is SIDE VIEW.
+
+- **ARC** is vertical, up a higher arc, and continuous: the track is the engine's planned
+  release, 15 to 165 degrees on the clock (`plan.tune.releaseMinDeg/MaxDeg`), fed through
+  `engine.setArc`. A higher release is a higher loft, and the header reads the loft as
+  before (`ARC 32°`). The knob sits where `aim.plan.release` says, so the engine's clamp
+  and a fresh plan move it. Its marks are the clock's hours from 1 to 5, 3 o'clock (the
+  normal throw, loft 32) long.
+- **TILT** (a baton) or **SPIN** (a kubb) is horizontal, 0 in the middle with a long heavy
+  mark, a detent at each of the engine's steps: a baton's tilt 5 degrees a step to 20
+  either way, a kubb's spin 1 a step to 3. The engine has only `stepSide(n)` for these, so
+  the slider moves by `stepSide(target - current)`; the knob follows the finger while it is
+  held and eases onto the nearest detent when let go. Fully continuous tilt would need a new
+  engine call (a `setSide`), which this does not add.
+- **Read it while you drag.** Each slider is a plate in the game's look (paper, ink rim,
+  hard shadow, the linear meter's wooden knob) with its value on a wooden header above
+  the track, and its marks in a lane beside the slot: above it for TILT, on ARC's inner
+  side (toward the screen's centre, away from the thumb). The finger is under the knob,
+  never on the words or the marks. The whole body takes the press (at least 44 px across
+  the drag): a press anywhere jumps the knob there and keeps dragging. `role="slider"`
+  with `aria-valuemin/max/now` and `aria-valuetext`; the arrow keys step it while it has
+  the focus.
+- **Dragging shows the arc.** While a slider is held, and `tune.slidePeek` (0.5 s) after,
+  the engine is fed `plan` (the side view), so the player sees what the change did without
+  a second button. SIDE VIEW does not light for it.
+- **Once a frame.** A drag only records where the finger is (`Game.planSlide`); `aimFrame`
+  sends the latest place to the engine once a frame (`applySlide`), before its `frame`
+  call. `setArc` replans and refits the camera at once (`throw.setArc` calls `replan`), so
+  the dashed arc and the dial's release band follow the drag; it does not set `planDirty`,
+  and needs not.
+- **Online**, the aim is still cast from `Pitch.tick` every `tickMs` (200 ms) and only when
+  `aimKey` changed: a drag that changes the aim every frame sends at most 5 casts a second,
+  as walking or dragging the circle does, under the room's 10 a second.
+- **Where.** A wide screen: one block on the meter's inner side, ARC's tall plate by the
+  meter and TILT, SIDE VIEW and WALK stacked beside it (`mirror` when the block is right of
+  the meter). A tall one: split either side of the throwing line, ARC over SIDE VIEW on
+  the left and TILT over WALK on the right, their feet level, in the same places the
+  buttons stood (`Hud.place`). WALK is unchanged.
+- B still peeks as Shift does (the Playdate's B button) but is not documented on the
+  page.
 
 **The meter is the player's choice** (MENU, Meter: Clock or Linear; the `meter` pref, this
 device's, the clock by default). Jamie, 2026-11-19: "I'm considering a player preference
@@ -147,7 +195,7 @@ strongly prefers the circle, so the dial stays and stays the default.
   so a thumb's fling (210 degrees) stays in reach. Where the track would be shorter than
   `minTravel` (320 px: a phone on its side, a small phone's browser) the layout's `meter`
   is `"clock"` and the dial is drawn; the menu says so under the choice. On a tall screen
-  the plan buttons split either side of the throwing line, left of the meter.
+  the plan splits either side of the throwing line, left of the meter.
 - **Not yet**: the meter in use is not recorded with the throw (that needs an engine
   field), there is no steering from the stroke's straightness (an engine change too), and
   the touch pendulum trial (below) keeps the clock.
@@ -173,7 +221,7 @@ engine changes in kind: both still send `arm` in degrees through the dial feed.
   tap does. Moved past it, it becomes the stroke: the engine is fed arm 0 for the press
   first (`dialNext` holds the finger's arm until that frame), then where the finger is,
   so the engine's arming rule (a press at 0, then back) holds as for a grab. Every
-  pointer, the mouse too. The plan buttons, the knob and the meter's body, WALK's drag,
+  pointer, the mouse too. The plan's sliders and buttons, the knob and the meter's body, WALK's drag,
   the circle and the thrower all come first, and `?throw=swipe` keeps the clock.
 - **Touch beside the clock's ring.** On touch and pen a press may land on the ring as
   before (within 1.25 radii of the centre, `grabSlop`) or outside it, out to 2.1 radii
@@ -193,7 +241,7 @@ engine changes in kind: both still send `arm` in degrees through the dial feed.
   release band), with an hour pip every 30 degrees and the two targets laid on it; it
   stops short of the prompt plate. While a finger holds the dial from outside the ring
   (`st.finger`, the pointer's place), a thin spoke runs from the knob out to a ring at the
-  finger. The plan buttons then stand above the track (`plansFoot`), in two columns
+  finger. The plan then stands above the track (`plansFoot`), in two columns
   either side of the throwing line. A phone on its side has no room for the track:
   touches outside the ring work where there is screen (with the spoke), and no track is
   drawn.
@@ -204,10 +252,10 @@ Right (the `meterSide` pref, the right by default; `game.setMeterSide`). The lin
 sits at that edge on every canvas, mirrored: its lane toward the screen's centre and its
 prompt tab hanging toward it (`linearGeometry(rect, side)` returns `side`, `laneLeft`,
 `chanX`, `divX` and `tabDir`). On a wide canvas the clock goes lower left, the minimap to
-the bottom right and the plan buttons to the dial's inner side; on the left a wide
+the bottom right and the plan to the dial's inner side; on the left a wide
 canvas's linear meter starts under the rail's box (`tune.railBox`). On a tall canvas the
 clock is centred and the side has no effect on it (the menu says so); the linear meter's
-plan buttons split across what the meter leaves.
+plan splits across what the meter leaves.
 
 **The nudge** (2026-11-19). Jamie: "A couple of users have had a lot of confusion on how
 to throw. It would be awesome if we see the user not making progress on a throw to
@@ -240,7 +288,7 @@ hooks, right after `drawMeter`. The HOW TO THROW card is unchanged.
   stays home under it. On the clock with the finger track the fingertip rides the track at
   the ghost's angle; otherwise it is on the ghost knob (a mouse pointer with a mouse). On
   the linear meter on touch it is in the throw zone on the meter's inner side, clear of
-  the prompt tab and the plan buttons (between their columns on a tall screen, past their
+  the prompt tab and the plan (between their columns on a tall screen, past their
   block on a wide one), moving down and up with the ghost knob; a mouse's pointer rides
   the ghost knob, which a mouse grabs. The plate follows the ghost in its
   own words: WIND BACK, then FLICK! from the beat on (DRAW BACK, FLING! on the linear
@@ -567,6 +615,13 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
 
 ## Tests and screenshots
 
+- `tests/game/plan-client.test.mjs` (Playwright): dragging ARC lands between the old
+  15-degree steps and its header follows; TILT settles on steps of 5 and reaches 20 either
+  way, SPIN (DRILL) 3; a drag shows the side view and it goes after the peek; SIDE VIEW
+  toggles with a mouse click; and in every layout (a wide screen with the clock right and
+  left, a tall phone with the clock and with the linear meter right and left, a phone on
+  its side, a 390 x 664 window) the plan overlaps neither the meter, the minimap nor MENU
+  and each slider's hit area is at least 44 px across its drag.
 - `node --test tests/game/` (part of `npm run check`): `layout.test.mjs` is pure;
   `client.test.mjs` builds `dist/`, serves it through `tools/preview.mjs` on a free
   127.0.0.1 port and drives Playwright's Chromium: practice loads with no console errors; a
@@ -582,8 +637,8 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
   POWER ON and ARC ON by touch (portrait) and mouse, and a tap there still moves the
   circle; a touch outside the clock's ring throws on a portrait phone, and a tap out there
   still moves the circle; with Side, Left the
-  linear meter (portrait and desktop) and the clock (desktop) lay out clear of the plan
-  buttons, the rail, MENU and the practice tray and throw, and the menu's Side switches
+  linear meter (portrait and desktop) and the clock (desktop) lay out clear of the plan's
+  sliders and buttons, the rail, MENU and the practice tray and throw, and the menu's Side switches
   and remembers. `tests/render/linear.test.mjs` is the meter's geometry (both sides),
   `tests/render/dial.test.mjs` the dial's (its finger track too), and `layout.test.mjs`
   checks both sides and the finger track's room. `multiplayer.test.mjs` runs `tools/rooms-dev.mjs`
