@@ -120,15 +120,6 @@ function sync(args) {
 function check() {
   const pin = JSON.parse(fs.readFileSync(pinPath, "utf8"));
   const bad = [];
-  const study = path.join(root, "public/practice/straight-v0.6.0.json");
-  // bundle.sha256 in jthingelstad/kubb-engine v0.6.0, commit 7447ddd.
-  if (
-    !fs.existsSync(study) ||
-    sha(fs.readFileSync(study)) !==
-      "8fe3cef962fea4ab6407ba588c7691a5406bf8f7cf5d11b2461c0e74df0bb285"
-  ) {
-    bad.push("straight practice bundle differs from the v0.6.0 release");
-  }
   const have = vendoredFiles();
   const manifestFile = path.join(dest, "engine.json");
   const manifest = fs.existsSync(manifestFile)

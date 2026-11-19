@@ -294,9 +294,6 @@ body.game {
   display: flex;
   gap: 8px;
 }
-.tray select.btn {
-  appearance: auto;
-}
 .tray .btn[aria-pressed="true"] {
   background: var(--ink);
   color: var(--paper);

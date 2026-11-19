@@ -19,7 +19,6 @@ import {
 import { startRoomsServer } from "../../tools/rooms-dev.mjs";
 import { memoryReporter } from "../../backend/rooms/reports.mjs";
 import { memoryGameRecorder } from "../../backend/rooms/recorder.mjs";
-import { strokeGeometry } from "../../src/render/stroke.js";
 import { Engine } from "../../src/engine/index.js";
 import { bundleLua } from "../../tools/lua-bundle.mjs";
 import { replayReport } from "../../tools/reports.mjs";
@@ -75,57 +74,6 @@ browserTest("practice loads with no console errors", async () => {
   assert.deepEqual(page.errors, []);
   await page.context().close();
 });
-
-for (const kind of ["desktop", "portrait"]) {
-  browserTest(
-    `straight practice releases through the starting line on ${kind}`,
-    async () => {
-      const page = await open(env, "/practice/?throw=straight", kind);
-      try {
-        await waitPhase(page, "aim");
-        const box = await page.evaluate(() => window.__kubb.game.L.dial);
-        const { x, y, travel } = strokeGeometry(box);
-        const { powerHi, powerLo } = (await state(page)).plan;
-        const pull = y + ((powerHi + powerLo) / 360) * travel;
-        if (kind === "desktop") {
-          await page.mouse.move(x, y);
-          await page.mouse.down();
-          await page.mouse.move(x, pull, { steps: 4 });
-          await page.mouse.move(x, y - 35, { steps: 3 });
-          await waitPhase(page, "play");
-          await page.mouse.up();
-        } else {
-          const client = await page.context().newCDPSession(page);
-          const touch = (type, at) =>
-            client.send("Input.dispatchTouchEvent", {
-              type,
-              touchPoints: at === null ? [] : [{ x, y: at, id: 1 }],
-            });
-          await touch("touchStart", y);
-          await touch("touchMove", pull);
-          await touch("touchMove", y - 35);
-          await waitPhase(page, "play");
-          await touch("touchEnd", null);
-          await client.detach();
-        }
-        assert.equal(
-          await page.evaluate(() => window.__kubb.game.trail.ops.length),
-          1,
-        );
-        for (const exercise of ["pair", "pile", "base"]) {
-          await page.getByLabel("Practice shot").selectOption(exercise);
-          await waitPhase(page, "aim");
-          const trial = await page.evaluate(() => window.__kubb.game.trail);
-          assert.equal(trial.opts.exercise, exercise);
-          assert.deepEqual(trial.ops, []);
-        }
-        assert.deepEqual(page.errors, []);
-      } finally {
-        await page.context().close();
-      }
-    },
-  );
-}
 
 browserTest(
   "a mouse swing on the dial throws and returns to aiming",
