@@ -255,9 +255,12 @@ export class Cards {
   tick(game) {
     const n = game.need;
     const phase = game.phase;
+    const ar = game.autoRaise;
+    const auto =
+      phase === "raise" && ar ? (ar.game ? "game" : ar.turn ? "turn" : "") : "";
     const key =
       phase === "raise" || phase === "punish"
-        ? `${phase}:${n.kubb}:${n.n}`
+        ? `${phase}:${n.kubb}:${n.n}:${auto}`
         : phase === "wait"
           ? "wait"
           : null;
@@ -500,7 +503,38 @@ function settle(c, done) {
   );
 }
 
+// Raising: an end for this kubb, AUTO (the engine's choice for this one) or
+// AUTO ALL (for every kubb still to raise this turn). While the raising is
+// automatic (AUTO ALL; MENU's Raising or REST OF GAME for the whole match)
+// the panel only says so, with BY HAND to take it back
+// (src/game/auto-raise.js).
 function raisePanel(n, game) {
+  const kicker = h("p.kicker", `${n.team || ""}  RAISE ${n.n} OF ${n.of}`);
+  const ar = game.autoRaise;
+  if (ar && (ar.game || ar.turn))
+    return h(
+      "div.panel",
+      { "data-test": "raise" },
+      kicker,
+      h(
+        "p.panel-text",
+        { "data-test": "raise-note" },
+        ar.game
+          ? "Raising automatically for the rest of the game."
+          : "Raising the rest automatically.",
+      ),
+      h(
+        "div.row",
+        button("BY HAND", () => game.setRaise("hand"), "small", {
+          "data-test": "raise-hand",
+        }),
+        ar.game
+          ? null
+          : button("REST OF GAME", () => game.setRaise("auto"), "small", {
+              "data-test": "raise-auto-game",
+            }),
+      ),
+    );
   const ends = (n.ends || []).map((e, i) =>
     button(
       e.ok === false ? `END ${i + 1}: ${e.why || "NO ROOM"}` : `END ${i + 1}`,
@@ -512,14 +546,22 @@ function raisePanel(n, game) {
   return h(
     "div.panel",
     { "data-test": "raise" },
-    h("p.kicker", `${n.team || ""}  RAISE ${n.n} OF ${n.of}`),
-    h("p.panel-text", "Tap the end to stand it on."),
+    kicker,
+    h(
+      "p.panel-text",
+      "Tap the end to stand it on. MENU, Raising does it for the rest of the game.",
+    ),
     h(
       "div.row",
       ends,
-      button("AUTOMATIC", () => game.raise(null), "small", {
+      button("AUTO", () => game.raise(null), "small", {
         "data-test": "raise-auto",
       }),
+      n.n < n.of
+        ? button("AUTO ALL", () => game.raiseRest(), "small", {
+            "data-test": "raise-auto-all",
+          })
+        : null,
     ),
   );
 }

@@ -15,6 +15,7 @@ import {
   waitPhase,
   watchThrows,
   dialGeometry,
+  nextFrame,
 } from "./browser.mjs";
 import { startRoomsServer } from "../../tools/rooms-dev.mjs";
 import { memoryReporter } from "../../backend/rooms/reports.mjs";
@@ -223,6 +224,103 @@ browserTest(
       throws.some((t) => !t.local),
       "the computer's throws",
     );
+    assert.deepEqual(page.errors, []);
+    await page.context().close();
+  },
+);
+
+// Raising (src/game/auto-raise.js): the panel, MENU's row and the game's
+// frame together. A raise is stood in for the engine's (a match takes a
+// minute to reach one): `need` as the engine gives it, and game.raise
+// recording what it was asked. The timing itself is auto-raise.test.mjs's.
+browserTest(
+  "raising: AUTO ALL for the turn, MENU's Raising and REST OF GAME for the match, BY HAND back",
+  async () => {
+    const page = await open(env, "/p/abcdefgh?solo=1&nohowto=1");
+    await page.click("[data-test=start]");
+    await page.click("[data-test=handoff-go]");
+    await waitPhase(page, "aim", 10000);
+    await page.evaluate(() => {
+      const g = window.__kubb.game;
+      window.__raised = [];
+      // the raise scene needs the engine's kubb; the panel is what is tested
+      g.drawStill = () => g.cards.tick(g);
+      window.__stage = (turn, of) => {
+        const need = (n) => ({
+          kind: "raise",
+          team: "YOU",
+          turn,
+          kubb: `k${turn}-${n}`,
+          n,
+          of,
+          ends: [{}, {}],
+        });
+        g.raise = (i) => {
+          window.__raised.push(i);
+          if (g.need.n < of) g.need = need(g.need.n + 1);
+          else {
+            g.need = { kind: "throw" };
+            g.phase = "wait";
+          }
+          return { ok: true };
+        };
+        g.need = need(1);
+        g.phase = "raise";
+      };
+      window.__stage(4, 3);
+    });
+    const has = (name) =>
+      page.locator(`[data-test=${name}]`).count().then(Boolean);
+    const raised = () => page.evaluate(() => window.__raised.length);
+    const auto = () => page.evaluate(() => window.__kubb.game.autoRaise);
+    await page.waitForSelector("[data-test=raise-auto]");
+    assert.ok(await has("raise-auto-all"), "AUTO ALL with more to raise");
+
+    // AUTO ALL: the rest of this turn's, each on the engine's choice
+    const t0 = Date.now();
+    await page.click("[data-test=raise-auto-all]");
+    assert.match(
+      await page.locator("[data-test=raise-note]").textContent(),
+      /the rest automatically/,
+    );
+    assert.ok(await has("raise-hand"));
+    assert.ok(await has("raise-auto-game"));
+    await page.waitForFunction(() => window.__raised.length === 3);
+    assert.ok(Date.now() - t0 > 1800, "one at a time, not all at once");
+    assert.deepEqual(await page.evaluate(() => window.__raised), [
+      null,
+      null,
+      null,
+    ]);
+    await nextFrame(page);
+    assert.equal((await auto()).turn, false, "it ends with the turn");
+
+    // the next turn is by hand again; MENU's Raising makes it the match's
+    await page.evaluate(() => window.__stage(6, 2));
+    await page.waitForSelector("[data-test=raise-auto]");
+    await page.click("[data-test=menu]");
+    await page.click("[data-test=menu-raise] >> text=Automatic");
+    await page.keyboard.press("Escape");
+    assert.match(
+      await page.locator("[data-test=raise-note]").textContent(),
+      /rest of the game/,
+    );
+    assert.equal(await has("raise-auto-game"), false);
+    await page.waitForFunction(() => window.__raised.length === 5);
+
+    // and it is still on a turn later, until BY HAND
+    await page.evaluate(() => window.__stage(8, 2));
+    await page.click("[data-test=raise-hand]");
+    await page.waitForSelector("[data-test=raise-auto]");
+    assert.equal((await auto()).game, false);
+    await page.waitForTimeout(1000);
+    assert.equal(await raised(), 5, "nothing is raised by hand's panel");
+
+    // REST OF GAME, offered once AUTO ALL is running
+    await page.click("[data-test=raise-auto-all]");
+    await page.click("[data-test=raise-auto-game]");
+    assert.equal((await auto()).game, true);
+    await page.waitForFunction(() => window.__raised.length === 7);
     assert.deepEqual(page.errors, []);
     await page.context().close();
   },

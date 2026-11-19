@@ -303,6 +303,16 @@ the finger goes, until the next press. `src/game/nudge.js` (pure, its numbers in
 `tune`) and `src/render/nudge.js`; drawing only, never fed to the engine, sent or
 recorded. docs/CLIENT.md "The throw".
 
+## Raising
+
+A player can hand the raising to the engine mid-match (Jamie, 2026-11-19: "When raising
+kubbs we have three options today including an auto, we should also add an "auto all". In
+fact I could see players wanting to shift to auto raise kubbs for the rest of the game.").
+The raise panel has END 1, END 2, AUTO (this kubb) and AUTO ALL (the rest of this turn's);
+MENU, Raising, or REST OF GAME on the panel, makes every raise automatic for the rest of
+the match, and BY HAND takes it back. It is the player's own choice on a match that raises
+by hand, kept only for that match: `src/game/auto-raise.js`, docs/CLIENT.md "Match flow".
+
 ## Pitch lines
 
 Thin on purpose (Jamie, 2026-11-16: "in Kubb, the concept is that there really is no

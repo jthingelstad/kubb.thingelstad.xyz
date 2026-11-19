@@ -30,6 +30,7 @@ A failure to start shows a plain error card with RELOAD and HOME. The HOW TO THR
 | `src/game/hud.js`                             | `Hud`: the rail (who throws, what, the counts), the verdict flag and chips, the rest distance, SLOW MOTION and WATCH, the advantage, the plan buttons.                    |
 | `src/game/layout.js`                          | Pure: where the dial (or the linear meter) and minimap go, the tall-canvas framing (`worldFit`, `stillFit`, `panFor`), and the wide view's box (`wideBox`).               |
 | `src/game/scenes.js`                          | The client's own cameras for raising and punishment, and the pieces in them.                                                                                              |
+| `src/game/auto-raise.js`                      | Pure: automatic raising for the turn (AUTO ALL) or the match (MENU, Raising).                                                                                             |
 | `src/game/sound.js`                           | `Sound`: the knocks and the king's chord through Web Audio; unlock on the first pointer down; mute remembered.                                                            |
 | `src/game/nudge.js`, `src/render/nudge.js`    | The throw's nudge: when it shows and the ghost's throw (pure), and its drawing over the meter ("The nudge", below).                                                       |
 | `src/game/prefs.js`                           | `prefs`: localStorage, wrapped so a blocked store only forgets.                                                                                                           |
@@ -344,7 +345,17 @@ throws he took for perfect had been judged long.
 - The engine's cards: the hand-off (whose turn, what they throw, both bases, a map), the
   pass and the settle cards. The computer's turn shows as WATCH.
 - **Raising by hand**: the kubb lying, its two ends numbered on the pitch; tap an end, or
-  END 1, END 2, AUTOMATIC.
+  END 1, END 2, AUTO (the engine's choice for this kubb). With more than one kubb still
+  to raise the panel also has AUTO ALL: the rest of this turn's are stood on the engine's
+  choice, one every 0.7 s so each is seen. MENU, Raising (By hand or Automatic; the row
+  appears once this browser has been asked to raise) and REST OF GAME, beside BY HAND
+  while AUTO ALL runs, do that for every kubb for the rest of the match. While it is
+  automatic the panel only says so, with BY HAND to take it back. It is this player's
+  choice, never sent or recorded apart from the raises themselves, never for the other
+  team, held while a card or the menu is open, and given back to the player if the
+  engine refuses a raise. It is not kept on the device: a match that always raises
+  itself is the match's own Raising option (the solo card, the lobby), which never asks.
+  `src/game/auto-raise.js` (pure, its 0.7 s in `tune`), `Game.autoRaiseTick`.
 - **Punishment**: drag or tap the kubb in the defender's half; the stakes and the king carry
   keep-out circles and a refused spot says why (TOO NEAR A STAKE); PLACE IT when allowed.
 - **The winner**: REMATCH (back to the options; on a shared pitch the host's only, back to
