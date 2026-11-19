@@ -40,6 +40,7 @@ import {
   dialGeometry,
   armAt,
   hitTest,
+  trackHit,
   drawLinear,
   linearGeometry,
   armAtY,
@@ -69,6 +70,17 @@ export const tune = {
   grabTouch: 56, // px round the target circle a finger grabs it
   grabMouse: 30,
   tapSlop: 10, // px a press may move and still be a tap
+  // The linear meter's throw zone (Jamie, 2026-11-19: "if you can have the
+  // control and the touch be slightly distant from each other"): a drag
+  // that starts this far down the canvas or lower drives the knob as a grab
+  // of the knob does, so the finger works away from the meter it watches.
+  // Targets are always in the far half of the pitch: on a phone held
+  // upright the centre line is at 0.54 of the height (0.59 in the browser
+  // with its bars showing), so below 0.6 is the near half, where there is
+  // nothing to aim at. On a wide canvas the view is all far half (the
+  // centre line is below the bottom edge), so field kubbs may lie in the
+  // zone there; only a drag throws, and a tap still aims, so nothing is lost.
+  zoneFrom: 0.6,
   panEase: 5, // 1/s: how quickly a tall view pans after the circle
   remoteAimFresh: 1.5, // s a remote aim stays shown without news
   flagFor: 6, // s a result flag stays up into the next aim
@@ -133,6 +145,7 @@ export class Game {
     this.touchSamples = [];
     this.ptr = null; // the pointer that is pressed: { id, kind, x, y, ... }
     this.dialArm = null;
+    this.dialNext = null; // a stroke's arm waiting for its press (at 0) to be fed
     this.dialAcc = 0;
     this.dialFresh = false;
     this.remote = null;
@@ -143,6 +156,14 @@ export class Game {
     this.level = prefs.get("level", "club");
     // the throw's meter, this device's: the clock or the linear one (MENU)
     this.meter = prefs.get("meter", "clock") === "linear" ? "linear" : "clock";
+    // and the screen edge it sits at (MENU, Side), for either hand
+    this.meterSide =
+      prefs.get("meterSide", "right") === "left" ? "left" : "right";
+    // a touchscreen: the clock on a tall canvas leaves room round its rim
+    // for a finger (layout.js track)
+    this.coarse =
+      typeof matchMedia === "function" &&
+      matchMedia("(pointer: coarse)").matches;
     this.raiseSel = null;
     this.punishAt = null;
     this.running = false;
@@ -383,6 +404,7 @@ export class Game {
     };
     this.remote = null;
     this.dialArm = null;
+    this.dialNext = null;
     this.cancelSwipe();
     const n = this.need;
     if (n.kind === "throw") {
@@ -568,6 +590,12 @@ export class Game {
         out = this.engine.frame({ ...input, dt: this.dialAcc });
         this.dialAcc = 0;
         this.dialFresh = false;
+        // a stroke's press was fed at 0: now where the finger is
+        if (this.dialNext != null) {
+          this.dialArm = this.dialNext;
+          this.dialNext = null;
+          this.dialFresh = true;
+        }
       } else out = { ...this.out, event: undefined };
     } else {
       this.dialAcc = 0;
@@ -648,6 +676,7 @@ export class Game {
     this.planToggle = false;
     this.walkOn = false;
     this.dialArm = null;
+    this.dialNext = null;
     if (["dial", "swipe"].includes(this.ptr?.kind)) this.ptr = null;
     this.touchSamples.length = 0;
     this.result = null;
@@ -814,14 +843,34 @@ export class Game {
     if (this.W) this.resize();
   }
 
+  // The screen edge the meter sits at: "right" or "left" (left-handed
+  // players may want it there). The linear meter goes to that edge; the
+  // clock does on a wide canvas, and is centred on a tall one either way.
+  setMeterSide(side) {
+    this.meterSide = side === "left" ? "left" : "right";
+    prefs.set("meterSide", this.meterSide);
+    if (this.W) this.resize();
+  }
+
+  // The linear meter's geometry as it is drawn (its side included).
+  linearG() {
+    return linearGeometry(this.L.dial, this.L.meterSide);
+  }
+
   // ---------- drawing ----------
 
   // The meter on the screen: the linear one where the player chose it and it
   // has room (layout.js), else the clock.
   drawMeter(st) {
-    if (this.L.meter !== "linear") return drawDial(this.ctx, this.L.dial, st);
+    if (this.L.meter !== "linear")
+      return drawDial(this.ctx, this.L.dial, { ...st, track: this.L.track });
     const prompt = LINEAR_WORDS[st.prompt] || st.prompt;
-    return drawLinear(this.ctx, this.L.dial, { ...st, prompt });
+    return drawLinear(
+      this.ctx,
+      this.L.dial,
+      { ...st, prompt },
+      this.L.meterSide,
+    );
   }
 
   get view() {
@@ -846,6 +895,7 @@ export class Game {
     const cs = getComputedStyle(document.documentElement);
     const inset = (n) => parseFloat(cs.getPropertyValue(n)) || 0;
     const was = this.L?.meter;
+    const wasSide = this.L?.meterSide;
     this.L = layoutFor(
       W,
       H,
@@ -857,12 +907,18 @@ export class Game {
       },
       this.swipeLayout,
       this.meter,
+      { side: this.meterSide, coarse: this.coarse },
     );
     // a held knob is let go when the meter under it changes (a phone turned
     // on its side mid-swing): its place on one is no angle on the other
-    if (was && was !== this.L.meter && this.ptr?.kind === "dial") {
+    if (
+      was &&
+      (was !== this.L.meter || wasSide !== this.L.meterSide) &&
+      this.ptr?.kind === "dial"
+    ) {
       this.ptr = null;
       this.dialArm = null;
+      this.dialNext = null;
     }
     this.fit = worldFit(W, H, this.panX);
     if (this.engine) this.applyWide();
@@ -1204,9 +1260,7 @@ export class Game {
     let grab = 0;
     if (this.phase === "aim" && this.mayAct()) {
       const linear = this.L.meter === "linear";
-      const g = linear
-        ? linearGeometry(this.L.dial)
-        : dialGeometry(this.L.dial);
+      const g = linear ? this.linearG() : dialGeometry(this.L.dial);
       const aim = this.out?.aim || {};
       const swipe = !linear && this.swipeEnabled && e.pointerType === "touch";
       // The painted control is in front of the pitch. Its face keeps the
@@ -1228,6 +1282,12 @@ export class Game {
         kind = "target";
       else if (this.near(aim.thrower, x, y, touch ? 44 : 26)) kind = "stance";
       else if (swipe && y >= this.H / 2) kind = "swipe";
+      // a finger beside the clock's ring, where it hides nothing: the arm is
+      // the angle about the centre as on the ring (touch only)
+      else if (!linear && !swipe && touch && trackHit(g, x, y)) kind = "dial";
+      // the linear meter's throw zone: a tap there aims as any tap does; a
+      // drag becomes the stroke (move)
+      else if (linear && y >= this.H * tune.zoneFrom) kind = "zone";
       else kind = "tap";
       if (kind === "swipe") {
         this.sampleTouch(e, "down");
@@ -1237,6 +1297,7 @@ export class Game {
       if (kind === "dial") {
         if (linear) grab = y - g.y0;
         this.dialArm = linear ? 0 : armAt(g, x, y);
+        this.dialNext = null;
         this.dialFresh = true;
         this.dialAcc = 0;
         this.planToggle = false;
@@ -1303,11 +1364,27 @@ export class Game {
     p.x = x;
     p.y = y;
     if (Math.hypot(x - p.x0, y - p.y0) > tune.tapSlop) p.moved = true;
-    if (p.kind === "dial") {
-      this.dialArm =
+    if (p.kind === "zone" && p.moved) {
+      // the stroke: from here on the press drives the knob relatively, as a
+      // grab of the knob does (the press point is the knob's home). The
+      // engine is fed the press, arm 0, first, then where the finger is
+      // (aimFrame), so a stroke down arms the swing as a grab does.
+      const g = this.linearG();
+      p.kind = "dial";
+      p.grab = p.y0 - g.y0;
+      this.dialArm = 0;
+      this.dialNext = armAtY(g, y - p.grab);
+      this.dialFresh = true;
+      this.dialAcc = 0;
+      this.planToggle = false;
+      this.walkOn = false;
+    } else if (p.kind === "dial") {
+      const arm =
         this.L.meter === "linear"
-          ? armAtY(linearGeometry(this.L.dial), y - p.grab)
+          ? armAtY(this.linearG(), y - p.grab)
           : armAt(dialGeometry(this.L.dial), x, y);
+      if (this.dialNext != null) this.dialNext = arm;
+      else this.dialArm = arm;
       this.dialFresh = true;
     } else if (p.kind === "target") {
       const g = this.ground(x, y);
@@ -1326,12 +1403,17 @@ export class Game {
       else this.sampleTouch(e, "up");
     }
     this.ptr = null;
-    if (p.kind === "dial")
+    if (p.kind === "dial") {
       this.dialArm = null; // the release
-    else if (p.kind === "target" && !cancelled) {
+      this.dialNext = null;
+    } else if (p.kind === "target" && !cancelled) {
       const g = this.ground(p.x, p.y);
       if (g) this.aimResult(this.engine.setTarget(g.x, g.y, true));
-    } else if (p.kind === "tap" && !p.moved && !cancelled) {
+    } else if (
+      (p.kind === "tap" || p.kind === "zone") &&
+      !p.moved &&
+      !cancelled
+    ) {
       // a tap on the pitch puts the circle there
       const g = this.ground(p.x, p.y);
       if (g && g.y > 0.5) this.aimResult(this.engine.setTarget(g.x, g.y, true));
@@ -1383,6 +1465,7 @@ export class Game {
     if (this.ptr) {
       this.ptr = null;
       this.dialArm = null;
+      this.dialNext = null;
     }
   }
 

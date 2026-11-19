@@ -15,7 +15,11 @@ const STEPS = [
     ],
     linear: [
       "Grab the knob",
-      "Press on the wooden knob in the middle of the meter and keep holding. It follows your finger or mouse down and up.",
+      "Press on the wooden knob in the middle of the meter, or anywhere in the lower part of the screen, and keep holding. The knob follows your finger or mouse down and up, so you can watch the meter while you stroke.",
+    ],
+    touch: [
+      "Grab the dial",
+      "Press on the big dial, or just outside its rim, and keep holding. The arm follows your finger round its centre, so a finger outside the ring leaves the marks in view.",
     ],
     title: "Grab the dial",
     text: "Press on the big dial and keep holding. The arm follows your finger or mouse round its centre.",
@@ -73,6 +77,8 @@ export function showHowto(root, game = null, onDone = null) {
   let t0 = performance.now();
   // the picture is the meter on the screen: the linear one is tall and narrow
   const linear = game?.L?.meter === "linear";
+  // and at the side it is on (MENU, Side): its prompt hangs toward the middle
+  const left = linear && game?.L?.meterSide === "left";
   const [cw, ch] = linear ? [180, 250] : [180, 200];
   const canvas = h(linear ? "canvas.howto-dial.linear" : "canvas.howto-dial", {
     width: cw,
@@ -122,9 +128,9 @@ export function showHowto(root, game = null, onDone = null) {
           : null;
     (linear ? drawLinear : drawDial)(
       ctx,
-      // (the prompt's plate is on the meter's left: the room is for it)
+      // (the prompt's plate is on the meter's inner side: the room is for it)
       linear
-        ? { x: 104, y: 0, width: 72, height: ch }
+        ? { x: left ? 4 : 104, y: 0, width: 72, height: ch }
         : { x: 0, y: 0, width: cw, height: ch },
       {
         phase: i === 1 || i === 2 ? "winding" : "idle",
@@ -142,6 +148,7 @@ export function showHowto(root, game = null, onDone = null) {
         prompt,
         grabbed: i < 3 && !(s.release && t > 1.0),
       },
+      left ? "left" : "right",
     );
   };
   function go(n) {
@@ -150,7 +157,11 @@ export function showHowto(root, game = null, onDone = null) {
     t0 = performance.now();
     count.textContent = `${i + 1} OF ${STEPS.length}`;
     const step = STEPS[i];
-    const words = linear ? step.linear : game?.touchPrompts && step.swipe;
+    const words = linear
+      ? step.linear
+      : (game?.touchPrompts && step.swipe) ||
+        (game?.L?.track && step.touch) ||
+        null;
     title.textContent = words ? words[0] : step.title;
     text.textContent = words ? words[1] : step.text;
     back.disabled = i === 0;
