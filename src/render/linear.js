@@ -9,13 +9,14 @@
 // the flick's speed is degrees a second on either meter.
 //
 // The body is two columns in one ink frame: the lane on the left carries the
-// targets, the last throw's dots and the peak (the dial's ring), and the
-// channel on the right carries the knob, so the knob and the finger on it
-// never hide a target. The body is the whole height of its box: the prompt
+// targets and the live peak (the dial's ring), and the channel on the
+// right carries the knob and the last throw's ghosts, so the knob and the
+// finger on it never hide a target. The body is the whole height of its box: the prompt
 // is beside it, not above, because the track's length is the meter's room.
 //
 // st is the dial's state (render/dial.js).
 import { INK, PAPER, HUD, FONT } from "./palette.js";
+import { ghostKnob, tune as dialTune } from "./dial.js";
 
 export const tune = {
   range: 180, // degrees each way: the ends are 12 o'clock
@@ -29,7 +30,9 @@ export const tune = {
   slot: 0.17, // the slot the knob runs in, of the channel's width
   tick: 0.2, // an hour's tick, of the channel's width
   tickLong: 0.36, // 6, 3, 9 and 12
-  dot: 0.26, // a last-throw dot's radius, of the lane's width
+  dot: 0.26, // the live peak's dot, of the lane's width
+  // the last throw's back and stop are ghosts of the knob in the channel, at
+  // the clock's size and opacity (dial.js tune.ghost, ghostAlpha)
   hub: 0.95, // home's hub, of the slot's width
   promptH: 0.3, // the prompt plate's height, of the body's width
   promptMin: 18,
@@ -235,25 +238,17 @@ function target(ctx, g, c, a0, a1, fill, deep, lw) {
   across(ctx, g, c, a1, lw);
 }
 
-// A dot in the lane: hollow (the last throw) or solid (the live peak).
-function laneDot(ctx, g, c, a, r, lw, solid) {
+// The live peak: a solid dot in the lane.
+function laneDot(ctx, g, c, a, r, lw) {
   const y = armY(g, Math.max(-tune.range, Math.min(tune.range, a)));
   ctx.fillStyle = PAPER;
   ctx.beginPath();
   ctx.arc(c.laneC, y, r + lw, 0, Math.PI * 2);
   ctx.fill();
-  if (solid) {
-    ctx.fillStyle = HUD.peak;
-    ctx.beginPath();
-    ctx.arc(c.laneC, y, r - lw * 0.5, 0, Math.PI * 2);
-    ctx.fill();
-  } else {
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = lw * 1.4;
-    ctx.beginPath();
-    ctx.arc(c.laneC, y, r, 0, Math.PI * 2);
-    ctx.stroke();
-  }
+  ctx.fillStyle = HUD.peak;
+  ctx.beginPath();
+  ctx.arc(c.laneC, y, r - lw * 0.5, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 // The prompt: a tab hung off the body on the lane's side at home, its inner
@@ -432,12 +427,20 @@ export function drawLinear(ctx, rect, st, side = "right") {
   ctx.arc(c.kc, g.y0, slotW * tune.hub, 0, Math.PI * 2);
   ctx.fill();
 
-  // the last throw's dots and the live peak, in the lane
+  // the last throw's back and stop: ghosts of the knob where it went, in
+  // the channel under the stem and the knob (a tester, 2026-11-19, of the
+  // hollow dots they replace: "the target dot is in the red")
+  ctx.save();
+  ctx.globalAlpha = dialTune.ghostAlpha;
+  for (const a of [st.lastBack != null ? -st.lastBack : null, st.lastStop]) {
+    if (a == null) continue;
+    const y = armY(g, Math.max(-R, Math.min(R, a)));
+    ghostKnob(ctx, c.kc, y, g.kr * dialTune.ghost, lw);
+  }
+  ctx.restore();
+  // the live peak, in the lane
   const dr = g.laneW * tune.dot;
-  if (st.lastBack != null) laneDot(ctx, g, c, -st.lastBack, dr, lw, false);
-  if (st.lastStop != null) laneDot(ctx, g, c, st.lastStop, dr, lw, false);
-  if (live && st.back > 0)
-    laneDot(ctx, g, c, -Math.min(R, st.back), dr, lw, true);
+  if (live && st.back > 0) laneDot(ctx, g, c, -Math.min(R, st.back), dr, lw);
 
   // the arm and its knob: the thing you grab. At rest the knob is home;
   // held, it is where the pointer has it, the dead zone included.

@@ -169,7 +169,7 @@ straight. On the web the **dial is the control**:
 
 - The dial sits large at the lower right (lower centre on a phone), with the same face:
   power target on the back side, release target on the forward side, dead zone,
-  overpowered slice, last throw's dots, the prompt (WIND BACK, FLICK!, EASE OFF).
+  overpowered slice, the last throw's ghosts (a faded arm where it went), the prompt (WIND BACK, FLICK!, EASE OFF).
 - **Press on the dial and drag around it.** The pointer's angle about the dial's centre
   is the arm. Drag from the bottom up the left side to wind back; the arm follows your
   finger or mouse. Then swing down through the bottom and up the right side, and **let

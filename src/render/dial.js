@@ -14,7 +14,7 @@
 //   powerLo, powerHi      the power target, backswing degrees (positive)
 //   releaseLo, releaseHi  the release target, forward degrees
 //   deadDeg, overDeg      6 o'clock to -deadDeg is dead; past -overDeg is overpowered
-//   lastBack, lastStop    the last throw's peak and stop (or null): hollow dots
+//   lastBack, lastStop    the last throw's peak and stop (or null): ghosts
 //   prompt     WIND BACK, FLICK!, EASE OFF, CRANK DOWN, WATCH (or null);
 //              one ending in "!" is drawn paper on ink
 //   grabbed    true while the pointer holds the arm
@@ -33,7 +33,13 @@ export const tune = {
   hand: 0.86, // the hand's length (to the knob's centre), of the radius
   knob: 0.15, // the knob's radius, of the radius
   hub: 0.07,
-  dot: 0.065, // a last-throw dot's radius
+  // the last throw's back and stop: a faded ghost of the arm's tip and its
+  // knob, this much of the knob's size and drawn at this opacity, so it reads
+  // as where the last throw went, never as a mark to aim for (a tester,
+  // 2026-11-19: "the target dot is in the red")
+  ghost: 0.6,
+  ghostAlpha: 0.45,
+  dot: 0.065, // the live peak's radius
   shadow: 0.06, // the hard drop shadow, of the radius
   promptH: 0.3, // the prompt plate's height, of the radius
   grabSlop: 1.25, // a press within this many radii of the centre grabs the dial
@@ -250,6 +256,42 @@ function trackRail(ctx, g, st, lw) {
   ctx.restore();
 }
 
+// A ghost of the arm at `a`: the outer part of the hand and the knob at
+// radius kr, faded, with no ink rim, so it reads as the arm where it was and
+// not as a hole or a target to put the knob in. Also the linear meter's
+// (render/linear.js ghostKnob).
+function ghostArm(ctx, g, a, kr, lw) {
+  const [hx, hy] = armPoint(g, a, g.r * tune.hand);
+  const [sx, sy] = armPoint(g, a, g.r * 0.5);
+  ctx.save();
+  ctx.globalAlpha = tune.ghostAlpha;
+  ctx.lineCap = "round";
+  ctx.strokeStyle = HUD.hand;
+  ctx.lineWidth = g.r * 0.045;
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(hx, hy);
+  ctx.stroke();
+  ghostKnob(ctx, hx, hy, kr, lw);
+  ctx.restore();
+}
+
+// The knob's ghost at (x, y), radius kr: its wood and its end-grain pip,
+// edged in the stem's brown, never ink. The caller sets the opacity.
+export function ghostKnob(ctx, x, y, kr, lw) {
+  ctx.fillStyle = HUD.knob;
+  ctx.strokeStyle = HUD.hand;
+  ctx.lineWidth = Math.max(1, lw * 0.9);
+  ctx.beginPath();
+  ctx.arc(x, y, kr, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = HUD.hand;
+  ctx.beginPath();
+  ctx.arc(x, y, Math.max(0.8, kr * 0.22), 0, Math.PI * 2);
+  ctx.fill();
+}
+
 export function drawDial(ctx, rect, st) {
   const g = dialGeometry(rect);
   const { cx, cy, r } = g;
@@ -383,19 +425,10 @@ export function drawDial(ctx, rect, st) {
     ctx.stroke();
   }
 
-  // the last throw's dots
+  // the last throw's back and stop: ghosts of the arm's tip and knob
   for (const a of [st.lastBack != null ? -st.lastBack : null, st.lastStop]) {
     if (a == null) continue;
-    const [x, y] = armPoint(g, a, rm);
-    ctx.fillStyle = PAPER;
-    ctx.beginPath();
-    ctx.arc(x, y, r * tune.dot + lw, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = lw * 1.4;
-    ctx.beginPath();
-    ctx.arc(x, y, r * tune.dot, 0, Math.PI * 2);
-    ctx.stroke();
+    ghostArm(ctx, g, a, r * tune.knob * tune.ghost, lw);
   }
   // the live peak
   if (live && st.back > 0) {
