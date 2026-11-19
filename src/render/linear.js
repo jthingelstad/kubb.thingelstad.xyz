@@ -446,16 +446,13 @@ export function drawLinear(ctx, rect, st, side = "right") {
   const ky = armY(g, arm);
   const kr = g.kr * (st.grabbed ? 1.08 : 1);
   if (st.grabbed) {
-    // the glow stays in the channel: the lane beside it is for reading
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(c.chan[0], top, c.chan[1] - c.chan[0], bottom - top);
-    ctx.clip();
+    // the glow lights the channel round the knob, its full width and
+    // rounded at the ends: it stays out of the lane, which is for reading
+    const cw = c.chan[1] - c.chan[0];
     ctx.fillStyle = HUD.glow;
     ctx.beginPath();
-    ctx.arc(c.kc, ky, kr * 1.5, 0, Math.PI * 2);
+    ctx.roundRect(c.chan[0], ky - kr * 1.7, cw, kr * 3.4, cw * 0.5);
     ctx.fill();
-    ctx.restore();
   }
   // the stem: wood in the slot from home to the knob
   if (Math.abs(ky - g.y0) > 1) {
