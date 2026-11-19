@@ -1,9 +1,11 @@
 // The heads-up display over the canvas, in the DOM (crisp type, real
 // buttons): the rail (who throws, what, the counts), the result flag and
 // verdicts after a throw, the rest distance, SLOW MOTION and WATCH, the
-// advantage line's text, and the plan buttons beside the dial. The game
-// calls update() once a frame; only changed text touches the DOM.
+// advantage line's text, and the plan beside the dial (the ARC and TILT
+// sliders, SIDE VIEW and WALK). The game calls update() once a frame; only
+// changed text touches the DOM.
 import { h, button } from "../ui/dom.js";
+import { PlanSlider } from "./plan-sliders.js";
 
 // The verdict chips under the flag, from the core's words (throwplan.lua
 // plan.verdictText): on target, power and release read "POWER ON" and
@@ -57,19 +59,15 @@ export class Hud {
     this.adv = h("div.hud.adv");
 
     const a = actions;
-    this.arcUp = button("", () => a.arc(1), "plan", { "aria-label": "Arc up" });
-    this.arcDown = button("", () => a.arc(-1), "plan", {
-      "aria-label": "Arc down",
-    });
-    this.sideL = button("", () => a.side(-1), "plan", {
-      "aria-label": "Tilt left",
-    });
-    this.sideR = button("", () => a.side(1), "plan", {
-      "aria-label": "Tilt right",
-    });
-    this.planView = button("PLAN VIEW", null, "plan view", {
-      "aria-label": "Plan view",
-      "data-test": "plan-view",
+    // the plan: ARC and TILT (or SPIN) as sliders (src/game/plan-sliders.js)
+    this.arc = new PlanSlider("arc", { onSlide: a.slide, onKey: a.step });
+    this.side = new PlanSlider("side", { onSlide: a.slide, onKey: a.step });
+    // SIDE VIEW: the camera out over the thrower's shoulder, the planned
+    // arc dashed (the engine's plan view, the Playdate's held B)
+    this.sideView = button("SIDE VIEW", null, "plan view", {
+      "aria-label": "Side view",
+      "aria-pressed": "false",
+      "data-test": "side-view",
     });
     // WALK is the Playdate's held A: while it is on, a drag on the pitch
     // walks the thrower (left and right along the line, down to step back)
@@ -80,9 +78,9 @@ export class Hud {
     this.plans = h(
       "div.plans",
       { "data-test": "plans" },
-      h("div.plan-col", this.arcUp, this.arcDown),
-      h("div.plan-col", this.sideL, this.sideR),
-      this.planView,
+      this.arc.el,
+      this.side.el,
+      this.sideView,
       this.walk,
     );
     this.skip = button("SKIP", () => a.skip(), "small skip-btn", {
@@ -165,31 +163,32 @@ export class Hud {
     if (showPlans) {
       const p = aim.plan || {};
       const kubb = aim.projectile === "kubb";
-      const side = kubb ? p.spin || 0 : p.tilt || 0;
-      const sideWord = kubb ? "SPIN" : "TILT";
-      this.text(this.arcUp, `ARC ${Math.round(p.loft ?? 0)}° ▲`);
-      this.text(this.arcDown, `ARC ▼`);
-      const sv =
-        side === 0
-          ? "0"
-          : `${Math.abs(Math.round(side))}${side < 0 ? "L" : "R"}`;
-      this.text(this.sideL, `◀ ${sideWord}`);
-      this.text(this.sideR, `${sideWord} ${sv} ▶`);
-      this.sideL.setAttribute("aria-label", `${sideWord} left`);
-      this.sideR.setAttribute("aria-label", `${sideWord} right`);
-      this.planView.classList.toggle("on", !!st.plan);
+      this.arc.update(p, kubb);
+      this.side.update(p, kubb);
+      const on = !!st.plan;
+      if (this.cache.get("sideView") !== on) {
+        this.cache.set("sideView", on);
+        this.sideView.classList.toggle("on", on);
+        this.sideView.setAttribute("aria-pressed", String(on));
+      }
       this.walk.classList.toggle("on", !!st.walk);
       this.place(st.layout);
+    } else {
+      this.arc.cancel();
+      this.side.cancel();
     }
     this.show(this.skip, !!st.playing);
   }
 
-  // The plan buttons beside the meter, on its inner side: in one block to
-  // its left (L.side "left") or right ("right") on a wide screen, split
-  // either side of the throwing line ("both") on a tall one. Beside the
-  // linear meter (at the right or left edge) a tall screen's are split
-  // across what is left of the bottom; round a touchscreen's clock with its
-  // finger track (L.plansFoot) they stand above the track.
+  // The plan beside the meter, on its inner side: in one block to its left
+  // (L.side "left") or right ("right") on a wide screen, ARC's tall plate
+  // next to the meter and TILT, SIDE VIEW and WALK stacked beside it
+  // ("mirror" when the block is right of the meter); split either side of
+  // the throwing line ("both") on a tall one, ARC over SIDE VIEW on the
+  // left and TILT over WALK on the right. Beside the linear meter (at the
+  // right or left edge) a tall screen's are split across what is left of
+  // the bottom; round a touchscreen's clock with its finger track
+  // (L.plansFoot) they stand above the track.
   place(L) {
     if (!L) return;
     const key = `${L.W}x${L.H}:${L.side}:${L.meter}:${L.meterSide}:${L.plansFoot}`;
@@ -198,6 +197,7 @@ export class Hud {
     const d = L.dial;
     const s = this.plans.style;
     this.plans.classList.toggle("split", L.side === "both");
+    this.plans.classList.toggle("mirror", L.side === "right");
     s.width = "";
     if (L.side === "both" && L.meter === "linear") {
       const left = L.meterSide === "left";

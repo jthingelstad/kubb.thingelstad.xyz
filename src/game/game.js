@@ -63,6 +63,7 @@ import {
 } from "./layout.js";
 import { settleItems, raiseCamera, punishCamera, poseItem } from "./scenes.js";
 import { Hud } from "./hud.js";
+import { releaseAt, sideStepAt, sideStepOf } from "./plan-sliders.js";
 import { prefs } from "./prefs.js";
 import { NudgeTrigger, timeline, swingOf, captionFor } from "./nudge.js";
 import {
@@ -81,6 +82,9 @@ export const tune = {
   grabTouch: 56, // px round the target circle a finger grabs it
   grabMouse: 30,
   tapSlop: 10, // px a press may move and still be a tap
+  // s the side view stays out after a plan slider is let go, so the player
+  // sees what the change did without a second button
+  slidePeek: 0.5,
   // The linear meter's throw zone (Jamie, 2026-11-19: "if you can have the
   // control and the touch be slightly distant from each other"): a drag
   // that starts this far down the canvas or lower drives the knob as a grab
@@ -143,8 +147,13 @@ export class Game {
     this.queue = [];
     this.modal = 0; // cards and overlays open: no input, no engine time
     this.keys = new Set();
+    // the engine's plan view, which the screen calls the side view: held
+    // (Shift), toggled (SIDE VIEW), or shown while a plan slider is dragged
+    // and `tune.slidePeek` after (`slidePeekUntil`)
     this.planHeld = false;
     this.planToggle = false;
+    this.slide = null; // a plan slider held: { what, f, dirty }
+    this.slidePeekUntil = 0;
     this.walkOn = false; // WALK: a drag on the pitch walks the thrower
     this.swipeEnabled = swipeEnabled;
     this.swipeLayout =
@@ -219,11 +228,11 @@ export class Game {
     this.driver = null; // (dt) => void, after each tick with the replay's dt
 
     this.hud = new Hud(ui, {
-      arc: (s) => this.planStep("arc", s),
-      side: (s) => this.planStep("side", s),
+      slide: (what, f, phase) => this.planSlide(what, f, phase),
+      step: (what, s) => this.planStep(what, s),
       skip: () => this.skip(),
     });
-    this.bindPlanView(this.hud.planView);
+    this.bindPlanView(this.hud.sideView);
     this.bindWalk(this.hud.walk);
     this.bindInput();
     this.resize();
@@ -595,7 +604,8 @@ export class Game {
     if (!this.modal && may && !paused) {
       if (this.touchSamples.length) input.touch = this.touchSamples.splice(0);
       if (this.ptr?.kind === "dial") input.arm = this.dialArm;
-      input.plan = this.planHeld || this.planToggle;
+      this.applySlide();
+      input.plan = this.planWanted();
       const m = this.keyAxes("ArrowLeft", "ArrowRight", "ArrowDown", "ArrowUp");
       const w = this.keyAxes("KeyA", "KeyD", "KeyS", "KeyW");
       if (m.dx || m.dy) input.move = m;
@@ -690,6 +700,58 @@ export class Game {
     if (r && r.aim) this.out = { ...this.out, aim: r.aim, camera: r.camera };
   }
 
+  // Is the side view (the engine's plan view) wanted this frame?
+  planWanted(now = performance.now()) {
+    return (
+      this.planHeld ||
+      this.planToggle ||
+      !!this.slide ||
+      now < this.slidePeekUntil
+    );
+  }
+
+  // A plan slider (src/game/plan-sliders.js): pressed, dragged, let go at f
+  // on its track. Nothing reaches the engine here: aimFrame applies the
+  // latest place once a frame (applySlide), so a fast drag costs one engine
+  // call a frame at most. Returns false when the press is not taken.
+  planSlide(what, f, phase) {
+    if (phase === "down") {
+      if (this.phase !== "aim" || !this.mayAct() || this.modal) return false;
+      this.sound?.unlock();
+      this.nudge.input();
+      this.slide = { what, f, dirty: true };
+      return true;
+    }
+    if (!this.slide || this.slide.what !== what) return false;
+    this.slide.f = f;
+    this.slide.dirty = true;
+    if (phase === "up") {
+      this.applySlide();
+      this.slide = null;
+      this.slidePeekUntil = performance.now() + tune.slidePeek * 1000;
+    }
+    return true;
+  }
+
+  // The held slider's place, to the engine: ARC is setArc's release, a
+  // continuous value; TILT and SPIN have only steps (stepSide), so the
+  // nearest detent is reached by the steps between it and the plan's own.
+  applySlide() {
+    const sl = this.slide;
+    if (!sl || !sl.dirty) return;
+    sl.dirty = false;
+    if (this.phase !== "aim" || !this.mayAct()) return;
+    const aim = this.out?.aim;
+    let r = null;
+    if (sl.what === "arc") r = this.engine.setArc(releaseAt(sl.f));
+    else {
+      const kubb = aim?.projectile === "kubb";
+      const d = sideStepAt(sl.f, kubb) - sideStepOf(aim?.plan, kubb);
+      if (d) r = this.engine.stepSide(d);
+    }
+    if (r && r.aim) this.out = { ...this.out, aim: r.aim, camera: r.camera };
+  }
+
   // ---------- playback ----------
 
   startPlayback(rec, local, out = null) {
@@ -711,6 +773,7 @@ export class Game {
     };
     this.phase = "play";
     this.planToggle = false;
+    this.slide = null;
     this.walkOn = false;
     this.dialArm = null;
     this.dialNext = null;
@@ -953,8 +1016,7 @@ export class Game {
       !this.swipeEnabled &&
       !this.ptr &&
       !this.nudgeEnd &&
-      !this.planHeld &&
-      !this.planToggle &&
+      !this.planWanted() &&
       !(this.zenPause > 0) &&
       (st.phase ?? "idle") === "idle";
     const s = this.nudge.step(dt, eligible);
@@ -1645,6 +1707,7 @@ export class Game {
     this.cancelSwipe();
     this.keys.clear();
     this.planHeld = false;
+    this.slide = null;
     if (this.ptr) {
       this.ptr = null;
       this.dialArm = null;
@@ -1700,21 +1763,14 @@ export class Game {
     });
   }
 
-  // PLAN VIEW: held with a mouse, a toggle on touch.
+  // SIDE VIEW: a toggle for every pointer (Jamie, 2026-11-19: "Plan View"
+  // is "a super weird label"; a mouse had to hold it). Shift held peeks.
   bindPlanView(btn) {
     btn.addEventListener("pointerdown", (e) => {
       this.sound?.unlock();
+      e.preventDefault();
       this.nudge.input();
-      if (e.pointerType === "mouse") {
-        this.planHeld = true;
-        const up = () => {
-          this.planHeld = false;
-          window.removeEventListener("pointerup", up);
-        };
-        window.addEventListener("pointerup", up);
-      } else {
-        this.planToggle = !this.planToggle;
-      }
+      this.planToggle = !this.planToggle;
     });
   }
 }
