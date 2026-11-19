@@ -1149,7 +1149,8 @@ export class Game {
 
   // Step the nudge's trigger and say what to draw: null, or the timeline's
   // frame. It may show only while this player's own throw waits with
-  // nothing over the pitch and nothing held. Its caption goes on the plate
+  // nothing over the pitch and nothing held (a slider through the side view
+  // it brings, STAND by its own drag). Its caption goes on the plate
   // (st.prompt) when the plate has the engine's idle words.
   nudgeFor(dt, st, mine) {
     const eligible =
@@ -1165,6 +1166,7 @@ export class Game {
       !this.ptr &&
       !this.nudgeEnd &&
       !this.planWanted() &&
+      !this.standDrag &&
       !(this.zenPause > 0) &&
       (st.phase ?? "idle") === "idle";
     const s = this.nudge.step(dt, eligible);
