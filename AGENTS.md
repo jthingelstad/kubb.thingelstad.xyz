@@ -80,6 +80,19 @@ size and notes; the version on the page is read from the file's name. The reel p
 muted on a loop only without reduced motion (`public/js/reel.js`); in the markup it has
 no autoplay.
 
+The newsletter sign-up (Jamie, 2026-11-20: "Here is mailing list subscribe information
+for the website. Use the link or modify the embed however you wish.") is one block,
+`signup()` in `src/site/newsletter.mjs`: big near the end of `/`, small at the foot of
+`/web/`, `/ios/`, `/playdate/` and `/engine/` (`NEWSLETTER_PAGES`; a site check pins
+them), and "Newsletter" in the footer. It is a plain form that posts the one `email`
+field to Buttondown and lands on Buttondown's own page in the same tab: no script, no
+analytics event, nothing kept by the site. `NEWSLETTER_LIST` in `src/site/site.mjs` is the
+one switch (the list's page, the form's action and the "Powered by Buttondown." referral
+link follow from it). The site's CSP has `form-action 'self' https://buttondown.com`
+(`FORM_SITE` in `src/site/csp.mjs`); the embed keeps `form-action 'self'`. `/privacy/`
+"The newsletter" says where the address goes. Never test it by signing up: that writes
+to the live list.
+
 ## Build and check
 
 `npm ci`, then `npm run check` and `npm run format:check`. `check` runs, in order:
@@ -111,7 +124,7 @@ address or home path in `dist/`, no account id in Markdown).
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `0.5.0 (0.9.0)`, at the foot of
+the full version of the newest engine the site carries, `0.6.0 (0.9.0)`, at the foot of
 every reading page and of MENU, with "Also plays 0.8.2 and 0.7.4" under it in MENU while older
 engines are carried (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.

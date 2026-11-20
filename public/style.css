@@ -740,3 +740,66 @@ main > section.intro + section {
 .pd-notes li + li {
   margin-top: 0.4rem;
 }
+
+/* The newsletter sign-up (src/site/newsletter.mjs): a plain post to Buttondown.
+   Big near the end of /, on a block of wood; small at the foot of the other
+   landing pages. Ink on wood and ink on baton, well past 7:1. */
+.news__inner {
+  max-width: var(--jt-measure);
+}
+.news--big .news__inner {
+  max-width: 44rem;
+  padding: clamp(1.2rem, 4vw, 2rem);
+  background: var(--wood);
+  border: 4px solid var(--ink);
+  box-shadow: 7px 7px 0 var(--ink);
+}
+.news h2.display {
+  font-size: clamp(1.6rem, 4vw, 2rem);
+}
+.news--big h2.display {
+  font-size: clamp(1.9rem, 5vw, 2.6rem);
+}
+.news__lede {
+  margin: 0 0 1rem;
+}
+.news--big .news__lede {
+  font-size: 1.1em;
+}
+.news__form {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0 0 0.8rem;
+}
+.news__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  align-items: stretch;
+}
+.news__input {
+  flex: 1 1 14rem;
+  min-width: 0;
+  min-height: 3rem;
+  padding: 0.55rem 0.8rem;
+  background: var(--baton);
+  color: var(--ink);
+  border: 3px solid var(--ink);
+  border-radius: 0;
+  font: inherit;
+  font-size: 1.1rem;
+}
+.news__input:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+.news__row .button {
+  cursor: pointer;
+}
+.news__small {
+  margin: 0 0 0.3rem;
+  font-size: var(--jt-size-small);
+}
+.news__small + .news__small {
+  font-size: var(--jt-size-meta);
+}

@@ -18,9 +18,14 @@ import { pitchCode } from "../../src/site/config.js";
 import {
   CODE_ALPHABET,
   CODE_LENGTH,
+  NEWSLETTER_ACTION,
+  NEWSLETTER_ORIGIN,
+  NEWSLETTER_REFER,
+  NEWSLETTER_URL,
   TESTFLIGHT_URL,
   ref,
 } from "../../src/site/site.mjs";
+import { NEWSLETTER_PAGES, signup } from "../../src/site/newsletter.mjs";
 import { ROOM_CODE } from "../../backend/rooms/core.mjs";
 import { releaseOf } from "../../tools/build.mjs";
 import { carriedEngines } from "../../tools/lua-bundle.mjs";
@@ -242,10 +247,17 @@ test("only /e/ may be framed; every other route keeps DENY and 'none'", async ()
     `max-age=${policy("Headers").StrictTransportSecurity.AccessControlMaxAgeSec}`,
   );
   assert.match(embedSecurityPolicy(), /frame-ancestors \*$/);
-  // the embed's policy is the site's in every other directive
+  // the embed's policy is the site's in every other directive but form-action
+  // (it carries no form, so it keeps 'self' alone) and the Playdate games
+  // site's images and media, which it never shows
   assert.equal(
-    embedSecurityPolicy().replace("frame-ancestors *", ""),
-    contentSecurityPolicy().replace("frame-ancestors 'none'", ""),
+    embedSecurityPolicy()
+      .replace("frame-ancestors *", "")
+      .replace("form-action 'self'", ""),
+    contentSecurityPolicy()
+      .replace("frame-ancestors 'none'", "")
+      .replace(`form-action 'self' ${NEWSLETTER_ORIGIN}`, "")
+      .replaceAll(` ${PLAYDATE_SITE}`, ""),
   );
   const config = R.Distribution.Properties.DistributionConfig;
   assert.deepEqual(config.DefaultCacheBehavior.ResponseHeadersPolicyId, {
@@ -456,14 +468,14 @@ test("the version label: package.json's version and the newest engine's, never t
   const sha = "a2659b744210e4c5baa5b69c672e11ec87f9bfab";
   const release = releaseOf(pkg.version, sha, carried);
   assert.equal(release.text, `${pkg.version} (${carried[0].version})`);
-  // this checkout: 0.5.0 on 0.9.0, also playing 0.8.2 and 0.7.4
-  assert.equal(release.text, "0.5.0 (0.9.0)");
+  // this checkout: 0.6.0 on 0.9.0, also playing 0.8.2 and 0.7.4
+  assert.equal(release.text, "0.6.0 (0.9.0)");
   assert.equal(release.detail, "Also plays 0.8.2 and 0.7.4");
   assert.equal(release.web, sha, "the commit stays the exact identity");
   // one engine carried: no detail
   assert.equal(releaseOf("0.2.0", sha, carried.slice(0, 1)).detail, null);
   const foot = footer(release.text);
-  assert.match(foot, /data-release>Version 0\.5\.0 \(0\.9\.0\)<\/p>/);
+  assert.match(foot, /data-release>Version 0\.6\.0 \(0\.9\.0\)<\/p>/);
   assert.ok(!foot.includes(sha.slice(0, 7)));
 });
 
@@ -473,10 +485,76 @@ test("the landing site: / is the game, /web/ the web game, each nav page a page"
   for (const p of ["/", "/web/", "/rules/", "/privacy/"])
     assert.ok(paths.includes(p), p);
   // the footer: the nav, then Rules and Privacy, the current page marked
-  const foot = footer("0.5.0 (0.9.0)", "/love/");
+  const foot = footer("0.6.0 (0.9.0)", "/love/");
   for (const href of [...NAV.map((n) => n.href), "/rules/", "/privacy/"])
     assert.ok(foot.includes(`href="${href}"`), href);
   assert.match(foot, /href="\/love\/" aria-current="page"/);
+  // and the newsletter's own page on Buttondown
+  assert.ok(
+    foot.includes(`<a href="${NEWSLETTER_URL}" rel="noopener">Newsletter</a>`),
+  );
+});
+
+test("the newsletter: a plain post to Buttondown's one list, on five pages", () => {
+  assert.equal(NEWSLETTER_ORIGIN, "https://buttondown.com");
+  assert.equal(NEWSLETTER_URL, "https://buttondown.com/throwing-wood");
+  assert.equal(
+    NEWSLETTER_ACTION,
+    "https://buttondown.com/api/emails/embed-subscribe/throwing-wood",
+  );
+  assert.equal(NEWSLETTER_REFER, "https://buttondown.com/refer/throwing-wood");
+  assert.deepEqual(NEWSLETTER_PAGES, [
+    "/",
+    "/web/",
+    "/ios/",
+    "/playdate/",
+    "/engine/",
+  ]);
+  for (const size of ["big", "small"]) {
+    const html = signup({ size });
+    assert.match(
+      html,
+      /<form class="news__form" action="https:\/\/buttondown\.com\/api\/emails\/embed-subscribe\/throwing-wood" method="post">/,
+    );
+    assert.match(
+      html,
+      /<label class="label" for="news-email">Your email<\/label>/,
+    );
+    assert.match(
+      html,
+      /<input [^>]*id="news-email" type="email" name="email" autocomplete="email" required/,
+    );
+    assert.match(
+      html,
+      /<button class="button" type="submit">Sign me up<\/button>/,
+    );
+    assert.match(
+      html,
+      /<a href="https:\/\/buttondown\.com\/refer\/throwing-wood" rel="noopener">Powered by Buttondown\.<\/a>/,
+    );
+    assert.ok(html.includes('href="/privacy/#newsletter"'));
+    // no script, no new tab, no other field
+    assert.doesNotMatch(html, /<script|target=|onsubmit|data-tinylytics/);
+    assert.equal(html.match(/<input\b/g).length, 1);
+  }
+  // the CSP lets a form post here and nowhere else off the site; the embed
+  // keeps 'self' alone
+  assert.match(
+    contentSecurityPolicy(),
+    /(?:^|; )form-action 'self' https:\/\/buttondown\.com(?:;|$)/,
+  );
+  assert.match(embedSecurityPolicy(), /(?:^|; )form-action 'self'(?:;|$)/);
+  // each page carries it or not, as NEWSLETTER_PAGES says
+  for (const p of PAGES) {
+    const html = p.render({ config: {}, assets: { main: "/m.js" } });
+    assert.equal(
+      html.includes(`action="${NEWSLETTER_ACTION}"`),
+      NEWSLETTER_PAGES.includes(p.path),
+      p.path,
+    );
+  }
+  const home = PAGES.find((p) => p.path === "/").render({ config: {} });
+  assert.match(home, /class="frame news news--big"/);
 });
 
 test("/ios/: no TestFlight button until there is a link, then one", () => {
@@ -583,4 +661,6 @@ test("the CSP lets in the Playdate games site for images and media, nothing more
     contentSecurityPolicy(),
     /thingelstad\.xyz\/|\*\.thingelstad/,
   );
+  // the embed shows none of it
+  assert.ok(!embedSecurityPolicy().includes(PLAYDATE_SITE));
 });

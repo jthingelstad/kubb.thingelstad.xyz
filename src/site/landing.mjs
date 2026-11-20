@@ -13,6 +13,7 @@
 import fs from "node:fs";
 import { esc, page } from "./layout.mjs";
 import { heroScene } from "./art.mjs";
+import { signup } from "./newsletter.mjs";
 import {
   ENGINE_REPO,
   IOS_REPO,
@@ -152,7 +153,8 @@ function landing({ tinylytics, config = {} }) {
   <h2 class="display" id="love-teaser">Kubb creates peace on earth</h2>
   <p>The best kubb is on real grass with real people. Go find a club near you.</p>
   <p><a class="more" href="/love/">Kubb sites we love</a></p>
-</section>`;
+</section>
+${signup({ size: "big" })}`;
   return page({
     path: "/",
     title: SITE_TITLE,
@@ -212,7 +214,8 @@ function ios({ tinylytics, config = {} }) {
 <section class="frame prose" aria-labelledby="source">
   <h2 class="display" id="source">Open source</h2>
   <p>The app is open source under the MIT license. Its code is ${external(IOS_REPO, "on GitHub")}. The <a href="/privacy/">privacy page</a> says what the game keeps, on the web and in the app.</p>
-</section>`;
+</section>
+${signup()}`;
   return page({
     path: "/ios/",
     title: `iPhone and iPad · ${SITE_TITLE}`,
@@ -368,7 +371,8 @@ function playdate({ tinylytics, config = {} }) {
   <h2 class="display" id="open">One game, three screens</h2>
   <p>No Playdate? The same game plays <a href="/web/">in your browser</a> and <a href="/ios/">on iPhone and iPad</a>, in color. They grew from this one, and all three run the same <a href="/engine/">Kubb Engine</a>.</p>
   <p>The Playdate game is open source. Its code is ${external(PLAYDATE_REPO, "on GitHub")}.</p>
-</section>`;
+</section>
+${signup()}`;
   return page({
     path: "/playdate/",
     title: `Playdate · ${SITE_TITLE}`,
@@ -451,7 +455,8 @@ function engine({ tinylytics, config = {} }) {
 <section class="frame prose" aria-labelledby="open">
   <h2 class="display" id="open">Open source</h2>
   <p>The engine is open source under the MIT license, on GitHub as ${external(ENGINE_REPO, "kubb-engine")}. So are ${external(WEB_REPO, "the web game")}, ${external(IOS_REPO, "the iPhone app")} and ${external(PLAYDATE_REPO, "the Playdate game")}.</p>
-</section>`;
+</section>
+${signup()}`;
   return page({
     path: "/engine/",
     title: `The Kubb Engine · ${SITE_TITLE}`,

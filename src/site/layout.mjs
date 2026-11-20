@@ -12,6 +12,7 @@ import {
   TINYLYTICS_SCRIPT,
   TINYLYTICS_SITE,
   PLAYDATE_GAME,
+  NEWSLETTER_URL,
   ref,
 } from "./site.mjs";
 
@@ -67,7 +68,8 @@ const SHARE = {
 };
 
 // The site's sections, in the rail along the top of every reading page and in
-// the footer (with the rules and privacy). Play is the web game's own page.
+// the footer (with the rules, privacy and the newsletter's page on Buttondown).
+// Play is the web game's own page.
 export const NAV = [
   { href: "/web/", label: "Play" },
   { href: "/ios/", label: "iPhone" },
@@ -79,6 +81,7 @@ const FOOT_NAV = [
   ...NAV,
   { href: "/rules/", label: "Rules" },
   { href: "/privacy/", label: "Privacy" },
+  { href: NEWSLETTER_URL, label: "Newsletter", external: true },
 ];
 const current = (href, path) => (href === path ? ' aria-current="page"' : "");
 
@@ -88,8 +91,8 @@ export function footer(release = null, path = "") {
   return `<footer class="foot">
   <div class="frame">
     <nav class="foot__nav" aria-label="Throwing Wood"><ul>${FOOT_NAV.map(
-      ({ href, label }) =>
-        `<li><a href="${href}"${current(href, path)}>${esc(label)}</a></li>`,
+      ({ href, label, external }) =>
+        `<li><a href="${href}"${external ? ' rel="noopener"' : current(href, path)}>${esc(label)}</a></li>`,
     ).join("")}</ul></nav>
     <p>Made by
       <a class="h-card" href="${OWNER.url}" rel="me author"><img class="u-photo" src="${OWNER.avatar}" alt="" width="28" height="28"><span class="p-name">${esc(OWNER.name)}</span><data class="u-url" value="${OWNER.url}"></data><data class="p-note" value="${esc(OWNER.note)}"></data></a>.
