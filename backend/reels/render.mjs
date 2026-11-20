@@ -496,7 +496,7 @@ export async function renderReel({
     }
   }
   engine.replayEnd();
-  if (peek || capture) return { edit, frames: frames.length };
+  if (peek || capture) return { edit, frames: frames.length, scene: stage.id };
   const tDraw = performance.now();
   await Promise.all(F.map((o) => o.enc.end()));
   const tEnc = performance.now();
@@ -549,7 +549,7 @@ export async function renderReel({
     `reel ${code}: ${frames.length} frames (${seconds.toFixed(1)} s), ${formats.join("+")} in ${timing.total.toFixed(1)} s ` +
       `(scan ${timing.scan.toFixed(1)}, draw+encode ${timing.draw.toFixed(1)}, tail ${timing.encodeTail.toFixed(1)}, mux ${timing.mux.toFixed(1)}), load ${timing.load.join(" ")}`,
   );
-  return { files, edit: editOut, timing, formats: F };
+  return { files, edit: editOut, timing, formats: F, scene: stage.id };
 }
 
 // The end card's second line: how it was won.
