@@ -269,7 +269,7 @@ function privacy({ tinylytics, config = {} }) {
   <h2 class="display" id="ask">Questions, or taking your name out</h2>
   <p>If you want your name taken out of the records, or have a question, <a href="https://www.thingelstad.com/contact/">get in touch</a>. Send the pitch’s link if you have it, and I’ll remove the records that carry your name.</p>
   <p>If the game starts keeping something new, this page will say so first.</p>
-  <p class="foot__small">Last updated 19 November 2026.</p>
+  <p class="foot__small">Last updated 20 November 2026.</p>
 </section>`;
   return page({
     path: "/privacy/",
