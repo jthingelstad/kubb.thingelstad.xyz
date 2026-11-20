@@ -9,6 +9,7 @@ import { cacheControl, prepareObject } from "../../tools/delivery-plan.mjs";
 import { expectedTemplate } from "../../tools/site-template.mjs";
 import { zipOne } from "../../tools/rooms-bundle.mjs";
 import {
+  PLAYDATE_SITE,
   contentSecurityPolicy,
   embedSecurityPolicy,
 } from "../../src/site/csp.mjs";
@@ -24,7 +25,12 @@ import { ROOM_CODE } from "../../backend/rooms/core.mjs";
 import { releaseOf } from "../../tools/build.mjs";
 import { carriedEngines } from "../../tools/lua-bundle.mjs";
 import { NAV, footer } from "../../src/site/layout.mjs";
-import { LOVE, iosJoin } from "../../src/site/landing.mjs";
+import {
+  LOVE,
+  PLAYDATE_BUILD,
+  iosJoin,
+  playdateBuildVersion,
+} from "../../src/site/landing.mjs";
 import { PAGES } from "../../src/site/pages.mjs";
 
 const json = async (file) => JSON.parse(await fs.readFile(file, "utf8"));
@@ -502,5 +508,79 @@ test("/love/: the five sites Jamie named, in his order", () => {
       "Planet Kubb",
       "JP's Backyard Games",
     ],
+  );
+});
+
+test("/playdate/: the reel near the top, the download and the steps, all here", () => {
+  const html = PAGES.find((p) => p.path === "/playdate/").render({});
+  // the same file the Playdate games site offers, by its URL there
+  assert.equal(
+    PLAYDATE_BUILD.url,
+    "https://files.thingelstad.com/playdate/throwing-wood/ThrowingWood-0.9.7.pdx.zip",
+  );
+  assert.match(
+    html,
+    /<a class="button button--start" href="https:\/\/files\.thingelstad\.com\/playdate\/throwing-wood\/ThrowingWood-0\.9\.7\.pdx\.zip" rel="noopener" data-test="playdate-download">Download the game<\/a>/,
+  );
+  // the version shown is the file's own
+  assert.equal(playdateBuildVersion(), "0.9.7");
+  assert.equal(
+    playdateBuildVersion("https://x.test/ThrowingWood-1.2.3.pdx.zip"),
+    "1.2.3",
+  );
+  assert.match(html, /test build 0\.9\.7\./);
+  assert.match(html, /<h3>New in 0\.9\.7<\/h3>/);
+  // the reel: a real video, with controls, poster and size, in the hero,
+  // never autoplaying from the markup (public/js/reel.js plays it muted, and
+  // only without reduced motion)
+  const video = html.match(/<video\b[^>]*>/)[0];
+  for (const attr of [
+    'src="https://playdate.thingelstad.xyz/throwing-wood/reel/throwing-wood-0.9.5.mp4"',
+    'poster="https://playdate.thingelstad.xyz/throwing-wood/reel/throwing-wood-0.9.5-poster.png"',
+    'width="800"',
+    'height="480"',
+    "controls",
+    "playsinline",
+    'preload="metadata"',
+    'aria-describedby="reel-about"',
+  ])
+    assert.ok(video.includes(attr), attr);
+  assert.ok(!/\bautoplay\b/.test(video), "no autoplay in the markup");
+  assert.match(html, /<figcaption id="reel-about">[^<]{40,}<\/figcaption>/);
+  assert.ok(
+    html.indexOf("<video") < html.indexOf('id="what"'),
+    "the reel comes before anything to read",
+  );
+  assert.match(html, /<script src="\/js\/reel\.js" defer><\/script>/);
+  // the install steps, in order, on this page
+  const steps = html.match(/<ol class="steps pd-install">(.*?)<\/ol>/s)[1];
+  const order = [
+    "keep it zipped",
+    'href="https://play.date/account/sideload/"',
+    "Game Library",
+  ].map((s) => steps.indexOf(s));
+  assert.ok(order.every((i, n) => i >= 0 && (n === 0 || i > order[n - 1])));
+});
+
+test("the CSP lets in the Playdate games site for images and media, nothing more", () => {
+  assert.equal(PLAYDATE_SITE, "https://playdate.thingelstad.xyz");
+  const directives = Object.fromEntries(
+    contentSecurityPolicy()
+      .split("; ")
+      .map((d) => [d.split(" ")[0], d.split(" ").slice(1)]),
+  );
+  assert.deepEqual(directives["media-src"], [
+    "'self'",
+    "data:",
+    "blob:",
+    PLAYDATE_SITE,
+  ]);
+  assert.ok(directives["img-src"].includes(PLAYDATE_SITE));
+  for (const [name, sources] of Object.entries(directives))
+    if (!["img-src", "media-src"].includes(name))
+      assert.ok(!sources.includes(PLAYDATE_SITE), name);
+  assert.doesNotMatch(
+    contentSecurityPolicy(),
+    /thingelstad\.xyz\/|\*\.thingelstad/,
   );
 });
