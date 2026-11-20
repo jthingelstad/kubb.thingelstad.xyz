@@ -183,8 +183,11 @@ test("the day scene named is the same picture as no scene", () => {
   assert.equal(drawAll({ look: null }), drawAll({}));
 });
 
-test("the address switch: ?scene=night, nothing else", () => {
+test("the address switch: ?scene=night or ?scene=neon, nothing else", () => {
   assert.equal(sceneFromQuery("?scene=night")?.id, "night");
+  assert.equal(sceneFromQuery("?scene=neon")?.id, "neon");
+  assert.equal(sceneFromQuery("?scene=NEON"), null);
+  assert.equal(sceneFromQuery("?scene=neon2"), null);
   assert.equal(sceneFromQuery("?nohowto=1&scene=night")?.id, "night");
   assert.equal(sceneFromQuery(""), null);
   assert.equal(sceneFromQuery("?scene=day"), null);
@@ -204,8 +207,21 @@ test("the controls' skin: the day's tokens are the palette's, and come back", as
   assert.equal(P.BURST.ink, P.INK);
   P.useSkin(P.NIGHT.skin);
   assert.notEqual(P.UI.ink, P.INK);
+  P.useSkin(P.NEON.skin);
+  assert.equal(P.UI.ink, P.NEON.skin.ui.ink);
+  assert.equal(
+    P.HUD.mapGround.grass.pitch,
+    P.NEON.skin.hud.mapGround.grass.pitch,
+  );
   P.useSkin(null);
   assert.equal(JSON.stringify([P.UI, P.HUD, P.BURST, P.AIM]), before);
-  // the day pin holds after a night has been and gone
+  // the day pin holds after a night and a neon have been and gone
   assert.equal(drawAll({}), PINNED);
+});
+
+test("the night and the neon draw without failing, and differ from the day", () => {
+  for (const id of ["night", "neon"]) {
+    const h = drawAll({ look: sceneOf(id), time: 1.5 });
+    assert.notEqual(h, PINNED);
+  }
 });

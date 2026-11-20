@@ -365,3 +365,127 @@ NIGHT.skin = {
       "0 0 0 1px rgba(219, 233, 255, 0.18), 0 0 16px rgba(110, 180, 255, 0.35)",
   },
 };
+
+// The neon (a prototype, ?scene=neon; src/render/neon.js): a black world on
+// a grid of light. The pieces are dark solids edged in light: each side in
+// its own colour (the team colours, brightened), the king in his own, the
+// stakes and batons white. A piece that lies is dimmed. The grid's colour
+// and spacing say the surface.
+export const NEON = {
+  sky: "#000000",
+  // per surface: grid the floor's lines, gridEvery their spacing (m), pitch
+  // its floor (a little light over the grid), line the pitch's core, glow
+  // its bloom and the horizon's
+  grounds: {
+    grass: {
+      grid: "#11a3b4",
+      gridEvery: 1,
+      pitch: "rgba(4, 36, 46, 0.4)",
+      line: "#c8fdff",
+      glow: "#2be4ff",
+    },
+    sand: {
+      grid: "#c07a12",
+      gridEvery: 2,
+      pitch: "rgba(48, 28, 2, 0.4)",
+      line: "#fff0c8",
+      glow: "#ffad33",
+    },
+    snow: {
+      grid: "#8fb4ff",
+      gridEvery: 0.5,
+      pitch: "rgba(26, 38, 70, 0.4)",
+      line: "#ffffff",
+      glow: "#9cc2ff",
+    },
+  },
+  // the pieces' dark bodies (every tone the faces take)
+  solid: {
+    top: "#111827",
+    light: "#0b111c",
+    shade: "#060a12",
+    end: "#0e1522",
+    endShade: "#05080e",
+    grain: "#0b111c",
+    grainShade: "#060a12",
+    ring: "#0e1522",
+    bevel: "#5d6b80",
+  },
+  // the light at the edges: lit, and dimmed while the piece lies
+  team: {
+    A: { lit: "#ffc94a", dim: "#7a5b1c", deep: "#d99a14", dimDeep: "#4a3710" },
+    B: { lit: "#cf8bff", dim: "#5f3f7c", deep: "#9a55d6", dimDeep: "#3a2650" },
+  },
+  king: { lit: "#ff5c9d", dim: "#7c2d4c" },
+  stake: { lit: "#e9fbff" },
+  baton: { edge: "#f2fdff", body: "#070b12", core: "#8fefff" },
+  ribbon: ["#ffffff", "#8ff4ff", "#2be4ff"],
+  spark: ["#ffffff", "#c8fdff", "#8ff4ff", "#ffe4f0"],
+  kingSpark: ["#ff5c9d", "#ff9cc4", "#ffffff", "#ffc94a"],
+  shadow: "rgba(0, 0, 0, 0.6)",
+};
+
+// The neon's controls: thin light lines on black, the meter a ring of light
+// whose bands are coloured light.
+NEON.skin = {
+  ui: { ink: "#c8fdff", paper: "#02050a", drop: "rgba(43, 228, 255, 0.35)" },
+  hud: {
+    face: "#02050a",
+    faceShade: "#061019",
+    frame: "#5ff0ff",
+    ring: "#04121a",
+    tick: "#8ff4ff",
+    power: "#ff9a4a",
+    powerDeep: "#ff7a1f",
+    release: "#3fe0ff",
+    releaseDeep: "#16b8e6",
+    dead: "#10222c",
+    over: "#ff4d6a",
+    hand: "#c8fdff",
+    knob: "#e9feff",
+    knobGrab: "#ffffff",
+    glow: "rgba(95, 240, 255, 0.55)",
+    peak: "#ffffff",
+    prompt: "#02050a",
+    promptInk: "#c8fdff",
+    mapGrass: "#04121a",
+    mapLine: "#c8fdff",
+    wind: "#c8fdff",
+    mapGround: {
+      grass: { rough: "#02070b", pitch: "#0a2a33", line: "#c8fdff" },
+      sand: { rough: "#070502", pitch: "#30200a", line: "#fff0c8" },
+      snow: { rough: "#03060d", pitch: "#1c2a48", line: "#ffffff" },
+    },
+  },
+  // the bursts: a star of light round a black inside, the word white
+  burst: {
+    flash: "#c8fdff",
+    ink: "#5ff0ff",
+    inner: "#02050a",
+    kingInner: "#1a0410",
+    crown: "#ff5c9d",
+    word: "#ffffff",
+    chip: ["#5ff0ff", "#ff5c9d", "#ffc94a", "#02050a"],
+  },
+  aim: {
+    track: "rgba(95, 240, 255, 0.22)",
+    arcEdge: "#02050a",
+    markerEdge: "#02050a",
+  },
+  css: {
+    "--ink": "#c8fdff",
+    "--paper": "#02050a",
+    "--wood": "#06141c",
+    "--muted": "#86c4cf",
+    "--stand-run": "#06303a",
+    "--stand-zone": "#041821",
+    "--field": "#000000",
+    "--stem": "#5ff0ff",
+    "--knob-face": "#c8fdff",
+    "--held": "#062430",
+    "--shadow-sm":
+      "0 0 0 1px rgba(95, 240, 255, 0.55), 0 0 10px rgba(43, 228, 255, 0.45)",
+    "--shadow":
+      "0 0 0 1px rgba(95, 240, 255, 0.55), 0 0 16px rgba(43, 228, 255, 0.45)",
+  },
+};

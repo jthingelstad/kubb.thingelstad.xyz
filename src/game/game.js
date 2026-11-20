@@ -1397,7 +1397,12 @@ export class Game {
 
   useLook(look) {
     this.look = look && look.id !== "day" ? look : null;
-    this.fx = this.look?.dust ? new Stardust(this.look.dust) : null;
+    // a scene brings its own effects (makeFx), or the stardust's numbers
+    this.fx = this.look?.makeFx
+      ? this.look.makeFx()
+      : this.look?.dust
+        ? new Stardust(this.look.dust)
+        : null;
   }
 
   // The pitch through a camera in this game's scene: with none, exactly
