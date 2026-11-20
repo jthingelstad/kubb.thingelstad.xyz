@@ -29,7 +29,10 @@
   --stem: #7a5530;
   --knob-face: #f2e2c0;
   --held: #fffbea;
-  --on-accent: #16130f; /* type on marigold: dark in every scene */
+  /* the scene's own colour for the plates that call (SLOW MOTION, GO
+     buttons such as BACK TO THE PITCH) and the type on it, 7:1 or better */
+  --accent: var(--marigold);
+  --on-accent: #16130f;
 }
 
 body.game {
@@ -93,7 +96,7 @@ body.game {
   cursor: default;
 }
 .btn.go {
-  background: var(--marigold);
+  background: var(--accent);
   color: var(--on-accent);
 }
 .btn.big {
@@ -229,7 +232,7 @@ body.game {
   padding: 3px 14px 5px;
   border: 3px solid var(--ink);
   border-radius: 6px;
-  background: var(--marigold);
+  background: var(--accent);
   color: var(--on-accent);
   font-family: var(--display);
   font-weight: 900;
@@ -1347,13 +1350,14 @@ body.game {
   border-radius: 3px 3px 0 0;
   font-size: 22px;
 }
+/* the team colours are the same in every scene, and so is the type on them */
 .team-a .team-head {
   background: var(--marigold);
-  color: var(--ink);
+  color: #16130f;
 }
 .team-b .team-head {
   background: var(--violet);
-  color: var(--paper);
+  color: #f7f0de;
 }
 .team-count {
   float: right;
@@ -1492,14 +1496,15 @@ body.game {
   line-height: 1.1;
 }
 .card .whose.mine {
-  background: var(--marigold);
+  background: var(--accent);
   color: var(--on-accent);
 }
 .status.theirs {
   background: var(--paper);
+  color: var(--ink);
 }
 .status.mine {
-  background: var(--marigold);
+  background: var(--accent);
   color: var(--on-accent);
 }
 
@@ -1691,7 +1696,8 @@ body.embed .hud-rail {
 }
 .embed-link:hover,
 .embed-link:focus-visible {
-  background: var(--marigold);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 .embed-scrim {
   background: rgba(23, 20, 15, 0.2);
@@ -1756,7 +1762,7 @@ body.embed .replay-controls {
   position: absolute;
   inset: 0 auto 0 0;
   width: 34%;
-  background: var(--marigold);
+  background: var(--accent);
   color: var(--on-accent);
   border-right: 3px solid var(--ink);
   animation: reel-bar 4.5s ease-in-out infinite alternate;
