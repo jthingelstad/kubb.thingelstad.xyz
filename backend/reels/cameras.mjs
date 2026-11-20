@@ -2,7 +2,7 @@
 // (src/render/camera.js) through `lookAt` (src/game/scenes.js), so drawWorld draws them
 // like any of the game's. Pure: a camera is a function of the throw's facts, the
 // format's frame and how far through its shot the reel is. All in the world frame
-// (Team A's baseline at y = 0, Team B's at y = 8; tools/reel/scan.mjs).
+// (Team A's baseline at y = 0, Team B's at y = 8; backend/reels/scan.mjs).
 //
 // The game's own cameras are the thrower's (the aim, the follow and the impact cuts of
 // playdate-kubb's DESIGN "Follow camera") and the wide view's fixed broadcast camera

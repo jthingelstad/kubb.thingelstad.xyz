@@ -1,7 +1,8 @@
 // What every throw of a kept replay did, read from the engine's own recordings: the
 // match played again through this checkout's engine (session/replay.lua), action by
 // action, as the replay player plays it. The facts are plain data for
-// tools/reel/highlights.mjs, which knows no engine.
+// backend/reels/highlights.mjs, which knows no engine. `sources` is the engine's Lua
+// module map (tools/lua-bundle.mjs bundleLua; the function carries it as a file).
 //
 //   const { throws, end } = await scanReplay(replay, { sources })
 //
@@ -9,7 +10,6 @@
 // Team A's baseline at y = 0, Team B's at y = 8, whoever throws.
 import { Engine } from "../../src/engine/index.js";
 import { useRoomEngine } from "../../src/net/lobby.js";
-import { bundleLua } from "../lua-bundle.mjs";
 
 // Any box works for the facts; the renderer sets its own.
 export const FACT_BOX = { left: 0, top: 0, right: 400, bottom: 240 };
@@ -50,7 +50,7 @@ export function piecesCount(items) {
   return out;
 }
 
-export async function openReplay(replay, { sources = bundleLua(), box } = {}) {
+export async function openReplay(replay, { sources, box } = {}) {
   const engine = await Engine.create({ sources });
   useRoomEngine(engine);
   engine.setWide(box || FACT_BOX);

@@ -1,5 +1,5 @@
-// The highlight reel's picker (tools/reel/highlights.mjs): pure, on made-up throw facts
-// shaped like tools/reel/scan.mjs's.
+// The highlight reel's picker (backend/reels/highlights.mjs): pure, on made-up throw facts
+// shaped like backend/reels/scan.mjs's.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -10,7 +10,7 @@ import {
   pickHighlights,
   resultLine,
   drillGroups,
-} from "../../tools/reel/highlights.mjs";
+} from "../../backend/reels/highlights.mjs";
 
 const teams = { A: "North", B: "South" };
 const half = (base, field) => ({ base, field });
