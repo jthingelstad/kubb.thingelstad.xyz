@@ -104,6 +104,14 @@ export const tune = {
   // a minimap stacked over the plan block (a narrow wide canvas beside the
   // linear meter) keeps this many px under the header row, or is not drawn
   stackedMapGap: 10,
+  // the header row's plates in CSS px, for meterFits: MENU's width (63
+  // measured), the rail's widest (game.css max-width: 44vw) and the least
+  // it may be squeezed to beside a left-edge meter (the practice rail is
+  // about 124), and the px kept between the rail and MENU
+  menuW: 64,
+  railMaxW: 0.44,
+  railMinW: 124,
+  headerGap: 8,
 };
 
 export function isTall(W, H) {
@@ -220,6 +228,22 @@ export function meterRoom(L) {
   return room;
 }
 
+// Does a wide canvas's linear meter leave the header row room once MENU
+// or the rail has moved in beside it (meterRoom)? MENU must stay right of
+// the rail's widest, and a rail squeezed by a left-edge meter keeps
+// railMinW. Where it does not the clock is drawn instead.
+function headerFits(L) {
+  const r = L.meterRoom;
+  const s = L.safe;
+  const railEnd = s.left + 12 + L.W * tune.railMaxW;
+  if (r.right > 0)
+    return (
+      L.W - s.right - 12 - r.right - tune.menuW >= railEnd + tune.headerGap
+    );
+  if (r.left > 0) return L.W * tune.railMaxW - r.left >= tune.railMinW;
+  return true;
+}
+
 // The screen's regions in CSS px. safe = { top, right, bottom, left }.
 // `meter` is the player's ("clock" or "linear"); the layout's own `meter` is
 // the one drawn, the clock where the linear one has no room.
@@ -309,12 +333,22 @@ export function layoutFor(
     meter === "linear" && !swipe
       ? linearBox(W, H, s, tall, minimap, meterSide)
       : null;
-  if (linear) {
-    // the plan buttons sit on its inner side, their feet level with its
-    // foot: in one block on a wide canvas, split either side of the
-    // throwing line on a tall one (hud.js place); a wide touchscreen's
-    // block goes to the far edge (planAt)
-    const side = tall ? "both" : onLeft ? "right" : "left";
+  // the plan buttons sit on its inner side, their feet level with its
+  // foot: in one block on a wide canvas, split either side of the
+  // throwing line on a tall one (hud.js place); a wide touchscreen's
+  // block goes to the far edge (planAt). Where no place keeps the block
+  // off its prompt tab and the minimap (planAt null), or the header row
+  // has no room beside it (headerFits), the clock is drawn instead: this
+  // is the one place the meter drawn is decided.
+  const linSide = tall ? "both" : onLeft ? "right" : "left";
+  const linPlan =
+    linear &&
+    planAt(W, s, tall, coarse, linSide, linear, linear.y, minimap, {
+      g: linearGeometry(linear, meterSide),
+      side: meterSide,
+    });
+  if (linPlan) {
+    const side = linSide;
     const L = {
       W,
       H,
@@ -324,17 +358,14 @@ export function layoutFor(
       dial: linear,
       plansY: linear.y,
       plansFoot: null,
-      ...planAt(W, s, tall, coarse, side, linear, linear.y, minimap, {
-        g: linearGeometry(linear, meterSide),
-        side: meterSide,
-      }),
+      ...linPlan,
       side,
       meter: "linear",
       meterSide,
       track: false,
     };
     L.meterRoom = meterRoom(L);
-    return L;
+    if (headerFits(L)) return L;
   }
   const plansY = dial.y; // keep the side buttons in reach, beside the downstroke
   const plan = planAt(W, s, tall, coarse, side, dial, plansY, minimap);
@@ -377,7 +408,9 @@ export function layoutFor(
 // and where the far edge cannot keep the block and the minimap off the
 // throwing line the block stays there and the minimap goes over it
 // (`mapStacked`), or is not drawn (minimap null) where that would meet the
-// header row. The minimap is a picture, never a control.
+// header row. The minimap is a picture, never a control. Where none of
+// these keeps the block off the tab it returns null, and layoutFor draws
+// the clock instead of the linear meter.
 function planAt(W, s, tall, coarse, side, meter, plansY, minimap, lin = null) {
   if (tall) return { plan: null, planEdge: null, minimap, mapStacked: false };
   const w = tune.planW,
@@ -397,17 +430,20 @@ function planAt(W, s, tall, coarse, side, meter, plansY, minimap, lin = null) {
     minimap,
     mapStacked: false,
   };
-  // beside the linear meter, does the block reach its prompt tab?
+  // beside the linear meter, does the block reach its prompt tab (or, on
+  // a narrow canvas, the minimap in its corner)?
+  const meets = (a, b) =>
+    a.x < b.x + b.width &&
+    b.x < a.x + a.width &&
+    a.y < b.y + b.height &&
+    b.y < a.y + a.height;
   const onTab =
     !!lin &&
     (() => {
       const t = tabRect(lin.g);
-      const b = beside.plan;
       return (
-        b.y < t.y + t.height + 4 &&
-        b.y + b.height > t.y &&
-        b.x < t.x + t.width &&
-        t.x < b.x + b.width
+        meets(beside.plan, { ...t, height: t.height + 4 }) ||
+        meets(beside.plan, minimap)
       );
     })();
   if (!coarse && !onTab) return beside;
@@ -427,7 +463,10 @@ function planAt(W, s, tall, coarse, side, meter, plansY, minimap, lin = null) {
       mapStacked: false,
     };
   const blockInner = edge === "left" ? x + w : W - x;
-  if (!lin || blockInner > W / 2 - tune.planClear) return beside;
+  if (!lin) return beside;
+  // no room at the far edge either: beside where it is clear of the tab,
+  // else no place at all (null: layoutFor draws the clock)
+  if (blockInner > W / 2 - tune.planClear) return onTab ? null : beside;
   // the block at the far edge, the minimap over it, its inner edge with the
   // block's, clear of the header row (the rail's box, or MENU's row)
   const map = {
