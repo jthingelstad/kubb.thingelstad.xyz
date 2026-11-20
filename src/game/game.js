@@ -51,6 +51,7 @@ import {
   unprojectView,
   project,
 } from "./draw.js";
+import { Stardust } from "../render/stardust.js";
 import {
   layoutFor,
   meterRoom,
@@ -158,8 +159,12 @@ export class Game {
     seat = { sides: ["A"], cpu: true },
     onAction = null,
     cards = null,
+    look = null,
   }) {
     this.engine = engine;
+    // the scene (src/render/scenes.js): null draws the day as always; the
+    // night prototype brings its stardust (src/render/stardust.js)
+    this.useLook(look);
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.ui = ui;
@@ -393,6 +398,7 @@ export class Game {
         if (bs[i]?.anchor) b.anchor = bs[i].anchor;
       });
       p.last = this.engine.showAt(p.t);
+      this.fx?.clear();
     } else {
       this.viewData = v;
       this.items = v.items || [];
@@ -651,6 +657,7 @@ export class Game {
   tick(dt, now) {
     if (!this.quiet) this.resizeIfNeeded();
     dt = this.frozen ? 0 : dt * this.timeScale;
+    if (this.fx && this.phase !== "play") this.fx.tick(dt);
     if (this.phase === "aim") this.aimFrame(dt, now);
     else if (this.phase === "play") this.playFrame(dt, now);
     else this.drawStill();
@@ -915,6 +922,7 @@ export class Game {
       slow: false,
       last: null,
     };
+    this.fx?.watch(rec);
     this.phase = "play";
     this.planOff();
     this.slide = null;
@@ -933,6 +941,7 @@ export class Game {
     p.knocks.length = 0;
     for (const b of p.bursts) b.realAt = -1;
     p.skipped = true;
+    this.fx?.clear();
   }
 
   playFrame(dt, now) {
@@ -941,6 +950,7 @@ export class Game {
     if (!p.done) {
       const s = this.engine.showAt(p.t);
       p.last = s;
+      if (this.fx && !this.quiet) this.fx.observe(s.items, p.t);
       p.slow = s.speed < 0.99;
       // the knocks: one take each, at each piece's first touch
       while (p.ki < p.knocks.length && p.knocks[p.ki].t <= p.t) {
@@ -967,6 +977,7 @@ export class Game {
     } else {
       p.hold += dt;
       p.slow = false;
+      this.fx?.tick(dt);
       const burstsLive = p.bursts.some(
         (b) => b.realAt > 0 && (now - b.realAt) / 1000 < burstLength(b.kind),
       );
@@ -1384,6 +1395,23 @@ export class Game {
     this.fit = worldFit(this.W, this.H, this.panX);
   }
 
+  useLook(look) {
+    this.look = look && look.id !== "day" ? look : null;
+    this.fx = this.look?.dust ? new Stardust(this.look.dust) : null;
+  }
+
+  // The pitch through a camera in this game's scene: with none, exactly
+  // drawWorld's picture (tests/render/scene-day.test.mjs).
+  world(camera, scene) {
+    if (!this.look) return drawWorld(this.ctx, this.view, camera, scene);
+    drawWorld(this.ctx, this.view, camera, {
+      ...scene,
+      look: this.look,
+      fx: this.fx,
+      time: performance.now() / 1000,
+    });
+  }
+
   begin() {
     const ctx = this.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1411,7 +1439,7 @@ export class Game {
       !wide && Array.isArray(aim.arc)
         ? aim.arc.map((q) => (Array.isArray(q) ? q : [q.x, q.y, q.z]))
         : null;
-    drawWorld(this.ctx, this.view, camera, {
+    this.world(camera, {
       surface: v.surface,
       set: v.set,
       items: this.items,
@@ -1503,7 +1531,7 @@ export class Game {
     // a tall view keeps the pan it had at the release
     this.pan(this.panX, 0);
     this.begin();
-    drawWorld(this.ctx, this.view, s.camera, {
+    this.world(s.camera, {
       surface: v.surface,
       set: v.set,
       items: s.items,
@@ -1580,7 +1608,7 @@ export class Game {
       // the kubb: tipped part way up while it is dragged, else lying
       const items = settleItems(n, drag ? null : n.pose);
       if (drag) items.push(tiltItem(n, drag.i, drag.t));
-      drawWorld(this.ctx, this.view, raiseCamera(n), {
+      this.world(raiseCamera(n), {
         surface: v.surface,
         set: v.set,
         items,
@@ -1607,7 +1635,7 @@ export class Game {
           angle: 0,
         }),
       );
-      drawWorld(this.ctx, this.view, punishCamera(n), {
+      this.world(punishCamera(n), {
         surface: v.surface,
         set: v.set,
         items,
@@ -1616,7 +1644,7 @@ export class Game {
       });
       this.css();
     } else {
-      drawWorld(this.ctx, this.view, v.camera || this.out?.camera, {
+      this.world(v.camera || this.out?.camera, {
         surface: v.surface,
         set: v.set,
         items: this.items,
