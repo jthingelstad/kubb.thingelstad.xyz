@@ -40,7 +40,7 @@ async function join(code, kind = "desktop") {
 }
 
 browserTest(
-  "join advertises the engine; START refuses a mismatch and asks an untagged tab to reload",
+  "join advertises the engines; START refuses a mismatch until the other tab reloads",
   async () => {
     const code = makeRoomCode();
     const host = await join(code);
@@ -51,61 +51,53 @@ browserTest(
       await host.waitForFunction(
         () => window.__kubb.pitch.room.doc?.teams.B.length === 1,
       );
-      assert.equal(
-        await guest.evaluate(() => window.__kubb.pitch.room.me.engine),
-        await guest.evaluate(() =>
-          window.__kubb.engine.version.split(".").slice(0, 2).join("."),
-        ),
+      const newest = await guest.evaluate(() =>
+        window.__kubb.engine.version.split(".").slice(0, 2).join("."),
       );
-      await guest.evaluate(() =>
-        window.__kubb.pitch.room.setMe({ engine: "0.3" }),
+      await guest.waitForFunction(
+        (mm) => window.__kubb.pitch.room.me.engine === `${mm}+engines`,
+        newest,
       );
+      assert.deepEqual(
+        await guest.evaluate(() => window.__kubb.pitch.room.me.engines),
+        await guest.evaluate(() => window.__kubb.engines.carried()),
+      );
+      // an older tab of the guest's: a lone engine the host carries no longer
+      await guest.evaluate(() => {
+        window.__kubb.pitch.speak = () => {};
+        window.__kubb.pitch.room.setMe({ engine: "0.3" });
+      });
       await host.waitForFunction(() =>
         window.__kubb.pitch.room.members.some((m) => m.me.engine === "0.3"),
       );
-      await host.click("[data-test=lobby-start]");
-      await host.waitForSelector("[data-test=lobby-note]:not([hidden])");
+      await host.waitForSelector("[data-test=lobby-engine]:not([hidden])");
       assert.match(
-        await host.textContent("[data-test=lobby-note]"),
-        /another version/,
+        await host.textContent("[data-test=lobby-engine]"),
+        /older version of Throwing Wood \(0\.3\)/,
       );
+      await host.evaluate(() => window.__kubb.pitch.start());
       assert.equal(
         await host.evaluate(() => window.__kubb.pitch.room.doc.started),
         false,
       );
-      await guest.evaluate(() =>
-        window.__kubb.pitch.room.setMe({ engine: null }),
+      await guest.reload();
+      await host.waitForFunction(
+        (mm) =>
+          window.__kubb.pitch.room.members.some(
+            (m) =>
+              m.id !== window.__kubb.pitch.you &&
+              m.connected &&
+              m.me.engine === `${mm}+engines`,
+          ),
+        newest,
       );
-      await host.waitForFunction(() =>
-        window.__kubb.pitch.room.members.some(
-          (m) => m.id !== window.__kubb.pitch.you && !m.me.engine,
-        ),
-      );
-      await guest.waitForSelector("[data-test=engine-differs]");
-      assert.match(
-        await guest.textContent("[data-test=engine-differs]"),
-        /Reload to join/,
-      );
-      await host.click("[data-test=lobby-start]");
-      await host.waitForSelector("[data-test=lobby-note]:not([hidden])");
-      assert.equal(
-        await host.evaluate(() => window.__kubb.pitch.room.doc.started),
-        false,
-      );
-      await guest.getByRole("button", { name: "RELOAD", exact: true }).click();
-      await host.waitForFunction(() =>
-        window.__kubb.pitch.room.members.some(
-          (m) =>
-            m.id !== window.__kubb.pitch.you &&
-            m.connected &&
-            m.me.engine === window.__kubb.pitch.room.me.engine,
-        ),
-      );
+      await host.waitForSelector("[data-test=lobby-engine]", {
+        state: "hidden",
+      });
       await host.click("[data-test=lobby-start]");
       await host.waitForFunction(
-        () =>
-          window.__kubb.pitch.room.doc.match?.engine ===
-          window.__kubb.engine.version.split(".").slice(0, 2).join("."),
+        (mm) => window.__kubb.pitch.room.doc.match?.engine === mm,
+        newest,
       );
       await guest.waitForFunction(() => window.__kubb.pitch.mode === "match");
       assert.deepEqual(host.errors, []);

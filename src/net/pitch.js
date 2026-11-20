@@ -25,6 +25,11 @@ import {
   isReplay,
   startCheck,
   mayPlay,
+  roomEngineFor,
+  carriedBy,
+  announce,
+  speakAs,
+  compareEngines,
   ENGINE,
 } from "./lobby.js";
 import {
@@ -79,10 +84,16 @@ function compareVersions(a, b) {
   return 0;
 }
 
-// The card for a member whose engine is not the pitch's (docs/MULTIPLAYER.md "Engines").
-// `theirs`: the pitch's engine (the match's, or the host's before START); null when it
-// names none (an older build).
-export function versionNotice(mine, theirs) {
+// The card for a match this browser may not play (docs/MULTIPLAYER.md "Engines"): `mine`,
+// this browser's newest; `theirs`, the match's engine, null when it names none (an older
+// build). `why` "load": the match's engine is carried but did not load here.
+export function versionNotice(mine, theirs, why = null) {
+  if (why === "load")
+    return {
+      title: "Could not load the match",
+      text: "This match plays on another version of Throwing Wood, and it did not load in this browser. Reload to try again.",
+      reload: true,
+    };
   if (!mine)
     return {
       title: "Reload to play",
@@ -118,6 +129,12 @@ export class Pitch {
   //   (docs/ENGINES.md). Without it, the Game's engine.
   constructor(env) {
     Object.assign(this, env);
+    // the page's newest engine, the Game's at the start: the lobby, practice behind it,
+    // and a match this browser may not play are drawn from it (docs/ENGINES.md)
+    this.newestEngine = env.game?.engine ?? null;
+    this.matchMm = undefined; // the running match's major.minor, when this page plays it
+    this.engineWait = null; // a match's engine loading: the room's news waits for it
+    this.engineFailed = null; // a match's engine that did not load
     this.mode = "lobby"; // lobby | match | replay | gone | sealed
     this.sealed = null; // a shared match's kept replay (showSealed)
     this.replay = null; // the replay player while one plays (src/replay/player.js)
@@ -171,13 +188,16 @@ export class Pitch {
     }
     const name = cleanName(prefs.get("name", prefs.get("solo", {}).name));
     this.name = name;
+    // every engine this page can play, newest first (src/engine/registry.js)
+    this.carries = this.engines?.newest ? this.engines.carried() : [ENGINE];
     try {
       this.room = connect({
         url: this.roomsUrl,
         room: this.code,
         member: memberId(),
-        // engine: this engine's major.minor, so START can check everyone plays the same
-        me: { name, level: game.level, engine: ENGINE },
+        // engine and engines: what this page carries, the newest until it knows the
+        // room (the engine's docs/ROOM.md "Speaking down"; Pitch.speak)
+        me: { name, level: game.level, ...this.announcement(null) },
         ...(this.WebSocket ? { WebSocket: this.WebSocket } : {}),
       });
     } catch (err) {
@@ -485,34 +505,163 @@ export class Pitch {
       status: r.status,
       nameOf: (id) => this.nameOf(id),
     });
-    this.checkHostEngine();
+    this.lobbyEngine();
   }
 
-  // In the lobby, on a team: does the host (who will START) run another engine than
-  // this browser? The engine says (mayPlay against the engine the match would carry);
-  // the card goes up once for each host and engine.
-  checkHostEngine() {
-    const r = this.room;
-    if (r.status !== "open") return;
-    const mine = r.me.engine;
-    if (mine && (r.isHost() || !sideOf(r.doc, r.you))) {
-      this.engineKey = null;
+  // ---------- the room's engine (docs/ENGINES.md "Playing together") ----------
+
+  // What this browser announces while the room's engine is `engine` (null: not known).
+  announcement(engine) {
+    return announce(this.carries, engine) ?? { engine: ENGINE };
+  }
+
+  // Say it to the room when it changed.
+  speak(engine) {
+    const room = this.room;
+    if (!room) return;
+    const a = this.announcement(engine);
+    const me = room.me || {};
+    if (
+      me.engine === a.engine &&
+      JSON.stringify(me.engines ?? null) === JSON.stringify(a.engines ?? null)
+    )
       return;
+    room.setMe(a);
+    this.note("announce", a.engine);
+  }
+
+  // The room's engine, kept while the document, the members and the host are the same:
+  // { engine, missing, unknown } for the next match (the host and the lineup's players,
+  // this browser among them only when it plays or hosts), and `speak`, the engine this
+  // browser announces, which counts it either way.
+  roomEngine() {
+    const r = this.room;
+    const k = this.roomKey;
+    if (
+      k &&
+      k.doc === r.doc &&
+      k.members === r.members &&
+      k.host === r.host &&
+      k.you === r.you
+    )
+      return k.value;
+    const mine = roomEngineFor(r.doc, r.members, r.host, r.you, this.carries);
+    const counted = r.isHost() || !!sideOf(r.doc, r.you);
+    const room = counted ? mine : roomEngineFor(r.doc, r.members, r.host);
+    const value = { ...room, speak: mine.engine };
+    this.roomKey = {
+      doc: r.doc,
+      members: r.members,
+      host: r.host,
+      you: r.you,
+      value,
+    };
+    return value;
+  }
+
+  // In the lobby: announce the room's engine, fetch its bundle ahead of START, and say
+  // what keeps the next match from starting when the players share no engine.
+  lobbyEngine() {
+    const r = this.room;
+    if (!this.lobby || this.mode !== "lobby" || r.status !== "open") return;
+    const e = this.roomEngine();
+    this.speak(e.speak);
+    this.prefetch(e.engine);
+    const text = e.engine ? null : this.blockedText(e);
+    this.lobby.setEngine(text);
+    const key = text && JSON.stringify([e.missing, e.unknown]);
+    if (key && key !== this.blockedKey)
+      this.note("engine-blocked", e.missing.length, e.unknown.length);
+    this.blockedKey = key;
+  }
+
+  // Load a carried engine before it is needed (the room's, ahead of START).
+  prefetch(mm) {
+    const reg = this.engines;
+    if (!mm || !reg?.has(mm) || reg.loaded(mm) || this.prefetching === mm)
+      return;
+    this.prefetching = mm;
+    reg.loadEngine(mm).then(
+      () => (this.prefetching = null),
+      (err) => {
+        this.prefetching = null;
+        this.note("prefetch", mm, String(err?.message || err));
+      },
+    );
+  }
+
+  // The engine a match on major.minor `mm` is played with here: null when the page does
+  // not carry it. A promise while it loads.
+  async engineOf(mm) {
+    const reg = this.engines;
+    if (!reg?.newest) return mm === ENGINE ? this.newestEngine : null;
+    if (!reg.has(mm)) return null;
+    return reg.loaded(mm) ?? (await reg.loadEngine(mm));
+  }
+
+  // The lobby's words when no engine is carried by the host and every player: who stands
+  // in the way and what to do, in a player's words. Version numbers only here, where they
+  // say what to get.
+  blockedText(e) {
+    const r = this.room;
+    const byId = new Map(r.members.map((m) => [m.id, m]));
+    const carriedOf = (id) =>
+      id === r.you ? this.carries : carriedBy(byId.get(id)?.me);
+    const missing = [...new Set([...e.missing, ...e.unknown])];
+    const lu = lineup(r.doc, r.members);
+    const counted = [
+      r.host,
+      ...["A", "B"].flatMap((s) => (lu?.players[s] || []).map((p) => p.id)),
+    ].filter((id, i, all) => id != null && all.indexOf(id) === i);
+    const others = counted.filter((id) => !missing.includes(id));
+    // the engine the rest share: the newest every one of them carries
+    const lists = others.map(carriedOf);
+    const shared =
+      lists[0]?.find((mm) => lists.every((l) => l.includes(mm))) ?? null;
+    const lines = [];
+    if (missing.includes(r.you)) {
+      const mine = this.carries[0];
+      lines.push(
+        shared && compareEngines(mine, shared) < 0
+          ? `This browser has an older version of Throwing Wood (${mine}) than the others here (${shared}), so the match cannot start. Reload the page to play.`
+          : shared
+            ? `The others here have an older version of Throwing Wood (${shared}) than this browser (${mine}), so the match cannot start. Ask them to reload the page or update the app.`
+            : "The players here have different versions of Throwing Wood, so the match cannot start. Everyone: reload the page or update the app.",
+      );
     }
-    const host = r.members.find((m) => m.id === r.host);
-    const theirs = host?.me?.engine ?? null;
-    const key = JSON.stringify([mine, r.host, theirs]);
-    if (key === this.engineKey) return;
-    this.engineKey = key;
-    const p = mayPlay(mine, { engine: theirs });
-    if (p.ok) return;
-    this.showVersion(p, () => this.lobby.show());
+    const older = [];
+    const newer = [];
+    const unknown = [];
+    for (const id of missing) {
+      if (id === r.you) continue;
+      const list = carriedOf(id);
+      if (!list.length) unknown.push(id);
+      else if (shared && compareEngines(list[0], shared) > 0) newer.push(id);
+      else older.push(id);
+    }
+    const who = (ids) => namesLine(ids.map((id) => this.nameOf(id)));
+    const has = (ids) => (ids.length > 1 ? "have" : "has");
+    const theirs = (ids) =>
+      [...new Set(ids.map((id) => carriedOf(id)[0]))].join(", ");
+    if (older.length)
+      lines.push(
+        `${who(older)} ${has(older)} an older version of Throwing Wood (${theirs(older)})${shared ? ` than this pitch plays (${shared})` : ""}, so the match cannot start. ${who(older)}: reload the page or update the app.`,
+      );
+    if (newer.length)
+      lines.push(
+        `${who(newer)} ${has(newer)} a newer version of Throwing Wood (${theirs(newer)}) than the rest of this pitch (${shared}), so the match cannot start. Everyone else: reload the page or update the app, or ${who(newer)} can watch.`,
+      );
+    if (unknown.length)
+      lines.push(
+        `${who(unknown)} ${has(unknown)} a version of Throwing Wood too old to say which it is, so the match cannot start. ${who(unknown)}: reload the page or update the app.`,
+      );
+    return lines.join(" ") || null;
   }
 
   // The card for an engine that is not the pitch's (mayPlay's refusal). The pitch can
   // still be watched: WATCH closes it.
   showVersion(p, after = null) {
-    const v = versionNotice(p.engine, p.match);
+    const v = versionNotice(p.engine, p.match, p.why);
     this.note("engine", p.why, p.match ?? null);
     const close = this.cards.notice({
       kicker: `PITCH ${this.code}`,
@@ -543,14 +692,13 @@ export class Pitch {
     }, 300);
   }
 
-  // START (the host): the match is made here, then committed.
-  async start() {
+  // START (the host): the match is made here, on the room's engine, then committed. The
+  // write checks the room's engine and the lineup again on the document it goes on: a
+  // member who joined, left or changed seat meanwhile changes them, and START begins
+  // again from there (a few times at most).
+  async start(tries = 0) {
     const room = this.room;
-    if (!room.isHost() || this.mode !== "lobby") return;
-    if (!room.me.engine) {
-      this.checkHostEngine();
-      return;
-    }
+    if (!room.isHost() || this.mode !== "lobby" || this.starting) return;
     this.setName(this.lobby.nameInput.value);
     const doc = room.doc;
     const lu = lineup(doc, room.members);
@@ -558,52 +706,104 @@ export class Pitch {
       this.lobby.say("Nobody is on a team yet.");
       return;
     }
-    const ok = startCheck(lu.players, room.members, room.you);
+    const e = this.roomEngine();
+    if (!e.engine) {
+      this.note("start-refused", e.missing.length, e.unknown.length);
+      this.lobbyEngine();
+      return;
+    }
+    const mm = e.engine;
+    const ok = startCheck(lu.players, speakAs(room.members, mm), room.you, mm);
     if (!ok.ok) {
       const who = [...ok.differ, ...ok.unknown].map((id) => this.nameOf(id));
       this.lobby.say(
-        `${who.join(", ")} ${who.length > 1 ? "are" : "is"} on another version of Throwing Wood: reload to play.`,
+        `${namesLine(who)} ${who.length > 1 ? "are" : "is"} on another version of Throwing Wood: reload to play.`,
       );
       this.note("start-refused", ok.differ.length, ok.unknown.length);
       return;
     }
+    let engine = null;
+    this.starting = true;
+    try {
+      engine = await this.engineOf(mm);
+    } catch (err) {
+      this.note("engine-failed", mm, String(err?.message || err));
+    } finally {
+      this.starting = false;
+    }
+    if (!engine) {
+      this.lobby.say(
+        "This match's version of Throwing Wood did not load. Reload the page to try again.",
+      );
+      return;
+    }
+    if (!room.isHost() || this.mode !== "lobby") return;
+    // the room moved while the engine loaded: from the top
+    if (room.doc !== doc) return tries < 3 ? this.start(tries + 1) : undefined;
     const now = new Date();
-    const opts = matchOptions(doc, lu, {
-      seed: Math.floor(Math.random() * 2 ** 31),
-      start: {
-        year: now.getFullYear(),
-        month: now.getMonth() + 1,
-        day: now.getDate(),
-        hour: now.getHours(),
-        min: now.getMinutes(),
+    const opts = matchOptions(
+      doc,
+      lu,
+      {
+        seed: Math.floor(Math.random() * 2 ** 31),
+        start: {
+          year: now.getFullYear(),
+          month: now.getMonth() + 1,
+          day: now.getDate(),
+          hour: now.getHours(),
+          min: now.getMinutes(),
+        },
       },
-    });
+      mm,
+    );
     const n = lobbyOf(doc).n + 1;
     this.match = { players: lu.players, cpu: lu.cpu };
+    this.matchMm = mm;
     this.refused = null;
     this.local = { n, seq: 0 };
     this.mode = "match";
     this.lobby.hide();
+    this.game.useEngine(engine);
     this.control = this.controlHere();
     this.game.seat = this.seatFor(this.control);
     this.game.newMatch(opts);
     const snap = this.game.engine.snapshot();
     const hash = this.game.engine.hash().hash;
+    this.speak(mm);
+    this.note("start-on", mm);
+    const key = JSON.stringify(lu);
+    let moved = false;
     this.pending++;
-    const r = await this.write((d) =>
-      startMatch(d, {
-        snap,
-        hash,
-        players: lu.players,
-        cpu: lu.cpu,
-        host: room.you,
-        setup: opts,
-        members: room.members,
-      }),
-    );
+    const r = await this.write((d) => {
+      const members = room.members;
+      moved =
+        JSON.stringify(lineup(d, members)) !== key ||
+        roomEngineFor(d, members, room.you, room.you, this.carries).engine !==
+          mm;
+      if (moved) return undefined;
+      return startMatch(
+        d,
+        {
+          snap,
+          hash,
+          players: lu.players,
+          cpu: lu.cpu,
+          host: room.you,
+          setup: opts,
+          members: speakAs(members, mm),
+        },
+        mm,
+      );
+    });
     this.pending--;
-    if (!r) this.resync();
-    this.afterEnter();
+    if (!r) {
+      this.resync();
+      if (moved && tries < 3 && this.mode === "lobby") {
+        this.note("start-again", tries + 1);
+        return this.start(tries + 1);
+      }
+    }
+    if (this.mode === "match") this.afterEnter();
   }
 
   // REMATCH (the host): back to the lobby with the same teams.
@@ -697,7 +897,8 @@ export class Pitch {
     }
     this.room
       .update(
-        (d) => commitAction(d, { n, seq, snap, hash, action, over }),
+        (d) =>
+          commitAction(d, { n, seq, snap, hash, action, over }, this.matchMm),
         w ? { with: w } : {},
       )
       .then(
@@ -750,6 +951,8 @@ export class Pitch {
     if (this.mode === "gone") return;
     // a replay playing: the room's news waits for its end (endReplay looks again)
     if (this.mode === "replay") return;
+    // a match's engine loading: so does the room's news (waitFor looks again)
+    if (this.engineWait) return;
     const d = decide(this.local, doc, w, mine);
     switch (d.kind) {
       case "lobby":
@@ -805,7 +1008,15 @@ export class Pitch {
     }
   }
 
+  // The match's own engine (docs/ENGINES.md "Playing together"): a carried one not loaded
+  // yet holds the room's news until it has (waitFor); one this page does not carry is
+  // watched, never played, and says so.
   enterMatch(m) {
+    const mm = majorMinor(m.engine);
+    const reg = this.engines?.newest ? this.engines : null;
+    const carried = reg ? reg.has(mm) : mm === ENGINE;
+    const failed = this.engineFailed === mm;
+    if (carried && reg && !failed && !reg.loaded(mm)) return this.waitFor(mm);
     this.mode = "match";
     this.arrivedOver = m.over ? m.n : null;
     this.match = { players: m.players, cpu: m.cpu };
@@ -816,8 +1027,17 @@ export class Pitch {
     this.game.shownCards.clear();
     // Check every member before giving out control: a watcher can become host and
     // run the computer too. A refused engine never takes either side or the CPU.
-    const permission = mayPlay(this.room.me.engine, m);
+    const permission = failed
+      ? { ok: false, why: "load", engine: ENGINE, match: mm }
+      : carried
+        ? mayPlay(mm, m, mm)
+        : mayPlay(ENGINE, m);
     this.refused = permission.ok ? null : permission;
+    this.matchMm = this.refused ? undefined : mm;
+    this.enteredHost = this.room.host; // checkRefusedHost: a host that changes after
+    this.game.useEngine(
+      this.refused ? this.newestEngine : (reg?.loaded(mm) ?? this.newestEngine),
+    );
     this.control = this.controlHere();
     this.game.seat = this.seatFor(this.control);
     this.game.localSide = this.refused
@@ -832,11 +1052,32 @@ export class Pitch {
       if (this.game.need?.kind === "over") this.onNeed(this.game.need);
     }
     this.note("start", m.n, m.seq);
+    if (!this.refused) this.speak(mm);
     if (this.refused) this.showVersion(this.refused);
     else if (!this.game.localSide) {
       this.watchNoteUntil = Date.now() + tune.watchNoteMs;
     }
     this.afterEnter();
+  }
+
+  // A match's carried engine is loading: the room's news waits (handleDoc), then the
+  // document as it is by then is looked at afresh.
+  waitFor(mm) {
+    if (this.engineWait === mm) return;
+    this.engineWait = mm;
+    this.note("engine-wait", mm);
+    this.engines.loadEngine(mm).then(
+      () => {
+        this.engineWait = null;
+        this.resync();
+      },
+      (err) => {
+        this.engineWait = null;
+        this.engineFailed = mm;
+        this.note("engine-failed", mm, String(err?.message || err));
+        this.resync();
+      },
+    );
   }
 
   afterEnter() {
@@ -853,6 +1094,8 @@ export class Pitch {
   toLobby() {
     this.mode = "lobby";
     this.match = null;
+    this.matchMm = undefined;
+    this.engineFailed = null; // the next match tries its engine again
     this.refused = null;
     this.local = { n: null, seq: 0 };
     this.queue.length = 0;
@@ -860,6 +1103,7 @@ export class Pitch {
     this.cards.close();
     this.cards.clearPanel();
     this.game.seat = this.seatFor({ sides: [], cpu: false });
+    this.game.useEngine(this.newestEngine);
     this.game.newPractice({ surface: lobbyOf(this.room.doc).options.surface });
     this.shoutBar.hidden = true;
     // the level may have changed from the menu during the match
@@ -999,7 +1243,9 @@ export class Pitch {
       typeof m.snap === "string" &&
       (this.mode === "sealed" || m.over) &&
       engines?.has(mm) &&
-      mm !== engines.newest;
+      mm !== engines.newest &&
+      // a match played here on its own engine: the Game's engine is already it
+      engines.loaded(mm) !== this.game.engine;
     if (!own) return this.sheet?.();
     const mode = this.mode;
     return withEngineFor(engines, mm, null, (engine) => {
@@ -1120,7 +1366,36 @@ export class Pitch {
     const host = this.room.members.find((m) => m.id === this.room.host);
     if (host && host.connected) this.hostGoneAt = null;
     this.refreshSeat();
+    this.checkRefusedHost();
     this.renderLobby();
+  }
+
+  // The host runs the computer's turns on the match's engine. A browser that may not
+  // play the match and becomes host mid-match (the host before it left) cannot: say so
+  // once a match, with the way out (another member hosts once this one leaves).
+  checkRefusedHost() {
+    const r = this.room;
+    if (this.mode !== "match" || !this.refused || !r.isHost()) return;
+    if (r.host === this.enteredHost) return; // host from the start: its card says it
+    if (
+      !this.match?.cpu ||
+      r.doc?.match?.over ||
+      this.hostCard === this.local.n
+    )
+      return;
+    this.hostCard = this.local.n;
+    this.note("host-refused", this.local.n);
+    const close = this.cards.notice({
+      kicker: `PITCH ${this.code}`,
+      title: "You are the host now",
+      text: "This browser cannot play this match's version of Throwing Wood, so the computer cannot take its turns from here. Leave the pitch and another player becomes the host, or reload to get the newest version.",
+      actions: [
+        ["LEAVE THE PITCH", this.home, "go"],
+        ["RELOAD", () => location.reload()],
+        ["WATCH", () => close()],
+      ],
+      test: "host-refused",
+    });
   }
 
   onCast({ from, d }) {
@@ -1271,6 +1546,10 @@ export class Pitch {
       control: this.control,
       mayAct: this.mode === "match" ? g.mayAct() : false,
       who: g.whoActs?.(g.need) ?? null,
+      // the engines (docs/ENGINES.md): the Game's, the match's, and what this browser says
+      engine: g.engine?.version ?? null,
+      matchEngine: this.room?.doc?.match?.engine ?? null,
+      announced: this.room?.me?.engine ?? null,
     };
   }
 }
@@ -1283,6 +1562,12 @@ function teamsLine(players) {
   const a = side("A") || "The computer";
   const b = side("B") || "The computer";
   return `${a}  v  ${b}`;
+}
+
+// "Hanna", "Hanna and Ola", "Hanna, Ola and Per".
+function namesLine(names) {
+  if (names.length < 2) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }
 
 function plainError(err) {

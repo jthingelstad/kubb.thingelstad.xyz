@@ -317,7 +317,10 @@ pitch, section 13.5).
 ### 2.6 Client and engine tags
 
 For game admission, the client joins with `me = { name, level, engine }`, where `engine`
-is the engine's major.minor (for example `"0.4"`). START passes the current members to the engine's
+is the engine's major.minor (for example `"0.4"`). A client that carries several engines
+(the web since engine 0.8.1) writes `engine` as the room's engine marked `"0.7+engines"`
+and adds `engines`, every major.minor it carries (`docs/ENGINES.md` "Playing together");
+an older client reads the mark away. START passes the current members to the engine's
 `room.startCheck`/`room.startMatch`, which refuses explicit mismatches and stamps
 `match.engine`. `room.mayPlay` checks a running match before giving team or CPU control.
 These are client rules: the server treats both fields as opaque JSON. During the web

@@ -8,13 +8,18 @@
 // with `with`, applies the same action to watch the same throw, and then checks its hash
 // against the committed one. A gap, a missing `with`, a refused action or a different
 // hash: it adopts the committed snapshot instead.
-import { roomCall } from "./room-engine.js";
+import { roomCall, roomMinor } from "./room-engine.js";
 
 // What to do with a document version that arrived (local = { n, seq }, the match and
 // last action this browser holds; w the document's `with`; mine: our own write):
 // { kind: "lobby" | "start" | "same" | "old" | "apply" | "adopt", match?, action?, why? }
+// On the match's own engine when this page has it (`roomMinor`).
 export const decide = (local, doc, w, mine = false) =>
-  roomCall("decide", { local, doc, with: w, mine });
+  roomCall(
+    "decide",
+    { local, doc, with: w, mine },
+    roomMinor(doc?.match?.engine),
+  );
 
 // Which program made a record or a report: `client` in a one-browser match and a
 // report, `c` in a rider; and the engine that played it, `engine` and `e`
@@ -28,16 +33,21 @@ export const clientLabel = (version) => `${CLIENT} ${version}`;
 export const LOCATION = "throwingwood.com";
 
 // The `with` for an action, or undefined when it would not fit the room's limit
-// (`bytes`, as ASCII JSON): then the others just adopt the snapshot.
+// (`bytes`, as ASCII JSON): then the others just adopt the snapshot. `engine`: the
+// version of the engine that played it, whose own rider call makes it.
 export const rider = (n, seq, action, { bytes = 4096, engine = null } = {}) =>
-  roomCall("rider", {
-    n,
-    seq,
-    action,
-    bytes,
-    client: CLIENT,
-    engine: engine ?? undefined,
-  }) ?? undefined;
+  roomCall(
+    "rider",
+    {
+      n,
+      seq,
+      action,
+      bytes,
+      client: CLIENT,
+      engine: engine ?? undefined,
+    },
+    roomMinor(engine),
+  ) ?? undefined;
 
 // The characters of JSON.stringify(value), each above U+007E counted as 6.
 export const asciiSize = (value) => roomCall("asciiSize", { value });

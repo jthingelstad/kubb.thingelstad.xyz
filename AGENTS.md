@@ -17,7 +17,8 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
   in `vendor/engine.json`, byte for byte. Change how the game plays in kubb-engine,
   release a tag, then `npm run vendor:sync -- --tag vX.Y.Z` (`vendor:check` holds it to
   the engine's manifest). The same goes for each older minor the site still carries in
-  `vendor/engines/<major.minor>/` (`docs/ENGINES.md`): play is on the newest, a new
+  `vendor/engines/<major.minor>/` (`docs/ENGINES.md`): practice, solo and watch play on
+  the newest and a shared pitch on the room's engine (the newest every player carries), a new
   minor is vendored with `--keep` (carry the old one on) or `--drop`, never by
   accident. Never write in the kubb-engine or playdate-kubb checkouts from here. wasmoon stays pinned at exactly 1.16.0.
 - **This repository is public.** Keep email addresses, device serials, home-directory
@@ -31,8 +32,11 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
   `src/net/room-engine.js`. Initialize with `useRoomEngine` (the newest engine) before
   calling them; a call that names a major.minor goes to that carried engine. Pass
   connected ids as an array, and keep seat/actor calls cached out of the render loop.
-  Keep `aimKey` and socket pacing in JavaScript. `me.engine` announces major.minor;
-  START passes members and writes `match.engine`; `mayPlay` gates team and CPU control.
+  Keep `aimKey` and socket pacing in JavaScript. `me.engine` announces the room's
+  engine marked `+engines` and `me.engines` all the page carries (`room.announce`, re-sent
+  on member, seat and host changes); START runs on the room's engine (`room.engineFor`,
+  checked again inside the write) with `room.speakAs` members and writes `match.engine`;
+  a match plays only on `match.engine`; `mayPlay` gates team and CPU control.
   `LENIENT_ENGINES` is false. Playing requires a named, matching major.minor.
 - **The thrower's view frame everywhere** (core/frame): JS never flips the pitch.
   The wide view (watching the computer) shows the world frame instead: Lua un-turns Team
