@@ -432,13 +432,13 @@ test("the version label: package.json's version and the newest engine's, never t
   const sha = "a2659b744210e4c5baa5b69c672e11ec87f9bfab";
   const release = releaseOf(pkg.version, sha, carried);
   assert.equal(release.text, `${pkg.version} (${carried[0].version})`);
-  // this checkout: 0.2.0 on 0.8.1, also playing 0.7.4
-  assert.equal(release.text, "0.2.0 (0.8.1)");
+  // this checkout: 0.2.1 on 0.8.1, also playing 0.7.4
+  assert.equal(release.text, "0.2.1 (0.8.1)");
   assert.equal(release.detail, "Also plays 0.7.4");
   assert.equal(release.web, sha, "the commit stays the exact identity");
   // one engine carried: no detail
   assert.equal(releaseOf("0.2.0", sha, carried.slice(0, 1)).detail, null);
   const foot = footer(release.text);
-  assert.match(foot, /data-release>Version 0\.2\.0 \(0\.8\.1\)<\/p>/);
+  assert.match(foot, /data-release>Version 0\.2\.1 \(0\.8\.1\)<\/p>/);
   assert.ok(!foot.includes(sha.slice(0, 7)));
 });
