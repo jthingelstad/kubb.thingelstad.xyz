@@ -274,6 +274,7 @@ function startPractice(game, cards) {
     ),
   );
   document.getElementById("ui").append(tray);
+  game.setHeader("practice");
   cards.root.dataset.mode = "practice";
 }
 
@@ -435,6 +436,7 @@ function watchView(game, menu) {
   });
   const tray = h("div.tray.view-tray", btn);
   ui.append(tray);
+  game.setHeader("watch");
   game.onWide = () => {
     const label = game.wide ? VIEWS.thrower : VIEWS.wide;
     if (btn.textContent !== label) btn.textContent = label;

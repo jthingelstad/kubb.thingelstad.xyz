@@ -279,7 +279,8 @@ strongly prefers the circle, so the dial stays and stays the default.
   bars (750 x 342, 734 x 343). The numbers are the iPhone app's (`WideLayout`,
   `LinearMeter.layout`). Where the box comes up into the header row, the plates at that
   top corner move in beside it, `tune.meterGap` (10 px) off its body: MENU, the practice
-  tray, SKIP and the update note at the right, the rail and the shouts at the left
+  tray or the view tray, SKIP and the update note at the right, the rail, the shout bar
+  and the shouts at the left
   (`meterRoom`; the game sets `--meter-r` and `--meter-l` for `game.css`; nothing moves in
   the wide view, which draws no meter). The plan block, the coach line and the nudge go as
   below.
@@ -380,16 +381,24 @@ foot. `layoutFor` returns it as `plan` (its rect) and `planEdge` (`planAt` in
   with the block's (`mapStacked`), or is not drawn (`minimap` null) where it would come
   within `tune.stackedMapGap` (10 px) of the rail's box: 600 x 420 has it, 600 x 380 not.
   Beside the clock this is as before.
-- **No room, the clock** (Codex on PR #71). Where no placement keeps the block off the tab
-  and the minimap (`planAt` returns null), or where the moved header row would crowd itself
-  (`headerFits`: MENU, `tune.menuW` 64 px, must stay `tune.headerGap` 8 px right of the
-  rail's widest, 44% of the canvas, and a rail squeezed by a left-edge meter keeps
-  `tune.railMinW` 124 px), the layout is the clock's, whole. `layoutFor` decides it in one
-  place and never returns a linear layout with a known collision. In a sweep of 360 to 1400
-  by 300 to 900 px (both sides, mouse and touch, no insets, a notch, a top bar) this is
-  only small near-square windows, under about 560 px wide (400 x 350; 440 x 440 and 500 x
-  480 with the meter at the left); every phone on its side keeps the linear meter.
-  `tests/game/layout.test.mjs` holds the sweep.
+- **No room, the clock** (Codex on PR #71, twice). Where no placement keeps the block off
+  the tab and the minimap (`planAt` returns null), or where the plates the meter moves in
+  would crowd the header row (`headerFits`), the layout is the clock's, whole, and nothing
+  moves. `layoutFor` decides it in one place and never returns a linear layout with a
+  known collision. The game passes what its header holds (`opts.header`: `"practice"`,
+  `"watch"` or null for a match; `Game.setHeader`, set by `main.js` with the tray), and
+  `headerPlates` places the two plates with the widths measured in the browser: the rail
+  at its widest (practice's 140, watching's 237, the counts' nowrap widest, a match's 44% of
+  the canvas, since its names are the players') must end `tune.headerGap` (8 px) short of
+  the right corner's row (MENU 64 with SKIP 60 under it, or the tray: practice's BATONS |
+  KUBBS and RESET 222, or the view tray 90, its right edge 100 px in). The sweep in
+  `tests/game/layout.test.mjs` (360 to 1400 by 300 to 900 px, both sides, mouse and touch,
+  no insets, a notch, a top bar, each header) holds every linear layout free of overlaps;
+  `client.test.mjs` holds the page's plates to those widths. Of the sizes with room for the track, the clock is drawn on windows up
+  to 580 px wide in practice (480 x 350 among them), 540 while watching and 460 in a match
+  (400 x 350); with notch insets 660, 640 and 560. Every phone on its side keeps
+  the linear meter in every mode. With a moved row the update note wraps short of the
+  rail's widest (`.meter-room`), and the shout bar keeps inside the canvas.
 - **A tall canvas** has no block (`plan` null): the plan splits either side of the line.
 
 The held slider's caption grows from the block's edge at the screen's edge toward the

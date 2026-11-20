@@ -161,6 +161,9 @@ export class Game {
     this.onAction = onAction;
     this.cards = cards; // the card host (src/ui/cards.js), set by main
     this.mode = null; // "practice" | "match"
+    // what the page's header row holds beside MENU (layout.js headerPlates):
+    // "practice" (its tray), "watch" (the view tray) or null; main sets it
+    this.header = null;
     this.phase = "idle"; // aim | play | raise | punish | over | idle
     this.need = null;
     this.viewData = null;
@@ -1118,6 +1121,13 @@ export class Game {
     if (this.W) this.resize();
   }
 
+  // What the header row holds beside MENU ("practice", "watch" or null):
+  // a linear meter that moves the row in must leave it room (layoutFor).
+  setHeader(header) {
+    this.header = header || null;
+    if (this.W) this.resize();
+  }
+
   // The screen edge the meter sits at: "right" or "left" (left-handed
   // players may want it there). The linear meter goes to that edge; the
   // clock does on a wide canvas, and is centred on a tall one either way.
@@ -1260,7 +1270,7 @@ export class Game {
       },
       this.swipeLayout,
       this.meter,
-      { side: this.meterSide, coarse: this.coarse },
+      { side: this.meterSide, coarse: this.coarse, header: this.header },
     );
     // a held knob is let go when the meter under it changes (a phone turned
     // on its side mid-swing): its place on one is no angle on the other
@@ -1289,6 +1299,7 @@ export class Game {
     const key = `${r.left}:${r.right}`;
     if (this.roomKey === key) return;
     this.roomKey = key;
+    root.classList?.toggle("meter-room", !!(r.left || r.right));
     root.style.setProperty("--meter-l", `${r.left}px`);
     root.style.setProperty("--meter-r", `${r.right}px`);
   }

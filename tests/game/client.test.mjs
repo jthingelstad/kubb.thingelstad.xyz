@@ -18,6 +18,7 @@ import {
   nextFrame,
 } from "./browser.mjs";
 import { linearGeometry } from "../../src/render/linear.js";
+import { tune as layoutTune } from "../../src/game/layout.js";
 import { startRoomsServer } from "../../tools/rooms-dev.mjs";
 import { memoryReporter } from "../../backend/rooms/reports.mjs";
 import { memoryGameRecorder } from "../../backend/rooms/recorder.mjs";
@@ -1569,6 +1570,68 @@ for (const side of ["right", "left"]) {
     },
   );
 }
+
+// Codex on web PR #71: the plates the linear meter moves in are no wider
+// than layout.js reserves for them (headerPlates), so where the layout keeps
+// the meter they stay apart, and where they would not (practice's tray at
+// 480 x 350) the clock is drawn and nothing moves.
+test("the header row's plates fit the room the linear meter leaves them", async () => {
+  const box = (page, sel) => page.locator(sel).boundingBox();
+  const apart = (a, b) => a.x + a.width <= b.x || b.x + b.width <= a.x;
+  const page = await open(env, "/practice/?nohowto=1", "landscape", {
+    prefs: { meter: "linear", meterSide: "right" },
+  });
+  try {
+    await waitPhase(page, "aim", 10000);
+    let L = await page.evaluate(() => window.__kubb.game.L);
+    assert.equal(L.meter, "linear");
+    assert.ok(L.meterRoom.right > 0, "MENU and the tray moved in");
+    const t = layoutTune;
+    const tray = await box(page, "[data-test=tray]");
+    const menu = await box(page, "[data-test=menu]");
+    const rail = await box(page, "[data-test=rail]");
+    assert.ok(tray.width <= t.trayW.practice, `tray ${tray.width}`);
+    assert.ok(menu.width <= t.menuW, `MENU ${menu.width}`);
+    assert.ok(rail.width <= t.railPracticeW, `rail ${rail.width}`);
+    assert.ok(apart(tray, rail) && apart(menu, rail), "844 x 390");
+    assert.ok(
+      await page.evaluate(() =>
+        document.documentElement.classList.contains("meter-room"),
+      ),
+    );
+    // a narrow window: the tray would cover the rail, so the clock
+    await page.setViewportSize({ width: 480, height: 350 });
+    await page.waitForFunction(() => window.__kubb.game.L.W === 480);
+    await nextFrame(page);
+    L = await page.evaluate(() => window.__kubb.game.L);
+    assert.equal(L.meter, "clock");
+    assert.deepEqual(L.meterRoom, { left: 0, right: 0 });
+    const tray2 = await box(page, "[data-test=tray]");
+    assert.ok(apart(tray2, await box(page, "[data-test=rail]")), "480 x 350");
+    assert.equal(
+      await page.evaluate(() =>
+        document.documentElement.classList.contains("meter-room"),
+      ),
+      false,
+    );
+    assert.deepEqual(page.errors, []);
+  } finally {
+    await page.context().close();
+  }
+  // watching in the thrower's view: the view tray
+  const w = await open(env, "/p/abcdefgh?watch=1&nohowto=1", "landscape", {
+    prefs: { meter: "linear", watchView: "thrower" },
+  });
+  try {
+    await w.waitForFunction(() => window.__kubb?.game?.L?.meter === "linear");
+    const v = await box(w, "[data-test=view]");
+    assert.ok(v.width <= layoutTune.trayW.watch, `view ${v.width}`);
+    const rail = await box(w, "[data-test=rail]");
+    assert.ok(rail.width <= layoutTune.railCountsW, `rail ${rail.width}`);
+  } finally {
+    await w.context().close();
+  }
+});
 
 // One practice throw, watched: the result the engine judged.
 async function judgedThrow(page, opts) {
