@@ -195,3 +195,17 @@ test("the address switch: ?scene=night, nothing else", () => {
   assert.equal(sceneOf("day").id, "day");
   assert.equal(sceneOf("nope"), sceneOf("day"));
 });
+
+test("the controls' skin: the day's tokens are the palette's, and come back", async () => {
+  const P = await import("../../src/render/palette.js");
+  const before = JSON.stringify([P.UI, P.HUD, P.BURST, P.AIM]);
+  assert.deepEqual(P.UI, { ink: P.INK, paper: P.PAPER, drop: P.INK });
+  assert.equal(P.HUD.face, P.PAPER);
+  assert.equal(P.BURST.ink, P.INK);
+  P.useSkin(P.NIGHT.skin);
+  assert.notEqual(P.UI.ink, P.INK);
+  P.useSkin(null);
+  assert.equal(JSON.stringify([P.UI, P.HUD, P.BURST, P.AIM]), before);
+  // the day pin holds after a night has been and gone
+  assert.equal(drawAll({}), PINNED);
+});

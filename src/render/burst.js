@@ -8,7 +8,7 @@
 // chips. The burst sits up and to the left of the hit with its long spike's
 // tip on it. opts.size is the star's width in px (default 150). Returns
 // false once the burst is over. The king's flash inverts the whole canvas.
-import { INK, BURST, FONT } from "./palette.js";
+import { BURST, FONT } from "./palette.js";
 
 export const tune = {
   flash: 2 / 30, // s (the Playdate's 2 frames at 30 fps)
@@ -92,19 +92,19 @@ function crown(ctx, cx, by, w) {
     [cx + w / 2, by],
   ];
   ctx.lineJoin = "round";
-  ctx.fillStyle = INK;
+  ctx.fillStyle = BURST.ink;
   poly(
     ctx,
     pts.map(([x, y]) => [x + w * 0.05, y + w * 0.05]),
   );
   ctx.fill();
   ctx.fillStyle = BURST.crown;
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = BURST.ink;
   ctx.lineWidth = Math.max(1.5, w * 0.06);
   poly(ctx, pts);
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = INK;
+  ctx.fillStyle = BURST.ink;
   for (const [x, y] of [pts[1], pts[3], pts[5]]) {
     ctx.beginPath();
     ctx.arc(x, y, w * 0.06, 0, Math.PI * 2);
@@ -122,7 +122,7 @@ function star(ctx, tx, ty, size, word, seed, grow, kind) {
   const lw = Math.max(2, size * 0.035);
   // the hard shadow, the ink star, the coloured inside
   ctx.lineJoin = "miter";
-  ctx.fillStyle = INK;
+  ctx.fillStyle = BURST.ink;
   poly(
     ctx,
     pts.map(([x, y]) => [x + lw * 1.6, y + lw * 1.6]),
@@ -149,7 +149,7 @@ function star(ctx, tx, ty, size, word, seed, grow, kind) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = BURST.ink;
   ctx.lineWidth = fs * 0.13;
   ctx.strokeText(word, cx, cy + fs * 0.06);
   ctx.fillStyle = BURST.word;
@@ -174,10 +174,10 @@ function chips(ctx, tx, ty, size, t, seed) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(rot);
-    ctx.fillStyle = INK;
+    ctx.fillStyle = BURST.ink;
     ctx.fillRect(-s / 2 + 1.5, -s * 0.35 + 1.5, s, s * 0.7);
     ctx.fillStyle = BURST.chip[i % BURST.chip.length];
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = BURST.ink;
     ctx.lineWidth = Math.max(1, s * 0.12);
     ctx.fillRect(-s / 2, -s * 0.35, s, s * 0.7);
     ctx.strokeRect(-s / 2, -s * 0.35, s, s * 0.7);
@@ -189,7 +189,7 @@ function flash(ctx, x, y, size, t) {
   // a pale disc with ink rays round the hit
   const r = size * (0.25 + 0.35 * t);
   ctx.fillStyle = BURST.flash;
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = BURST.ink;
   ctx.lineWidth = Math.max(2, size * 0.03);
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);

@@ -22,7 +22,7 @@
 //              may go round outside the ring, where it hides nothing)
 //   finger     [x, y] of a finger holding the dial from beside the ring, or
 //              null: a spoke from the knob out to it
-import { INK, PAPER, HUD, FONT } from "./palette.js";
+import { UI, HUD, FONT } from "./palette.js";
 
 export const tune = {
   frame: 0.075, // the ink frame, of the radius
@@ -170,7 +170,7 @@ function target(ctx, g, ri, ro, rm, ringW, a0, a1, fill, deep, lw) {
   slicePath(ctx, g, g.r * tune.sliceIn, ro, a0, a1);
   ctx.fillStyle = fill;
   ctx.fill();
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = UI.ink;
   ctx.lineWidth = lw;
   ctx.stroke();
   // solid across the ring, so the hand never hides it
@@ -196,18 +196,18 @@ export function plate(ctx, x, y, h, text, inverted, right = null, left = null) {
   const sh = h * 0.12;
   if (right != null) x = Math.min(x, right - sh - w / 2);
   if (left != null) x = Math.max(x, left + w / 2);
-  ctx.fillStyle = INK;
+  ctx.fillStyle = UI.drop;
   ctx.beginPath();
   ctx.roundRect(x - w / 2 + sh, y - h / 2 + sh, w, h, h * 0.18);
   ctx.fill();
-  ctx.fillStyle = inverted ? INK : HUD.prompt;
-  ctx.strokeStyle = INK;
+  ctx.fillStyle = inverted ? UI.ink : HUD.prompt;
+  ctx.strokeStyle = UI.ink;
   ctx.lineWidth = Math.max(1.5, h * 0.09);
   ctx.beginPath();
   ctx.roundRect(x - w / 2, y - h / 2, w, h, h * 0.18);
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = inverted ? PAPER : HUD.promptInk;
+  ctx.fillStyle = inverted ? UI.paper : HUD.promptInk;
   ctx.fillText(text, x, y + h * 0.04);
 }
 
@@ -225,14 +225,14 @@ function trackRail(ctx, g, st, lw) {
   ctx.save();
   ctx.lineCap = "round";
   // the casing, then the rail
-  ctx.strokeStyle = PAPER;
+  ctx.strokeStyle = UI.paper;
   ctx.lineWidth = lw * 3.4;
   arc(-180, end);
   ctx.stroke();
   // the targets on it: a fat stroke in the target's colour, edged in ink
   const seg = (a0, a1, fill) => {
     ctx.lineCap = "butt";
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = UI.ink;
     ctx.lineWidth = lw * 3.4;
     arc(a0 - 1.2, a1 + 1.2);
     ctx.stroke();
@@ -241,7 +241,7 @@ function trackRail(ctx, g, st, lw) {
     arc(a0, a1);
     ctx.stroke();
   };
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = UI.ink;
   ctx.lineWidth = lw;
   arc(-180, end);
   ctx.stroke();
@@ -249,7 +249,7 @@ function trackRail(ctx, g, st, lw) {
   if (st.releaseHi > st.releaseLo) seg(st.releaseLo, st.releaseHi, HUD.release);
   // the hour pips
   ctx.lineCap = "round";
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = UI.ink;
   ctx.lineWidth = lw * 1.2;
   ctx.beginPath();
   for (let a = -150; a < end; a += 30) {
@@ -262,7 +262,7 @@ function trackRail(ctx, g, st, lw) {
   ctx.stroke();
   // 6 o'clock, where every swing starts: a solid pip
   const [x6, y6] = armPoint(g, 0, rt);
-  ctx.fillStyle = INK;
+  ctx.fillStyle = UI.ink;
   ctx.beginPath();
   ctx.arc(x6, y6, lw * 2.2, 0, Math.PI * 2);
   ctx.fill();
@@ -341,7 +341,7 @@ export function drawDial(ctx, rect, st) {
 
   // the face: hard shadow, ink frame, paper
   const sh = r * tune.shadow;
-  ctx.fillStyle = INK;
+  ctx.fillStyle = UI.drop;
   ctx.beginPath();
   ctx.arc(cx + sh, cy + sh, r, 0, Math.PI * 2);
   ctx.fill();
@@ -419,7 +419,7 @@ export function drawDial(ctx, rect, st) {
     );
 
   // the ring's inner edge and the hours
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = UI.ink;
   ctx.lineWidth = lw;
   ctx.beginPath();
   ctx.arc(cx, cy, ri, 0, Math.PI * 2);
@@ -447,7 +447,7 @@ export function drawDial(ctx, rect, st) {
   // the live peak
   if (live && st.back > 0) {
     const [x, y] = armPoint(g, -st.back, rm);
-    ctx.fillStyle = PAPER;
+    ctx.fillStyle = UI.paper;
     ctx.beginPath();
     ctx.arc(x, y, r * tune.dot + lw, 0, Math.PI * 2);
     ctx.fill();
@@ -471,46 +471,46 @@ export function drawDial(ctx, rect, st) {
   // and a ring where it is, so what the finger covers can be read past it
   if (st.finger) {
     const [fx, fy] = st.finger;
-    ctx.strokeStyle = PAPER;
+    ctx.strokeStyle = UI.paper;
     ctx.lineWidth = lw * 2.6;
     ctx.beginPath();
     ctx.moveTo(hx, hy);
     ctx.lineTo(fx, fy);
     ctx.stroke();
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = UI.ink;
     ctx.lineWidth = lw * 1.1;
     ctx.stroke();
     const fr = r * 0.11;
-    ctx.fillStyle = PAPER;
+    ctx.fillStyle = UI.paper;
     ctx.beginPath();
     ctx.arc(fx, fy, fr + lw * 1.2, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = UI.ink;
     ctx.lineWidth = lw * 1.5;
     ctx.beginPath();
     ctx.arc(fx, fy, fr, 0, Math.PI * 2);
     ctx.stroke();
   }
   const handW = live || st.grabbed ? r * 0.07 : r * 0.045;
-  ctx.strokeStyle = PAPER;
+  ctx.strokeStyle = UI.paper;
   ctx.lineWidth = handW + lw * 2.4;
   ctx.beginPath();
   ctx.moveTo(cx, cy);
   ctx.lineTo(hx, hy);
   ctx.stroke();
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = UI.ink;
   ctx.lineWidth = handW + lw * 1.2;
   ctx.stroke();
   ctx.strokeStyle = HUD.hand;
   ctx.lineWidth = handW - lw * 0.4;
   ctx.stroke();
   // the knob: a little baton end, wood with an ink rim and end-grain rings
-  ctx.fillStyle = INK;
+  ctx.fillStyle = UI.ink;
   ctx.beginPath();
   ctx.arc(hx + kr * 0.18, hy + kr * 0.18, kr, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = st.grabbed ? HUD.knobGrab : HUD.knob;
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = UI.ink;
   ctx.lineWidth = lw * 1.6;
   ctx.beginPath();
   ctx.arc(hx, hy, kr, 0, Math.PI * 2);
@@ -526,7 +526,7 @@ export function drawDial(ctx, rect, st) {
   ctx.arc(hx, hy, kr * 0.16, 0, Math.PI * 2);
   ctx.fill();
   // the hub
-  ctx.fillStyle = INK;
+  ctx.fillStyle = UI.ink;
   ctx.beginPath();
   ctx.arc(cx, cy, r * tune.hub, 0, Math.PI * 2);
   ctx.fill();
