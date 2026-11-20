@@ -39,7 +39,7 @@
   "reels": {
     "functionArn": "arn:aws:lambda:us-east-1:999153317627:function:kubb-xyz-site-reels",
     "engines": "0.9,0.8,0.7",
-    "codeKey": "reels/7752e6472ed2a4e3945a86c33a26cfead6fc446ad1f23f9e297df34d65de2e7e.zip",
+    "codeKey": "reels/945a1a3fbfbbe49ce1a324edc9a502ca59deec646a52bc63c5b8ff66ee69b26c.zip",
     "layerKey": "reels/ffmpeg-f4149bb2b0784e30e99bdda85471c9b5930d3402014e934a5098b41d0f7201b1.zip"
   }
 }
