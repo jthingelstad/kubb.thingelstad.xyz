@@ -14,8 +14,9 @@ finished online pitches** ("The server" below says what was built and where it c
 from the design; deploying it is `docs/REEL-RUNBOOK.md`), and the browser's buttons, cards
 and home and privacy wording for them (docs/CLIENT.md "Highlight reels"). **Built
 (2026-11-19): the server side of sharing a match against the computer** (`share`, the
-renderer's check, sealed rooms; the protocol is `docs/ROOMS.md` section 13). Not built
-yet: the share card and its wording in the browser, and the iPhone. The renderer's
+renderer's check, sealed rooms; the protocol is `docs/ROOMS.md` section 13), and **the
+browser's share card and a sealed pitch's page** (docs/CLIENT.md "Sharing a match";
+its words are "The share card" below). Not built yet: the iPhone. The renderer's
 code is `backend/reels/` (moved there from the prototype in `tools/reel/`); the
 prototype's commands below still render reels on a laptop with that same code.
 
@@ -310,6 +311,33 @@ Both clients show exactly these words; a change here is a change to both
 | Copied                                                    | Copied the link.                                                                                                              |
 | Copy, share or fetch failed                               | Could not copy. The link is ... / Could not share. DOWNLOAD TALL saves it. / Could not get the video. DOWNLOAD TALL saves it. |
 
+#### The share card
+
+A match against the computer, before it is sent (`SHARE_WORDS` in `src/net/share.js`).
+Once shared, the reel card above takes over, with its link and COPY LINK shown from the
+start.
+
+| Where                       | Words                                                                                                                                          |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Button on the winner card   | MAKE A HIGHLIGHT REEL (MAKING YOUR REEL while it is checked, then the reel's)                                                                  |
+| Card title                  | Share this match                                                                                                                               |
+| What sharing does           | To make a reel, this match goes to throwingwood.com and gets its own link. Anyone with the link can watch the replay and the reel, for a year. |
+| The field                   | Name on the reel, empty with "Your team's name" greyed in it                                                                                   |
+| Under the field             | Your side is shown by this name. The other side is Computer. Nothing else about you is sent.                                                   |
+| When it was played          | The score sheet shows the day and time the match was played.                                                                                   |
+| Card buttons                | SHARE AND MAKE THE REEL (faded until the name will do), NOT NOW; after sending TRY AGAIN, BACK                                                 |
+| The name will not do        | Type a name for your side. / A reel needs a name, not "You". / Up to 16 characters. / No spaces at the start or end.                           |
+| While it is checked         | CHECKING THE MATCH, the slow bar, then "This takes a few seconds."                                                                             |
+| The link, once shared       | The link: https://throwingwood.com/p/<code>                                                                                                    |
+| `engine`                    | This match was played on another version of the game, so it cannot be shared.                                                                  |
+| `does-not-replay`           | This match did not pass the check, so it cannot be shared.                                                                                     |
+| `too-long` (known here too) | This match is too long to share.                                                                                                               |
+| `busy`                      | Sharing is busy right now. Try again later.                                                                                                    |
+| `unavailable`, unknown whys | Matches cannot be shared right now.                                                                                                            |
+| `too-many`                  | Too many matches shared at once. Try again later.                                                                                              |
+| The error `failed`          | This match could not be shared. (TRY AGAIN once, then "This match could not be shared. Not this time.")                                        |
+| No connection               | No connection. (TRY AGAIN as often as pressed)                                                                                                 |
+
 ## The server
 
 Built for finished online pitches (2026-11-19). Where the build differs from the design
@@ -492,6 +520,14 @@ The field holds the name typed for the match, or is empty (with "Your team's nam
 greyed in it) when that was "You" or nothing. SHARE AND MAKE THE REEL is faded until it
 holds a name. After it: "Checking the match", then the reel card's MAKING YOUR REEL, with
 the link shown and COPY LINK already working. A match already shared skips the card.
+**Built (2026-11-19), in the browser** (docs/CLIENT.md "Sharing a match"; the words are
+"The share card" above). It adds a line under the field saying why a name will not do,
+and the note that the score sheet shows the day and time the match was played (the
+start is kept to the minute, open question 14). The state line while checking is
+CHECKING THE MATCH, in capitals like MAKING YOUR REEL. A match plainly past the log
+budget says "This match is too long to share." without being sent. The reel card is
+asked from its own socket, as every web request is (not the share's socket, as point 1
+below has it for a device that has just shared): the server needs no join for either.
 
 ### Who may ask, and limits
 
@@ -701,7 +737,7 @@ this phone. TRY AGAIN" and sends nothing.
 3. **Server** (2 to 3 days, after the reel server in this document): `share`, its caps
    and `share#` key, sealed rooms, the renderer's check and its engines.
 4. **Web** (2 days): the solo winner card's button and share card, a sealed pitch's
-   page, the reel card shared with pitches.
+   page, the reel card shared with pitches. **Built 2026-11-19.**
 5. **iPhone** (3 to 4 days): the two requests, the winner card's button for solo and
    online, the share card with its name field, waiting, the download and share sheet,
    offline and failure, and review pictures for each card.
