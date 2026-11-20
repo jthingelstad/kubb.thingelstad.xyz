@@ -13,9 +13,9 @@ the engine's.
 | Page                | What it is                                                                                                                                                                                                                                                                                          |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/practice/`        | The open practice pitch: BATONS or KUBBS (the drill), surface, reset and level.                                                                                                                                                                                                                     |
-| `/p/<code>?solo=1`  | A match against the computer. The options card first (name, level, surface, opening, raising, wind, kubb set; remembered), then START.                                                                                                                                                              |
+| `/p/<code>?solo=1`  | A match against the computer. The options card first (name, the level you throw at with CHANGE IN MENU, Computer level, surface, opening, raising, wind, kubb set; remembered), then START.                                                                                                         |
 | `/p/<code>?watch=1` | The computer against itself, match after match: no options card, the solo card's saved options, North against South. The winner card stays up 10 s (NEXT MATCH, STOP, HOME), then the next match starts by itself, the other team first. Seen in the wide view by default ("The wide view", below). |
-| `/p/<code>`         | A shared pitch: the lobby (name, level, Team A or B or watching, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md.                                                                                                                                   |
+| `/p/<code>`         | A shared pitch: the lobby (name, the level you throw at, Team A or B or watching, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md.                                                                                                                  |
 | `/e/<code>`         | The embed: a kept replay alone, for a frame on another site ("The embed", below).                                                                                                                                                                                                                   |
 
 A failure to start shows a plain error card with RELOAD and HOME. HOME, on every card, is
@@ -150,11 +150,21 @@ are two sliders now, and PLAN VIEW is SIDE VIEW.
   and a fresh plan move it. Its marks are the clock's hours from 1 to 5, 3 o'clock (the
   normal throw, loft 32) long.
 - **TILT** (a baton) or **SPIN** (a kubb) is horizontal, 0 in the middle with a long heavy
-  mark, a detent at each of the engine's steps: a baton's tilt 5 degrees a step to 20
-  either way, a kubb's spin 1 a step to 3. The engine has only `stepSide(n)` for these, so
-  the slider moves by `stepSide(target - current)`; the knob follows the finger while it is
-  held and eases onto the nearest detent when let go. Fully continuous tilt would need a new
-  engine call (a `setSide`), which this does not add.
+  mark, to 20 degrees either way for a baton's tilt and 3 for a kubb's spin.
+- **Any value** (engine 0.9 on; Jamie, 2026-11-20: "sliders, not step buttons"). The
+  engine gives each slider's range in `aim.controls` (`{ min, max, value, default, tick,
+step, unit, scope }` for `arc`, `tilt` and `spin`), and the slider takes any value in it:
+  `setArc`, `setTilt {deg}` and `setSpin {spin}`. Its marks are drawn from `tick` (a small
+  one at every tick, a full one at every `step`), and the value is free between them. The
+  header reads whole degrees and a spin to a tenth (`TILT 7R`, `SPIN 1.3L`). An arrow key
+  moves a tick from where it is; PageUp and PageDown, R/F and Q/E move a step.
+- **On 0.8 and 0.7** (a match played or replayed on its own engine) there is no
+  `aim.controls`: TILT and SPIN settle on the engine's steps, 5 degrees and 1, through
+  `stepSide(target - current)`, the knob easing onto the nearest when let go, as before.
+- **Spin is kept for the turn** (engine 0.9): the spin a kubb was thrown with is where the
+  same side's next kubb starts (`aim.plan.spin`, `controls.spin.value`; in practice, throw
+  to throw). The slider shows the kept value when the next kubb comes up, and nothing on
+  the page resets it.
 - **Read it while you drag.** Each slider is a plate in the game's look (paper, ink rim,
   hard shadow, the linear meter's wooden knob) with its value on a wooden header above
   the track, and its marks in a lane beside the slot: above it for TILT, on ARC's inner
@@ -649,10 +659,20 @@ throws he took for perfect had been judged long.
   who acts; the others see the status pill and no panel, as before.
 - **The winner**: REMATCH (back to the options; on a shared pitch the host's only, back to
   the lobby with the same teams), SCORE SHEET and HOME.
-- **The menu**: its rows (Your level, the player's own throw tolerance; Meter; Meter side;
+- **The menu**: its rows (Your level, the player's own throw tolerance, with "A change
+  applies from your next throw."; Meter; Meter side;
   Raising in a match; View when watching; Surface in practice; Sound) each show their
   value as a choice. Then how to throw, score sheet (a match), resign, send feedback,
-  rules, home; Escape closes it.
+  rules, home; Escape closes it. It opens over a card too, from CHANGE IN MENU.
+- **Two levels** (Jamie, 2026-11-20; `src/game/throw-level.js`), as the iPhone app has
+  them. The level you throw at is this device's setting, set in MENU only (prefs
+  `level`): practice, a match against the computer and a shared pitch all throw at it,
+  and the solo card and the lobby show it as a line ("Throwing at Club.") with CHANGE
+  IN MENU. The computer's level is a match option, Computer level (Beginner, Club, Pro):
+  the solo card's row (prefs `solo.computer`, passed as `computer` and on the computer's
+  player), and on a pitch the host's row (engine 0.9 on). A device's older choices move
+  across once: the device level is the `level` pref, else the solo card's old Level,
+  else Club; the solo card's old Level becomes its Computer level.
 - **The rail** counts in words ("5 BASE KUBBS", "2 FIELD KUBBS", "AT THE KING", practice
   kubbs "TARGET 2.3 M"; `railCount` in `hud.js`) where the engine's rail says the
   Playdate's "BASE 5". Practice's tray is a joined pair, BATONS | KUBBS, the one in use
@@ -992,16 +1012,16 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
 - **The label** (`src/site/release.js`): every app shows its own version with the Kubb
   Engine's beside it, `<app version> (<engine version>)` (Jamie, 2026-11-20). On the web
   that is `package.json`'s version and the full version of the newest engine the page
-  carries: `0.2.0 (0.8.1)`. Nothing but that engine's version is in the parentheses: an
-  older engine the page still plays is only in the detail, `Also plays 0.7.4`, and the
+  carries: `0.5.0 (0.9.0)`. Nothing but that engine's version is in the parentheses: an
+  older engine the page still plays is only in the detail, `Also plays 0.8.2 and 0.7.4`, and the
   web commit never shows. The release is `{ version, web, engine, also, text, detail }`
   (`text` the label, `detail` the older engines or null). The build (`tools/build.mjs`
   `releaseOf`) reads the version from `package.json`, the web commit from `GITHUB_SHA` in
   CI or `git rev-parse HEAD`, and the engines from the vendored set; it puts the release
   in the game pages' config (`config.release`) and writes it as `/version.json`.
-- **Shown** small, in the shared type tokens: "Version 0.2.0 (0.8.1)" at the foot of
+- **Shown** small, in the shared type tokens: "Version 0.5.0 (0.9.0)" at the foot of
   every reading page (beside the link to the engine page), and the label with "Also plays
-  0.7.4" under it at the foot of MENU in the game.
+  0.8.2 and 0.7.4" under it at the foot of MENU in the game.
 - **Exact identity** is the web commit: freshness (below) compares it, and a feedback
   report carries the label (`build.label`) beside `build.version`, `build.commit` and the
   Lua bundle it played on.
@@ -1024,14 +1044,20 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
 ## Tests and screenshots
 
 - `tests/game/plan-client.test.mjs` (Playwright): dragging ARC lands between the old
-  15-degree steps and its header follows; TILT settles on steps of 5 and reaches 20 either
-  way, SPIN (KUBBS) 3; a drag shows the side view and it goes after the peek; SIDE VIEW
+  15-degree steps and its header follows; TILT takes a value off its ticks, reaches 20
+  either way and an arrow moves it a tick, SPIN (KUBBS) 3; a kubb's spin is the next
+  kubb's; a drag shows the side view and it goes after the peek; SIDE VIEW
   toggles with a mouse click; and in every layout (a wide screen with the clock right and
   left, a tall phone with the clock and with the linear meter right and left, a phone on
   its side with the meter right and left, a 390 x 664 window) the plan overlaps neither
   the meter, the minimap nor MENU, a wide screen's block is the size `layout.js` plans
   for (`tune.planW`, `planH`) and on a phone on its side at the far edge, and each
   slider's hit area, and STAND's, is at least 44 px across its drag.
+- `tests/game/levels-client.test.mjs` (Playwright): a device from before keeps its
+  level; the solo card's Computer level sets the computer on 0.9 while you throw at MENU's
+  level, changed from the card's CHANGE IN MENU; on a pitch the host sets the computer's
+  level, a watcher reads it, and the match starts with it. `tests/game/throw-level.test.mjs`
+  is the move across, `tests/game/plan-sliders.test.mjs` the controls' values and marks.
 - `tests/game/stand-client.test.mjs` (Playwright): no WALK; a drag on STAND (mouse on a
   desktop, a finger on a portrait phone) puts the thrower at `groundAt` and the engine
   clamps it at the corners, with the caption shown, the circle kept and nothing thrown; a

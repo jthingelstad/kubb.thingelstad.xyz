@@ -18,7 +18,11 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
   release a tag, then `npm run vendor:sync -- --tag vX.Y.Z` (`vendor:check` holds it to
   the engine's manifest). The same goes for each older minor the site still carries in
   `vendor/engines/<major.minor>/` (`docs/ENGINES.md`): practice, solo and watch play on
-  the newest and a shared pitch on the room's engine (the newest every player carries), a new
+  the newest and a shared pitch on the room's engine (the newest every player carries).
+  Today the site carries 0.9.0 (the newest), 0.8.2 and 0.7.4; iPhone testers' builds
+  carry 0.8 and 0.7, so a pitch with one of them plays 0.8. The carried set is
+  `vendor/engine.json` (the newest and `older`), read by the build, the registry and the
+  reels' `REEL_ENGINES`: there is no list to keep by hand. A new
   minor is vendored with `--keep` (carry the old one on) or `--drop`, never by
   accident. Never write in the kubb-engine or playdate-kubb checkouts from here. wasmoon stays pinned at exactly 1.16.0.
 - **This repository is public.** Keep email addresses, device serials, home-directory
@@ -38,6 +42,10 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
   checked again inside the write) with `room.speakAs` members and writes `match.engine`;
   a match plays only on `match.engine`; `mayPlay` gates team and CPU control.
   `LENIENT_ENGINES` is false. Playing requires a named, matching major.minor.
+  Read a pitch's options with `optionsOf(doc)` (the engine's `room.optionsOf` since 0.9,
+  which adds the computer's level and the scene from the document's `settings`; else
+  `lobbyOf(doc).options`), and draw the lobby's rows from the room engine's
+  `MATCH_OPTIONS`, so a row an older engine lacks is not shown.
 - **The thrower's view frame everywhere** (core/frame): JS never flips the pitch.
   The wide view (watching the computer) shows the world frame instead: Lua un-turns Team
   B's output before JS sees it (the engine's `session/wide.lua`), so JS still flips nothing.
@@ -92,9 +100,9 @@ address or home path in `dist/`, no account id in Markdown).
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `0.4.0 (0.8.1)`, at the foot of
-every reading page and of MENU, with "Also plays 0.7.4" under it in MENU while an older
-engine is carried (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
+the full version of the newest engine the site carries, `0.5.0 (0.9.0)`, at the foot of
+every reading page and of MENU, with "Also plays 0.8.2 and 0.7.4" under it in MENU while older
+engines are carried (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
 The app's version never goes on the room wire, the rider or a kept match, replay, embed,
 share or reel: those name only the engine a match was played on.
@@ -481,6 +489,20 @@ labels are plain words.
   engine's Playdate "BASE 5" (`railCount` in `src/game/hud.js`).
 - MENU's rows say what they set and show their value: Your level, Meter, Meter side,
   Raising, View, Surface, Sound (On/Off, once a SOUND: ON button).
+- **Two levels** (Jamie, 2026-11-20, as the iPhone has them). The level you throw at is
+  the device's, set in MENU only, with "A change applies from your next throw."; the
+  solo card and the lobby show it ("Throwing at Club.") with CHANGE IN MENU, never a
+  picker. The computer's level is a match option, Computer level, on the solo card and,
+  set by the host, in the lobby of a 0.9 pitch. `src/game/throw-level.js` moves a
+  device's older choice across so nobody's level resets.
+- **Sliders, not step buttons** (Jamie: "the finger must not cover the control; teach on
+  the control"). On engine 0.9 ARC, TILT and SPIN take any value in `aim.controls`'
+  range (`setArc`, `setTilt`, `setSpin`), ticks drawn from `tick`; a kubb's spin is kept
+  for the turn and nothing on the page resets it. A match on 0.8 or 0.7 steps as before.
+- **Scenes are carried, never shown.** Engine 0.9 keeps a match's `scene` (`settings`,
+  `view.scene`); the web passes it through untouched and draws every scene as the day.
+  No picker, no switch, and no word about scenes where a visitor reads, until one is
+  live.
 - The web game's page and the rules page describe the web's controls in their own words, with one line
   that it is the same game as on Playdate and iPhone.
 

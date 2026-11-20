@@ -316,9 +316,13 @@ pitch, section 13.5).
 
 ### 2.6 Client and engine tags
 
-For game admission, the client joins with `me = { name, level, engine }`, where `engine`
-is the engine's major.minor (for example `"0.4"`). A client that carries several engines
-(the web since engine 0.8.1) writes `engine` as the room's engine marked `"0.7+engines"`
+For game admission, the client joins with `me = { name, level, engine }`, where `level`
+is the level the player throws at (the device's setting, set in MENU on the web and in
+Settings on the iPhone) and `engine` is the engine's major.minor (for example `"0.4"`).
+The computer's level is not a member's: since engine 0.9 it is a match option the host
+sets, kept in the document's top-level `settings` with the scene. A client that carries
+several engines (the web since engine 0.8.1; today 0.9, 0.8 and 0.7) writes `engine` as
+the room's engine marked `"0.9+engines"`
 and adds `engines`, every major.minor it carries (`docs/ENGINES.md` "Playing together");
 an older client reads the mark away. START passes the current members to the engine's
 `room.startCheck`/`room.startMatch`, which refuses explicit mismatches and stamps
