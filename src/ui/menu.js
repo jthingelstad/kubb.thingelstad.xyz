@@ -172,10 +172,15 @@ export class Menu {
               "div.opt",
               { "data-test": "menu-scene" },
               h("span.opt-label", SCENE_ROW[1]),
-              seg(SCENE_ROW[2], sceneId(game.viewData?.scene), (v) => {
-                this.hooks.scene(v);
-                render();
-              }),
+              seg(
+                SCENE_ROW[2],
+                sceneId(game.viewData?.scene),
+                (v) => {
+                  this.hooks.scene(v);
+                  render();
+                },
+                "scene",
+              ),
             )
           : null,
         // the sound as a choice that shows which it is, as every row above
@@ -278,10 +283,10 @@ export class Menu {
   }
 }
 
-function seg(choices, value, onPick) {
+function seg(choices, value, onPick, key = null) {
   return h(
     "div.seg",
-    { role: "radiogroup" },
+    key ? { role: "radiogroup", "data-key": key } : { role: "radiogroup" },
     choices.map(([v, label]) =>
       h(
         "button.seg-btn",
@@ -289,6 +294,7 @@ function seg(choices, value, onPick) {
           type: "button",
           role: "radio",
           "aria-checked": String(v === value),
+          "data-value": v,
           onclick: () => onPick(v),
         },
         label,
