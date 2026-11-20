@@ -45,8 +45,6 @@ export const OWNER = {
 export const ref = (url, placement) =>
   `${url}${url.includes("?") ? "&" : "?"}ref=kubb-${placement}`;
 
-export const PLAYDATE_GAME = "https://playdate.thingelstad.xyz/throwing-wood/";
-
 // The other places the game lives (the /ios/ and /playdate/ pages).
 export const ENGINE_REPO = "https://github.com/jthingelstad/kubb-engine";
 export const WEB_REPO = "https://github.com/jthingelstad/kubb.thingelstad.xyz";
