@@ -104,6 +104,7 @@ ${openGames(config.roomsUrl)}
     <li><strong>Throw wood.</strong> Everyone sees every throw. Knock down their kubbs, then the king.</li>
   </ol>
   <p>No one to play with? Play the computer, or throw batons on the practice pitch. You can also sit back and watch the computer play itself, match after match.</p>
+  <p>Pick a scene: Day, Night under a full moon, or Neon, where the pitch glows in the dark. On a shared pitch the host picks it for everyone.</p>
   <p>Matches are recorded to help make the game better. A record holds the throws and the names typed. Records stay private and are never published. Practice is not recorded.</p>
   <p>The Open games list shows how many are on a pitch and if the match has started. It never shows names. Feedback from the game’s menu is kept privately too. It holds what you typed and the game as it stood, which can include the players’ names.</p>
   <p>Anyone with a finished pitch’s link can make a highlight reel. It is a short video of the best throws, with the team names. Like the replay, it is kept for a year.</p>

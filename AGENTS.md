@@ -523,7 +523,7 @@ labels are plain words.
   other mode). The rail counts in words ("5 BASE KUBBS", "TARGET 2.3 M"), not the
   engine's Playdate "BASE 5" (`railCount` in `src/game/hud.js`).
 - MENU's rows say what they set and show their value: Your level, Meter, Meter side,
-  Raising, View, Surface, Sound (On/Off, once a SOUND: ON button).
+  Raising, View, Surface and Scene (practice), Sound (On/Off, once a SOUND: ON button).
 - **Two levels** (Jamie, 2026-11-20, as the iPhone has them). The level you throw at is
   the device's, set in MENU only, with "A change applies from your next throw."; the
   solo card and the lobby show it ("Throwing at Club.") with CHANGE IN MENU, never a
@@ -534,10 +534,16 @@ labels are plain words.
   the control"). On engine 0.9 ARC, TILT and SPIN take any value in `aim.controls`'
   range (`setArc`, `setTilt`, `setSpin`), ticks drawn from `tick`; a kubb's spin is kept
   for the turn and nothing on the page resets it. A match on 0.8 or 0.7 steps as before.
-- **Scenes are carried, never shown.** Engine 0.9 keeps a match's `scene` (`settings`,
-  `view.scene`); the web passes it through untouched and draws every scene as the day.
-  No picker, no switch, and no word about scenes where a visitor reads, until one is
-  live.
+- **Scenes** (Jamie, 2026-11-20: "i absolutely adore the two new scenes! lets make it
+  real"). A scene is a look only: Day, Night and Neon, a match option, Scene, on engine
+  0.9 (the engine keeps the id in `settings.scene` and `view.scene` and never reads it).
+  The solo card has the row (watching the computer takes the card's), MENU has it on the
+  practice pitch, and the host sets it in the lobby of a pitch whose next match runs on
+  0.9; a pitch on 0.8 or 0.7 shows no row and draws the day. The pitch behind the card
+  or lobby shows the pick. Every surface draws a match through one `Stage`
+  (`src/render/scenes.js`): play, replay, embed and the reel. An id the web does not
+  draw is the day. `?scene=` picks one off a pitch, never on one. Batons stay plain.
+  docs/SCENES.md.
 - The web game's page and the rules page describe the web's controls in their own words, with one line
   that it is the same game as on Playdate and iPhone.
 
