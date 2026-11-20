@@ -66,6 +66,9 @@ export function prepareObject(key, bytes) {
     key.includes("\\")
   )
     throw new Error(`Unsafe public key: ${key}`);
+  // reels/ is the reel function's (docs/REEL.md): a deploy never writes there
+  if (key.startsWith("reels/"))
+    throw new Error(`reels/ belongs to the reel function: ${key}`);
   const type = contentType(key);
   if (!type) throw new Error(`No MIME type for ${key}`);
   return {

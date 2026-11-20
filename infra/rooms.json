@@ -14,6 +14,32 @@
       "Type": "String",
       "Default": "https://throwingwood.com,https://app.throwingwood.com,http://localhost,http://127.0.0.1",
       "Description": "Comma separated Origin allow-list for new connections; an origin without a port allows any port"
+    },
+    "ReelsFunctionArn": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^arn:aws[a-z-]*:lambda:[a-z0-9-]+:[0-9]{12}:function:[A-Za-z0-9_-]+$",
+      "Description": "The highlight reel function (stack kubb-xyz-site output ReelsFunctionArn). Empty: every reel request is answered unavailable."
+    },
+    "ReelEngines": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^[0-9]{1,4}\\.[0-9]{1,4}(,[0-9]{1,4}\\.[0-9]{1,4})*$",
+      "Description": "The engine major.minors the reel function renders (stack kubb-xyz-site output ReelEngines)."
+    }
+  },
+  "Conditions": {
+    "HasReels": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "ReelsFunctionArn"
+            },
+            ""
+          ]
+        }
+      ]
     }
   },
   "Resources": {
@@ -185,6 +211,22 @@
                   "Resource": {
                     "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${RoomsApi}/prod/*/@connections/*"
                   }
+                },
+                {
+                  "Fn::If": [
+                    "HasReels",
+                    {
+                      "Sid": "StartReels",
+                      "Effect": "Allow",
+                      "Action": "lambda:InvokeFunction",
+                      "Resource": {
+                        "Ref": "ReelsFunctionArn"
+                      }
+                    },
+                    {
+                      "Ref": "AWS::NoValue"
+                    }
+                  ]
                 }
               ]
             }
@@ -232,7 +274,13 @@
             "ALLOWED_ORIGINS": {
               "Ref": "AllowedOrigins"
             },
-            "NODE_OPTIONS": "--enable-source-maps"
+            "NODE_OPTIONS": "--enable-source-maps",
+            "REELS_FUNCTION": {
+              "Ref": "ReelsFunctionArn"
+            },
+            "REEL_ENGINES": {
+              "Ref": "ReelEngines"
+            }
           }
         }
       }

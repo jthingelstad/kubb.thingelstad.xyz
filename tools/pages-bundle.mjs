@@ -18,7 +18,7 @@ import zlib from "node:zlib";
 export const PAGES_ENTRY = "backend/pages/main.mjs";
 
 // A zip of the entries in name order, every field fixed: DOS date 1980-01-01, no
-// extra fields, Unix mode 0644.
+// extra fields, Unix mode 0644 (or the entry's `mode`, 0o755 for a program).
 export function zipFiles(entries) {
   const files = [...entries].sort((a, b) => (a.name < b.name ? -1 : 1));
   const DOS_TIME = 0;
@@ -26,7 +26,7 @@ export function zipFiles(entries) {
   const local = [];
   const central = [];
   let offset = 0;
-  for (const { name, data } of files) {
+  for (const { name, data, mode = 0o644 } of files) {
     const file = Buffer.from(name, "utf8");
     const packed = zlib.deflateRawSync(data, { level: 9 });
     const crc = zlib.crc32(data);
@@ -55,7 +55,7 @@ export function zipFiles(entries) {
     entry.writeUInt32LE(packed.length, 20);
     entry.writeUInt32LE(data.length, 24);
     entry.writeUInt16LE(file.length, 28);
-    entry.writeUInt32LE((0o100644 << 16) >>> 0, 38);
+    entry.writeUInt32LE(((0o100000 | mode) << 16) >>> 0, 38);
     entry.writeUInt32LE(offset, 42);
     central.push(entry, file);
     offset += head.length + file.length + packed.length;

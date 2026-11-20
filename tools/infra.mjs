@@ -19,7 +19,11 @@
 // games are recorded in: its code is
 // backend/rooms/handler.mjs bundled and zipped by tools/rooms-bundle.mjs,
 // uploaded to the code bucket under its hash. The delivery stack owns the
-// GitHub OIDC role that publishes main. Each apply rewrites
+// GitHub OIDC role that publishes main. With "reelRenderer": true in
+// infra/deployment.json the site stack also runs the highlight reel function
+// (backend/reels, docs/REEL.md, docs/REEL-RUNBOOK.md): its package and ffmpeg layer
+// are tools/reels-bundle.mjs's, uploaded to the code bucket under their hashes, and
+// the rooms stack is given its ARN to invoke. Each apply rewrites
 // infra/deployment.json from the live stack outputs. Infrastructure never
 // changes through the delivery role.
 import {
@@ -36,7 +40,9 @@ import {
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 import fs from "node:fs/promises";
+import { engineVersion } from "./lua-bundle.mjs";
 import { bundlePages } from "./pages-bundle.mjs";
+import { bundleReels, ffmpegLayer } from "./reels-bundle.mjs";
 import { bundleRooms } from "./rooms-bundle.mjs";
 import { syncSiteTemplate } from "./site-template.mjs";
 
@@ -174,6 +180,11 @@ if (config.wsRoute && !rooms && selected.includes("site"))
 
 let site = outputs(await stack(config.stacks.site));
 let pagesKey = config.pages?.codeKey || null;
+let reelKeys = config.reels
+  ? { codeKey: config.reels.codeKey, layerKey: config.reels.layerKey }
+  : null;
+// The engine the reel function carries: the vendored one, major.minor.
+const reelEngines = engineVersion().split(".").slice(0, 2).join(".");
 if (selected.includes("site")) {
   // The pages function reads the rooms table: none until the rooms stack is there.
   const table = outputs(await stack(config.stacks.rooms)).TableName || "";
@@ -191,6 +202,25 @@ if (selected.includes("site")) {
         }),
       );
   }
+  // The highlight reel function, only when deployment.json asks for it.
+  reelKeys = null;
+  if (config.reelRenderer && table && site.CodeBucket) {
+    const fn = await bundleReels();
+    const layer = await ffmpegLayer();
+    reelKeys = { codeKey: fn.key, layerKey: layer.key };
+    console.log(`Reels bundle ${fn.key} (${fn.zip.length} bytes)`);
+    console.log(`Reels ffmpeg layer ${layer.key} (${layer.zip.length} bytes)`);
+    if (mode === "apply")
+      for (const b of [fn, layer])
+        await new S3Client(settings).send(
+          new PutObjectCommand({
+            Bucket: site.CodeBucket,
+            Key: b.key,
+            Body: b.zip,
+            ContentType: "application/zip",
+          }),
+        );
+  }
   site = outputs(
     await converge(
       config.stacks.site,
@@ -200,6 +230,9 @@ if (selected.includes("site")) {
         RoomsStage: config.wsRoute ? rooms.stage : "prod",
         PagesCodeKey: table && site.CodeBucket ? pagesKey : "",
         RoomsTable: table && site.CodeBucket ? table : "",
+        ReelsCodeKey: reelKeys?.codeKey ?? "",
+        ReelsLayerKey: reelKeys?.layerKey ?? "",
+        ReelEngines: reelKeys ? reelEngines : "",
       },
       ["CAPABILITY_IAM"],
     ),
@@ -228,7 +261,13 @@ if (selected.includes("rooms")) {
         await converge(
           config.stacks.rooms,
           "rooms",
-          { CodeBucket: site.CodeBucket, CodeKey: bundle.key },
+          {
+            CodeBucket: site.CodeBucket,
+            CodeKey: bundle.key,
+            // the reel function the site stack runs, or none
+            ReelsFunctionArn: site.ReelsFunctionArn || "",
+            ReelEngines: site.ReelEngines || "",
+          },
           ["CAPABILITY_IAM"],
         ),
       ),
@@ -273,6 +312,13 @@ if (mode === "apply") {
           codeKey: pagesKey,
           endpointDomain: site.PagesEndpoint,
           revisionId: site.PagesRevision || null,
+        }
+      : null,
+    reels: site.ReelsFunctionArn
+      ? {
+          functionArn: site.ReelsFunctionArn,
+          engines: site.ReelEngines || null,
+          ...reelKeys,
         }
       : null,
   };
