@@ -42,7 +42,7 @@ const PASSED = {
 
 function harness({
   limits = LIMITS,
-  engines = ["0.7"],
+  engines = [ENGINE.split(".").slice(0, 2).join(".")],
   check = async () => PASSED,
   store: given = null,
   startReel = null,
@@ -224,7 +224,7 @@ test("share: unavailable without a check, without engines, or without the store'
 
 test("share: another engine is refused before the check", async () => {
   const h = harness();
-  for (const engine of ["0.6.9", "0.8.0", "x"])
+  for (const engine of ["0.6.9", "0.9.0", "x"])
     assert.equal((await h.share("c1", { ...G, engine })).why, "engine");
   assert.equal(h.checked.length, 0);
 });
@@ -755,7 +755,13 @@ test("share end to end: a real match is checked, reads as a finished pitch, and 
   const played = await playSolo(soloSetup(2), sources);
   const started = [];
   const h = harness({
-    check: (g) => realCheck({ g, sources, engine: ENGINE, engines: ["0.7"] }),
+    check: (g) =>
+      realCheck({
+        g,
+        sources,
+        engine: ENGINE,
+        engines: [ENGINE.split(".").slice(0, 2).join(".")],
+      }),
     startReel: async (job) => started.push(job),
   });
   const g = {

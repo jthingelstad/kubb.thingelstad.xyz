@@ -44,7 +44,7 @@ test("a page built before the set has a set of one", () => {
 test("the build names one bundle per carried engine; the newest keeps its name", async () => {
   assert.deepEqual(
     carriedEngines().map((e) => e.mm),
-    ["0.7"],
+    ["0.8", "0.7"],
   );
   const asked = [];
   const asset = async (from, name) => {
@@ -132,12 +132,12 @@ test("room calls go to the engine they name; the page plays on the newest", asyn
 
   useRoomEngine(newest);
   assert.equal(useOlderEngine(older), "0.6");
-  assert.equal(ENGINE, "0.7");
+  assert.equal(ENGINE, "0.8");
   assert.equal(roomEngine(), newest);
   assert.equal(roomEngine("0.6"), older);
-  assert.equal(roomCall("constants").ENGINE, "0.7");
+  assert.equal(roomCall("constants").ENGINE, "0.8");
   assert.equal(roomCall("constants", {}, "0.6").ENGINE, "0.6");
   assert.equal(engineConstants("0.6").ENGINE, "0.6");
-  assert.equal(engineConstants().ENGINE, "0.7");
+  assert.equal(engineConstants().ENGINE, "0.8");
   assert.throws(() => roomCall("constants", {}, "0.5"), /no engine 0\.5/);
 });

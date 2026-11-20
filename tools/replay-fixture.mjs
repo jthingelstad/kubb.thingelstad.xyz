@@ -62,6 +62,8 @@ export async function playFixture(sources = bundleLua()) {
     hash: engine.hash().hash,
     players: { A: [], B: [] },
     cpu: "both",
+    // the engine that played it, as START stamps a match (docs/ENGINES.md)
+    engine: engine.version.split(".").slice(0, 2).join("."),
   });
   return JSON.stringify(replay) + "\n";
 }
