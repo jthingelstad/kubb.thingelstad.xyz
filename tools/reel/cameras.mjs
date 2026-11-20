@@ -16,6 +16,8 @@
 //             slow motion and the beat on what fell
 //   king      low on the king, looking up at it
 //   land      a miss: where the baton came down
+//   group     a kubb thrown in: close on the group it lands by (or where it went out),
+//             wide enough for the landing and every kubb of the group
 import { lookAt } from "../../src/game/scenes.js";
 
 export const tune = {
@@ -190,4 +192,33 @@ export function land(fact, format, frame, u = 0) {
     frame,
     u,
   );
+}
+
+// focus: { x, y, r }, the kubbs the shot is about (a group's centre and radius).
+// settled: the kubbs as they stand once raised, framed on them alone (the landing is
+// past).
+export function group(
+  fact,
+  format,
+  frame,
+  u = 0,
+  focus = null,
+  settled = false,
+) {
+  const g = throwLine(fact);
+  const o = tune.impact[format];
+  const c = focus || (fact.land?.x != null ? fact.land : g.to);
+  const r = focus?.r ?? 0;
+  if (settled)
+    return closeOn(
+      c,
+      g,
+      { ...o, ahead: 0, span: Math.max(o.span * 1.15, r + 0.55) },
+      frame,
+      u,
+    );
+  const land =
+    fact.land?.x != null ? Math.hypot(fact.land.x - c.x, fact.land.y - c.y) : 0;
+  const span = Math.max(o.span * 1.15, r + 0.55, Math.min(1.6, land + 0.35));
+  return closeOn(c, g, { ...o, ahead: 0, span }, frame, u);
 }
