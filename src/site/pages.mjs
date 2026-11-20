@@ -100,6 +100,7 @@ ${openGames(config.roomsUrl)}
   </ol>
   <p>No one to play with? Play the computer on a pitch of your own, or throw batons on the practice pitch. Or watch the computer play itself, one match after another.</p>
   <p>Every match is recorded, with the names typed, so the game can be tested against real play: matches with friends, against the computer, and the computer against itself. Practice is not. Records are kept privately and not published. An open game’s place in the list shows only how many are on the pitch and whether it has started, never names. Feedback sent from the game’s menu, about a throw that looked wrong or anything else, is kept the same way: what you typed and the game as it stood, which can include the players’ names.</p>
+  <p>Anyone with a finished pitch’s link can make a highlight reel: a short video of the match’s best throws, with the team names, kept for a year like the replay.</p>
 </section>
 <section class="frame about" aria-labelledby="about">
   <h2 class="display" id="about">The same game, in your browser</h2>
@@ -250,6 +251,7 @@ function privacy({ tinylytics, config = {} }) {
   <p>A match on a pitch runs through the game’s own server. It gets what the match needs: the name you type, your team, your throws, the score, and that random number. Everyone on the pitch sees your name and team. Any name will do, so use a nickname if you like.</p>
   <p>Every match is recorded, names included: matches with friends, against the computer, and the computer playing itself. I keep these records privately and use them to test and improve the game. They are never published or shared.</p>
   <p>When a match ends, its replay is kept for a year, and anyone with the pitch’s link can watch it, names included. An open game’s place in the list on the home page shows only how many are on the pitch and whether the match has started, never names.</p>
+  <p>Anyone with a finished pitch’s link can ask for a highlight reel: a short video of the match’s best throws, made on the game’s server from the kept replay. A reel shows the team names, which for a player alone on a side is the name they typed, as the replay does; nothing else typed in the lobby. Reels are stored with the website, anyone with the link can watch or download them, and they are deleted a year after the match. A video downloaded or posted elsewhere is out of my hands.</p>
   <p>If you send feedback from the game’s menu, about a throw that looked wrong or anything else, what you type (and any pieces you mark) and the game as it stood are kept privately in the same way, and never published. The game as it stood can include the names of the players in that match.</p>
 </section>
 <section class="frame prose" aria-labelledby="visits">
@@ -266,7 +268,7 @@ function privacy({ tinylytics, config = {} }) {
   <h2 class="display" id="ask">Questions, or taking your name out</h2>
   <p>If you want your name taken out of the records, or have a question, <a href="https://www.thingelstad.com/contact/">get in touch</a>. Send the pitch’s link if you have it, and I’ll remove the records that carry your name.</p>
   <p>If the game starts keeping something new, this page will say so first.</p>
-  <p class="foot__small">Last updated 18 November 2026.</p>
+  <p class="foot__small">Last updated 19 November 2026.</p>
 </section>`;
   return page({
     path: "/privacy/",
