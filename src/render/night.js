@@ -40,6 +40,8 @@ export const tune = {
   stars: 5200,
   milky: 0.38, // the share of stars in the milky band
   twinkleShare: 0.025,
+  skyLowAt: -3, // deg: where the sky's gradient ends
+  vignette: false,
   // the lines' bloom: the core drawn with a blur of its own colour round it
   // (CSS px; canvas shadows are a true soft blur, so no hard-edged bands)
   // the bloom bands: [width on the ground m, alpha, least CSS px]
@@ -177,10 +179,18 @@ const MOON = dirOf(tune.moonAz, tune.moonEl);
 function skyBody(ctx, cam, kx, B, scene, part) {
   const S = NIGHT.sky;
   // the gradient: deep overhead, a little lighter down at the rim
-  const edge = project(cam, 0, tune.clearing.y1, 0);
-  const y1 = edge
-    ? Math.min(B.bottom, Math.max(B.top + 20, edge[1]))
-    : B.bottom;
+  // (a direction a little under the horizon, so the sky is the same wherever
+  // the eye stands: only where it looks moves the stars)
+  const hl = Math.hypot(cam.fx, cam.fy) || 1;
+  const dip = tune.skyLowAt * deg;
+  const low = projectDir(
+    cam,
+    (cam.fx / hl) * Math.cos(dip),
+    (cam.fy / hl) * Math.cos(dip),
+    Math.sin(dip),
+    pt,
+  );
+  const y1 = low ? Math.min(B.bottom, Math.max(B.top + 20, pt[1])) : B.bottom;
   const grd = ctx.createLinearGradient(0, B.top, 0, y1);
   grd.addColorStop(0, S.top);
   grd.addColorStop(0.6, S.mid);
@@ -200,8 +210,8 @@ function skyBody(ctx, cam, kx, B, scene, part) {
   ctx.globalCompositeOperation = "lighter";
   // the milky band's haze, a row of faint glows along it
   const [u, v] = st.band;
-  for (let i = 0; i < 48; i++) {
-    const a = (i / 48) * Math.PI * 2;
+  for (let i = 0; i < 28; i++) {
+    const a = (i / 28) * Math.PI * 2;
     const dx = u[0] * Math.cos(a) + v[0] * Math.sin(a),
       dy = u[1] * Math.cos(a) + v[1] * Math.sin(a),
       dz = u[2] * Math.cos(a) + v[2] * Math.sin(a);
@@ -209,7 +219,7 @@ function skyBody(ctx, cam, kx, B, scene, part) {
     const r = 0.12 * cam.f;
     if (pt[0] + r < B.left || pt[0] - r > B.right) continue;
     if (pt[1] + r < B.top || pt[1] - r > B.bottom) continue;
-    drawGlow(ctx, pt[0], pt[1], r, r * 0.55, NIGHT.milky, 0.07);
+    drawGlow(ctx, pt[0], pt[1], r * 1.3, r * 0.7, NIGHT.milky, 0.075);
   }
   // the stars: those in view found once, then the steady ones in a few
   // batches (colour by brightness), twinklers and bright ones alone
@@ -373,10 +383,8 @@ function drawSky(ctx, cam, kx, B, G, scene, reduced) {
   const t = ctx.getTransform ? ctx.getTransform() : null;
   const cv = ctx.canvas;
   if (!t || !cv || !cv.width) return skyBody(ctx, cam, kx, B, look, ALL);
+  // stars and moon are at infinity: the eye's place is not in the key
   const key = [
-    cam.px,
-    cam.py,
-    cam.pz,
     cam.fx,
     cam.fy,
     cam.fz,
@@ -836,7 +844,9 @@ export function makeNight({ reduced = false } = {}) {
       awayBelow: -0.8,
       topAbove: 0.72,
       shadowFill: NIGHT.shadow,
-      shadowBlur: 5, // CSS px
+      // soft shadows (a blurred canvas shadow, CSS px) cost a throttled
+      // frame 10 ms: off, the shadows are the day's, fainter
+      shadowBlur: 0,
     },
     paint: {
       wood: NIGHT.glow,
@@ -849,7 +859,9 @@ export function makeNight({ reduced = false } = {}) {
     sky: (ctx, cam, kx, B, G, scene) =>
       drawSky(ctx, cam, kx, B, G, scene, reduced),
     rough: drawRough,
-    lightGround: drawLightGround,
+    // the moon's pool: a full-frame stamp cost a throttled frame 8 ms; the
+    // clearing's dark edge does most of its work, so it is off
+    lightGround: tune.vignette ? drawLightGround : null,
     lines: drawLines,
     beforePieces: drawHalos,
     baton: drawBaton,
