@@ -14,7 +14,7 @@ import { drawWorld } from "../../src/render/world.js";
 import { sceneOf, sceneFromQuery } from "../../src/render/scenes.js";
 
 const PINNED =
-  "835d2e8328e81983fed6203475a4468face05504c197a31d2677e1cb840c0068";
+  "51df1e91be684ad39e286ec1b5db6a243ad7f327ac377a6614040210b2d58c0a";
 
 // A context that writes every call and every property set as a line.
 function recorder() {
