@@ -217,11 +217,12 @@ export function tag(ctx, L, text) {
   );
 }
 
-// A wash of paper over the pitch for the cards.
+// A wash of paper over the pitch for the cards: the scene's own paper where the
+// match has a scene (L.wash, L.washInk for the words straight on it).
 export function wash(ctx, L, a = 0.78) {
   ctx.save();
   ctx.globalAlpha = a;
-  ctx.fillStyle = COLORS.paper;
+  ctx.fillStyle = L.wash || COLORS.paper;
   ctx.fillRect(0, 0, L.W, L.H);
   ctx.restore();
 }
@@ -385,7 +386,7 @@ export function endCard(ctx, L, { winner, teams, line, address, qr, a = 1 }) {
     });
   y += (tall ? 190 : 150) * u;
   ctx.font = font((tall ? 40 : 38) * u);
-  ctx.fillStyle = INK;
+  ctx.fillStyle = L.washInk || INK;
   ctx.textAlign = "center";
   ctx.fillText("WATCH THE WHOLE MATCH", cx, y);
   y += (tall ? 30 : 26) * u;
@@ -475,7 +476,7 @@ function drawWithCode(ctx, L, { winner, teams, line, address, qr, a }) {
     qrPlate(ctx, qr, L.right - S, foot - S, px);
   }
   ctx.font = font(watch);
-  ctx.fillStyle = INK;
+  ctx.fillStyle = L.washInk || INK;
   ctx.textAlign = "center";
   ctx.fillText("WATCH THE WHOLE MATCH", cx, wy);
   textPlate(ctx, address, cx, wy + (tall ? 30 : 26) * u, asize, INK, PAPER, {

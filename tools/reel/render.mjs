@@ -3,8 +3,10 @@
 // to look at. docs/REEL.md.
 //
 //   node tools/reel/render.mjs --replay <file> [--code <pitch>] [--out <dir>]
-//        [--formats tall,wide] [--name <reel>] [--peek <n>]
+//        [--formats tall,wide] [--name <reel>] [--peek <n>] [--scene <id>]
 //
+// --scene draws the reel in that scene (src/render/scenes.js) instead of the match's
+// own, to look at one.
 // Writes <out>/<name>-tall.mp4, <name>-wide.mp4, <name>.edit.json (the edit list) and
 // <name>-<format>-sheet.png (one still per moment and the cards, cut from the MP4 by
 // ffmpeg). FFMPEG names the ffmpeg to use (the one on the PATH otherwise). The replay
@@ -49,6 +51,7 @@ export async function renderReel({
   log = console.log,
   peek = 0,
   capture = null,
+  scene = null,
 }) {
   if (!sources) {
     const e = replayEngine(replay);
@@ -68,6 +71,7 @@ export async function renderReel({
     log: (line) => log(line.replace(`reel ${code}`, name)),
     peek,
     capture,
+    scene,
   });
   if (peek || capture) return result;
   const files = {};
@@ -178,6 +182,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       out: arg("out", "build/reel/out"),
       formats: arg("formats", "tall,wide").split(","),
       peek: Number(arg("peek", 0)),
+      scene: arg("scene"),
     });
   } catch (error) {
     if (error?.code !== REEL_EMPTY) throw error;
