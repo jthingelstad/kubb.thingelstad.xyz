@@ -124,9 +124,10 @@ Practice is not recorded.
 
 - `npm run games:pull` (as `cloud-engineer`) fetches new records; `--room <code>`,
   `--since <date>`.
-- `npm run games:replay` plays every recorded match through this checkout's engine and
+- `npm run games:replay` plays every recorded match through this checkout's engine (the
+  match's own where the checkout carries it, else the newest; `docs/ENGINES.md`) and
   says which actions end on another hash than the players' browsers committed. After a
-  new engine those are the throws that now go differently.
+  new engine, `-- --engine <its major.minor>` lists the throws that now go differently.
   One-browser matches replay from their start against the hash after each action; after
   the first that differs the rest are unjudged.
 
@@ -162,7 +163,8 @@ under `reports/<yyyy-mm-dd>/`, kept for good like the games.
   already pulled.
 - `npm run reports:replay -- <file>` says a feedback report with no throw in it has
   nothing to replay; otherwise it plays the report's last action from the snapshot
-  before it through this checkout's engine (and the whole match from its start when the
+  before it through this checkout's engine (the report's own where carried; `--engine`
+  picks one) (and the whole match from its start when the
   report carries it; practice from its options and steps), says whether it ends where the
   player's browser did, and prints the last throw's result and where the pieces lie.
 - `npm run dev`'s local rooms server keeps reports as files in `build/reports-dev/`.
@@ -209,13 +211,14 @@ scans (`docs/ROOMS.md` section 9).
 
 A finished pitch can be watched again (Jamie, 2026-11-16: "When a game is finished playing
 on a pitch I'd like the URL to allow people to come and watch a replay of the match.").
-The match is played again through this engine from its start, action by action
+The match is played again from its start, action by action, on its own engine where the
+site carries it and on the newest otherwise (`docs/ENGINES.md`)
 (the engine's `session/replay.lua`, `src/replay/player.js`), in the wide view at the match's own pace,
 with play/pause, NEXT THROW, BACK, 1X 2X 4X and the score sheet beside it. The winner card
 and anyone who opens the link after the end get WATCH REPLAY; after a rematch the lobby
 offers WATCH THE LAST MATCH. A replay belongs to nobody: the engine refuses every action
-from outside while one is loaded. A hash that disagrees (after a physics change) is
-noted and it plays on.
+from outside while one is loaded. A hash that disagrees (an older match on the newest
+engine after a physics change) is noted and it plays on.
 
 - The document carries the replay while the match is played (`setup`, `h0`, `log`;
   `docs/MULTIPLAYER.md`); at the end a player's browser sends `keep` and the rooms table

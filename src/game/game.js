@@ -304,6 +304,24 @@ export class Game {
     this.enter(this.engine.view());
   }
 
+  // Draw from another engine (a replay of a match from an older engine the site
+  // carries, docs/ENGINES.md), or back from it. The engine left keeps its session;
+  // the one taken is told the wide box afresh.
+  useEngine(engine) {
+    if (!engine || engine === this.engine) return;
+    if (this.engineWide) {
+      try {
+        this.engine.setWide(null);
+      } catch {
+        // the engine has gone
+      }
+      this.engineWide = false;
+    }
+    this.engine = engine;
+    this.wide = null;
+    this.applyWide();
+  }
+
   // ---------- the wide view ----------
 
   // Ask for the wide view (watching) or the thrower's view. What shows also

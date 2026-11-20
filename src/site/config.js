@@ -44,6 +44,17 @@ export function withEngines(config) {
   return { ...config, engines };
 }
 
+// The name of the Lua bundle an engine version was loaded from (records and reports
+// name the build that played), or null.
+export function luaFor(config = {}, version) {
+  const mm =
+    typeof version === "string"
+      ? version.split(".").slice(0, 2).join(".")
+      : null;
+  const url = (mm && config.engines?.[mm]?.luaUrl) || config.luaUrl;
+  return url ? String(url).split("/").pop() : null;
+}
+
 // The pitch's code from the address: /p/<code>, or null on /practice/.
 export function pitchCode(pathname = location.pathname) {
   // The same pattern as infra/viewer-request.js.

@@ -1,13 +1,20 @@
 // The web's host of kubb-engine (src/engine over vendor/engine): the bundle the build
 // ships is the engine's own, Engine.create makes the start-up calls (the pointer tune,
-// the "web <version>" label), and the engine's golden corpus (vendor/engine/golden,
+// the "web <version>" label), and each carried engine's golden corpus (its golden/,
 // docs/DETERMINISM.md in the engine) comes out hash for hash under this repository's
 // wasmoon. The session's own tests are the engine's (kubb-engine tests/).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { Engine } from "../../src/engine/index.js";
-import { bundleLua, bundleText } from "../../tools/lua-bundle.mjs";
+import path from "node:path";
+import {
+  bundleLua,
+  bundleText,
+  carriedEngines,
+} from "../../tools/lua-bundle.mjs";
+import { sync } from "../../tools/vendor.mjs";
+import { makeEngineRepo, makeVendorRoot } from "./engine-fixture.mjs";
 import { clientLabel, LOCATION } from "../../src/net/sync.js";
 
 const read = (p) => fs.readFileSync(new URL(`../../${p}`, import.meta.url));
@@ -51,24 +58,28 @@ test("Engine.create loads the pointer tune and labels the game file", async () =
   assert.match(plain.sheet().text, /\[Location "Playdate"\]/);
 });
 
-test("the engine's golden corpus, every hash, under this wasmoon", async () => {
-  const corpus = JSON.parse(read("vendor/engine/golden/hashes.json"));
+// One engine folder's golden corpus played by that engine. Returns the actions played.
+async function playGolden(dir) {
+  const at = (f) => fs.readFileSync(path.join(dir, f));
+  const engineJson = JSON.parse(at("engine.json"));
+  const corpus = JSON.parse(at("golden/hashes.json"));
   // the engine that wrote the corpus: a hash-neutral release keeps the one before it
-  // (0.3.0 plays 0.2.0's corpus), so it is never newer than the vendored engine
+  // (0.3.0 plays 0.2.0's corpus), so it is never newer than the engine
   const num = (v) => v.split(".").map(Number);
-  const [a, b] = [num(corpus.version), num(manifest.version)];
+  const [a, b] = [num(corpus.version), num(engineJson.version)];
   assert.ok(
     a[0] < b[0] ||
       (a[0] === b[0] && (a[1] < b[1] || (a[1] === b[1] && a[2] <= b[2]))),
-    `corpus ${corpus.version}, engine ${manifest.version}`,
+    `corpus ${corpus.version}, engine ${engineJson.version}`,
   );
   const e = await Engine.create({
     sources: {
-      ...sources,
-      "golden/drive": read("vendor/engine/golden/drive.lua").toString("utf8"),
+      ...bundleLua(dir),
+      "golden/drive": at("golden/drive.lua").toString("utf8"),
     },
     client: clientLabel(pkg.version),
   });
+  assert.equal(e.version, engineJson.version);
   await e.lua.doString(`import "golden/drive"`);
   const played = JSON.parse(
     await e.lua.doString(`
@@ -85,7 +96,34 @@ test("the engine's golden corpus, every hash, under this wasmoon", async () => {
     assert.deepEqual(m.actions, want.actions, `${m.name}: the actions`);
     actions += m.actions.length;
   });
-  assert.equal(actions, 437);
+  return actions;
+}
+
+// Every engine the site carries against its own corpus (docs/ENGINES.md).
+test("the engine's golden corpus, every hash, under this wasmoon", async () => {
+  const carried = carriedEngines();
+  assert.equal(carried[0].version, manifest.version);
+  const played = [];
+  for (const { dir, version } of carried)
+    played.push([version, await playGolden(dir)]);
+  assert.deepEqual(played[0], [manifest.version, 437]);
+});
+
+test("with two engines carried, each plays its own corpus", async (t) => {
+  const repo = makeEngineRepo(["0.7.4", "0.8.0"]);
+  const root = makeVendorRoot();
+  t.after(() => {
+    repo.clean();
+    root.clean();
+  });
+  sync({ root: root.dir, repo: repo.dir, tag: "v0.7.4" });
+  sync({ root: root.dir, repo: repo.dir, tag: "v0.8.0", keep: true });
+  const carried = carriedEngines(path.join(root.dir, "vendor"));
+  assert.deepEqual(
+    carried.map((e) => e.version),
+    ["0.8.0", "0.7.4"],
+  );
+  for (const { dir } of carried) assert.equal(await playGolden(dir), 437);
 });
 
 test("wasmoon is exactly 1.16.0, the engine's reference platform", () => {

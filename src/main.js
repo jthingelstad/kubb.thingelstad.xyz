@@ -112,6 +112,7 @@ async function bootEmbed() {
     ui,
     code: embedCode(),
     roomsUrl: roomsUrl(),
+    engines,
     makeGame: async () => {
       const engine = await makeEngine();
       const cards = new Cards(ui);
@@ -155,7 +156,9 @@ async function boot() {
           url: roomsUrl(),
         })
     : null;
-  const sheet = () => openSheet(ui, { game });
+  // a shared pitch's finished match is read from its own engine (docs/ENGINES.md)
+  const sheet = () =>
+    pitch?.openSheet ? pitch.openSheet() : openSheet(ui, { game });
   // A solo or watch match, when it ends, goes to the room server to be kept
   // (src/net/record.js); a shared pitch's room records itself.
   const record = () =>
@@ -233,8 +236,9 @@ async function boot() {
       code,
       home,
       roomsUrl: roomsUrl(),
-      sheet,
+      sheet: () => openSheet(ui, { game }),
       menu,
+      engines,
     });
     if (testing) window.__kubb.pitch = pitch;
   }

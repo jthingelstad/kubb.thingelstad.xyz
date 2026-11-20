@@ -516,7 +516,9 @@ with }` to `record` (`backend/rooms/recorder.mjs`), which writes one gzipped JSO
   never served; `tools/games.mjs pull` copies records to `build/games/`, which git
   ignores. The home page says that matches are recorded.
 - **Reading them.** `npm run games:pull`, then `npm run games:replay`: each match is
-  restored at its start and every recorded action applied to this checkout's engine.
+  restored at its start and every recorded action applied to this checkout's engine:
+  the match's own where the checkout carries it, else the newest, or the one
+  `--engine <major.minor>` names (`docs/ENGINES.md`).
   `same` means the engine ends on the hash the players' browsers committed; `differs`
   means this engine plays that action another way (expected after the physics changed,
   and the list of throws to look at); `adopted` means no action was recorded for that
@@ -678,7 +680,7 @@ belongs to the game (`docs/MULTIPLAYER.md`, `docs/CLIENT.md` "Replays").
   room and only with Jamie's go (Jamie approved the first, for one pitch, on 2026-11-16): `npm run games:pull -- --room
 <code>`, then `node tools/backfill-replay.mjs --room <code>` builds the replay from the
   match's first snapshot (`start`, in place of `setup`) and its recorded actions and
-  plays it through this engine (the hash after each action against the players', the
+  plays it through the match's own engine where carried, else the newest (the hash after each action against the players', the
   first that differs, whether it ends on the recorded result), writing nothing; with
   `--write`, as `cloud-engineer`, it writes what a `keep` would have (the replay item,
   `room.keep` and the document's expiry, a year from the end of the match), only while

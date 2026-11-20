@@ -22,6 +22,7 @@ import { h } from "../ui/dom.js";
 import { ReplayPlayer } from "../replay/player.js";
 import { fetchReplay } from "../replay/fetch.js";
 import { isReplay } from "../net/lobby.js";
+import { engineFor } from "../engine/registry.js";
 
 export const embedTune = {
   visible: 0.5, // the share of the frame in view for the replay to play
@@ -53,6 +54,7 @@ export async function startEmbed({
   roomsUrl,
   makeGame,
   fetch = fetchReplay,
+  engines = null,
 }) {
   document.body.dataset.mode = "embed";
   const pitchUrl = code ? `/p/${code}` : "/";
@@ -124,7 +126,15 @@ export async function startEmbed({
     if (s?.state === "over" && s.final) return quiet(s.final, null, "over");
     return quiet("No match here", null, "none");
   }
-  const player = new ReplayPlayer({ game, root: ui, data, embedded: true });
+  // the match's own engine when the site carries it (docs/ENGINES.md)
+  const engine = await engineFor(engines, data.engine, game.engine);
+  const player = new ReplayPlayer({
+    game,
+    root: ui,
+    data,
+    embedded: true,
+    engine,
+  });
   player.start();
   // still until it is seen: the observer says at once whether it is
   player.hold(true);

@@ -8,13 +8,25 @@
 //
 //   node tools/replay-fixture.mjs           write the fixture
 //   node tools/replay-fixture.mjs --check   fail unless the file is what it would write
+//
+// Each older engine the site carries (docs/ENGINES.md) keeps its own,
+// tests/fixtures/replay-north-south-<major.minor>.json, played on that engine:
+// `--engine <major.minor>` writes or checks it. When a new minor is vendored with
+// --keep, the fixture the old newest played moves to its major.minor's name.
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Engine } from "../src/engine/index.js";
 import { replayOf, useRoomEngine } from "../src/net/lobby.js";
-import { bundleLua } from "./lua-bundle.mjs";
+import { bundleLua, carriedEngines } from "./lua-bundle.mjs";
 
 export const FIXTURE = "tests/fixtures/replay-north-south.json";
+
+// The fixture a carried engine plays: the newest's is FIXTURE.
+export function fixtureFor(mm, newest = carriedEngines()[0].mm) {
+  return mm === newest
+    ? FIXTURE
+    : `tests/fixtures/replay-north-south-${mm}.json`;
+}
 
 export const SETUP = {
   seed: 6,
@@ -55,16 +67,21 @@ export async function playFixture(sources = bundleLua()) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const text = await playFixture();
-  if (process.argv.includes("--check")) {
-    if (fs.readFileSync(FIXTURE, "utf8") !== text) {
-      console.error(`${FIXTURE} is stale: node tools/replay-fixture.mjs`);
+  const args = process.argv.slice(2);
+  const i = args.indexOf("--engine");
+  const mm = i < 0 ? carriedEngines()[0].mm : args[i + 1];
+  const file = fixtureFor(mm);
+  const text = await playFixture(bundleLua(mm));
+  const again = `node tools/replay-fixture.mjs${i < 0 ? "" : ` --engine ${mm}`}`;
+  if (args.includes("--check")) {
+    if (!fs.existsSync(file) || fs.readFileSync(file, "utf8") !== text) {
+      console.error(`${file} is stale: ${again}`);
       process.exit(1);
     }
-    console.log(`${FIXTURE} is current`);
+    console.log(`${file} is current`);
   } else {
-    fs.writeFileSync(FIXTURE, text);
+    fs.writeFileSync(file, text);
     const n = JSON.parse(text).log.length;
-    console.log(`wrote ${FIXTURE}: ${n} actions`);
+    console.log(`wrote ${file}: ${n} actions`);
   }
 }

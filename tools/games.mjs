@@ -7,11 +7,14 @@
 //       (never in git: they carry the names players typed). Run as the cloud-engineer
 //       identity. --room <code> pulls only that room.
 //   node tools/games.mjs replay [--room <code>] [--dir build/games] [--throws]
+//                               [--engine <major.minor>]
 //       restores every recorded match at its start and applies each recorded action to
-//       the engine of THIS checkout, comparing its hash with the one the players'
-//       browsers committed. "same" means this engine plays that action exactly as it was
-//       played; "differs" is expected after the physics changed, and is the list of
-//       throws to look at. --throws prints every throw's result. A shared pitch's match
+//       an engine of THIS checkout, comparing its hash with the one the players'
+//       browsers committed: the match's own engine when the checkout carries it, else
+//       the newest (docs/ENGINES.md); --engine plays every match on that one (after a
+//       new minor, `--engine <it>` lists the throws it plays differently). "same" means
+//       the engine plays that action exactly as it was played; "differs" is expected
+//       on another engine than the match's, and is the list of throws to look at. --throws prints every throw's result. A shared pitch's match
 //       is judged action by action (each version carries the snapshot to go on from); a
 //       one-browser match carries only its start, so it is judged up to the first action
 //       that goes another way, and the rest are "unjudged". A match whose record names
@@ -181,6 +184,18 @@ export function engineNote(recorded, here) {
   return other.length
     ? `; played on engine ${recorded.join(", ")}, this checkout runs ${here}`
     : "";
+}
+
+// The engine a match was played on, as its record says: a room match's START stamp
+// (doc.match.engine, a major.minor), else its riders' versions; a one-browser match's
+// `engine`. Null for records from before engines were named.
+export function matchEngineOf(match) {
+  if (typeof match.engine === "string") return match.engine;
+  for (const r of [match.start, ...(match.steps ?? [])]) {
+    const e = r?.doc?.match?.engine;
+    if (typeof e === "string") return e;
+  }
+  return enginesOf(match)[0] ?? null;
 }
 
 // " [web]", " [web, ios]", or "" when nothing says.
@@ -379,9 +394,8 @@ async function pull({ room, since, dir }) {
   console.log(`${got} new records in ${dir} (${had} already here)`);
 }
 
-async function replay({ room, dir, throws }) {
-  const { Engine } = await import("../src/engine/index.js");
-  const { bundleLua } = await import("./lua-bundle.mjs");
+async function replay({ room, dir, throws, engine: only }) {
+  const { checkoutEngines } = await import("./engines.mjs");
   const matches = matchesOf(await readRecords(dir, room));
   const browser = room
     ? []
@@ -390,19 +404,48 @@ async function replay({ room, dir, throws }) {
     console.log(`No recorded matches in ${dir}. npm run games:pull first.`);
     return;
   }
-  const engine = await Engine.create({ sources: bundleLua() });
-  console.log(`Replaying through kubb-engine ${engine.version}`);
+  await replayRecords({
+    matches,
+    browser,
+    throws,
+    only,
+    engines: checkoutEngines(),
+  });
+}
+
+// Every match through an engine of `engines` (tools/engines.mjs): its own when carried,
+// else the newest, or `only`. Prints with `log`; returns the totals.
+export async function replayRecords({
+  matches,
+  browser,
+  engines,
+  throws = false,
+  only = null,
+  log = console.log,
+}) {
+  const { engineForMatch } = await import("./engines.mjs");
+  log(
+    only
+      ? `Replaying through kubb-engine ${engines.version(only) ?? only}`
+      : `Replaying each match through its own engine where this checkout carries it (${engines
+          .carried()
+          .map((mm) => engines.version(mm))
+          .join(", ")}), else ${engines.version(engines.newest)}`,
+  );
   const line = (s) =>
-    console.log(
+    log(
       `  ${String(s.seq).padStart(4)} ${s.how ?? s.type ?? "?"} ${s.outcome}${s.flag ? ` ${s.flag}` : ""}${s.why ? ` (${s.why})` : ""}`,
     );
   const total = { same: 0, differs: 0, refused: 0, adopted: 0 };
   for (const match of matches) {
+    const { engine } = await engineForMatch(engines, matchEngineOf(match), {
+      only,
+    });
     const r = replayMatch(engine, match);
     for (const k of Object.keys(total)) total[k] += r[k];
     const when = new Date(match.t).toISOString().slice(0, 16).replace("T", " ");
-    console.log(
-      `${match.room} match ${match.n}${tagged(clientsOf(match))} (${when} UTC): ${r.steps.length} actions, ${r.same} same, ${r.differs} differ, ${r.refused} refused, ${r.adopted} adopted${engineNote(enginesOf(match), engine.version)}`,
+    log(
+      `${match.room} match ${match.n}${tagged(clientsOf(match))} (${when} UTC): ${r.steps.length} actions on ${engine.version}, ${r.same} same, ${r.differs} differ, ${r.refused} refused, ${r.adopted} adopted${engineNote(enginesOf(match), engine.version)}`,
     );
     for (const s of r.steps)
       if (
@@ -413,16 +456,19 @@ async function replay({ room, dir, throws }) {
         line(s);
   }
   if (matches.length)
-    console.log(
+    log(
       `${matches.length} matches: ${total.same} same, ${total.differs} differ, ${total.refused} refused, ${total.adopted} adopted`,
     );
   const one = { same: 0, differs: 0, refused: 0, unjudged: 0, unchecked: 0 };
   for (const match of browser) {
+    const { engine } = await engineForMatch(engines, matchEngineOf(match), {
+      only,
+    });
     const r = replayBrowser(engine, match);
     for (const k of Object.keys(one)) one[k] += r[k];
     const when = new Date(match.t).toISOString().slice(0, 16).replace("T", " ");
-    console.log(
-      `${match.mode}${tagged(match.client ? [match.client] : [])} ${match.name ?? ""} (${when} UTC): ${r.steps.length} actions, ${r.same} same, ${r.differs} differ, ${r.refused} refused, ${r.unjudged} unjudged${r.unchecked ? `, ${r.unchecked} unchecked` : ""}${r.end ? `; the end ${r.end}` : ""}${engineNote(match.engine ? [match.engine] : [], engine.version)}`,
+    log(
+      `${match.mode}${tagged(match.client ? [match.client] : [])} ${match.name ?? ""} (${when} UTC): ${r.steps.length} actions on ${engine.version}, ${r.same} same, ${r.differs} differ, ${r.refused} refused, ${r.unjudged} unjudged${r.unchecked ? `, ${r.unchecked} unchecked` : ""}${r.end ? `; the end ${r.end}` : ""}${engineNote(match.engine ? [match.engine] : [], engine.version)}`,
     );
     for (const s of r.steps)
       if (
@@ -434,9 +480,10 @@ async function replay({ room, dir, throws }) {
         line(s);
   }
   if (browser.length)
-    console.log(
+    log(
       `${browser.length} one-browser matches: ${one.same} same, ${one.differs} differ, ${one.refused} refused, ${one.unjudged} unjudged`,
     );
+  return { matches: total, browser: one };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -450,6 +497,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     since: flag("since"),
     dir: flag("dir") ?? "build/games",
     throws: rest.includes("--throws"),
+    engine: flag("engine"),
   };
   if (mode === "pull") await pull(opts);
   else if (mode === "replay") await replay(opts);
