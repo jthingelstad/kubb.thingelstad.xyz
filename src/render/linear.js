@@ -46,9 +46,16 @@ export const tune = {
   // "Bug: On iPhone if I turn on linear and then rotate it goes back to the
   // circular swing."), so there the box takes the whole safe height at its
   // edge (layout.js linearBox) and the swing spans it, unlike the 2026-11-18
-  // trial's 300 in a corner. 844 x 390 gives 301; it needs a canvas 349 px
-  // high with no insets. The iPhone app's wideMinTravel.
-  wideMinTravel: 260,
+  // trial's 300 in a corner. 844 x 390 gives 301. A shorter screen may have
+  // a shorter track (Jamie, 2026-11-20: "Yes lower the linear track for that
+  // one. It doesn't have to be same size for all. Diff phone size can change
+  // it."): a 6.1-inch iPhone in Safari with its bars showing gives 230 to 233,
+  // the mini 215 to 217; under 210 (a canvas under 299 px high with no
+  // insets) it is the clock. Lower than the iPhone app's 260 pt, which every
+  // iPhone on its side clears there (265 at the least). The stroke needs
+  // nothing else: the arm is degrees (scale is px a degree), so the flick's
+  // speed, the bands, the coach and the nudge all follow the track.
+  wideMinTravel: 210,
   // px past the body's outer edge that a finger still grabs the knob on a
   // wide touchscreen, where only the knob's channel grabs (knobHit)
   chanOuter: 6,

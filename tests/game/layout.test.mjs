@@ -132,14 +132,14 @@ test("the shorter linear meter keeps its foot: the quarter comes off the top", (
 test("the linear meter gives way to the clock where it would be cramped", () => {
   // a small phone's browser held upright has no height for it
   assert.equal(layoutFor(375, 553, {}, false, "linear").meter, "clock");
-  // nor a wide canvas whose track would be under wideMinTravel (260): with
-  // no insets the box needs a canvas 349 px high (17 px of margins, the
-  // body's 71.7 px of caps and shadow)
+  // nor a wide canvas whose track would be under wideMinTravel (210): with
+  // no insets the box needs a canvas 299 px high (17 px of margins, the
+  // body's 71.7 px of caps and shadow), with a 6.1-inch iPhone's insets 320
   for (const [W, H, safe] of [
-    [740, 340, {}],
-    [740, 348, {}],
-    [568, 320, {}],
-    [852, 393, { top: 0, bottom: 50, left: 59, right: 59 }],
+    [740, 290, {}],
+    [740, 298, {}],
+    [844, 319, { left: 47, right: 47, bottom: 21 }],
+    [852, 393, { top: 0, bottom: 120, left: 59, right: 59 }],
   ]) {
     for (const side of ["right", "left"]) {
       const L = layoutFor(W, H, safe, false, "linear", { side });
@@ -151,7 +151,20 @@ test("the linear meter gives way to the clock where it would be cramped", () => 
       assert.deepEqual(L.meterRoom, { left: 0, right: 0 });
     }
   }
-  assert.equal(layoutFor(740, 349, {}, false, "linear").meter, "linear");
+  // the boundary, every header, both sides, mouse and touch
+  for (const [W, H, safe] of [
+    [740, 299, {}],
+    [844, 320, { left: 47, right: 47, bottom: 21 }],
+  ])
+    for (const header of [null, "practice", "watch"])
+      for (const side of ["right", "left"])
+        for (const coarse of [false, true])
+          assert.equal(
+            layoutFor(W, H, safe, false, "linear", { side, coarse, header })
+              .meter,
+            "linear",
+            `${W}x${H} ${header} ${side} ${coarse}`,
+          );
   // and the touch trial keeps the clock it was built on
   assert.equal(layoutFor(390, 844, {}, true, "linear").meter, "clock");
   // the clock is the default
@@ -160,9 +173,24 @@ test("the linear meter gives way to the clock where it would be cramped", () => 
 });
 
 // The phones on their side the iPhone app checks, and browsers' sizes of
-// them (the bars take some height), and short desktop windows.
+// them (the bars take some height), and short desktop windows. Safari with
+// its bars showing (the heights Playwright's device list gives, the page's
+// viewport-fit=cover width and the home indicator's inset): the 6.1-inch
+// phones at 844 x 342 and 340 and 852 x 343, the mini at 812 x 327 and 325,
+// and the widths without cover (750 x 342, 734 x 343, 712 x 325).
+const NOTCH_61 = { left: 47, right: 47, bottom: 21, top: 0 };
+const ISLAND_61 = { left: 59, right: 59, bottom: 21, top: 0 };
+const MINI = { left: 50, right: 50, bottom: 21, top: 0 };
 const SIDEWAYS = [
   [844, 390, {}],
+  [844, 342, NOTCH_61],
+  [844, 340, NOTCH_61],
+  [852, 343, ISLAND_61],
+  [812, 327, MINI],
+  [812, 325, MINI],
+  [750, 342, {}],
+  [734, 343, {}],
+  [712, 325, {}],
   [852, 393, { left: 59, right: 59, bottom: 21, top: 0 }],
   [932, 430, { left: 59, right: 59, bottom: 21, top: 0 }],
   [667, 375, {}],
@@ -209,6 +237,15 @@ test("a phone on its side keeps the linear meter: the whole safe height at its e
     linearGeometry(layoutFor(W, H, safe, false, "linear").dial).travel;
   assert.equal(Math.round(travel(844, 390) * 10) / 10, 301.3);
   assert.equal(Math.round(travel(740, 350) * 10) / 10, 261.3);
+  // Safari with its bars showing (Jamie, 2026-11-20: "Yes lower the linear
+  // track for that one. It doesn't have to be same size for all."): a
+  // 6.1-inch phone's track is 230 to 233 px, 20 over wideMinTravel; the
+  // mini's 215 to 217
+  assert.equal(Math.round(travel(844, 342, NOTCH_61) * 10) / 10, 232.3);
+  assert.equal(Math.round(travel(844, 340, NOTCH_61) * 10) / 10, 230.3);
+  assert.equal(Math.round(travel(852, 343, ISLAND_61) * 10) / 10, 233.3);
+  assert.equal(Math.round(travel(812, 325, MINI) * 10) / 10, 215.3);
+  assert.ok(travel(844, 340, NOTCH_61) - linearTune.wideMinTravel >= 20);
   // the iPhone's 375 pt phones with the home indicator: 265.3, as the app
   assert.equal(
     Math.round(travel(812, 375, { left: 50, right: 50, bottom: 21 }) * 10) / 10,
@@ -353,6 +390,7 @@ test("wherever the linear meter is drawn, nothing it brings overlaps", () => {
     {},
     { left: 47, right: 47, bottom: 21 },
     { top: 24, bottom: 20 },
+    { left: 59, right: 59, bottom: 21 },
   ];
   const count = {};
   for (const header of [null, "practice", "watch"]) {
@@ -360,7 +398,7 @@ test("wherever the linear meter is drawn, nothing it brings overlaps", () => {
     for (const safe of SAFES) {
       const s = { top: 0, right: 0, bottom: 0, left: 0, ...safe };
       for (let W = 360; W <= 1400; W += 20) {
-        for (let H = 300; H <= 900; H += 20) {
+        for (let H = 280; H <= 900; H += 10) {
           for (const side of ["right", "left"]) {
             for (const coarse of [false, true]) {
               const tag = `${header} ${JSON.stringify(safe)} ${W}x${H} ${side} ${coarse ? "touch" : "mouse"}`;

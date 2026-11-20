@@ -264,7 +264,7 @@ strongly prefers the circle, so the dial stays and stays the default.
   `linearHMin` 390 px, never over `linearHMax` 450): 338 px of travel there, 0.94 px a
   degree, 0.92 in a phone's browser with its bars showing, 1.05 with a mouse. Its foot
   stays where the thumb is, so the quarter came off the top. Where the track would be shorter than
-  `minTravel` (320 px upright: a small phone's browser) or `wideMinTravel` (260 px on a wide
+  `minTravel` (320 px upright: a small phone's browser) or `wideMinTravel` (210 px on a wide
   screen, below) the layout's `meter` is `"clock"` and the dial is drawn; the menu says so
   under the choice. On a tall screen the plan splits either side of the throwing line, left
   of the meter.
@@ -274,17 +274,47 @@ strongly prefers the circle, so the dial stays and stays the default.
   wide canvas the box takes the whole safe height at its edge, from `tune.linearTopWide`
   (10 px) under the safe top to half a margin (7 px) over the safe bottom, at most
   `linearHMax` (450), so a desktop window's box still stands on the bottom where it was; the
-  track needs `wideMinTravel` (260, `linear.js`) instead of the upright 320: 301 px on
-  844 x 390, 261 on 740 x 350. A canvas under 349 px high (no insets) still gets the clock,
-  and so do the browser sizes Playwright gives a 6.1-inch iPhone on its side with Safari's
-  bars (750 x 342, 734 x 343). The numbers are the iPhone app's (`WideLayout`,
-  `LinearMeter.layout`). Where the box comes up into the header row, the plates at that
+  track needs `wideMinTravel` (210, `linear.js`) instead of the upright 320: 301 px on
+  844 x 390, 261 on 740 x 350. A shorter screen may have a shorter track (Jamie,
+  2026-11-20, asked whether to lower the floor for a 6.1-inch iPhone in Safari: "Yes lower
+  the linear track for that one. It doesn't have to be same size for all. Diff phone size
+  can change it."). The floor was 260, the iPhone app's, and Safari with its bars showing
+  gave a 6.1-inch phone on its side the clock. What Safari gives on its side, with the
+  page's `viewport-fit=cover` (heights from Playwright's device list, which records real
+  Safari; the side and home-indicator insets and the heights with the bars hidden are best
+  knowledge, not measured here; the SE's height with its bars is a guess):
+
+  | Phone (screen, points)   | Bars showing: viewport, track | Bars hidden: viewport, track |
+  | ------------------------ | ----------------------------- | ---------------------------- |
+  | 6.1-inch, 844 x 390      | 844 x 340 to 342, 230 to 232  | 844 x 390, 280               |
+  | 6.1-inch, 852 x 393      | 852 x 343, 233                | 852 x 393, 283               |
+  | 6.3-inch, 874 x 402      | 874 x 352, 243                | 874 x 402, 293               |
+  | 6.7-inch, 932 x 430      | 932 x 380, 270                | 932 x 430, 320               |
+  | 6.9-inch, 956 x 440      | 956 x 390, 281                | 956 x 440, 331               |
+  | 5.4-inch mini, 812 x 375 | 812 x 325 to 327, 215 to 217  | 812 x 375, 265               |
+  | SE, 667 x 375            | about 667 x 325, about 236    | 667 x 375, 286               |
+
+  The insets: 47 px a side on 844 x 390, 59 on 852 and 932, 62 on 874 and 956, 50 on the
+  mini, 20 or 21 at the bottom, none on the SE. So 210 keeps 20 px under the 6.1-inch
+  phone's 230 and the mini keeps the linear meter too, by 5 px: Safari a few px taller
+  there gives it the clock, as before. Every phone in the table keeps it, in every header
+  and on both sides. The box needs a canvas 299 px high with no insets (320 with a 6.1-inch
+  phone's); under that it is the clock, and so is the first 4-inch SE (568 x 320) in
+  practice, where the tray meets the rail. The short track is the same instrument at a
+  finer scale (0.64 px a degree at 230, 0.58 at 210, against 0.84 at 301): the arm is
+  degrees, so the flick's speed (degrees a second), the bands, the SLOW verdict, the
+  coach line and the nudge's ghost all follow it, and the knob, the tab and the grab are
+  the body's width, not its length. The narrowest target, the pro level's power band (8
+  degrees), is 4.7 px at the floor. The iPhone app is unchanged: every iPhone on its side
+  gives it at least 265 pt, over its 260. The other numbers are the iPhone app's
+  (`WideLayout`, `LinearMeter.layout`). Where the box comes up into the header row, the plates at that
   top corner move in beside it, `tune.meterGap` (10 px) off its body: MENU, the practice
   tray or the view tray, SKIP and the update note at the right, the rail, the shout bar
   and the shouts at the left
   (`meterRoom`; the game sets `--meter-r` and `--meter-l` for `game.css`; nothing moves in
   the wide view, which draws no meter). The plan block, the coach line and the nudge go as
   below.
+
 - **Not yet**: the meter in use is not recorded with the throw (that needs an engine
   field), there is no steering from the stroke's straightness (an engine change too), and
   the touch pendulum trial (below) keeps the clock.

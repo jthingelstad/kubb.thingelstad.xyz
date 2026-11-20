@@ -333,7 +333,12 @@ the default and is never retired: Tyler strongly prefers it. The linear meter
 engine the same arm degrees, so both are judged alike and it needs no engine release. Its
 room is the point (the straight trial of 2026-11-18 went because "it was too cramped and
 visually looked janky"): where a screen cannot give the track `minTravel` (320 upright,
-`wideMinTravel` 260 on a wide screen) the clock is drawn instead. The choice holds when
+`wideMinTravel` 210 on a wide screen) the clock is drawn instead. The wide floor is
+lower than the iPhone app's 260 pt by Jamie's word (2026-11-20, of a 6.1-inch iPhone in
+Safari with its bars showing, whose 230 px track got the clock: "Yes lower the linear track
+for that one. It doesn't have to be same size for all. Diff phone size can change it."):
+210 keeps 20 px under that phone, and the mini (215) keeps it too. The app is unchanged:
+every iPhone on its side gives it at least 265 pt. The choice holds when
 the phone turns (Jamie, 2026-11-19, of the iPhone app: "Bug: On iPhone if I turn on linear
 and then rotate it goes back to the circular swing."): on a wide screen the box has the
 whole safe height at its edge (10 px under the safe top to 7 px over the safe bottom, at
@@ -342,7 +347,7 @@ line hangs under its tab, the plan block never goes over the tab (`planAt`: the 
 the minimap over the block or not drawn; where nothing fits, or the header row's
 plates would meet, `headerPlates`, the clock: windows under about 580 px), and a finger grabs only the knob's channel, the
 rest of the body and the meter's half being throw zone. Keep these numbers the iPhone
-app's (`WideLayout`); a desktop window tall enough for the 450 px box is as before. It
+app's (`WideLayout`), all but that floor; a desktop window tall enough for the 450 px box is as before. It
 is a quarter shorter than it was first built (a tester, 2026-11-19: "Make it 1/4
 shorter", and Jamie agreed): 47% of a tall screen, 390 to 450 px, its foot where the
 thumb is. docs/CLIENT.md "The throw".
