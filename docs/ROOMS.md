@@ -881,7 +881,7 @@ match under another name is another share.
 | `bad-message` | `g` is not an object; `client` or `engine` is not a valid tag; `start` is not a non-empty string; `log` is not a list of `{ a: <object> }`; `end` is not `{ winner: "A" or "B", throws: integer at least 0 }`; or a part is malformed (section 2.1) |
 | `too-big`     | the reassembled message is over 300 KB (section 2.1)                                                                                                                                                                                                |
 | `too-many`    | this connection has already had 2 matches checked (a repeat answered from 13.2 does not count); a new connection may share again                                                                                                                    |
-| `failed`      | the store could not be read or written, or the renderer failed to answer (not a timeout); try again later                                                                                                                                           |
+| `failed`      | the store could not be read or written, or the renderer failed to answer (not a timeout); try again later. A share that could not be kept leaves nothing and does not use one of the connection's 2 checks (it still counts for the day)            |
 
 ### 13.4 What is checked, in order
 
@@ -891,7 +891,8 @@ The rooms function, which knows no Kubb, refuses on cheap signals first:
    1000 actions, or `start` over 16 KB is `too-long`;
 2. no renderer or store support: `unavailable`;
 3. `engine`'s major.minor not among the renderer's (`REEL_ENGINES`): `engine`;
-4. shared before: the stored code (13.2);
+4. shared before: the stored code (13.2), if its room is sealed and its document and
+   replay are there; an incomplete share is never answered, and is replaced;
 5. the connection's 2 checks: `too-many`; the day's 200 checks (UTC days, a conditional
    counter): `busy`;
 6. then it invokes the reel function synchronously with `{ check: g }` (no `client`) and
@@ -934,7 +935,8 @@ parts. A longer match is played to its end before it is answered `too-long`; the
 
 ### 13.5 The sealed pitch
 
-What is kept, all expiring together a year on (DynamoDB TTL):
+What is kept, all expiring together a year on (DynamoDB TTL), written in one
+transaction (`TransactWriteItems`, four puts), so all four are kept or none is:
 
 - `room#<code> | room`: `{ host: null, members: {}, sealed: true, shared: <ms>, keep:
 { v: 1, until } }`, written only if the code is new;
@@ -943,7 +945,8 @@ What is kept, all expiring together a year on (DynamoDB TTL):
   engine's own seat id, no member id), and `match` with `over: true`, `cpu: "B"`, the
   setup, the last snapshot, the hashes and the log;
 - `room#<code> | replay`: version 1, the replay of that match (`replayOf`), gzipped;
-- `share#<sha256>`: the code, keyed by the SHA-256 of the ASCII JSON of `[start, log]`.
+- `share#<sha256>`: the code, keyed by the SHA-256 of the ASCII JSON of `[start, log]`,
+  written only if there is none or it names an incomplete share.
 
 A sealed room refuses `join`, `set` and `keep` with the error `sealed` ("This pitch is a
 shared match: it can be watched, not played."): nobody plays on, rematches or replaces

@@ -30,6 +30,7 @@ import {
   GetCommand,
   PutCommand,
   QueryCommand,
+  TransactWriteCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 
@@ -39,6 +40,12 @@ import { listingKey } from "./core.mjs";
 import { REEL_TRIES } from "../reels/tag.mjs";
 
 const lost = (error) => error?.name === "ConditionalCheckFailedException";
+// A transaction refused because one of its conditions failed (not a conflict or a fault).
+const refused = (error) =>
+  error?.name === "TransactionCanceledException" &&
+  (error.CancellationReasons ?? []).some(
+    (r) => r?.Code === "ConditionalCheckFailed",
+  );
 
 export function dynamoStore({ client, table, now = Date.now }) {
   const seconds = () => Math.floor(now() / 1000);
@@ -292,44 +299,67 @@ export function dynamoStore({ client, table, now = Date.now }) {
       const item = await get(`share#${hash}`, "share");
       return item ? { code: item.code, exp: item.exp } : null;
     },
-    async putShare(hash, { code, exp }, { stale = null } = {}) {
+    // A shared match kept whole: the sealed room, its document, its replay and the key,
+    // in ONE transaction (four Puts, so the role's dynamodb:PutItem covers it), so a
+    // failure leaves nothing and a key always names a complete share. The room, document
+    // and replay only under a code not in use; the key only when there is none (or it
+    // still names `stale`). The largest is the document, at most 256 KB of text, inside
+    // the 400 KB an item; all four are well inside the transaction's 4 MB. False when a
+    // condition failed (the key taken meanwhile, or the code in use).
+    async keepShare(hash, code, { room, doc, replay }, { stale = null } = {}) {
+      const fresh = {
+        ConditionExpression: "attribute_not_exists(pk) OR #exp < :now",
+        ExpressionAttributeNames: { "#exp": "exp" },
+        ExpressionAttributeValues: { ":now": seconds() },
+      };
+      const { rev, exp, ...state } = room;
+      const put = (Item, condition = fresh) => ({
+        Put: { TableName: table, Item, ...condition },
+      });
       try {
         await client.send(
-          new PutCommand({
-            TableName: table,
-            Item: { pk: `share#${hash}`, sk: "share", code, exp },
-            ConditionExpression:
-              "attribute_not_exists(pk) OR #exp < :now" +
-              (stale ? " OR #code = :stale" : ""),
-            ExpressionAttributeNames: {
-              "#exp": "exp",
-              ...(stale ? { "#code": "code" } : {}),
-            },
-            ExpressionAttributeValues: {
-              ":now": seconds(),
-              ...(stale ? { ":stale": stale } : {}),
-            },
+          new TransactWriteCommand({
+            TransactItems: [
+              put({
+                pk: `room#${code}`,
+                sk: "room",
+                rev,
+                exp,
+                json: JSON.stringify(state),
+              }),
+              put({ pk: `room#${code}`, sk: "doc", ...doc }),
+              put({
+                pk: `room#${code}`,
+                sk: "replay",
+                v: replay.v,
+                t: replay.t,
+                z: gzipSync(Buffer.from(replay.data)),
+                exp: replay.exp,
+              }),
+              put(
+                { pk: `share#${hash}`, sk: "share", code, exp },
+                stale
+                  ? {
+                      ConditionExpression:
+                        "attribute_not_exists(pk) OR #exp < :now OR #code = :stale",
+                      ExpressionAttributeNames: {
+                        "#exp": "exp",
+                        "#code": "code",
+                      },
+                      ExpressionAttributeValues: {
+                        ":now": seconds(),
+                        ":stale": stale,
+                      },
+                    }
+                  : fresh,
+              ),
+            ],
           }),
         );
         return true;
       } catch (error) {
-        if (lost(error)) return false;
+        if (refused(error)) return false;
         throw error;
-      }
-    },
-    async dropShare(hash, code) {
-      try {
-        await client.send(
-          new DeleteCommand({
-            TableName: table,
-            Key: { pk: `share#${hash}`, sk: "share" },
-            ConditionExpression: "#code = :code",
-            ExpressionAttributeNames: { "#code": "code" },
-            ExpressionAttributeValues: { ":code": code },
-          }),
-        );
-      } catch (error) {
-        if (!lost(error)) throw error;
       }
     },
     countShare: (day, cap, exp) => countDay(`shares#${day}`, cap, exp),

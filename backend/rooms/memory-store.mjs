@@ -121,14 +121,23 @@ export function memoryStore({ now = Date.now } = {}) {
     async getShare(hash) {
       return copy(live(shares.get(hash)));
     },
-    async putShare(hash, { code, exp }, { stale = null } = {}) {
+    // All four items or none, as the DynamoDB store's transaction: the room, its
+    // document and replay only under a code not in use, the key only when there is none
+    // (or it still names `stale`, an incomplete share being replaced).
+    async keepShare(hash, code, { room, doc, replay }, { stale = null } = {}) {
       const had = live(shares.get(hash));
       if (had && !(stale && had.code === stale)) return false;
-      shares.set(hash, { code, exp });
+      if (
+        live(rooms.get(code)) ||
+        live(docs.get(code)) ||
+        live(replays.get(code))
+      )
+        return false;
+      rooms.set(code, copy(room));
+      docs.set(code, copy(doc));
+      replays.set(code, copy(replay));
+      shares.set(hash, { code, exp: room.exp });
       return true;
-    },
-    async dropShare(hash, code) {
-      if (shares.get(hash)?.code === code) shares.delete(hash);
     },
     async countShare(day, cap, exp) {
       const had = live(shareDays.get(day));

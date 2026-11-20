@@ -150,7 +150,7 @@ it. Then, still reading only:
   the tables in `docs/ROOMS.md` 13.4 only estimate.
 - `aws logs tail /aws/lambda/kubb-xyz-rooms-rooms --since 15m`: no `share ... failed`
   lines; the `REPORT` line of the share's invocation gives its duration (the check's
-  plus a few writes).
+  plus one write transaction).
 - `aws dynamodb get-item --table-name <rooms table> --key
 '{"pk":{"S":"shares#<yyyy-mm-dd>"},"sk":{"S":"count"}}'`: the day's checks.
 - `https://throwingwood.com/p/<code>` shows the finished match and "Watch the replay".
