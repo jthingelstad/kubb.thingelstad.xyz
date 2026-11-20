@@ -422,10 +422,14 @@ snapshot), both built by the engine. The rooms function then writes the room as 
   `room#<code> | replay`, all a year on, conditional on the code being new;
 - `share#<hash>` with the code and the same expiry.
 
-**Built:** the `share#` key is written first, conditional on there being none (or one
-whose room is gone), so two devices sharing the same match at once get one link; then
-the room, conditional on the code being new, then the document and the replay. A room
-write that fails takes the key back. The device's `client` is checked and passed on to
+**Built:** the four items are written in one DynamoDB transaction (`TransactWriteItems`,
+four puts), so a share is kept whole or not at all: a write that fails leaves no key, no
+room, no document and no replay, and the device may try again. Each item is conditional:
+the room, document and replay on the code being new, the `share#` key on there being
+none (or one naming an incomplete share, which this one replaces), so two devices
+sharing the same match at once get one link. A repeat is answered from the key only when
+its room is sealed and its document and replay are there; otherwise the match is checked
+and kept again under a new code. The device's `client` is checked and passed on to
 nothing: it is not in the check's input and not stored.
 
 A sealed room refuses `join`, `set` and `keep` (`sealed`): nobody plays on, rematches or

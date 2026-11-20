@@ -45,20 +45,20 @@
 // and one more adapter, `startReel({ room, v, tag })`, which asks the renderer (on AWS
 // an asynchronous Lambda invoke); without it reels are `unavailable`.
 //
-// Sharing a match against the computer (docs/ROOMS.md section 13) uses four more; a
-// store without them answers every `share` with `code: null, why: "unavailable"`:
+// Sharing a match against the computer (docs/ROOMS.md section 13) uses three more (and
+// getDoc and getReplay); a store without them answers every `share` with `code: null,
+// why: "unavailable"`:
 //   getShare(hash) -> { code, exp } | null        the code a match was shared under
-//   putShare(hash, { code, exp }, { stale }) -> bool   kept only when there is none for
-//                       this hash, it has expired, or it names `stale` (a code whose room
-//                       was never written)
-//   dropShare(hash, code)                         undoes putShare when the room could not
-//                       be written
+//   keepShare(hash, code, { room, doc, replay }, { stale }) -> bool
+//                       the sealed room, its document, its replay and the key, all four
+//                       or none (one transaction on DynamoDB): the first three only under
+//                       a code not in use, the key only when there is none for this hash,
+//                       it has expired, or it names `stale` (an incomplete share)
 //   countShare(day, cap, exp) -> bool              one more check today, false at cap
 // and one more adapter, `checkShare(g) -> { ok, why?, document, replay }`, which asks the
 // renderer to play the match (on AWS a synchronous Lambda invoke the rooms function waits
 // for); it throws a ShareBusy when the renderer could not take it in time. Without it
-// sharing is `unavailable`. The sealed room it makes is written with putRoom, putDoc and
-// putReplay like any other.
+// sharing is `unavailable`.
 //
 // The open games list (docs/ROOMS.md section 9) uses three more store methods; a store
 // without them lists nothing:
@@ -798,7 +798,7 @@ export function createRooms({
   const sharing = () =>
     checkShare &&
     reelEngines.length > 0 &&
-    ["getShare", "putShare", "dropShare", "countShare", "putReplay"].every(
+    ["getShare", "keepShare", "countShare", "getDoc", "getReplay"].every(
       (k) => typeof store[k] === "function",
     );
 
@@ -806,6 +806,16 @@ export function createRooms({
   // join). Cheap refusals first (shape, size, engine, caps); then the renderer plays it
   // (checkShare, waited for); a match that passes is kept as a sealed room under a fresh
   // code, a year, and the code is answered. The same match shared again gets that code.
+  // A shared match's pitch is all there: the sealed room, its document and its replay.
+  async function complete(code) {
+    const [room, doc, replay] = await Promise.all([
+      store.getRoom(code),
+      store.getDoc(code),
+      store.getReplay(code),
+    ]);
+    return !!room?.sealed && !!doc && !!replay;
+  }
+
   async function share(conn, msg, bytes) {
     const id = msg.id ?? null;
     const answer = (code, why) =>
@@ -826,17 +836,18 @@ export function createRooms({
     const engine = majorMinor(g.engine);
     if (!engine || !reelEngines.includes(engine)) return answer(null, "engine");
 
-    // shared before: the same code, free
+    // shared before: the same code, free, but only for a share that is all there (the
+    // sealed room, its document and its replay); an incomplete one is replaced
     const hash = shareHash(g);
-    let had = null;
+    let stale = null;
     try {
-      had = await store.getShare(hash);
-      if (had && !(await store.getRoom(had.code))?.sealed) had = { stale: had };
+      const had = await store.getShare(hash);
+      if (had && (await complete(had.code))) return answer(had.code);
+      stale = had?.code ?? null;
     } catch (error) {
       console.error("share read failed", error?.name, error?.message);
       throw new RoomError("failed", "The share could not be read.", { id });
     }
-    if (had?.code) return answer(had.code);
 
     const count = sharesChecked.get(conn) ?? 0;
     if (count >= limits.sharesPerConn)
@@ -877,44 +888,51 @@ export function createRooms({
       return answer(null, why);
     }
 
-    // Kept: the code first (a device asking again at once gets one link), then the
-    // sealed room, its document and its replay, a year on.
+    // Kept: the sealed room, its document, its replay and the key, all four or none, a
+    // year on. A share that could not be kept gives the connection its check back (the
+    // store failed, not the device); the day's count stays, since the renderer ran.
     const until = expiry(limits.keepTtl);
     const code = newRoomCode();
+    const notKept = (error) => {
+      sharesChecked.set(conn, count);
+      if (error)
+        console.error("share write failed", error?.name, error?.message);
+      return new RoomError("failed", "The share could not be kept.", { id });
+    };
+    let kept;
     try {
-      if (
-        !(await store.putShare(
-          hash,
-          { code, exp: until },
-          { stale: had?.stale?.code ?? null },
-        ))
-      ) {
-        const won = await store.getShare(hash);
-        if (won?.code) return answer(won.code);
-        throw new Error("share key lost and gone");
-      }
-      const room = {
-        host: null,
-        members: {},
-        sealed: true,
-        shared: t,
-        keep: { v: 1, until },
-        rev: 1,
-        exp: until,
-      };
-      if (!(await store.putRoom(code, room, 0))) {
-        await store.dropShare(hash, code).catch(() => {});
-        throw new Error("room code taken");
-      }
-      await store.putDoc(
+      kept = await store.keepShare(
+        hash,
         code,
-        { v: 1, doc: out.document, by: null, sid: null, exp: until },
-        0,
+        {
+          room: {
+            host: null,
+            members: {},
+            sealed: true,
+            shared: t,
+            keep: { v: 1, until },
+            rev: 1,
+            exp: until,
+          },
+          doc: { v: 1, doc: out.document, by: null, sid: null, exp: until },
+          replay: { v: 1, t, data: out.replay, exp: until },
+        },
+        { stale },
       );
-      await store.putReplay(code, { v: 1, t, data: out.replay, exp: until });
     } catch (error) {
-      console.error("share write failed", error?.name, error?.message);
-      throw new RoomError("failed", "The share could not be kept.", { id });
+      throw notKept(error);
+    }
+    if (!kept) {
+      // another share of this match won meanwhile: its code, once it is all there
+      let won = null;
+      try {
+        won = await store.getShare(hash);
+        if (won && !(await complete(won.code))) won = null;
+      } catch (error) {
+        throw notKept(error);
+      }
+      if (!won) throw notKept(null);
+      return answer(won.code);
     }
     return answer(code);
   }

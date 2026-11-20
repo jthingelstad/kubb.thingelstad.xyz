@@ -372,21 +372,30 @@ test("share: a lost race for the share key answers the winner's code", async () 
   const h = harness({
     store: {
       ...store,
-      async putShare(hash, item, opts) {
-        await store.putShare(hash, { code: "zzzzzzzzzz", exp: item.exp });
-        return store.putShare(hash, item, opts);
+      async keepShare(hash, code, items, opts) {
+        await store.keepShare(hash, "zzzzzzzzzz", items);
+        return store.keepShare(hash, code, items, opts);
       },
     },
   });
   assert.equal((await h.share("c1")).code, "zzzzzzzzzz");
+  assert.equal(store.rooms.size, 1, "the loser left nothing");
 });
 
-test("share: a room write that fails undoes the share key", async () => {
-  const store = memoryStore({ now: () => T0 });
-  const h = harness({ store: { ...store, putRoom: async () => false } });
-  const e = await h.share("c1");
-  assert.equal(e.code, "failed");
-  assert.equal(store.shares.size, 0);
+test("share: a key naming an incomplete share is never answered; it is replaced", async () => {
+  for (const missing of ["room", "doc", "replay", "unsealed"]) {
+    const h = harness();
+    const first = await h.share("c1");
+    if (missing === "room") h.store.rooms.delete(first.code);
+    if (missing === "doc") h.store.docs.delete(first.code);
+    if (missing === "replay") h.store.replays.delete(first.code);
+    if (missing === "unsealed") h.store.rooms.get(first.code).sealed = false;
+    const again = await h.share("c2");
+    assert.ok(again.code, missing);
+    assert.notEqual(again.code, first.code, missing);
+    assert.equal(h.store.shares.get(shareHash(G)).code, again.code);
+    assert.equal(h.checked.length, 2, `${missing}: checked again`);
+  }
 });
 
 // ---------- the DynamoDB store's share items ----------
@@ -394,38 +403,46 @@ test("share: a room write that fails undoes the share key", async () => {
 class ConditionalCheckFailedException extends Error {
   name = "ConditionalCheckFailedException";
 }
+class TransactionCanceledException extends Error {
+  name = "TransactionCanceledException";
+  constructor(reasons) {
+    super("Transaction cancelled");
+    this.CancellationReasons = reasons;
+  }
+}
 
-function shareClient() {
+// A fake document client for the share path: gets, the day's counter, and the
+// share's transaction, all or nothing, its conditions evaluated as DynamoDB would.
+// `failOn` (an item's sk: "room", "doc", "replay", "share") makes the next transaction
+// that writes it fail as a fault would, writing nothing.
+function shareClient({ now = () => T0 } = {}) {
   const items = new Map();
   const sent = [];
   const key = ({ pk, sk }) => `${pk}|${sk}`;
+  const fail = new Set();
+  const holds = (
+    had,
+    {
+      ConditionExpression: expr,
+      ExpressionAttributeNames: n = {},
+      ExpressionAttributeValues: v = {},
+    },
+  ) => {
+    if (!expr) return true;
+    if (!had) return true; // every condition here starts "attribute_not_exists(pk) OR"
+    if (had[n["#exp"]] < v[":now"]) return true;
+    return expr.includes(":stale") && had[n["#code"]] === v[":stale"];
+  };
   return {
     items,
     sent,
+    failOn: (sk) => fail.add(sk),
     async send(command) {
       const name = command.constructor.name;
       const input = command.input;
       sent.push({ name, input });
-      const names = input.ExpressionAttributeNames ?? {};
       const values = input.ExpressionAttributeValues ?? {};
       if (name === "GetCommand") return { Item: items.get(key(input.Key)) };
-      if (name === "PutCommand") {
-        const had = items.get(key(input.Item));
-        const ok =
-          !had ||
-          had[names["#exp"]] < values[":now"] ||
-          (":stale" in values && had[names["#code"]] === values[":stale"]);
-        if (!ok) throw new ConditionalCheckFailedException("no");
-        items.set(key(input.Item), { ...input.Item });
-        return {};
-      }
-      if (name === "DeleteCommand") {
-        const had = items.get(key(input.Key));
-        if (!had || had.code !== values[":code"])
-          throw new ConditionalCheckFailedException("no");
-        items.delete(key(input.Key));
-        return {};
-      }
       if (name === "UpdateCommand") {
         const k = key(input.Key);
         const had = items.get(k) ?? {};
@@ -438,43 +455,199 @@ function shareClient() {
         });
         return {};
       }
+      if (name === "TransactWriteCommand") {
+        const puts = input.TransactItems.map((t) => t.Put);
+        const faulty = puts.find((p) => fail.has(p.Item.sk));
+        if (faulty) {
+          fail.delete(faulty.Item.sk);
+          throw new TransactionCanceledException(
+            puts.map((p) => ({
+              Code: p === faulty ? "ValidationError" : "None",
+            })),
+          );
+        }
+        const ok = puts.map((p) => holds(items.get(key(p.Item)), p));
+        if (!ok.every(Boolean))
+          throw new TransactionCanceledException(
+            ok.map((x) => ({ Code: x ? "None" : "ConditionalCheckFailed" })),
+          );
+        for (const p of puts) items.set(key(p.Item), { ...p.Item });
+        return {};
+      }
       throw new Error(`fake does not know ${name}`);
     },
   };
 }
 
-test("dynamo store: share key, its stale takeover and undo, and the day's count", async () => {
+const ITEMS = (code, exp) => ({
+  room: {
+    host: null,
+    members: {},
+    sealed: true,
+    shared: T0,
+    keep: { v: 1, until: exp },
+    rev: 1,
+    exp,
+  },
+  doc: { v: 1, doc: "{}", by: null, sid: null, exp },
+  replay: { v: 1, t: T0, data: '{"v":1}', exp },
+});
+
+test("dynamo store: a share is one transaction of four puts, refused whole on any condition", async () => {
   const client = shareClient();
   const store = dynamoStore({ client, table: "t", now: () => T0 });
   const exp = Math.floor(T0 / 1000) + 100;
   assert.equal(await store.getShare("h1"), null);
-  assert.equal(await store.putShare("h1", { code: "aaaaaaaaaa", exp }), true);
-  assert.deepEqual(client.items.get("share#h1|share"), {
-    pk: "share#h1",
-    sk: "share",
-    code: "aaaaaaaaaa",
-    exp,
-  });
-  assert.equal(await store.putShare("h1", { code: "bbbbbbbbbb", exp }), false);
   assert.equal(
-    await store.putShare(
-      "h1",
-      { code: "bbbbbbbbbb", exp },
-      { stale: "aaaaaaaaaa" },
-    ),
+    await store.keepShare("h1", "aaaaaaaaaa", ITEMS("aaaaaaaaaa", exp)),
     true,
   );
-  assert.deepEqual(await store.getShare("h1"), { code: "bbbbbbbbbb", exp });
-  await store.dropShare("h1", "aaaaaaaaaa"); // not its code: kept
-  assert.ok(client.items.has("share#h1|share"));
-  await store.dropShare("h1", "bbbbbbbbbb");
-  assert.ok(!client.items.has("share#h1|share"));
+  const tx = client.sent.find((c) => c.name === "TransactWriteCommand").input;
+  assert.deepEqual(
+    tx.TransactItems.map(
+      (t) => Object.keys(t)[0] + " " + t.Put.Item.pk + " " + t.Put.Item.sk,
+    ),
+    [
+      "Put room#aaaaaaaaaa room",
+      "Put room#aaaaaaaaaa doc",
+      "Put room#aaaaaaaaaa replay",
+      "Put share#h1 share",
+    ],
+  );
+  assert.deepEqual(await store.getShare("h1"), { code: "aaaaaaaaaa", exp });
+  assert.equal((await store.getRoom("aaaaaaaaaa")).sealed, true);
+  assert.equal((await store.getReplay("aaaaaaaaaa")).data, '{"v":1}');
+  // the key taken: nothing of the second is written
+  const size = client.items.size;
+  assert.equal(
+    await store.keepShare("h1", "bbbbbbbbbb", ITEMS("bbbbbbbbbb", exp)),
+    false,
+  );
+  assert.equal(client.items.size, size);
+  assert.equal(await store.getRoom("bbbbbbbbbb"), null);
+  // a code in use: refused, the key untouched
+  assert.equal(
+    await store.keepShare("h2", "aaaaaaaaaa", ITEMS("aaaaaaaaaa", exp)),
+    false,
+  );
+  assert.equal(await store.getShare("h2"), null);
+  // replacing an incomplete share by naming its code
+  assert.equal(
+    await store.keepShare("h1", "cccccccccc", ITEMS("cccccccccc", exp), {
+      stale: "aaaaaaaaaa",
+    }),
+    true,
+  );
+  assert.equal((await store.getShare("h1")).code, "cccccccccc");
+  // a fault (not a condition) is thrown, and nothing is written
+  client.failOn("replay");
+  await assert.rejects(
+    store.keepShare("h3", "dddddddddd", ITEMS("dddddddddd", exp)),
+  );
+  assert.equal(await store.getRoom("dddddddddd"), null);
+  assert.equal(await store.getShare("h3"), null);
+  // the day's count is its own item, beside the reels'
   assert.equal(await store.countShare("2026-11-19", 2, exp), true);
   assert.equal(await store.countShare("2026-11-19", 2, exp), true);
   assert.equal(await store.countShare("2026-11-19", 2, exp), false);
-  assert.equal(client.items.get("shares#2026-11-19|count").n, 2);
-  // the reel counter is a different item
   assert.equal(await store.countReel("2026-11-19", 2, exp), true);
+});
+
+// What a pitch code answers with: anything at all is a pitch someone could reach.
+async function reachable(store, code) {
+  const [room, doc, replay] = await Promise.all([
+    store.getRoom(code),
+    store.getDoc(code),
+    store.getReplay(code),
+  ]);
+  return !!(room || doc || replay);
+}
+
+test("share: a write that fails on any item leaves nothing; the retry ends with one complete share", async () => {
+  for (const kind of ["memory", "dynamo"])
+    for (const item of ["doc", "replay", "room", "share"]) {
+      const label = `${kind}, ${item}`;
+      let store;
+      let client = null;
+      const codes = [];
+      if (kind === "dynamo") {
+        client = shareClient();
+        client.failOn(item);
+        store = dynamoStore({ client, table: "t", now: () => T0 });
+      } else {
+        // the memory store writes all four in one call: it fails before any of them
+        const mem = memoryStore({ now: () => T0 });
+        let failing = true;
+        store = {
+          ...mem,
+          async keepShare(...args) {
+            if (failing) {
+              failing = false;
+              throw new Error(`${item} write failed`);
+            }
+            return mem.keepShare(...args);
+          },
+        };
+      }
+      const wrap = {
+        ...store,
+        async keepShare(hash, code, ...rest) {
+          codes.push(code);
+          return store.keepShare(hash, code, ...rest);
+        },
+      };
+      const h = harness({ store: wrap });
+      const e = await h.share("c1");
+      assert.equal(e.t, "error", label);
+      assert.equal(e.code, "failed", label);
+      assert.equal(await store.getShare(shareHash(G)), null, label);
+      assert.equal(
+        await reachable(store, codes[0]),
+        false,
+        `${label}: no orphan`,
+      );
+      // the same connection may try again: a store failure is not the device's
+      const got = await h.share("c1", G, 2);
+      assert.equal(got.t, "shared", `${label}: ${JSON.stringify(got)}`);
+      assert.ok(got.code, label);
+      assert.equal((await store.getShare(shareHash(G))).code, got.code, label);
+      assert.equal((await store.getRoom(got.code)).sealed, true, label);
+      assert.equal((await store.getDoc(got.code)).doc, PASSED.document, label);
+      assert.equal(
+        (await store.getReplay(got.code)).data,
+        PASSED.replay,
+        label,
+      );
+      assert.equal(
+        await reachable(store, codes[0]),
+        false,
+        `${label}: the failed code`,
+      );
+      // and once more: the same code, free
+      assert.equal((await h.share("c2", G, 3)).code, got.code, label);
+      assert.equal(
+        h.checked.length,
+        2,
+        `${label}: checked twice, the day counted twice`,
+      );
+    }
+});
+
+test("share: a store that keeps failing is still held to the day's cap", async () => {
+  const mem = memoryStore({ now: () => T0 });
+  const h = harness({
+    limits: { ...LIMITS, sharesPerDay: 3 },
+    store: {
+      ...mem,
+      keepShare: async () => {
+        throw new Error("down");
+      },
+    },
+  });
+  for (let i = 0; i < 3; i++)
+    assert.equal((await h.share("c1", G, i)).code, "failed");
+  assert.equal((await h.share("c1", G, 9)).why, "busy");
+  assert.equal(h.checked.length, 3);
 });
 
 // ---------- the Lambda check adapter ----------
