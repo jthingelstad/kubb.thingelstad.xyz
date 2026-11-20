@@ -25,29 +25,46 @@ export const FRAME_ANYONE = "*";
 // The /playdate/ page shows the Playdate game's reel, its poster and a few
 // screens straight from the Playdate games site, where they are kept (the
 // one copy; Jamie, 2026-11-20: "reference the same file on that page"). That
-// one origin, for images and media only.
+// one origin, for images and media only. The embed shows none of it and its
+// policy leaves the origin out.
 export const PLAYDATE_SITE = "https://playdate.thingelstad.xyz";
+
+// Where a form may post. The newsletter sign-up on the landing pages
+// (src/site/newsletter.mjs) is a plain post to Buttondown, so the site's policy
+// allows that one origin (NEWSLETTER_ORIGIN in src/site/site.mjs) beside
+// 'self'. The embed carries no form and keeps 'self' alone.
+export const FORM_SITE = ["'self'", "https://buttondown.com"];
+export const FORM_SELF = ["'self'"];
 
 export function contentSecurityPolicy(
   connect = PRODUCTION_CONNECT,
-  { frameAncestors = FRAME_NEVER } = {},
+  {
+    frameAncestors = FRAME_NEVER,
+    formAction = FORM_SITE,
+    mediaSites = [PLAYDATE_SITE],
+  } = {},
 ) {
+  const media = mediaSites.map((site) => ` ${site}`).join("");
   return [
     "default-src 'self'",
     "script-src 'self' 'wasm-unsafe-eval' https://tinylytics.app",
     "style-src 'self' 'unsafe-inline'",
-    `img-src 'self' data: blob: https://avatars.micro.blog https://tinylytics.app ${PLAYDATE_SITE}`,
+    `img-src 'self' data: blob: https://avatars.micro.blog https://tinylytics.app${media}`,
     "font-src 'self'",
     `connect-src ${connect.join(" ")}`,
-    `media-src 'self' data: blob: ${PLAYDATE_SITE}`,
+    `media-src 'self' data: blob:${media}`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    `form-action ${formAction.join(" ")}`,
     `frame-ancestors ${frameAncestors}`,
   ].join("; ");
 }
 
 export function embedSecurityPolicy(connect = PRODUCTION_CONNECT) {
-  return contentSecurityPolicy(connect, { frameAncestors: FRAME_ANYONE });
+  return contentSecurityPolicy(connect, {
+    frameAncestors: FRAME_ANYONE,
+    formAction: FORM_SELF,
+    mediaSites: [],
+  });
 }

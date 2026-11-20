@@ -4,6 +4,7 @@ import { esc, gamePage, page } from "./layout.mjs";
 import { heroScene } from "./art.mjs";
 import { GAME_READY, SITE_TITLE } from "./site.mjs";
 import { LANDING_PAGES } from "./landing.mjs";
+import { signup } from "./newsletter.mjs";
 
 // HOW TO PLAY, the Playdate game's six cards (playdate-kubb
 // source/core/howtoplay.lua), in sentence case. The sixth card (the score
@@ -113,7 +114,8 @@ ${openGames(config.roomsUrl)}
   <p>This is <a href="/">Kubb: Throwing Wood</a>, Jamie’s kubb game. The rules, the physics and the computer player match the games on <a href="/playdate/">Playdate</a> and <a href="/ios/">iPhone</a>.</p>
   <p>Here you throw with a finger or a mouse. Pull the meter back to the orange mark. Then flick it through and let go on the blue mark.</p>
   <p><a class="more" href="/rules/">How to play and how to throw</a></p>
-</section>`;
+</section>
+${signup()}`;
   return page({
     path: "/web/",
     title: `Play in your browser · ${SITE_TITLE}`,
@@ -194,7 +196,8 @@ function rules({ tinylytics, config = {} }) {
 // project where there is no company, it's just me"). The iPhone app's App Store
 // listing links here, so it covers both the website and the app. Keep it in step
 // with what the game keeps: AGENTS.md "Recorded games", "Reports", "Replays",
-// "Analytics", and throwingwood-ios docs/DISTRIBUTION.md.
+// "Analytics", "The site" (the newsletter) and throwingwood-ios
+// docs/DISTRIBUTION.md.
 function privacy({ tinylytics, config = {} }) {
   const body = `<section class="frame intro">
   <h1 class="display">Privacy</h1>
@@ -218,10 +221,15 @@ function privacy({ tinylytics, config = {} }) {
   <p>The website counts visits with Tinylytics, a small, privacy-minded counter. There are no advertising trackers. The iPhone app and embedded replays count nothing.</p>
   <p>The site’s hosting keeps a log of requests without IP addresses, for two years. The game server keeps error logs for 30 days.</p>
 </section>
+<section class="frame prose" aria-labelledby="newsletter">
+  <h2 class="display" id="newsletter">The newsletter</h2>
+  <p>You can sign up for news on this site. If you do, your email address goes to Buttondown. Buttondown keeps the list and sends the mail. I use your address only for this newsletter. Every mail has a link to stop it.</p>
+  <p>This website keeps nothing about a sign-up and counts nothing about it.</p>
+</section>
 <section class="frame prose" aria-labelledby="who">
   <h2 class="display" id="who">Who sees it</h2>
-  <p>Only me. Everything is stored on Amazon Web Services in the United States. I don’t sell, rent or trade it, and I don’t share it with anyone for advertising or anything else.</p>
-  <p>The game doesn’t ask your age or anything about you beyond a name you choose.</p>
+  <p>Only me. Everything the game keeps is stored on Amazon Web Services in the United States. The newsletter list is the one thing kept elsewhere, with Buttondown. I don’t sell, rent or trade any of it, and I don’t share it with anyone for advertising or anything else.</p>
+  <p>The game doesn’t ask your age or anything about you beyond a name you choose. The newsletter asks only for your email address.</p>
 </section>
 <section class="frame prose" aria-labelledby="ask">
   <h2 class="display" id="ask">Questions, or taking your name out</h2>

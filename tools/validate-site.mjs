@@ -8,7 +8,13 @@ import { loadViewerRequest, cloudfrontRequest } from "./preview.mjs";
 import { PAGES } from "../src/site/pages.mjs";
 import { LOVE, webpSize } from "../src/site/landing.mjs";
 import { NAV } from "../src/site/layout.mjs";
-import { ORIGIN, TESTFLIGHT_URL, TINYLYTICS_SITE } from "../src/site/site.mjs";
+import { NEWSLETTER_PAGES } from "../src/site/newsletter.mjs";
+import {
+  NEWSLETTER_ACTION,
+  ORIGIN,
+  TESTFLIGHT_URL,
+  TINYLYTICS_SITE,
+} from "../src/site/site.mjs";
 
 async function walk(dir, skip = () => false) {
   const out = [];
@@ -197,6 +203,40 @@ assert.deepEqual(
     "https://planetkubb.com",
     "https://www.jpsbackyardgames.com/",
   ],
+);
+
+// The newsletter sign-up: one plain post to Buttondown on each page that carries
+// it, none anywhere else, and no form on the site posts to any other place.
+for (const page of PAGES) {
+  const html = await read(page.file);
+  const forms = [...html.matchAll(/<form\b[^>]*>[\s\S]*?<\/form>/g)].map(
+    (m) => m[0],
+  );
+  const news = forms.filter((f) => f.includes(`action="${NEWSLETTER_ACTION}"`));
+  const carries = NEWSLETTER_PAGES.includes(page.path);
+  assert.equal(news.length, carries ? 1 : 0, `${page.file}: newsletter form`);
+  for (const form of forms)
+    assert.ok(
+      form.includes(`action="${NEWSLETTER_ACTION}"`) ||
+        !/\baction="(?!\/)/.test(form),
+      `${page.file}: a form posts off the site`,
+    );
+  for (const form of news) {
+    assert.match(form, /method="post"/, `${page.file}: newsletter method`);
+    assert.doesNotMatch(form, /\btarget=/, `${page.file}: same tab`);
+    assert.match(
+      form,
+      /<input [^>]*id="news-email" type="email" name="email" autocomplete="email" required/,
+      `${page.file}: newsletter field`,
+    );
+    assert.match(form, /<label [^>]*for="news-email"/, `${page.file}: label`);
+    assert.match(form, /<button [^>]*type="submit">Sign me up<\/button>/);
+  }
+}
+assert.match(
+  await read("privacy/index.html"),
+  /<h2 class="display" id="newsletter">/,
+  "/privacy/ says where a sign-up goes",
 );
 
 // The pitch page is reached at /p/<code>, never at /pitch/ by a link.

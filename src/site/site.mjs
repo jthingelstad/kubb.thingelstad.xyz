@@ -57,3 +57,15 @@ export const PLAYDATE_REPO = "https://github.com/jthingelstad/playdate-kubb";
 // JOIN THE TESTFLIGHT pointing here. Cleared to "", /ios/ says the beta is by
 // invitation and shows no button (src/site/landing.mjs iosJoin).
 export const TESTFLIGHT_URL = "https://testflight.apple.com/join/rTx8uTn1";
+
+// The newsletter: a Buttondown list (Jamie, 2026-11-20: "Here is mailing list
+// subscribe information for the website. Use the link or modify the embed
+// however you wish."). The list's name is the one switch: its page, the form's
+// target and the "Powered by Buttondown" referral link all follow from it. The
+// form is a plain post that opens Buttondown's own page in the same tab, so
+// form-action in src/site/csp.mjs allows NEWSLETTER_ORIGIN and nothing else.
+export const NEWSLETTER_LIST = "throwing-wood";
+export const NEWSLETTER_ORIGIN = "https://buttondown.com";
+export const NEWSLETTER_URL = `${NEWSLETTER_ORIGIN}/${NEWSLETTER_LIST}`;
+export const NEWSLETTER_ACTION = `${NEWSLETTER_ORIGIN}/api/emails/embed-subscribe/${NEWSLETTER_LIST}`;
+export const NEWSLETTER_REFER = `${NEWSLETTER_ORIGIN}/refer/${NEWSLETTER_LIST}`;

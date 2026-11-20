@@ -33,6 +33,7 @@ import { associationKey } from "./delivery-plan.mjs";
 import {
   DEV_ROOMS_URL,
   GAME_READY,
+  NEWSLETTER_URL,
   ORIGIN,
   SITE_TITLE,
 } from "../src/site/site.mjs";
@@ -76,7 +77,7 @@ async function hashedAsset(from, name) {
   return `/${file}`;
 }
 
-// The release this build is (src/site/release.js): the label "0.5.0 (0.9.0)" is the
+// The release this build is (src/site/release.js): the label "0.6.0 (0.9.0)" is the
 // app's version and the newest carried engine's; the older ones are only in its detail
 // ("Also plays 0.7.4").
 export function releaseOf(version, web, carried) {
@@ -218,6 +219,7 @@ export async function buildSite({
 - [How to play](${ORIGIN}/rules/): the rules of kubb in five short cards, and how to throw on the web.
 - [Practice](${ORIGIN}/practice/): the practice pitch.
 - [Privacy](${ORIGIN}/privacy/): what the game keeps, on the web and on iPhone.
+- [Newsletter](${NEWSLETTER_URL}): news when there is something new to throw, sent by Buttondown. The sign-up form is near the end of the home page.
 
 A pitch at /p/<code> is one group's game, reached by its link; those pages are not indexed.
 
