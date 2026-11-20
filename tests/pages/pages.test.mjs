@@ -143,6 +143,45 @@ test("each state's words", () => {
   assert.equal(pitchState({ doc: { v: 1, doc: "{not json" } }).state, "none");
 });
 
+test("a match against the computer says so, and at what level", () => {
+  const vsComputer = (cpu, level) =>
+    pitchState({
+      doc: doc({
+        started: true,
+        match: {
+          n: 1,
+          over: true,
+          snap: over,
+          cpu,
+          setup: { teams: { [cpu]: { players: [{ level }] } } },
+          log: [{ a: {} }],
+          seq: 1,
+        },
+      }),
+    });
+  const w = overGame.winner;
+  const l = w === "A" ? "B" : "A";
+  const name = { A: overGame.teams.A.name, B: overGame.teams.B.name };
+  // the person won
+  const person = vsComputer(l, "club");
+  assert.deepEqual(person.computer, { side: l, level: "club" });
+  assert.equal(
+    previewOf(person).description,
+    `Final: ${name[w]} won, against the computer (club), in ${overGame.turn} turns. Watch the replay.`,
+  );
+  // the computer won
+  assert.equal(
+    previewOf(vsComputer(w, "pro")).description,
+    `Final: ${name[w]} (pro) won, against ${name[l]}, in ${overGame.turn} turns. Watch the replay.`,
+  );
+  // a level it does not know is left out; no computer, the usual form
+  assert.match(
+    previewOf(vsComputer(l, "grand")).description,
+    /against the computer, in/,
+  );
+  assert.equal(pitchState(ROOMS.over).computer, null);
+});
+
 test("the preview goes into the page's head; the fallback leaves it as built", () => {
   const code = "abcd2345";
   for (const [k, r] of Object.entries(ROOMS)) {

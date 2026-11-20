@@ -65,7 +65,11 @@ export const sameMatch = (r, m) =>
 //   { state: "waiting", v }
 //   { state: "playing", v, teams: { A, B }, turn, pieces }
 //   { state: "over", v, teams, turn, winner: "A" | "B" | null, how, replay, pieces,
-//     match: { n, hash }, reel: { wide } | null }
+//     match: { n, hash }, reel: { wide } | null, computer: { side, level } | null }
+//
+// computer: the side the computer played and its level, for a match of a person against
+// it (a shared match against the computer, docs/ROOMS.md section 13, or a pitch where
+// one side was the computer); null otherwise.
 //
 // reel: the kept replay's finished highlight reel ({ wide: site path }), or null;
 // shown only beside a replay (docs/REEL.md, docs/ROOMS.md section 12).
@@ -94,6 +98,7 @@ export function pitchState({
           reel,
         ),
         match: { n: m.n ?? null, hash: m.hash ?? null },
+        computer: computerOf(m),
       };
     return { ...shown, state: "playing", v };
   }
@@ -107,9 +112,21 @@ export function pitchState({
         v: 0,
         ...withReel(true, reel),
         match: { n: r.n ?? null, hash: r.hash ?? null },
+        computer: computerOf(r),
       };
   }
   return { state: "none" };
+}
+
+const LEVELS = ["beginner", "club", "pro"];
+
+// The side the computer played, alone, and its level, from a match (or a kept replay):
+// `cpu` "A" or "B", the level from the setup's players.
+function computerOf(m) {
+  const side = m?.cpu;
+  if (side !== "A" && side !== "B") return null;
+  const level = m.setup?.teams?.[side]?.players?.[0]?.level;
+  return { side, level: LEVELS.includes(level) ? level : null };
 }
 
 const withReel = (replay, reel) => ({
@@ -292,7 +309,7 @@ export function previewOf(s) {
     };
   const won = s.winner ? s.teams[s.winner] : null;
   const result = won
-    ? `${won} won, 1 to 0, in ${turns(s.turn)}.`
+    ? againstComputer(s, won) || `${won} won, 1 to 0, in ${turns(s.turn)}.`
     : `Over after ${turns(s.turn)}.`;
   return {
     title: `${vs} · ${SITE_NAME}`,
@@ -301,6 +318,18 @@ export function previewOf(s) {
     teams: s.teams,
     alt: `${vs}, final: ${result} The pitch from above as the match ended`,
   };
+}
+
+// A match against the computer says so, and at what level (docs/REEL.md "Links and share
+// tags"): "Riverside won, against the computer (club), in 9 turns." or "Computer (club)
+// won, against Riverside, in 9 turns." Null for any other match.
+function againstComputer(s, won) {
+  const c = s.computer;
+  if (!c || !s.winner) return null;
+  const level = c.level ? ` (${c.level})` : "";
+  if (s.winner === c.side)
+    return `${won}${level} won, against ${s.teams[c.side === "A" ? "B" : "A"]}, in ${turns(s.turn)}.`;
+  return `${won} won, against the computer${level}, in ${turns(s.turn)}.`;
 }
 
 // The image's inputs (src/site/art.mjs pitchCardImage) for a state.
