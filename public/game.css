@@ -1484,6 +1484,12 @@ body.game {
 .opt-value {
   font-weight: 700;
 }
+/* the button after a shown value (CHANGE IN MENU) sits under the value, not in
+   the label's narrow column, where its words were cut off */
+.opt-value + button {
+  grid-column: 2;
+  justify-self: start;
+}
 .access-note {
   margin: 4px 0 10px;
   font-size: 14px;
