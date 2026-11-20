@@ -102,6 +102,70 @@ real duration and memory, which are guesses until then.
 - The rooms function without `REELS_FUNCTION` answers `why: "unavailable"`; nothing
   else in the rooms changes.
 
+## Sharing
+
+Sharing a match against the computer (`docs/ROOMS.md` section 13) needs no new resource
+and no IAM change: the rooms role already has the whole table and
+`lambda:InvokeFunction` on the reel function, which the check uses as a synchronous
+invoke. Two things change:
+
+- the site stack: new reel function code (it answers `{ check: g }`) and new pitch
+  pages code (the computer's title form);
+- the rooms stack: new rooms function code, and its timeout from 10 s to 30 s, because
+  a share waits up to 20 s for its check and then writes the sealed room.
+
+### Apply, in order
+
+The renderer must understand a check before the rooms function asks for one, so the site
+stack goes first. Between the two applies nothing sends a check.
+
+1. Merge, then `npm ci` and `npm run check` on `main`.
+2. `npm run reels:bundle`: a new code key; the ffmpeg layer's key is unchanged.
+3. `AWS_PROFILE=cloud-engineer npm run infra:plan -- site`: **Modify** `ReelsFunction`
+   (the code key only), and `PagesRevision` (REPLACEMENT, the new pages code) with
+   `PagesEndpoint`. The same evaluated-again list as in "Deploy" step 2. Anything
+   added, an IAM change, or a replacement other than `PagesRevision` is a stop.
+4. `AWS_PROFILE=cloud-engineer npm run infra:apply -- site`
+5. `AWS_PROFILE=cloud-engineer npm run infra:plan -- rooms`: **Modify** `RoomsFunction`
+   (`Timeout` 30 and the new code), `RoomsIntegration` listed beside it as before. No
+   change to `RoomsRole`.
+6. `AWS_PROFILE=cloud-engineer npm run infra:apply -- rooms`
+7. Commit the rewritten `infra/deployment.json` in a pull request.
+
+### Check, read only
+
+- `aws lambda get-function-configuration --function-name kubb-xyz-rooms-rooms`:
+  `Timeout` 30; `REELS_FUNCTION` and `REEL_ENGINES` as before.
+- `aws lambda get-function-configuration --function-name kubb-xyz-site-reels`:
+  `CodeSha256` changed, everything else as in "Check, read only".
+- `aws lambda get-function-concurrency --function-name kubb-xyz-site-reels`: still 2.
+
+A share writes a sealed room, its document, its replay and a `share#` key that live a
+year, so the first live share is a real match, shared from a device when Jamie wants
+it. Then, still reading only:
+
+- `aws logs tail /aws/lambda/kubb-xyz-site-reels --since 15m`: one JSON line per check,
+  `{"check":"ok", "step":null, "engine", "played", "actions", "ms"}` (or the `why` and
+  the `step` that failed), never a name. `ms` is the real check time on Lambda, which
+  the tables in `docs/ROOMS.md` 13.4 only estimate.
+- `aws logs tail /aws/lambda/kubb-xyz-rooms-rooms --since 15m`: no `share ... failed`
+  lines; the `REPORT` line of the share's invocation gives its duration (the check's
+  plus a few writes).
+- `aws dynamodb get-item --table-name <rooms table> --key
+'{"pk":{"S":"shares#<yyyy-mm-dd>"},"sk":{"S":"count"}}'`: the day's checks.
+- `https://throwingwood.com/p/<code>` shows the finished match and "Watch the replay".
+
+### Roll back
+
+- Revert the merge, then apply the **rooms** stack first (it stops asking for checks:
+  every `share` answers `bad-message`, unknown `t`) and the site stack after.
+- Shared matches already kept stay, a year. Before this change the rooms code knew no
+  `sealed`, so after a rollback anyone with a shared match's link could `join` it and
+  write its document. The kept replay is unaffected (a `keep` of version 1 or less loses
+  to it), but the pitch page would show what was written. If that matters, the sealed
+  rooms can be found by their `share#` items (a scan, read only) and deleted with their
+  `room#<code>` items by hand: Jamie's call, since it takes down shared links.
+
 ## Costs (estimates)
 
 Prices checked in the AWS price list on 2026-11-19, us-east-1: Lambda arm64 $0.0000133334
@@ -119,3 +183,7 @@ monthly terabyte.
   duration (about $2.40 if every render ran to its timeout). A render is tried at most
   twice, so a day of failing renders could double that.
 - The layer and code zips in the code bucket: about 37 MB a version, cents a year.
+- A share's check: the reel function at 3008 MB for 2 to 20 s, 6 to 59 GB-s, at most
+  about $0.0008; the rooms function waits at 256 MB, at most 5 GB-s, about $0.00007.
+  The daily cap of 200 checks bounds a bad day at about $0.17. Each shared match keeps
+  a gzipped replay and a document of up to 256 KB in the table, a year.

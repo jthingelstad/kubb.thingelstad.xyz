@@ -210,9 +210,10 @@ enforcing those bounds or timing out incomplete assemblies.
 | `keep`   | `v`, `replay`                              | the match has ended: keep its replay and the room (section 10)                                   |
 | `replay` | `id?`, `room`                              | a room's kept replay (section 10); needs no join                                                 |
 | `reel`   | `id?`, `room`                              | a finished pitch's highlight reel: start it, or how it stands (section 12); needs no join        |
+| `share`  | `id?`, `g`                                 | share a finished match against the computer (section 13); needs no join                          |
 
 `join` must be the first message on a connection (anything else but `ping`, `report`,
-`game`, `list`, `replay` and `reel` answers `not-joined`).
+`game`, `list`, `replay`, `reel` and `share` answers `not-joined`).
 A connection joins one room as one member; a second `join` on the same connection for
 the same room and member is a rejoin, for anything else it is `already-joined`.
 
@@ -234,6 +235,7 @@ the same room and member is a rejoin, for anything else it is `already-joined`.
 | `list`     | `id`, `now`, `games`                                                               | the open games: `[{ room, made, players, seats, state }]`, newest first (section 9)                  |
 | `replay`   | `id`, `room`, `v`, `at`, `replay`                                                  | the room's kept replay, or `replay: null` (section 10)                                               |
 | `reel`     | `id`, `room`, `v`, `reel`, `why?`                                                  | how the kept replay's reel stands, or `reel: null` and why (section 12)                              |
+| `shared`   | `id`, `code`, `v`, `why?`                                                          | your `share` is kept as the pitch `code`, or `code: null` and why (section 13)                       |
 | `error`    | `code`, `message`, `re?`, `id?`                                                    | `re` = the `t` that failed; `id` = the `set` id                                                      |
 
 - `doc` is omitted from `joined` when the joiner sent `v` equal to the current version
@@ -308,7 +310,9 @@ anyone but the host); for `report` and `game` also `too-many` (more than 3 on on
 connection), `failed` (it could not be written) and `unavailable` (this server keeps
 none); for `reel` also `too-many` (a fourth render started on one connection) and
 `failed` (the reel item could not be read or written, or the renderer could not be
-asked).
+asked); for `share` also `too-many` (a third match checked on one connection) and
+`failed` (section 13.3); `sealed` (a `join`, `set` or `keep` on a shared match's
+pitch, section 13.5).
 
 ### 2.6 Client and engine tags
 
@@ -371,6 +375,9 @@ All in `LIMITS` in `backend/rooms/core.mjs`, the one place to change them.
 | seats an open game says | 1 to 16 (the game says 12: six a side)                                      |
 | highlight reels         | 3 started a connection (asking is free); 200 started a UTC day, all pitches |
 | a reel left rendering   | 25 min, then the next request may start it again (twice in all)             |
+| a shared match          | 256 KB as ASCII JSON; 1000 actions; `start` 16 KB (section 13)              |
+| shares                  | 2 checked a connection (a repeat is free); 200 checked a UTC day, in all    |
+| a share's check         | waited for 20 s, then `busy`                                                |
 
 Fixed by API Gateway (not ours): 10 minutes idle and 2 hours total per connection (the
 client pings every 4 minutes and reconnects on its own), 500 new connections a second
@@ -380,12 +387,12 @@ per account, 29 s integration timeout.
 
 One stack, deployed by the deploy tool (not by hand): an API Gateway WebSocket API with
 `$connect`, `$disconnect` and `$default` routed to one Lambda function (Node.js 24,
-arm64, 256 MB, 10 s timeout, `index.handler` from the esbuild bundle of
+arm64, 256 MB, 30 s timeout (a share waits up to 20 s for its check), `index.handler` from the esbuild bundle of
 `backend/rooms/handler.mjs` with `@aws-sdk/*` external), its own log group (30 days),
 an execution role that can only use the rooms table, write that log group, post to
 this API's connections and put objects under `games/` (rooms and one-browser matches)
-and `reports/` in the games bucket,
-one DynamoDB
+and `reports/` in the games bucket, and invoke the site stack's reel function (renders,
+and share checks: section 13), one DynamoDB
 table (on demand, TTL on `exp`), and the private games bucket (section 7).
 
 Throttling on the `prod` stage: **50 messages a second, burst 100** for every route,
@@ -396,16 +403,18 @@ a misbehaving client can cost. API Gateway drops throttled messages; the client'
 
 The table (`pk`, `sk`, both strings):
 
-| pk            | sk               | Holds                                                                                                                                     |
-| ------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `room#<code>` | `room`           | `rev`, `exp`, `json` (host and members, with each member's connection id)                                                                 |
-| `room#<code>` | `doc`            | `v`, `doc` (ASCII JSON text), `by`, `sid`, `exp`                                                                                          |
-| `room#<code>` | `replay`         | `v`, `t`, `z` (the replay's ASCII JSON, gzipped), `exp`: a finished match's replay                                                        |
-| `conn#<id>`   | `conn`           | `room`, `member`, `exp`                                                                                                                   |
-| `conn#<id>`   | `part#<msg>#<i>` | `d`, `exp`: one part of an upload                                                                                                         |
-| `open`        | `<made>#<code>`  | `room`, `made`, `rev`, `listed`, `players`, `seats`, `state`, `exp`: an open game's entry                                                 |
-| `room#<code>` | `reel`           | `v`, `tag`, `job`, `state`, `at`, `tries`, `tall?`, `wide?`, `edit?`, `seconds?`, `done?`, `why?`, `exp`: its highlight reel (section 12) |
-| `reels#<day>` | `count`          | `n`, `exp`: highlight reels started that UTC day (section 12)                                                                             |
+| pk             | sk               | Holds                                                                                                                                     |
+| -------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `room#<code>`  | `room`           | `rev`, `exp`, `json` (host and members, with each member's connection id)                                                                 |
+| `room#<code>`  | `doc`            | `v`, `doc` (ASCII JSON text), `by`, `sid`, `exp`                                                                                          |
+| `room#<code>`  | `replay`         | `v`, `t`, `z` (the replay's ASCII JSON, gzipped), `exp`: a finished match's replay                                                        |
+| `conn#<id>`    | `conn`           | `room`, `member`, `exp`                                                                                                                   |
+| `conn#<id>`    | `part#<msg>#<i>` | `d`, `exp`: one part of an upload                                                                                                         |
+| `open`         | `<made>#<code>`  | `room`, `made`, `rev`, `listed`, `players`, `seats`, `state`, `exp`: an open game's entry                                                 |
+| `room#<code>`  | `reel`           | `v`, `tag`, `job`, `state`, `at`, `tries`, `tall?`, `wide?`, `edit?`, `seconds?`, `done?`, `why?`, `exp`: its highlight reel (section 12) |
+| `reels#<day>`  | `count`          | `n`, `exp`: highlight reels started that UTC day (section 12)                                                                             |
+| `share#<hash>` | `share`          | `code`, `exp`: the pitch a shared match was kept as, by the SHA-256 of its start and log (section 13)                                     |
+| `shares#<day>` | `count`          | `n`, `exp`: shared matches checked that UTC day (section 13)                                                                              |
 
 The room is one item, so a relay costs one read; the document is its own item under the
 same key, so relays do not pay to read it. Every write that depends on a read is
@@ -718,8 +727,8 @@ rooms table by a second function, in the site stack (`infra/site.json`), not thi
 A finished pitch's highlight reel: a video of its best throws, tall (1080x1920) and wide
 (1920x1080), made on the server from the kept replay with this engine (Jamie,
 2026-11-19; the design and what a player sees are `docs/REEL.md`, deploying it
-`docs/REEL-RUNBOOK.md`). Built for online pitches; a match against the computer gets
-one once it can be shared (not built).
+`docs/REEL-RUNBOOK.md`). Built for online pitches, and for a match against the computer
+once it is shared (section 13): its sealed pitch has a kept replay of version 1.
 
 - **Asking.** `{ t: "reel", id, room }` on any connection, joined or not, by anyone with
   the link (a reel shows nothing the replay does not). The answer is always
@@ -781,3 +790,174 @@ one once it can be shared (not built).
 - **Locally.** `npm run dev`'s room server renders reels in its own process with the
   ffmpeg on the PATH into `build/reels-dev/`, and the preview serves them at
   `/reels/...` (`tools/reels-dev.mjs`).
+
+## 13. Sharing a match against the computer
+
+A match against the computer is played on one device and has no room. Sharing it sends
+the finished match once, when the player asks; the server plays it again through the
+engine, and a match that passes is kept as a **sealed** pitch under a fresh code, a
+year, exactly as a finished room is kept (Jamie, 2026-11-19; the design, the card and
+the reasons are `docs/REEL.md` "Sharing a match against the computer"). From then on
+the code is a pitch like any other: `/p/<code>`, the `replay` and `reel` messages, the
+embed and the share tags. This section is the whole contract for a client.
+
+### 13.1 Sending
+
+Open a socket (section 2; on AWS `wss://throwingwood.com/ws`, with an allowed `Origin`
+and a `User-Agent`), send no `join`, and send one message:
+
+```
+{ "t": "share", "id": 1, "g": {
+    "client": "ios",
+    "engine": "0.7.2",
+    "start": "<the match's first snapshot, renamed>",
+    "log": [ { "a": <action> }, ... ],
+    "end": { "winner": "A", "throws": 60 } } }
+```
+
+| Field          | Required | What it is                                                                                                                                                |
+| -------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`           | no       | echoed in the answer; any JSON value                                                                                                                      |
+| `g.client`     | no       | the program (section 2.6): 1 to 32 of `a-z`, `0-9`, `.`, `-`. Checked, then dropped: it is never stored or passed on                                      |
+| `g.engine`     | yes      | the engine's full version, `engine.version` (section 2.6): 1 to 64 of `a-z`, `0-9`, `.`, `-`, `+`                                                         |
+| `g.start`      | yes      | the snapshot text the engine gave right after `newMatch(setup)`, renamed (below); a string, at most 16 KB                                                 |
+| `g.log`        | yes      | every action applied, in order, each `{ "a": <the action object> }` as the engine produced it (throws, raises, punishment kubbs, the computer's included) |
+| `g.end.winner` | yes      | `"A"` or `"B"`, the side the engine says won                                                                                                              |
+| `g.end.throws` | yes      | the number of throw actions in `log`, both sides; a non-negative integer                                                                                  |
+
+The match must be:
+
+- a person against the computer: the setup's `cpu` is `"B"` alone (side A plays first
+  or not, as the setup says), as the web's and the iPhone's solo setups make it;
+- side B's team and every one of its players named `Computer`, as those setups name it;
+- side A's team and every one of its players named with the name from the share card:
+  1 to 16 characters (code points), no spaces at either end, and not "You" in any case.
+  Make it with the engine: `renameStart({ start, names = { A = "<name>" }, log })`
+  returns `{ start, log }`; send both as it returns them (the log carries ids made from
+  the name). The typed name never leaves the device;
+- finished: the last action ends the match.
+
+Send the text as ASCII JSON (section 2) and cut it into parts exactly as any message
+(section 2.1): a share is one message, usually several frames. The whole message may be
+at most 256 KB; past it, or past 1000 actions, the answer is `too-long` (13.3). A match
+that fits the engine's log budget is well inside both (13.4).
+
+Wait for the answer at least **30 s** after the last part. The server plays the match
+before answering; that takes seconds and can take up to 20 s.
+
+### 13.2 The answer
+
+Always one message, even when nothing could be kept:
+
+```
+{ "t": "shared", "id": 1, "code": "k7mq2xh9pd", "v": 1 }
+{ "t": "shared", "id": 1, "code": null, "v": 0, "why": "busy" }
+```
+
+- `code`: the pitch, `https://throwingwood.com/p/<code>`, live at once. `v` is 1 (the
+  kept replay's version). To make the highlight reel, send
+  `{ "t": "reel", "id": 2, "room": "<code>" }` next, on the same socket (section 12).
+- `code: null`, `v: 0` and `why`:
+
+| `why`             | Meaning                                                                                                   | What the device does                                 |
+| ----------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `unavailable`     | this server does not share matches (no renderer configured)                                               | keep the match; offer again later                    |
+| `engine`          | the server's renderer does not carry this engine's major.minor                                            | keep the match; it may be shareable after an update  |
+| `busy`            | today's shares are used up, or the renderer could not take the check within 20 s                          | keep the match; offer again later                    |
+| `too-long`        | the match is longer than a shared match may be (13.4)                                                     | final for this match: it cannot be shared            |
+| `does-not-replay` | the match does not play again to the same end through the engine, or is not a person against the computer | final for this match: something on the device is off |
+
+The same match shared again (the same `start` and `log`, so the same name) is answered
+the code it got the first time, at once, without a check and without counting against
+either cap. A device that lost an answer just sends the same message again. The same
+match under another name is another share.
+
+### 13.3 Errors
+
+`{ "t": "error", "code", "message", "re": "share", "id" }`, nothing kept:
+
+| `code`        | When                                                                                                                                                                                                                                                |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bad-message` | `g` is not an object; `client` or `engine` is not a valid tag; `start` is not a non-empty string; `log` is not a list of `{ a: <object> }`; `end` is not `{ winner: "A" or "B", throws: integer at least 0 }`; or a part is malformed (section 2.1) |
+| `too-big`     | the reassembled message is over 300 KB (section 2.1)                                                                                                                                                                                                |
+| `too-many`    | this connection has already had 2 matches checked (a repeat answered from 13.2 does not count); a new connection may share again                                                                                                                    |
+| `failed`      | the store could not be read or written, or the renderer failed to answer (not a timeout); try again later                                                                                                                                           |
+
+### 13.4 What is checked, in order
+
+The rooms function, which knows no Kubb, refuses on cheap signals first:
+
+1. the shape (`bad-message`), then the size: the whole message over 256 KB, `log` over
+   1000 actions, or `start` over 16 KB is `too-long`;
+2. no renderer or store support: `unavailable`;
+3. `engine`'s major.minor not among the renderer's (`REEL_ENGINES`): `engine`;
+4. shared before: the stored code (13.2);
+5. the connection's 2 checks: `too-many`; the day's 200 checks (UTC days, a conditional
+   counter): `busy`;
+6. then it invokes the reel function synchronously with `{ check: g }` (no `client`) and
+   waits up to 20 s. A renderer that does not answer in time, or stays throttled, is
+   `busy`.
+
+The renderer (`backend/reels/check.mjs`) plays it through the engine release it carries
+and answers; it writes nothing:
+
+1. `engine`'s major.minor is the carried one: else `engine`;
+2. `start` is exactly what `newMatch` makes of its own options (`checkStart`), and the
+   sides and names are as 13.1 says: else `does-not-replay`;
+3. the log, replayed from `start` with every check on (`replayLoad` with `checkCpu`,
+   `checkThrows` and `document`): no action refused, each of the computer's throws the
+   one the engine makes again from the snapshot before it, each of the person's throws
+   one the dial could make, the match over at its last action with the winner and throw
+   count claimed: else `does-not-replay`;
+4. the finished document keeps its log: the engine drops a document's log past its log
+   budget (248 KB), and such a match has no replay, so it is `too-long`. The document and
+   the replay must each fit 256 KB, or it is `too-long`.
+
+Measured on v0.7.2 (club and beginner matches as the iPhone plays them; times on an
+Apple-silicon Mac under heavy load, and in Docker limited to 1.75 CPUs and 3008 MB, the
+renderer's Lambda size, on the same loaded machine):
+
+| Actions | Turns | Message (ASCII JSON) | Parts | Kept document | Kept replay | Check (Mac) | Check (Docker) |
+| ------- | ----- | -------------------- | ----- | ------------- | ----------- | ----------- | -------------- |
+| 65      | 9     | 30 KB                | 2     | 37 KB         | 37 KB       | 1.3 s       | 2.1 to 2.5 s   |
+| 123     | 14    | 52 KB                | 2     | 65 KB         | 64 KB       | 2.9 s       | 6.2 to 7.7 s   |
+| 179     | 19    | 74 KB                | 3     | 90 KB         | 90 KB       | 5.1 s       | 9.8 to 11.4 s  |
+| 402     | 34    | 162 KB               | 6     | 198 KB        | 197 KB      | 21 to 37 s  | 22 to 29 s     |
+
+The document grows about 490 bytes an action, so the engine's budget ends a shareable
+match at about 505 actions (about 40 turns): a message of about 204 KB, 7 of the 16
+parts. On v0.7.2 the check's time grows faster than the match (the engine measures the
+whole document on every action), so a match much past 300 actions does not finish
+within the 20 s wait and is answered `busy`; kubb-engine v0.7.3 is to fix that.
+
+### 13.5 The sealed pitch
+
+What is kept, all expiring together a year on (DynamoDB TTL):
+
+- `room#<code> | room`: `{ host: null, members: {}, sealed: true, shared: <ms>, keep:
+{ v: 1, until } }`, written only if the code is new;
+- `room#<code> | doc`: version 1, the engine's finished document (`replayDocument`):
+  `started: true`, `open: false`, the lobby's `teams` `{ A: ["A1"], B: [] }` (the
+  engine's own seat id, no member id), and `match` with `over: true`, `cpu: "B"`, the
+  setup, the last snapshot, the hashes and the log;
+- `room#<code> | replay`: version 1, the replay of that match (`replayOf`), gzipped;
+- `share#<sha256>`: the code, keyed by the SHA-256 of the ASCII JSON of `[start, log]`.
+
+A sealed room refuses `join`, `set` and `keep` with the error `sealed` ("This pitch is a
+shared match: it can be watched, not played."): nobody plays on, rematches or replaces
+it. A client that opens `/p/<code>` and gets `sealed` from its `join` shows the finished
+match from the `replay` message. `replay` and `reel` answer as for any finished pitch,
+and the pages function reads it as one, with the computer's title form:
+"Riverside vs Computer · Kubb: Throwing Wood", "Final: Riverside won, against the
+computer (club), in 9 turns. Watch the replay."
+
+What the server never keeps: `client`, the connection id, any member id, a user agent,
+or the typed name (the device sends only the name from the share card). The kept match
+does carry its setup, and with it the date and time the match began, to the minute.
+
+### 13.6 Locally
+
+`npm run dev`'s room server (`tools/rooms-dev.mjs`) shares end to end over the memory
+store: it runs the check in its own process (`devShareChecker` in
+`tools/reels-dev.mjs`) and answers `busy` when it took longer than the wait, so the
+pitch, replay and reel of a shared match work on a laptop.
