@@ -11,7 +11,6 @@ import {
   SITE_NAME,
   TINYLYTICS_SCRIPT,
   TINYLYTICS_SITE,
-  PLAYDATE_GAME,
   NEWSLETTER_URL,
   ref,
 } from "./site.mjs";
@@ -96,7 +95,7 @@ export function footer(release = null, path = "") {
     ).join("")}</ul></nav>
     <p>Made by
       <a class="h-card" href="${OWNER.url}" rel="me author"><img class="u-photo" src="${OWNER.avatar}" alt="" width="28" height="28"><span class="p-name">${esc(OWNER.name)}</span><data class="u-url" value="${OWNER.url}"></data><data class="p-note" value="${esc(OWNER.note)}"></data></a>.
-      Throw wood in your browser, on iPhone and iPad, or on <a href="${ref(PLAYDATE_GAME, "footer")}">Playdate</a>. Jamie’s other projects are on <a href="${ref("https://thingelstad.xyz/", "footer")}">Things I’ve built</a>.
+      Throw wood in your browser, on iPhone and iPad, or on <a href="/playdate/">Playdate</a>. Jamie’s other projects are on <a href="${ref("https://thingelstad.xyz/", "footer")}">Things I’ve built</a>.
     </p>
     <p class="foot__small">Playdate is a trademark of Panic Inc. This game is not made by Panic. iPhone and iPad are trademarks of Apple Inc. The display type is Londrina Solid, under the <a href="/fonts/OFL-LondrinaSolid.txt">SIL Open Font License</a>.</p>
 ${release ? `    <p class="foot__small foot__release" data-release>Version ${esc(release)}</p>\n` : ""}  </div>
