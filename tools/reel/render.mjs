@@ -23,7 +23,7 @@ import { drawWorld } from "../../src/render/world.js";
 import { drawBurst, burstLength } from "../../src/render/burst.js";
 import { projectView } from "../../src/render/camera.js";
 import { bundleLua } from "../lua-bundle.mjs";
-import { scanReplay, openReplay } from "./scan.mjs";
+import { scanReplay, openReplay, piecesCount } from "./scan.mjs";
 import { pickHighlights, resultLine } from "./highlights.mjs";
 import * as C from "./cameras.mjs";
 import * as O from "./overlay.mjs";
@@ -104,6 +104,8 @@ export function planFrames(edit) {
           u: (g - 1) / Math.max(1, count[s.group] - 1),
           slow: s.hold == null && s.rate < 1,
           replay: !!s.replay,
+          focus: s.focus ?? null,
+          at: s.at ?? null,
           first: j === 0,
           local: local++ / FPS,
         });
@@ -260,6 +262,18 @@ export async function renderReel({
     }
   };
 
+  // a drill's last shot: the half as it stood once the kubbs were raised (and a
+  // punishment kubb placed), the state just before the next baton. The match is
+  // stepped on to it; the next moment is never before it (highlights.mjs).
+  let settledItems = null;
+  const reachSettled = (at) => {
+    while (stepped < at - 1) {
+      const r = engine.replayStep();
+      stepped = r.replay.i - 1;
+    }
+    settledItems = engine.view().items;
+  };
+
   const events = []; // sounds, in reel seconds
   const bursts = []; // { kind, anchor, at } live in reel seconds
   let curMoment = -1;
@@ -279,8 +293,10 @@ export async function renderReel({
         hitShown = false;
         bursts.length = 0;
       }
-      const s = engine.showAt(fr.t);
-      items = s.items;
+      if (fr.cam === "settled") {
+        if (fr.first) reachSettled(fr.at);
+        items = settledItems;
+      } else items = engine.showAt(fr.t).items;
       lastItems = items;
       // what happens in this frame's slice of the throw: knocks and bursts
       if (fr.dt > 0) {
@@ -321,7 +337,16 @@ export async function renderReel({
             fr.u,
             kp ? { x: kp.x, y: kp.y } : undefined,
           );
-        } else camera = C.land(fact, o.f, frame, fr.u);
+        } else if (fr.cam === "group" || fr.cam === "settled")
+          camera = C.group(
+            fact,
+            o.f,
+            frame,
+            fr.u,
+            fr.focus,
+            fr.cam === "settled",
+          );
+        else camera = C.land(fact, o.f, frame, fr.u);
       }
       if (capture) {
         capture(o.f, { camera, items, scene });
@@ -356,7 +381,11 @@ export async function renderReel({
         O.scoreLine(ctx, L, {
           teams,
           standing: standingOf(
-            hitShown || fr.t >= fact.duration ? m.after : m.before,
+            fr.cam === "settled"
+              ? piecesCount(items)
+              : hitShown || fr.t >= fact.duration
+                ? m.after
+                : m.before,
           ),
         });
         O.tag(ctx, L, fr.replay ? "REPLAY" : fr.slow ? "SLOW MOTION" : null);
@@ -464,6 +493,13 @@ function stillTimes(edit, frames, facts) {
     const own = frames
       .map((f, i) => ({ ...f, i }))
       .filter((f) => f.moment === mi);
+    // a drill: the kubbs as they stand once raised, the point of it
+    const settled = own.filter((f) => f.cam === "settled");
+    if (settled.length)
+      return (
+        Math.round((settled[Math.floor(settled.length / 2)].i / FPS) * 1000) /
+        1000
+      );
     const hit = facts.get(m.i)?.firstHit?.t;
     // a quarter second of throw after the first hit, in the last pass that shows it
     const pass = own.some((f) => f.replay) ? own.filter((f) => f.replay) : own;

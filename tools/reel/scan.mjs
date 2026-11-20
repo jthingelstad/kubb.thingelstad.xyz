@@ -16,6 +16,21 @@ export const FACT_BOX = { left: 0, top: 0, right: 400, bottom: 240 };
 
 const onBase = (y) => Math.abs(y) < 0.25 || Math.abs(y - 8) < 0.25;
 
+export const inHalf = (p, half) =>
+  !!p &&
+  Math.abs(p.x) < 2.5 &&
+  (half === "A" ? p.y > 0 && p.y < 4 : p.y > 4 && p.y < 8);
+
+// The field kubbs standing in one half, where they stand (world frame).
+export function fieldKubbs(items, half) {
+  return (items || [])
+    .filter(
+      (it) =>
+        it.kind === "kubb" && !it.toppled && !onBase(it.y) && inHalf(it, half),
+    )
+    .map((it) => ({ id: it.id, x: it.x, y: it.y }));
+}
+
 // Kubbs standing in each half, field kubbs (off a baseline) apart.
 export function piecesCount(items) {
   const out = {
@@ -50,10 +65,40 @@ export async function scanReplay(replay, opts = {}) {
   let need = view.need;
   let before = piecesCount(view.items);
   let end = null;
+  // the kubbs thrown in since the last baton: when the next baton comes, each learns
+  // how its half stood once they were raised (and a punishment kubb was placed)
+  let run = [];
+  const punishIds = new Set();
   for (let i = 0; i < replay.log.length; i++) {
+    const act = replay.log[i]?.a;
+    if (run.length && act?.type === "throw" && act.how !== "drill") {
+      const items = engine.view().items;
+      const half = run[0].side === "A" ? "B" : "A";
+      const settled = { at: i, kubbs: fieldKubbs(items, half) };
+      // the ruling "out twice" comes on the throw that ends the round, which need
+      // not be the punished kubb's. The punished kubb is the one the engine asks to
+      // be placed (a person places it); when the computer places it unasked, it is
+      // the kubb thrown twice that stands well away from where it came to rest.
+      const called = run.some((f) => f.outTwice);
+      for (const f of run) {
+        f.settled = settled;
+        const again = run.filter((g) => g.kubb === f.kubb);
+        if (!called || again.length < 2 || again.at(-1) !== f) continue;
+        const k = items.find((it) => it.id === f.kubb);
+        const moved =
+          k && f.rest ? Math.hypot(k.x - f.rest.x, k.y - f.rest.y) : 0;
+        if (punishIds.size ? punishIds.has(f.kubb) : moved > 0.4) {
+          f.punished = true;
+          f.placed = k ? { x: k.x, y: k.y } : null;
+        }
+      }
+      run = [];
+      punishIds.clear();
+    }
     const was = need;
     const r = engine.replayStep();
     need = r.need;
+    if (need?.kind === "punish" && need.kubb) punishIds.add(need.kubb);
     const rec = r.recording;
     if (r.action?.type !== "throw" || !rec) {
       if (need?.kind === "over") end = endOf(need);
@@ -100,6 +145,12 @@ export async function scanReplay(replay, opts = {}) {
         anchor: b.anchor,
       })),
       firstHit: turn(tl.firstHit ?? null),
+      // a kubb thrown in: which kubb, when it first touched the ground, where it came
+      // to rest, and whether it went out a second time (a punishment kubb)
+      kubb: r.action.how === "drill" ? (pid ?? null) : null,
+      landT: tl.firstContact?.t ?? rec.landing?.T ?? null,
+      rest: res.restX != null ? turn({ x: res.restX, y: res.restY }) : null,
+      outTwice: /^out twice/i.test(res.ruling?.text || ""),
       slow: tl.slow ?? null,
       duration: rec.duration,
       before,
@@ -107,6 +158,7 @@ export async function scanReplay(replay, opts = {}) {
       over: need?.kind === "over",
     };
     throws.push(fact);
+    if (fact.how === "drill") run.push(fact);
     if (need?.kind === "over") end = endOf(need);
     before = piecesCount(engine.view().items);
   }
