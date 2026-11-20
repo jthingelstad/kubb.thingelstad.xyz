@@ -3,12 +3,15 @@
 // rule that an item past its `exp` (epoch seconds) is not there.
 
 import { listingKey } from "./core.mjs";
+import { REEL_TRIES } from "../reels/tag.mjs";
 
 export function memoryStore({ now = Date.now } = {}) {
   const rooms = new Map();
   const docs = new Map();
   const conns = new Map();
   const replays = new Map(); // code -> { v, t, data, exp }
+  const reels = new Map(); // code -> { v, tag, job, state, at, tries, ..., exp }
+  const reelDays = new Map(); // day -> { n, exp }
   const parts = new Map(); // "conn id" -> { exp, got: Map(i -> text) }
   const listings = new Map(); // "<made 13>#<code>" -> { room, made, players, seats, state, exp }
 
@@ -20,6 +23,8 @@ export function memoryStore({ now = Date.now } = {}) {
     docs,
     conns,
     replays,
+    reels,
+    reelDays,
     parts,
     listings,
 
@@ -53,6 +58,55 @@ export function memoryStore({ now = Date.now } = {}) {
     },
     async getReplay(code) {
       return copy(live(replays.get(code)));
+    },
+
+    // Highlight reels (core.mjs; the renderer's side is in backend/reels/job.mjs).
+    async getReel(code) {
+      return copy(live(reels.get(code)));
+    },
+    async putReel(code, { v, tag, job, at, exp }, { staleBefore }) {
+      const had = live(reels.get(code));
+      const may =
+        !had ||
+        had.v < v ||
+        (had.v === v && had.tag !== tag) ||
+        (had.job === job &&
+          had.state === "rendering" &&
+          had.at < staleBefore &&
+          (had.tries ?? 0) < REEL_TRIES);
+      if (!may) return false;
+      reels.set(code, {
+        v,
+        tag,
+        job,
+        state: "rendering",
+        at,
+        tries: 0,
+        exp,
+      });
+      return true;
+    },
+    async dropReel(code, job) {
+      if (reels.get(code)?.job === job) reels.delete(code);
+    },
+    async countReel(day, cap, exp) {
+      const had = live(reelDays.get(day));
+      if ((had?.n ?? 0) >= cap) return false;
+      reelDays.set(day, { n: (had?.n ?? 0) + 1, exp });
+      return true;
+    },
+    // The renderer's side: one more try of this very render, while it is rendering.
+    async attemptReel(code, job) {
+      const had = live(reels.get(code));
+      if (!had || had.job !== job || had.state !== "rendering") return null;
+      had.tries = (had.tries ?? 0) + 1;
+      return { tries: had.tries };
+    },
+    async finishReel(code, job, fields) {
+      const had = live(reels.get(code));
+      if (!had || had.job !== job) return false;
+      Object.assign(had, structuredClone(fields));
+      return true;
     },
 
     async putConn(conn, who) {
