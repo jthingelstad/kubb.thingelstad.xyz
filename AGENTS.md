@@ -285,8 +285,10 @@ wording, and the iPhone.
   `kubb-xyz-site-reels` asynchronously. It renders only a match whose `match.engine`
   major.minor is one the function carries (`REEL_ENGINES`, the vendored engine's).
 - Caps: 3 renders started a connection, 200 a UTC day for the whole site (a counter
-  item), a render left `rendering` 25 minutes may be started again, twice in all;
-  `failed` is final for that version. The function runs two at a time.
+  item), a render left `rendering` 25 minutes may be started again, keeping its tries:
+  a job renders twice at most in all, Lambda's retry included; `failed` is final for
+  that version. A match with no throw, or no moment to show, is `failed` with
+  `why: "empty"` at once. The function runs two at a time.
 - The site stack holds the function (`infra/site.json`, Node 24, arm64, 3008 MB, 5
   minutes, one retry) and its ffmpeg layer, both packaged by `tools/reels-bundle.mjs`
   (`npm run reels:bundle`) from `infra/reels-pins.json`: a static ffmpeg 7.0.2 (GPL v3,

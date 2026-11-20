@@ -181,7 +181,7 @@ export function dynamoStore({ client, table, now = Date.now }) {
       const { pk, sk, ...reel } = item;
       return reel;
     },
-    async putReel(code, { v, tag, job, at, exp }, { staleBefore }) {
+    async putReel(code, { v, tag, job, at, exp, tries = 0 }, { staleBefore }) {
       try {
         await client.send(
           new PutCommand({
@@ -194,13 +194,14 @@ export function dynamoStore({ client, table, now = Date.now }) {
               job,
               state: "rendering",
               at,
-              tries: 0,
+              tries,
               exp,
             },
             ConditionExpression:
               "attribute_not_exists(pk) OR #exp < :now OR #v < :v OR " +
               "(#v = :v AND #tag <> :tag) OR " +
-              "(#job = :job AND #state = :rendering AND #at < :stale AND #tries < :tries)",
+              "(#job = :job AND #state = :rendering AND #at < :stale AND " +
+              "#tries = :had AND #tries < :tries)",
             ExpressionAttributeNames: {
               "#exp": "exp",
               "#v": "v",
@@ -218,6 +219,7 @@ export function dynamoStore({ client, table, now = Date.now }) {
               ":rendering": "rendering",
               ":stale": staleBefore,
               ":tries": REEL_TRIES,
+              ":had": tries,
             },
           }),
         );
@@ -227,8 +229,23 @@ export function dynamoStore({ client, table, now = Date.now }) {
         throw error;
       }
     },
-    async dropReel(code, job) {
+    async dropReel(code, job, { at = null } = {}) {
       try {
+        // a takeover gives the item back as it was (stale, its tries kept); a new
+        // render's item goes
+        if (at != null) {
+          await client.send(
+            new UpdateCommand({
+              TableName: table,
+              Key: { pk: `room#${code}`, sk: "reel" },
+              UpdateExpression: "SET #at = :at",
+              ConditionExpression: "#job = :job",
+              ExpressionAttributeNames: { "#job": "job", "#at": "at" },
+              ExpressionAttributeValues: { ":job": job, ":at": at },
+            }),
+          );
+          return;
+        }
         await client.send(
           new DeleteCommand({
             TableName: table,

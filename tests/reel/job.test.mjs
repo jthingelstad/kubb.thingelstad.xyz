@@ -13,10 +13,17 @@ import {
 } from "../../backend/reels/aws.mjs";
 import { REEL_CACHE, runReel } from "../../backend/reels/job.mjs";
 import { reelPaths } from "../../backend/reels/tag.mjs";
+import { NoHighlights } from "../../backend/reels/highlights.mjs";
 
 const ROOM = "abcdefgh23";
 const T0 = 1_700_000_000_000;
-const REPLAY = { v: 1, n: 1, engine: "0.7.1", log: [], snap: "{}" };
+const REPLAY = {
+  v: 1,
+  n: 1,
+  engine: "0.7.1",
+  log: [{ a: { type: "throw", how: "baton" } }],
+  snap: "{}",
+};
 const JOB = "4-r1-0.7";
 
 async function setup({ replay = REPLAY, v = 4 } = {}) {
@@ -227,4 +234,52 @@ test("the uploader writes only under reels/, typed and cached for good", async (
   assert.equal(sent[0].CacheControl, REEL_CACHE);
   assert.equal(REEL_CACHE, "public, max-age=31536000, immutable");
   await assert.rejects(upload("index.html", file, "text/html"), /reel key/);
+});
+
+test("a match with no throw (resigned before the first) is failed empty at once, never rendered", async () => {
+  const h = await setup({ replay: { ...REPLAY, log: [] } });
+  let rendered = false;
+  const out = await h.run({
+    render: async () => {
+      rendered = true;
+    },
+  });
+  assert.deepEqual(out, { state: "failed", why: "empty" });
+  assert.equal(rendered, false);
+  const item = await h.store.getReel(ROOM);
+  assert.equal(item.state, "failed");
+  assert.equal(item.why, "empty");
+  assert.equal(item.tries, 1);
+  assert.ok(h.logs.some((e) => e.step === "failed" && e.why === "empty"));
+  assert.equal(h.uploads.length, 0);
+});
+
+test("a render that finds no moment is failed empty on its first try, not retried", async () => {
+  const h = await setup();
+  const out = await h.run({
+    render: async () => {
+      throw new NoHighlights();
+    },
+  });
+  assert.deepEqual(out, { state: "failed", why: "empty" });
+  assert.equal((await h.store.getReel(ROOM)).tries, 1);
+  // a retry that came anyway finds it failed and does nothing
+  assert.equal((await h.run()).state, "skipped");
+});
+
+test("a job never renders past its tries, whatever invokes it", async () => {
+  const h = await setup();
+  let renders = 0;
+  const hang = () => {
+    renders++;
+    return new Promise(() => {});
+  };
+  // two tries die silently (a timeout), the third is refused before rendering
+  for (let i = 0; i < 2; i++) {
+    h.run({ render: hang });
+    await new Promise((r) => setImmediate(r));
+  }
+  const third = await h.run({ render: hang });
+  assert.deepEqual(third, { state: "failed", why: "render" });
+  assert.equal(renders, 2);
 });

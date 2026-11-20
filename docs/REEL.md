@@ -451,8 +451,13 @@ Limits, beside the existing ones (the stage throttle, `gamesPerConn` and
 **Built:** the retry is Lambda's own for an asynchronous invoke (the function's event
 invoke config: one retry, events kept at most 15 minutes). The renderer counts its tries
 on the reel item; a failure on the first try is thrown back for the retry, on the second
-it marks the item `failed` with `why: "render"`. `failed` is final for that version and
-look.
+it marks the item `failed` with `why: "render"`. A stale takeover keeps the count, and a
+try past the second is failed without rendering, so a job renders twice at most in all
+(`docs/ROOMS.md` section 12). A match with nothing to show (no throw at all, as when a
+player resigned before the first, or no moment picked) gets no reel: it is marked
+`failed` with `why: "empty"` at once, before any encoder starts, and never retried; a
+later UI can say there were no highlights to show. `failed` is final for that version
+and look.
 
 At the costs below, the two caps bound a bad day at under a dollar and a half.
 
