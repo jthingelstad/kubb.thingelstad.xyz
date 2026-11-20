@@ -538,53 +538,90 @@ export class NeonFx {
     if (this.n > 1) this.ribbon(ctx, cam, kx);
     this.dust.draw(ctx, cam, kx);
   }
+  // Each unbroken run of poses is one band and two edge lines, each drawn in
+  // one call with a gradient for the fade, so no two pieces of it overlap
+  // (drawn piece by piece, every joint was added twice: a bright seam).
   ribbon(ctx, cam, kx) {
     const N = tune.ribbonN,
       P = this.pts,
       life = tune.ribbonLife;
-    const C = NEON.ribbon;
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
-    ctx.lineCap = "butt";
-    let prev = null;
-    for (let k = this.n - 1; k >= 0; k--) {
-      const i = ((this.head - 1 - k + N * 2) % N) * 7;
-      const age = this.now - P[i + 6];
-      const a1 = pt(cam, P[i], P[i + 1], P[i + 2]),
-        a2 = pt(cam, P[i + 3], P[i + 4], P[i + 5]);
-      if (!a1 || !a2 || age > life || age < -0.05) {
-        prev = null;
-        continue;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    let run = [];
+    for (let k = this.n - 1; k >= -1; k--) {
+      let p = null;
+      if (k >= 0) {
+        const i = ((this.head - 1 - k + N * 2) % N) * 7;
+        const age = this.now - P[i + 6];
+        if (age <= life && age >= -0.05) {
+          const a1 = pt(cam, P[i], P[i + 1], P[i + 2]),
+            a2 = pt(cam, P[i + 3], P[i + 4], P[i + 5]);
+          if (a1 && a2) p = { a1, a2, u: 1 - Math.max(0, age) / life };
+        }
       }
-      const u = 1 - Math.max(0, age) / life;
-      if (prev) {
-        const al = u * u * tune.ribbonAlpha;
-        ctx.globalAlpha = al;
-        ctx.fillStyle = C[2];
-        ctx.beginPath();
-        ctx.moveTo(prev[0][0], prev[0][1]);
-        ctx.lineTo(prev[1][0], prev[1][1]);
-        ctx.lineTo(a2[0], a2[1]);
-        ctx.lineTo(a1[0], a1[1]);
-        ctx.closePath();
-        ctx.fill();
-        // its two edges bright
-        ctx.globalAlpha = Math.min(1, al * 2.2);
-        ctx.strokeStyle = C[0];
-        const d = (a1[2] + a2[2]) / 2;
-        ctx.lineWidth = Math.max(0.8 / kx, (tune.ribbonCore * cam.f) / d);
-        ctx.beginPath();
-        ctx.moveTo(prev[0][0], prev[0][1]);
-        ctx.lineTo(a1[0], a1[1]);
-        ctx.moveTo(prev[1][0], prev[1][1]);
-        ctx.lineTo(a2[0], a2[1]);
-        ctx.stroke();
+      if (p) run.push(p);
+      else {
+        if (run.length > 1) this.band(ctx, cam, kx, run);
+        run = [];
       }
-      prev = [a1, a2];
     }
     ctx.restore();
   }
+  // One run, oldest first: the band between the two ends' paths, then the
+  // two paths bright. The fade follows the run from its oldest pose to its
+  // newest, a stop at every pose.
+  band(ctx, cam, kx, run) {
+    const C = RIBBON;
+    const o = run[0],
+      h = run[run.length - 1];
+    const ox = (o.a1[0] + o.a2[0]) / 2,
+      oy = (o.a1[1] + o.a2[1]) / 2;
+    const hx = (h.a1[0] + h.a2[0]) / 2,
+      hy = (h.a1[1] + h.a2[1]) / 2;
+    const vx = hx - ox,
+      vy = hy - oy,
+      vv = vx * vx + vy * vy;
+    const grad = (rgb, k) => {
+      if (vv < 1) return `rgba(${rgb},${Math.min(1, h.u * h.u * k)})`;
+      const g = ctx.createLinearGradient(ox, oy, hx, hy);
+      let last = -1;
+      for (const p of run) {
+        const mx = (p.a1[0] + p.a2[0]) / 2 - ox,
+          my = (p.a1[1] + p.a2[1]) / 2 - oy;
+        const f = Math.min(1, Math.max(last, (mx * vx + my * vy) / vv, 0));
+        last = f;
+        g.addColorStop(f, `rgba(${rgb},${Math.min(1, p.u * p.u * k)})`);
+      }
+      return g;
+    };
+    const A = tune.ribbonAlpha;
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = grad(C.band, A);
+    ctx.beginPath();
+    ctx.moveTo(o.a1[0], o.a1[1]);
+    for (let j = 1; j < run.length; j++) ctx.lineTo(run[j].a1[0], run[j].a1[1]);
+    for (let j = run.length - 1; j >= 0; j--)
+      ctx.lineTo(run[j].a2[0], run[j].a2[1]);
+    ctx.closePath();
+    ctx.fill("nonzero");
+    const d = (h.a1[2] + h.a2[2]) / 2;
+    ctx.lineWidth = Math.max(0.8 / kx, (tune.ribbonCore * cam.f) / d);
+    ctx.strokeStyle = grad(C.edge, A * 2.2);
+    ctx.beginPath();
+    for (const e of ["a1", "a2"]) {
+      ctx.moveTo(o[e][0], o[e][1]);
+      for (let j = 1; j < run.length; j++)
+        ctx.lineTo(run[j][e][0], run[j][e][1]);
+    }
+    ctx.stroke();
+  }
 }
+
+const rgbOf = (hex) =>
+  [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(",");
+const RIBBON = { edge: rgbOf(NEON.ribbon[0]), band: rgbOf(NEON.ribbon[2]) };
 
 // ---------- the scene ----------
 
