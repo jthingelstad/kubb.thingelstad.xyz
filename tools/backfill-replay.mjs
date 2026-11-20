@@ -4,7 +4,8 @@
 //
 //   node tools/backfill-replay.mjs --room <code> [--dir build/games]
 //       builds the replay of the room's last finished match from its records and plays
-//       it through this checkout's engine, comparing the hash after every action with
+//       it through this checkout's engine (the match's own when the checkout carries
+//       it, else the newest: docs/ENGINES.md), comparing the hash after every action with
 //       the one the players' browsers committed. Writes nothing.
 //   node tools/backfill-replay.mjs --room <code> --write
 //       then, as cloud-engineer, does for that one room what a `keep` would have: writes
@@ -88,9 +89,11 @@ export function finished(engine, snap) {
 
 // Every match of a room's records, judged; `best` is the last finished one that makes a
 // whole replay (a match still in play is never kept).
-export function roomReplays(engine, records) {
+export function roomReplays(newest, records, { engineOf = null } = {}) {
   const found = [];
   for (const match of matchesOf(records)) {
+    // each match on its own engine when engineOf gives one (docs/ENGINES.md)
+    const engine = engineOf?.(match) ?? newest;
     const r = replayFromMatch(match);
     if (!r.replay) {
       found.push({ n: match.n, why: r.why });
@@ -99,6 +102,7 @@ export function roomReplays(engine, records) {
     const check = checkReplay(engine, r.replay);
     found.push({
       n: match.n,
+      engine: engine.version,
       ...r,
       check,
       finished: finished(engine, r.replay.snap),
@@ -212,15 +216,26 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     throw new Error(
       "Usage: node tools/backfill-replay.mjs --room <code> [--write]",
     );
-  const { Engine } = await import("../src/engine/index.js");
-  const { bundleLua } = await import("./lua-bundle.mjs");
-  const engine = await Engine.create({ sources: await bundleLua() });
-  useRoomEngine(engine);
-  const { found, best } = roomReplays(engine, await readRoom(dir, room));
+  const { checkoutEngines, engineForMatch } = await import("./engines.mjs");
+  const { matchEngineOf } = await import("./games.mjs");
+  const engines = checkoutEngines();
+  // the room's calls (the replay check) are the newest's, as on the site
+  useRoomEngine(await engines.loadEngine());
+  const records = await readRoom(dir, room);
+  // each match on its own engine where this checkout carries it, loaded first
+  const loaded = new Map();
+  for (const match of matchesOf(records)) {
+    const e = matchEngineOf(match);
+    if (!loaded.has(e))
+      loaded.set(e, (await engineForMatch(engines, e)).engine);
+  }
+  const { found, best } = roomReplays(await engines.loadEngine(), records, {
+    engineOf: (match) => loaded.get(matchEngineOf(match)),
+  });
   for (const f of found)
     console.log(
       f.check
-        ? `${room} match ${f.n}: ${f.check.actions} actions, ${f.check.same} on the players' hash${f.check.firstDiffers ? `, the first to differ is action ${f.check.firstDiffers} (${f.replay.log[f.check.firstDiffers - 1].a.type})` : ""}; ${f.check.over ? "it ends" : "it does not end"}${f.check.end ? " on the recorded result" : ", not on the recorded snapshot (the pitch shows that one)"}`
+        ? `${room} match ${f.n}: ${f.check.actions} actions on ${f.engine}, ${f.check.same} on the players' hash${f.check.firstDiffers ? `, the first to differ is action ${f.check.firstDiffers} (${f.replay.log[f.check.firstDiffers - 1].a.type})` : ""}; ${f.check.over ? "it ends" : "it does not end"}${f.check.end ? " on the recorded result" : ", not on the recorded snapshot (the pitch shows that one)"}`
         : `${room} match ${f.n}: no replay (${f.why})`,
       f.check && !f.finished ? " (not finished as recorded: not kept)" : "",
     );

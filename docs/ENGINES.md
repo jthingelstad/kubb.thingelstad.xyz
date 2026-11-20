@@ -69,3 +69,32 @@ Each engine is registered with the room bridge as it loads (`src/net/room-engine
 `roomCall(name, args)` goes to the newest, `roomCall(name, args, mm)` to the one named.
 `lobby.js`'s constants (`ENGINE`, `REPLAY_VERSION`, ...) are the newest's;
 `engineConstants(mm)` reads any carried engine's, once each.
+
+## Looking back at a match
+
+Everything that looks back at a finished match uses the match's own engine when the
+site carries it, and otherwise the newest, which notes a hash that disagrees as it
+always has:
+
+- **A replay** (the pitch's WATCH REPLAY and WATCH THE LAST MATCH, a shared match's
+  page, the embed): the replay names `engine` (`room.replayOf` copies `match.engine`).
+  `src/replay/player.js` takes the engine and the Game draws from it while it plays
+  (`Game.useEngine`), then from the newest again. A page that never looks back at an
+  older match never loads one.
+- **The score sheet** of a finished match on a pitch or a shared match's page: read from
+  the match's engine set to its last snapshot (`Pitch.openSheet`); a replay's sheet is
+  the replay engine's.
+- **Records and reports** (`src/net/record.js`, `report.js`) name the engine that played
+  (`engine.version`) and the bundle it was loaded from (`luaFor` in
+  `src/site/config.js`). Play is on the newest, so today that is the newest.
+- **The share card** sends the match the Game played (`renameStart` on the Game's
+  engine, the newest); the server checks it against the engines its renderer
+  carries (`REEL_ENGINES`, `docs/REEL.md`).
+- **The tools** (`tools/engines.mjs`): `games:replay` and `reports:replay` play each
+  match or report on its own engine where the checkout carries it (`--engine <mm>` plays
+  all on one: after a new minor, the throws it changes); `backfill-replay` plays each
+  match on its own; `replay-fixture --engine <mm>` writes an older engine's kept replay,
+  `tests/fixtures/replay-north-south-<mm>.json`.
+- **Tests**: every carried engine plays its own golden corpus and its own kept replay
+  (`tests/engine/`). The two-engine paths are tested with a second engine made at test
+  time (`tests/net/engines-replay.test.mjs`, `tests/game/engines-client.test.mjs`).

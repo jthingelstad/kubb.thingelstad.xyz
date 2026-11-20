@@ -34,6 +34,7 @@
 import { asciiJson } from "./room.js";
 import { ask } from "./ask.js";
 import { CLIENT } from "./sync.js";
+import { luaFor } from "../site/config.js";
 
 // Kept in step with backend/rooms/core.mjs LIMITS (tests/net/report.test.mjs checks).
 export const REPORT_LIMITS = Object.freeze({
@@ -119,7 +120,7 @@ export function captureReport({
     build: {
       version: config.version ?? null,
       commit: config.commit ?? null,
-      lua: config.luaUrl ? String(config.luaUrl).split("/").pop() : null,
+      lua: luaFor(config, engine.version),
     },
     viewport: {
       w: Math.round(win.innerWidth ?? 0),

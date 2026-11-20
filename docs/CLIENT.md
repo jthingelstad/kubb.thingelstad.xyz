@@ -662,9 +662,10 @@ throws he took for perfect had been judged long.
 A finished match on a shared pitch can be watched again (Jamie, 2026-11-16: "When a game
 is finished playing on a pitch I'd like the URL to allow people to come and watch a
 replay of the match."). A replay is not a video: the match is set out again from its
-`newMatch` options and every committed action goes through this engine in order
-(the engine's `session/replay.lua`), the same throws with the same physics, so it plays with the
-current engine. What the pitch keeps is `docs/MULTIPLAYER.md` "The document"; where it is
+`newMatch` options and every committed action goes through the engine in order
+(the engine's `session/replay.lua`), the same throws with the same physics: the match's
+own engine (`match.engine`, carried in the replay) where the site still carries it, else
+the newest (`docs/ENGINES.md`). What the pitch keeps is `docs/MULTIPLAYER.md` "The document"; where it is
 stored, `docs/ROOMS.md` section 10.
 
 - **The engine.** `engine.replayLoad(data)` sets the replay out from its `setup` (the `newMatch` options),
@@ -685,7 +686,10 @@ data, ... })` fetches a replay by its pitch code and plays it. It needs nothing 
   pitch page's lobby, room session or menu (`menu` is optional, for its View item), so an
   embed can mount it on a page of its own. It takes over the Game's seat (one that may
   never act), its cards (`game.noCards`), its view and its loop (`game.driver`, called
-  every tick, and `game.timeScale`), and gives every one back on `destroy()`.
+  every tick, and `game.timeScale`), and gives every one back on `destroy()`. Given
+  `engine` (the match's own, from the page's registry: `startReplay` takes `engines`,
+  the pitch and the embed look it up), the Game draws from that engine while the replay
+  plays (`game.useEngine`) and from its own again after.
 - **The pace.** The match's own, without the zen pauses: 1.2 s after a throw lands before
   the next, 0.8 s after a raise or a punishment kubb, and the computer's swing plays out to
   its release (at most 6 s) before its logged throw goes. 1X, 2X and 4X scale all of it

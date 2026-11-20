@@ -16,6 +16,10 @@ import {
 } from "../../tools/backfill-replay.mjs";
 import { matchesOf } from "../../tools/games.mjs";
 import { bundleLua } from "../../tools/lua-bundle.mjs";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { writeEngineTree } from "../engine/engine-fixture.mjs";
 
 const sources = await bundleLua();
 const ROOM = "abcdefgh";
@@ -134,6 +138,21 @@ test("a hash the engine no longer reaches is the first that differs; a gap makes
   assert.equal(playing.found[0].finished, false);
   assert.equal(playing.best, null);
   assert.equal(roomReplays(engine, out).best.finished, true);
+});
+
+// docs/ENGINES.md: each match on the engine engineOf gives it (the match's own where
+// the checkout carries it); a second engine made from a fixture, playing alike.
+test("each match plays on the engine it is given, and says which", async (t) => {
+  const { out } = await records();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kubb-older-engine-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  writeEngineTree(dir, "0.6.9");
+  const older = await Engine.create({ sources: bundleLua(dir) });
+  const newest = await Engine.create({ sources });
+  const own = roomReplays(newest, out, { engineOf: () => older });
+  assert.equal(own.found[0].engine, "0.6.9");
+  assert.equal(own.best.check.same, own.best.check.actions);
+  assert.equal(roomReplays(newest, out).found[0].engine, newest.version);
 });
 
 test("the write keeps the replay and the room a year from the match's end, once, and only for the match the pitch shows", async () => {

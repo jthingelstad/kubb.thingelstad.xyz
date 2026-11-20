@@ -12,6 +12,12 @@
 //   await engines.loadEngine("0.6")   that engine, made once
 //   engines.loaded("0.6")     that engine if already made, else null
 //   engines.onLoad(fn)        fn(engine, mm) for each engine as it is made
+//   engines.pick("0.6")       the major.minor a match of 0.6 is looked back at with:
+//                             its own when carried, else the newest
+//
+// engineFor(engines, mm, fallback) is the engine to look back at a match of mm with,
+// at once when it is already made (always so while the site carries one engine),
+// else a promise of it; `fallback` (the Game's engine) when there is no registry.
 export const majorMinor = (version) =>
   typeof version === "string" && /^\d+\.\d+/.test(version)
     ? version.split(".").slice(0, 2).join(".")
@@ -65,9 +71,26 @@ export function makeRegistry({ engines = {}, newest, create }) {
     version: (mm) => engines[mm]?.version ?? null,
     loadEngine,
     loaded: (mm = top) => ready.get(mm) ?? null,
+    pick: (mm) => {
+      const want = majorMinor(mm);
+      return want && engines[want] ? want : top;
+    },
     onLoad(fn) {
       listeners.push(fn);
       for (const [mm, engine] of ready) fn(engine, mm);
     },
   };
+}
+
+export function engineFor(engines, mm, fallback = null) {
+  if (!engines?.newest) return fallback;
+  const use = engines.pick(mm);
+  return engines.loaded(use) ?? engines.loadEngine(use);
+}
+
+// Run fn with the engine for mm: at once when it is ready, after it loads otherwise.
+// Returns fn's result, or a promise of it.
+export function withEngineFor(engines, mm, fallback, fn) {
+  const e = engineFor(engines, mm, fallback);
+  return typeof e?.then === "function" ? e.then(fn) : fn(e);
 }

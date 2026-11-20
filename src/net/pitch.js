@@ -44,6 +44,8 @@ import { fetchReplay } from "../replay/fetch.js";
 import { openEmbed, EMBED_ORIGIN } from "../ui/embed.js";
 import { Reel } from "../ui/reel.js";
 import { reelFromPage } from "./reel.js";
+import { majorMinor, withEngineFor } from "../engine/registry.js";
+import { openSheet } from "../ui/sheet.js";
 
 export const tune = {
   tickMs: 200, // the controller's clock: aim casts (5 a second), drain, host check
@@ -108,8 +110,12 @@ export function startPitch(env) {
 }
 
 export class Pitch {
-  // env: { game, cards, ui, config, code, home, roomsUrl, sheet?, menu?, WebSocket? }
-  // sheet: () => void, opens the score sheet (the winner card's SCORE SHEET)
+  // env: { game, cards, ui, config, code, home, roomsUrl, sheet?, menu?, engines?,
+  //        WebSocket? }
+  // sheet: () => void, opens the score sheet of the Game's engine
+  // engines: the page's carried engines (src/engine/registry.js); a finished match is
+  //   looked back at (its replay, its score sheet) with its own when carried
+  //   (docs/ENGINES.md). Without it, the Game's engine.
   constructor(env) {
     Object.assign(this, env);
     this.mode = "lobby"; // lobby | match | replay | gone | sealed
@@ -344,7 +350,7 @@ export class Pitch {
     const r = this.sealed;
     this.cards.winner(need, {
       rematch: null,
-      sheet: this.sheet,
+      sheet: this.sheet ? () => this.openSheet() : null,
       home: this.home,
       replay: () => this.watch(r),
       embed: () => this.showEmbed(),
@@ -905,7 +911,7 @@ export class Pitch {
     const host = this.room.isHost();
     this.cards.winner(need, {
       rematch: host ? () => this.rematch() : null,
-      sheet: this.sheet,
+      sheet: this.sheet ? () => this.openSheet() : null,
       home: this.home,
       note: host ? null : `${this.nameOf(this.room.host)} can start a rematch.`,
       // a match from before replays (or too long to keep) has none
@@ -940,6 +946,20 @@ export class Pitch {
       this.mode !== "sealed"
     )
       return;
+    // the match's own engine: at once when it is loaded (the newest always is), else
+    // once it has loaded, if the page is still where it was
+    const from = this.mode;
+    return withEngineFor(
+      this.engines,
+      data.engine,
+      this.game.engine,
+      (engine) => {
+        if (this.mode === from) this.playReplay(data, engine);
+      },
+    );
+  }
+
+  playReplay(data, engine) {
     this.replayFrom = this.mode;
     this.mode = "replay";
     this.lobby?.hide();
@@ -955,9 +975,36 @@ export class Pitch {
       close: () => this.endReplay(),
       embed: () => this.showEmbed(),
       reel: this.reelFor(data),
+      engine,
     });
     this.replay.start();
     this.note("replay", data.n);
+  }
+
+  // SCORE SHEET (the winner card, MENU): the match on screen. A finished match from an
+  // older engine the site carries is read from that engine, set to the match's last
+  // snapshot (docs/ENGINES.md); everything else, a replay playing included, from the
+  // Game's.
+  openSheet() {
+    const m =
+      this.mode === "sealed"
+        ? this.sealed
+        : this.mode === "match" && this.room?.doc?.match?.n === this.local.n
+          ? this.room.doc.match
+          : null;
+    const mm = majorMinor(m?.engine);
+    const engines = this.engines;
+    const own =
+      m &&
+      typeof m.snap === "string" &&
+      (this.mode === "sealed" || m.over) &&
+      engines?.has(mm) &&
+      mm !== engines.newest;
+    if (!own) return this.sheet?.();
+    return withEngineFor(engines, mm, null, (engine) => {
+      engine.restore(m.snap);
+      return openSheet(this.ui, { game: this.game, engine });
+    });
   }
 
   // EMBED: the HTML that shows this pitch's match on another site.

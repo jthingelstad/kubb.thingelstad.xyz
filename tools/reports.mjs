@@ -1,5 +1,6 @@
 // Players' reports (MENU, SEND FEEDBACK: a throw or anything else; backend/rooms/reports.mjs): fetch them, read
-// them, and play the reported moment again through this checkout's engine.
+// them, and play the reported moment again through this checkout's engine (the report's
+// own when the checkout carries it, else the newest: docs/ENGINES.md).
 //
 //   node tools/reports.mjs pull [--since 2026-11-16] [--dir build/reports]
 //       copies new reports from the games bucket to build/reports/<yyyy-mm-dd>/ (never in
@@ -7,7 +8,7 @@
 //       cloud-engineer identity.
 //   node tools/reports.mjs show [--dir build/reports] [file ...]
 //       prints reports already pulled (all of them, or the files named).
-//   node tools/reports.mjs replay <file>
+//   node tools/reports.mjs replay <file> [--engine <major.minor>]
 //       feedback (`kind: "feedback"`) with no throw in it has nothing to replay; one that
 //       carries a throw replays as a throw report does. A match: restores the snapshot before the last action and applies it, and says
 //       whether this engine ends on the reported snapshot; with the whole history, also
@@ -263,17 +264,19 @@ async function pull({ since, dir }) {
   await show(got);
 }
 
-async function replay(file) {
+async function replay(file, only) {
   if (!file) throw new Error("Usage: npm run reports:replay -- <file>");
-  const { Engine } = await import("../src/engine/index.js");
-  const { bundleLua } = await import("./lua-bundle.mjs");
+  const { checkoutEngines, engineForMatch } = await import("./engines.mjs");
   const obj = await readReport(file);
   console.log(describeReport(obj, file).join("\n"));
-  const engine = await Engine.create({ sources: bundleLua() });
   const r = obj.report ?? {};
+  const { engine } = await engineForMatch(checkoutEngines(), r.engine, {
+    only,
+  });
+  console.log(`\nReplaying through kubb-engine ${engine.version}.`);
   if (typeof r.engine === "string" && r.engine !== engine.version)
     console.log(
-      `\nNote: the report was made on engine ${r.engine}; this checkout runs ${engine.version}.`,
+      `Note: the report was made on engine ${r.engine}; this replay runs ${engine.version}.`,
     );
   const out = replayReport(engine, obj);
   if (!out.kind) {
@@ -318,7 +321,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (mode === "pull") await pull({ since: flag("since"), dir });
   else if (mode === "show")
     await show(files.length ? files : await listFiles(dir));
-  else if (mode === "replay") await replay(files[0]);
+  else if (mode === "replay") await replay(files[0], flag("engine"));
   else
     throw new Error(
       "Usage: node tools/reports.mjs pull [--since <date>] | show [file ...] | replay <file>",

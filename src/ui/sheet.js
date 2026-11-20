@@ -9,13 +9,15 @@ import { h, button } from "./dom.js";
 export const NOTATION_URL =
   "https://thingelstad.xyz/things/planet-kubb-score/?ref=kubb-sheet";
 
-// opts: { game, download? (for tests: (name, text) => void) }
+// opts: { game, engine?, download? (for tests: (name, text) => void) }
+// engine: the engine holding the match, when it is not the Game's (a finished match from
+// an older engine the site carries, docs/ENGINES.md).
 // Returns null when there is no match to show (practice).
 export function openSheet(root, opts) {
-  const { game } = opts;
+  const { game, engine = game.engine } = opts;
   let sheet = null;
   try {
-    sheet = game.engine.sheet();
+    sheet = engine.sheet();
   } catch (err) {
     console.warn("No score sheet:", err);
   }

@@ -8,6 +8,12 @@
 //   const p = new ReplayPlayer({ game, root, data }); p.start(); // a replay in hand
 //   p.destroy();                                                 // the Game as it was
 //
+// A replay plays on the match's own engine when the site carries it (`engines`, the
+// page's src/engine/registry.js, or `engine` given): the Game draws from that engine
+// while it plays and goes back to its own at the end (docs/ENGINES.md). A match from
+// an engine the site does not carry plays on the Game's engine, the newest, and a hash
+// that disagrees is noted as before.
+//
 // Self-contained on purpose: it takes a Game and an element to put its controls in, and
 // nothing from the pitch page (no lobby, no room socket, no menu unless one is given),
 // so an embed can play a pitch's match with a Game, a root and the code.
@@ -30,6 +36,7 @@ import { h, button } from "../ui/dom.js";
 import { prefs } from "../game/prefs.js";
 import { openSheet } from "../ui/sheet.js";
 import { fetchReplay } from "./fetch.js";
+import { engineFor } from "../engine/registry.js";
 
 export const replayTune = {
   throwAfter: 1.2, // s a person stands before their throw is played
@@ -46,10 +53,17 @@ const VIEWS = { wide: "WIDE VIEW", thrower: "THROWER'S VIEW" };
 
 // Fetch a pitch's kept replay and play it. Resolves the player, or null when the pitch
 // keeps none (the caller says so: a match from before replays, a room long gone).
-export async function startReplay({ code, url, data = null, ...opts }) {
+export async function startReplay({
+  code,
+  url,
+  data = null,
+  engines = null,
+  ...opts
+}) {
   const r = data ?? (await fetchReplay({ url, code }));
   if (!r) return null;
-  const p = new ReplayPlayer({ ...opts, data: r });
+  const engine = await engineFor(engines, r.engine, opts.game.engine);
+  const p = new ReplayPlayer({ ...opts, data: r, engine });
   p.start();
   return p;
 }
@@ -90,7 +104,9 @@ export class ReplayPlayer {
     embed = null,
     reel = null,
     embedded = false,
+    engine = null,
   }) {
+    this.engine = engine ?? game.engine;
     Object.assign(this, {
       game,
       root,
@@ -120,6 +136,7 @@ export class ReplayPlayer {
   start() {
     const g = this.game;
     this.saved = {
+      engine: g.engine,
       seat: g.seat,
       onNeed: g.onNeed,
       onAction: g.onAction,
@@ -132,6 +149,7 @@ export class ReplayPlayer {
       report: this.menu?.hooks.report ?? null,
     };
     g.cards?.close();
+    g.useEngine(this.engine);
     g.seat = NOBODY;
     g.onAction = null;
     g.whoActs = whoActs;
@@ -185,6 +203,7 @@ export class ReplayPlayer {
     }
     const s = this.saved;
     this.saved = null;
+    g.useEngine(s.engine);
     Object.assign(g, {
       seat: s.seat,
       onNeed: s.onNeed,
