@@ -652,7 +652,10 @@ score sheet as it stands), SHOW POSITIONS / HIDE POSITIONS, COPY, DOWNLOAD and B
   phone width without sideways scrolling.
 - Modal like the report card; Escape, BACK or a tap outside closes it. The game goes on
   underneath (watching the computer keeps playing).
-- The file's header says `[Location "Playdate"]`: the core's default, left as is.
+- The file's header says `[Location "throwingwood.com"]` (`LOCATION` in
+  `src/net/sync.js`, passed to the engine's `setClient` at the start), as the iPhone
+  app's does; the Playdate game keeps the engine's own "Playdate". It is in no
+  snapshot or hash.
 
 ## Recording
 

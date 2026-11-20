@@ -24,7 +24,7 @@ import { startPitch } from "./net/pitch.js";
 import { openReport } from "./ui/report.js";
 import { openSheet } from "./ui/sheet.js";
 import { recordMatch } from "./net/record.js";
-import { clientLabel } from "./net/sync.js";
+import { clientLabel, LOCATION } from "./net/sync.js";
 import { useRoomEngine } from "./net/lobby.js";
 import { watchFreshness } from "./net/freshness.js";
 import { showUpdate } from "./ui/update.js";
@@ -80,6 +80,7 @@ async function makeEngine() {
       sources: config.luaUrl,
       wasmUrl: config.wasmUrl,
       client: clientLabel(config.version),
+      location: LOCATION,
     }),
     document.fonts?.load('900 40px "Londrina Solid"').catch(() => null),
   ]);

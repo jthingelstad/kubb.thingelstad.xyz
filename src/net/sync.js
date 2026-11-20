@@ -23,6 +23,9 @@ export const CLIENT = "web";
 
 // The label the engine writes into every game file ("Scored by"): "web 0.1.0".
 export const clientLabel = (version) => `${CLIENT} ${version}`;
+// The game file's Location line: where the match was played. The iPhone app writes the
+// same; the Playdate game keeps the engine's own, "Playdate".
+export const LOCATION = "throwingwood.com";
 
 // The `with` for an action, or undefined when it would not fit the room's limit
 // (`bytes`, as ASCII JSON): then the others just adopt the snapshot.

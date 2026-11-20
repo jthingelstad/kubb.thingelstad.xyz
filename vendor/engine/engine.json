@@ -1,6 +1,6 @@
 {
   "name": "kubb-engine",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "extractedFrom": {
     "repository": "jthingelstad/playdate-kubb",
     "path": "source/core",
@@ -62,19 +62,19 @@
     "room/lobby.lua": "fce8e4095cd0da131aabb4cb96c4baf39607b151a13146a3143235672141d0d6",
     "room/seats.lua": "6bbc5db4cddf33f6f49f8d4887840134eb9d02d86ec2d2969203e84c140ef1bc",
     "room/sync.lua": "b7703c43982aad5abfe7275d908f1ee4d9f0b1ae2570622193b9d572c8883cb1",
-    "session/api.lua": "fce31709c3a80ba8959074cfcc7b159b6fecbacd799e7c604dd78acec148b139",
+    "session/api.lua": "f2d4e8e416c666dbe53fd29b4ec1762dd6787e54681e42ff821b5cb9aac5e80c",
     "session/check.lua": "9d1486539abbada4817fb5d83a00cb1d95250875a860ffb64ca3691171451a8b",
     "session/json.lua": "c67017eb3aa54b2ebc68000999b7a7c770dab6d7ec45d5e6f2a481bfe38e25b0",
     "session/replay.lua": "f405db2e8a36616ec4321fbb855ba8b0536ed8ba7183ec90468411800b19f11e",
-    "session/session.lua": "43bbcf86c07ba58be02577529ef380309f1f8dc57104e09dad0d11f38b6fa0b2",
+    "session/session.lua": "97a89a56ff6dd2f52688fbd06654d8ddcadb280b639aade4cb310575dd10b79c",
     "session/throw.lua": "f1b48dc7bb14c7dc978d25b863fd59ba8e69c296f9d6a1abc8508923854999f3",
     "session/touch.lua": "1785c2057390574d94f42fde5945558e42ae20186a74d5bd8bc6d523231d4371",
     "session/wide.lua": "9f2087d3362b6ed4d2240365a5bd79504ae7207775529cc0d403ab201befd855",
     "tune/pointer.lua": "7b30c67adf47fb8387e5b0dd7f73af3c92c99116d05781885e7fc0157fcc9397",
     "tune/touch.lua": "b7c3f2851c4c386cc39a76d891cf273d703ac231fe51c235db5d1bc404915221",
-    "version.lua": "324b586856f27b50dbc121821324fc7481b005a9ee1fb90cd715c272bc59f313"
+    "version.lua": "81779aeb3194e98b997a45247780aca8067ddeb74324b592313710e7ceaa6e39"
   },
   "bundle": {
-    "sha256": "eec3e371e9e864f00af4ae76aadfb2165b5853b9941050691a0d15636bb92a7f"
+    "sha256": "dd52a523b1637388b3f7523c80c963a1325b59f7ed618499f5cd2f46bb4950d4"
   }
 }

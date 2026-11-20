@@ -3,7 +3,8 @@
 // take and return plain objects. Browser and Node; no DOM.
 //
 //   import { Engine } from "../engine/index.js";
-//   const engine = await Engine.create({ sources, wasmUrl, client: "web 0.1.0" });
+//   const engine = await Engine.create({ sources, wasmUrl, client: "web 0.1.0",
+//     location: "throwingwood.com" });
 //   const view = engine.newPractice({ surface: "grass" });
 //   const out = engine.frame({ dt, arm, plan, move, walk });
 //
@@ -41,7 +42,13 @@ export class Engine {
     this.version = null;
   }
 
-  static async create({ sources, wasmUrl, client, tune = "pointer" } = {}) {
+  static async create({
+    sources,
+    wasmUrl,
+    client,
+    location,
+    tune = "pointer",
+  } = {}) {
     if (typeof sources === "string") {
       const res = await fetch(sources);
       if (!res.ok) throw new EngineError(`lua sources: ${res.status}`);
@@ -62,7 +69,13 @@ export class Engine {
     const engine = new Engine(lua, call);
     // docs/SESSION.md "Starting" (vendor/engine): before the first new or restore
     engine.call("useTune", { name: tune });
-    if (client) engine.call("setClient", { label: client });
+    // `location` is the game file's Location line; without one the engine writes its own
+    // ("Playdate"). It is in no snapshot or hash: only the files this page writes carry it.
+    if (client)
+      engine.call("setClient", {
+        label: client,
+        ...(location ? { location } : {}),
+      });
     engine.version = engine.call("engineVersion").version;
     return engine;
   }
