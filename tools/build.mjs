@@ -205,17 +205,17 @@ export async function buildSite({
     "dist/llms.txt",
     `# ${SITE_TITLE}
 
-> Kubb, the lawn game of wooden blocks and batons, with the U.S. National Kubb Championship rules and real physics. It plays in the browser, on iPhone and iPad (in beta on TestFlight) and on Playdate (in development), all on one engine, the Kubb Engine. ${GAME_READY ? "On the web, start a pitch and send the link so friends join on their own screens, play or watch the computer, or practice." : "The game is still being built: the pages are up, the pitch is not playable yet."}
+> Kubb is the lawn game where you throw sticks of wood at blocks of wood. Knock them all over, then topple the king. Kubb: Throwing Wood plays by the U.S. National Kubb Championship rules. You can play it in your browser, on iPhone and iPad (in beta on TestFlight) and on Playdate (in development). All three run one engine, the Kubb Engine. ${GAME_READY ? "On the web you can start a pitch and send the link to friends. You can also play or watch the computer, or practice." : "The game is still being built. The pages are up, but a pitch does not play yet."}
 
 ## Pages
 
-- [Home](${ORIGIN}/): the game, the three ways to play it, online play on a link, replays and highlight reels.
-- [Play on the web](${ORIGIN}/web/): start a pitch (a link of its own at /p/<code>), play or watch the computer, practice, or join an open game.
-- [iPhone and iPad](${ORIGIN}/ios/): the native app, in beta on TestFlight.
-- [Playdate](${ORIGIN}/playdate/): the Playdate game, thrown with the crank, in development.
-- [The Kubb Engine](${ORIGIN}/engine/): the one engine all three run, how its throws are checked against tournament score sheets, video of real play and a second physics simulator, and how a browser and an iPhone agree to the last bit.
+- [Home](${ORIGIN}/): the game and the three ways to play it.
+- [Play on the web](${ORIGIN}/web/): start a pitch, play or watch the computer, practice, or join an open game.
+- [iPhone and iPad](${ORIGIN}/ios/): the app, in beta on TestFlight.
+- [Playdate](${ORIGIN}/playdate/): the Playdate game, thrown with the crank. Still in development.
+- [The Kubb Engine](${ORIGIN}/engine/): the one engine all three run, and how it was checked against real tournament games and video.
 - [Kubb sites we love](${ORIGIN}/love/): USA Kubb, the Kubb World Championship, Minnesota Kubb, Planet Kubb and JP's Backyard Games.
-- [How to play](${ORIGIN}/rules/): the rules of Kubb in five short cards, and how to throw on the web.
+- [How to play](${ORIGIN}/rules/): the rules of kubb in five short cards, and how to throw on the web.
 - [Practice](${ORIGIN}/practice/): the practice pitch.
 - [Privacy](${ORIGIN}/privacy/): what the game keeps, on the web and on iPhone.
 
