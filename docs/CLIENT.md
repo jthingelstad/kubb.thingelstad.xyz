@@ -109,7 +109,10 @@ game page no text selection. A press is tried in this order: the meter (the cloc
 the linear meter's knob, then its body, which takes the press and does nothing), the
 target circle (56 px round it on touch, 30 px with a mouse), the thrower, then
 the clock's finger track (touch), the linear meter's throw zone, and last a tap on the
-pitch. The plan (its sliders, SIDE VIEW and STAND) is DOM and comes before all of it.
+pitch. The plan (its sliders, SIDE VIEW and STAND) is DOM and comes before all of it. On a
+wide canvas a finger grabs the linear meter's knob across its channel only, and the rest
+of its body is throw zone (a tap aims, a drag strokes): `linearFirst` and `inLinearZone`
+in `src/game/layout.js`, "A phone on its side" below.
 
 - **The dial** (lower right on a wide screen, lower left with MENU, Meter side, Left; lower
   centre on a tall one): drag is the arm, letting go is the release. Pointing and
@@ -260,9 +263,26 @@ strongly prefers the circle, so the dial stays and stays the default.
   `linearHMin` 390 px, never over `linearHMax` 450): 338 px of travel there, 0.94 px a
   degree, 0.92 in a phone's browser with its bars showing, 1.05 with a mouse. Its foot
   stays where the thumb is, so the quarter came off the top. Where the track would be shorter than
-  `minTravel` (320 px: a phone on its side, a small phone's browser) the layout's `meter`
-  is `"clock"` and the dial is drawn; the menu says so under the choice. On a tall screen
-  the plan splits either side of the throwing line, left of the meter.
+  `minTravel` (320 px upright: a small phone's browser) or `wideMinTravel` (260 px on a wide
+  screen, below) the layout's `meter` is `"clock"` and the dial is drawn; the menu says so
+  under the choice. On a tall screen the plan splits either side of the throwing line, left
+  of the meter.
+- **A phone on its side keeps it** (Jamie, 2026-11-19, of the iPhone app: "Bug: On iPhone if
+  I turn on linear and then rotate it goes back to the circular swing."). The chosen meter
+  holds when the phone turns; it is never swapped for the clock because of rotation. On a
+  wide canvas the box takes the whole safe height at its edge, from `tune.linearTopWide`
+  (10 px) under the safe top to half a margin (7 px) over the safe bottom, at most
+  `linearHMax` (450), so a desktop window's box still stands on the bottom where it was; the
+  track needs `wideMinTravel` (260, `linear.js`) instead of the upright 320: 301 px on
+  844 x 390, 261 on 740 x 350. A canvas under 349 px high (no insets) still gets the clock,
+  and so do the browser sizes Playwright gives a 6.1-inch iPhone on its side with Safari's
+  bars (750 x 342, 734 x 343). The numbers are the iPhone app's (`WideLayout`,
+  `LinearMeter.layout`). Where the box comes up into the header row, the plates at that
+  top corner move in beside it, `tune.meterGap` (10 px) off its body: MENU, the practice
+  tray, SKIP and the update note at the right, the rail and the shouts at the left
+  (`meterRoom`; the game sets `--meter-r` and `--meter-l` for `game.css`; nothing moves in
+  the wide view, which draws no meter). The plan block, the coach line and the nudge go as
+  below.
 - **Not yet**: the meter in use is not recorded with the throw (that needs an engine
   field), there is no steering from the stroke's straightness (an engine change too), and
   the touch pendulum trial (below) keeps the clock.
@@ -283,7 +303,13 @@ engine changes in kind: both still send `arm` in degrees through the dial feed.
   (0.59 in the browser with its bars showing), so the zone is the near half, with nothing
   to aim at; the meter becomes a gauge watched while the finger works below the pitch. On
   a wide canvas the whole view is far half (the centre line is below the bottom edge), so
-  field kubbs can lie in the zone there; only a drag throws, so nothing is lost. The
+  field kubbs can lie in the zone there; only a drag throws, so nothing is lost. With a
+  finger on a wide canvas the zone is the meter's half instead, top to bottom (the lower
+  40% of a phone on its side is about 156 px, too shallow for a whole draw back and flick;
+  the plan block and the minimap are on the other half), and the meter's body away from
+  the knob's channel is zone too (the whole-height body stands over the far baseline's
+  outer kubb); the knob's channel and 6 px past the body's outer edge (`chanOuter`) grab
+  at once. A mouse keeps the lower band and the body as before. The
   press starts as a tap: released within `tapSlop` (10 px) it puts the circle there as any
   tap does. Moved past it, it becomes the stroke: the engine is fed arm 0 for the press
   first (`dialNext` holds the finger's arm until that frame), then where the finger is,
@@ -321,7 +347,7 @@ prompt tab hanging toward it (`linearGeometry(rect, side)` returns `side`, `lane
 `chanX`, `divX` and `tabDir`). On a wide canvas the clock goes lower left, and with a
 mouse the minimap goes to the bottom right and the plan to the dial's inner side (a
 touchscreen's plan and minimap are at the other edge, below); on the left a wide
-canvas's linear meter starts under the rail's box (`tune.railBox`). On a tall canvas the
+canvas's linear meter whose box reaches the header row moves the rail in beside it. On a tall canvas the
 clock is centred and the side has no effect on it (the menu says so); the linear meter's
 plan splits across what the meter leaves.
 
@@ -346,10 +372,21 @@ foot. `layoutFor` returns it as `plan` (its rect) and `planEdge` (`planAt` in
 - **A mouse**: the block stays beside the meter on its inner side (`planEdge` null): one
   hand does everything there, so near is better. So does a touchscreen too narrow to keep
   the block and the minimap `tune.planClear` (24 px) short of the throwing line.
+- **Beside the linear meter** the block never goes over the prompt tab (`tabRect` in
+  `linear.js`, 5 tab heights wide). Where beside would reach it (a short window with a
+  mouse, now that the linear meter holds there) the block goes to the far edge as on a
+  touchscreen. Where the far edge cannot keep the block and the minimap off the throwing
+  line, the block stays there and the minimap goes over it, 12 px above, its inner edge
+  with the block's (`mapStacked`), or is not drawn (`minimap` null) where it would come
+  within `tune.stackedMapGap` (10 px) of the rail's box: 600 x 420 has it, 600 x 380 not.
+  Beside the clock this is as before.
 - **A tall canvas** has no block (`plan` null): the plan splits either side of the line.
 
 The held slider's caption grows from the block's edge at the screen's edge toward the
-middle (beside the meter, away from the meter); the coach line measures the block as
+middle (beside the meter, away from the meter); it is lifted above the linear meter's tab
+only where its span reaches the tab, and above a stacked minimap. The web's captions sit
+over the block, so the iPhone's caption strip beside SHOUT (its 112 pt floor and own line
+under the header row) has no web counterpart. The coach line measures the block as
 before. On a short screen only the newest shout shows, above the block.
 
 **The nudge** (2026-11-19). Jamie: "A couple of users have had a lot of confusion on how
@@ -383,8 +420,9 @@ hooks, right after `drawMeter`. The HOW TO THROW card is unchanged.
   stays home under it. On the clock with the finger track the fingertip rides the track at
   the ghost's angle; otherwise it is on the ghost knob (a mouse pointer with a mouse). On
   the linear meter on touch it is in the throw zone on the meter's inner side, clear of
-  the prompt tab and the plan (between their columns on a tall screen, past their
-  block on a wide one), moving down and up with the ghost knob; a mouse's pointer rides
+  the prompt tab and the plan (between their columns on a tall screen; on a wide one in
+  the meter's half, halfway from the centre line to the tab, level with the knob's home,
+  its flick's top under the header row's foot), moving down and up with the ghost knob; a mouse's pointer rides
   the ghost knob, which a mouse grabs. The plate follows the ghost in its
   own words: WIND BACK, then FLICK! from the beat on (DRAW BACK, FLING! on the linear
   meter). With `prefers-reduced-motion: reduce` it is a still picture: the ghost at the
@@ -417,7 +455,10 @@ part of it (the verdict SLOW), and the throw leaves where the flick stops.
   a time).
 - **Where.** Centred over the clock's prompt plate, or over the linear meter's tab from
   the meter's inner edge, 8 px above it, at most 280 px wide and short of any plan control
-  level with it, so it never covers the sliders, the minimap or MENU. It takes no presses:
+  level with it, so it never covers the sliders, the minimap or MENU. On a wide canvas
+  with the plan block at the far edge (a phone on its side) it hangs 8 px under the tab
+  instead, in the meter's half (`planClear` short of the centre line), as on the iPhone:
+  over the tab it would meet the verdicts and the header on a short screen. It takes no presses:
   a tap through it still aims.
 - **Drawing only.** Never fed to the engine, sent or recorded.
 
@@ -817,7 +858,9 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
   both teams' throws and plays to a winner, while a solo match has no switch; a portrait
   phone (isMobile, touch) throws by touch; the linear meter registers the same back and
   stop as the clock by mouse and by touch, the menu's Meter switches and remembers, and a
-  phone on its side keeps the clock; a stroke in the linear meter's throw zone throws with
+  phone on its side keeps the linear meter at either edge (MENU or the rail 10 px off its
+  body, a tap on its lane does not throw, a stroke high in the meter's half throws with
+  POWER ON and ARC ON); a stroke in the linear meter's throw zone throws with
   POWER ON and ARC ON by touch (portrait) and mouse, and a tap there still moves the
   circle; a finger's drag from the circle or from elsewhere on the pitch moves it half the
   finger's travel; a touch outside the clock's ring throws on a portrait phone, and a tap out there
