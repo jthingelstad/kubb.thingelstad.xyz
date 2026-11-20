@@ -380,6 +380,16 @@ foot. `layoutFor` returns it as `plan` (its rect) and `planEdge` (`planAt` in
   with the block's (`mapStacked`), or is not drawn (`minimap` null) where it would come
   within `tune.stackedMapGap` (10 px) of the rail's box: 600 x 420 has it, 600 x 380 not.
   Beside the clock this is as before.
+- **No room, the clock** (Codex on PR #71). Where no placement keeps the block off the tab
+  and the minimap (`planAt` returns null), or where the moved header row would crowd itself
+  (`headerFits`: MENU, `tune.menuW` 64 px, must stay `tune.headerGap` 8 px right of the
+  rail's widest, 44% of the canvas, and a rail squeezed by a left-edge meter keeps
+  `tune.railMinW` 124 px), the layout is the clock's, whole. `layoutFor` decides it in one
+  place and never returns a linear layout with a known collision. In a sweep of 360 to 1400
+  by 300 to 900 px (both sides, mouse and touch, no insets, a notch, a top bar) this is
+  only small near-square windows, under about 560 px wide (400 x 350; 440 x 440 and 500 x
+  480 with the meter at the left); every phone on its side keeps the linear meter.
+  `tests/game/layout.test.mjs` holds the sweep.
 - **A tall canvas** has no block (`plan` null): the plan splits either side of the line.
 
 The held slider's caption grows from the block's edge at the screen's edge toward the
