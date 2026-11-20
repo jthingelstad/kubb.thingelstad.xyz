@@ -981,8 +981,10 @@ Two versions: the web game's own (`version` in `package.json`, 0.1.0) and the ve
 kubb-engine it vendors (`vendor/engine/engine.json`, read in Lua as `engineVersion`).
 The game file's "Scored by" is "Throwing Wood web <web version>" (`setClient`); records,
 reports and the `with` rider carry the engine's version as `engine` / `e`.
-Room joins also announce `me.engine` (major.minor), START checks the members and writes
-`match.engine`, and `room.mayPlay` gates team and CPU control of a running match.
+Room joins also announce `me.engine` (the room's engine, marked `+engines`) and
+`me.engines` (all the page carries), START checks the members and writes `match.engine`
+on the room's engine, and `room.mayPlay` gates team and CPU control of a running match
+(`docs/ENGINES.md` "Playing together").
 The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.md "Engines".
 
 - **The release** (`src/site/release.js`): `{ version, web, engine, text }`, `text` as

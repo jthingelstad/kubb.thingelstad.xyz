@@ -84,7 +84,7 @@ export function useOlderEngine(engine) {
 }
 
 // A reducer's "nothing to write" comes back as null; room.update wants undefined.
-const write = (name, args) => roomCall(name, args) ?? undefined;
+const write = (name, args, mm) => roomCall(name, args, mm) ?? undefined;
 
 export const cleanOptions = (options) => roomCall("cleanOptions", { options });
 export const optionLabel = (key, value) =>
@@ -130,41 +130,83 @@ export function openListing(doc, members, { over = false } = {}) {
 // Who plays: { players, cpu } or null when nobody is on a team.
 export const lineup = (doc, members) => roomCall("lineup", { doc, members });
 
-// The engine's newMatch options for a lineup.
-export const matchOptions = (doc, lineup, { seed, start }) =>
-  roomCall("matchOptions", { doc, lineup, seed, start });
+// The engine's newMatch options for a lineup, on engine `mm` (the room's).
+export const matchOptions = (doc, lineup, { seed, start }, mm) =>
+  roomCall("matchOptions", { doc, lineup, seed, start }, mm);
 
-// May START go ahead? { ok, engine, differ: [ids], unknown: [ids] }.
-export const startCheck = (players, members, host) =>
-  roomCall("startCheck", {
-    players,
+// ---------- several engines in one room (the engine's docs/ROOM.md, since 0.8.1) ----------
+// These four are the newest engine's: older ones do not have them.
+
+// The engine the pitch's next match runs on: { engine, missing: [ids], unknown: [ids] },
+// engine null when none is carried by the host and every player. `me` (this browser's
+// member id) counts this browser too, with `carries` (what it carries) while its own
+// presence is still on its way.
+export const roomEngineFor = (doc, members, host, me, carries) =>
+  roomCall("engineFor", {
+    doc,
     members,
-    host,
-    lenient: LENIENT_ENGINES,
+    host: host ?? null,
+    ...(me == null ? {} : { me }),
+    ...(carries ? { carries } : {}),
   });
 
-// START: the match from the host's first snapshot, stamped with this engine's version.
-// Refused (undefined) while a match runs or startCheck refuses.
+// The major.minors a member's presence says it carries, newest first.
+export const carriedBy = (me) => roomCall("carried", { me: me ?? null });
+
+// What this browser announces while the room's engine is `engine`:
+// { engine: "<engine>+engines", engines: [...] }; its newest without one.
+export const announce = (carries, engine) =>
+  roomCall("announce", { carries, ...(engine ? { engine } : {}) });
+
+// The members as the host passes them to `engine`'s own startMatch.
+export const speakAs = (members, engine) =>
+  roomCall("speakAs", { members, engine });
+
+// -1, 0 or 1 as major.minor a is older, the same or newer than b; null when either is
+// not one.
+export const compareEngines = (a, b) => roomCall("compareEngines", { a, b });
+
+// May START go ahead on engine `mm`? { ok, engine, differ: [ids], unknown: [ids] }.
+export const startCheck = (players, members, host, mm) =>
+  roomCall(
+    "startCheck",
+    {
+      players,
+      members,
+      host,
+      lenient: LENIENT_ENGINES,
+    },
+    mm,
+  );
+
+// START: the match from the host's first snapshot, stamped with engine `mm`'s
+// major.minor (the newest without one). Refused (undefined) while a match runs or
+// startCheck refuses.
 export const startMatch = (
   doc,
   { snap, hash, players, cpu, host, setup, members = [] },
+  mm,
 ) =>
-  write("startMatch", {
-    doc,
-    snap,
-    hash,
-    players,
-    cpu,
-    host,
-    setup,
-    members,
-    lenient: LENIENT_ENGINES,
-  });
+  write(
+    "startMatch",
+    {
+      doc,
+      snap,
+      hash,
+      players,
+      cpu,
+      host,
+      setup,
+      members,
+      lenient: LENIENT_ENGINES,
+    },
+    mm,
+  );
 
 // An action committed: the snapshot after it, as action `seq` of match `n`. Refused
 // unless it follows the document's own last action (the loser adopts).
-export const commitAction = (doc, { n, seq, snap, hash, action, over }) =>
-  write("commitAction", { doc, n, seq, snap, hash, action, over });
+export const commitAction = (doc, { n, seq, snap, hash, action, over }, mm) =>
+  write("commitAction", { doc, n, seq, snap, hash, action, over }, mm);
 
 // A match's replay when it has ended with a whole log, else null.
 export const replayOf = (match) => roomCall("replayOf", { match });
@@ -173,7 +215,7 @@ export const isReplay = (replay) => roomCall("isReplay", { replay });
 // REMATCH: back to the lobby with the same teams.
 export const backToLobby = (doc, n) => write("backToLobby", { doc, n });
 
-// May a member whose engine is `engine` (major.minor) play `match`?
-// { ok, why: null | "unknown" | "differs", engine, match }.
-export const mayPlay = (engine, match) =>
-  roomCall("mayPlay", { engine, match, lenient: LENIENT_ENGINES });
+// May a member whose engine is `engine` (major.minor) play `match`? On engine `mm`, the
+// match's own. { ok, why: null | "unknown" | "differs", engine, match }.
+export const mayPlay = (engine, match, mm) =>
+  roomCall("mayPlay", { engine, match, lenient: LENIENT_ENGINES }, mm);

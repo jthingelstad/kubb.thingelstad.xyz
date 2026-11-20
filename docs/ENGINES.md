@@ -14,8 +14,10 @@ under 2 m, so a 0.7 match plays differently on 0.8.
 
 - One engine per major.minor. A patch replaces its minor's engine; a new minor is a new
   engine beside the others.
-- Play is always on the newest: a new pitch, a solo match, practice and watch start
-  on it, and `me.engine` and START's `match.engine` are its major.minor.
+- Practice, a solo match and watch always play on the newest. A shared pitch plays its
+  next match on the room's engine: the newest every player and the host carry, so a
+  pitch with an iPhone build or an older tab that carries only 0.7 plays 0.7, and two
+  current pages play 0.8 ("Playing together" below).
 - Carrying an older minor is a decision made when the newer one is vendored, never an
   accident: `vendor:sync` stops on a new minor until it is told `--keep` or `--drop`.
 
@@ -71,6 +73,56 @@ Each engine is registered with the room bridge as it loads (`src/net/room-engine
 `lobby.js`'s constants (`ENGINE`, `REPLAY_VERSION`, ...) are the newest's;
 `engineConstants(mm)` reads any carried engine's, once each.
 
+## Playing together
+
+A pitch is played the way the engine's `docs/ROOM.md` "The room's engine" and "Speaking
+down" set out, so that clients carrying one engine (the iPhone app, a tab from before
+this deploy) agree with the page without any change to them. In `src/net/pitch.js`:
+
+- **What the page says.** It joins announcing everything it carries,
+  `me = { engine: "0.8+engines", engines: ["0.8", "0.7"] }` (`room.announce`), and
+  announces again whenever the room's engine changes: on every member, seat and host
+  change in the lobby (`Pitch.lobbyEngine`, `speak`), and the match's engine when a
+  match starts. An older client reads `"0.8+engines"` as `0.8`.
+- **The room's engine** is `room.engineFor(doc, members, host, me, carries)` on the
+  newest: the newest major.minor the host and every lineup player carry; watchers do not
+  count, so a watcher on 0.7 never pulls a 0.8 pitch down. A member's `engines` is
+  believed only while its `engine` carries the `+engines` mark, so an older tab rejoining
+  under the same member id (which overwrites `engine` and leaves the list) counts as
+  0.7 alone.
+- **The lobby** fetches the room engine's bundle ahead of START, and says nothing about
+  versions while the pitch can start. When the players share no engine it says who
+  stands in the way and what to do, with the version numbers, and START is off:
+  "Ola has an older version of Throwing Wood (0.3) than this pitch plays (0.8), so the
+  match cannot start. Ola: reload the page or update the app." (also a newer one, and
+  one too old to name its engine).
+- **START** (the host) makes the match on the room's engine (`Game.useEngine`, then
+  `newMatch` with that engine's `matchOptions`) and writes it with that engine's
+  `startMatch`, passing `room.speakAs(members, engine)` so a player whose new
+  announcement is still on its way is not refused. The write works the room's engine
+  and the lineup out again on the document it goes on; when a member joined, left or
+  changed seat meanwhile they differ, nothing is written, and START begins again (three
+  times at most). The match is stamped with that engine (`match.engine`).
+- **In the match** every page plays or watches on `match.engine`: `enterMatch` loads it
+  when it is not loaded yet, and the room's documents wait until it has (`waitFor`),
+  then the document as it is by then is taken. The Game draws from that engine for the
+  whole match; commits, `decide` and the rider are that engine's calls
+  (`roomMinor`). Back in the lobby the Game is on the newest again.
+- **A match on an engine the page does not carry** (a newer iPhone build's, or one the
+  site has dropped) is watched, never played: the page's card says so ("This pitch is
+  playing on a newer version of Throwing Wood. Reload to join."), and no side or the
+  computer is given to it. A page like that which becomes host mid-match (the host
+  left) cannot run the computer's turns: it says so ("You are the host now ... Leave
+  the pitch and another player becomes the host") with LEAVE THE PITCH, RELOAD and
+  WATCH.
+- The lobby's reducers and the seat rules stay on the newest: `room/` is byte for byte
+  the same Lua in 0.7.4 and 0.8.1 but for 0.8.1's added calls, and only `startMatch`'s
+  stamp differs between engines.
+- **Tests:** `tests/net/room-engines.test.mjs` (the wrappers with both engines),
+  `tests/game/room-engines.test.mjs` (pages in a real browser: 0.8 by default, 0.7 for
+  a player who carries only 0.7, the blocked lobby, a page arriving at a 0.7 match, a
+  host that cannot play the match).
+
 ## Looking back at a match
 
 Everything that looks back at a finished match uses the match's own engine when the
@@ -87,7 +139,8 @@ always has:
   the replay engine's.
 - **Records and reports** (`src/net/record.js`, `report.js`) name the engine that played
   (`engine.version`) and the bundle it was loaded from (`luaFor` in
-  `src/site/config.js`). Play is on the newest, so today that is the newest.
+  `src/site/config.js`). On a shared pitch that is the match's engine; in practice,
+  solo and watch the newest. The rider names it too (`e`).
 - **The share card** sends the match the Game played (`renameStart` on the Game's
   engine, the newest). The server checks it on the engine it names.
 - **Highlight reels and the share check** (`backend/reels/`): the reel function's

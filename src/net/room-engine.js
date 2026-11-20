@@ -13,6 +13,8 @@
 //   roomCall(name, args, mm?)    kubbCall("room.<name>", JSON args) -> its `value`,
 //                                on engine mm (a major.minor), the newest by default
 //   roomEngine(mm?)              that engine, or null
+//   roomMinor(version)           the major.minor a call for a match of `version`
+//                                goes to: its own when registered, else the newest
 //
 // Every call encodes its arguments as JSON and decodes the result, so a call carries
 // the whole document when it takes one. They are made when a document arrives or a
@@ -40,6 +42,15 @@ export function addRoomEngine(e) {
 }
 
 export const roomEngine = (mm = newest) => engines.get(mm) ?? null;
+
+// A match's own engine when this page has it registered, else the newest.
+export function roomMinor(version) {
+  const mm =
+    typeof version === "string"
+      ? (version.match(/^\d+\.\d+/)?.[0] ?? null)
+      : null;
+  return mm && engines.has(mm) ? mm : newest;
+}
 export const roomEngineMinor = () => newest;
 
 export function roomCall(name, args = {}, mm = newest) {

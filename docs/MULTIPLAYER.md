@@ -100,8 +100,9 @@ sends it afresh. The home page's list and the server's rules are docs/ROOMS.md s
 an empty side is the computer. The host's browser makes the match
 (`engine.newMatch` with a random seed, each player's `key` = their member id) and
 commits `started: true`, `n + 1` and the match at `seq: 0`. Team A throws first.
-`room.startCheck` and `room.startMatch` receive the current members and check their
-engines before writing `match.engine`.
+The match is made on the room's engine (`docs/ENGINES.md` "Playing together"):
+that engine's `room.startCheck` and `room.startMatch` receive the current members (as
+`room.speakAs` gives them) and check their engines before writing `match.engine`.
 
 ## Engines
 
@@ -110,14 +111,16 @@ calls over the same JSON bridge as the session (`kubbCall`). The engine's `docs/
 is their API; its 8,851 recorded vector steps cover the rules. There is no second
 JavaScript implementation. `useRoomEngine` reads the newest engine's constants once
 during boot; tools that use these wrappers initialize it too. A page can carry older
-engines beside it (`docs/ENGINES.md`); their calls name the major.minor, and play is
-always on the newest.
+engines beside it (`docs/ENGINES.md`); their calls name the major.minor. A pitch plays
+on the room's engine, the newest every player and the host carry; practice, solo and
+watch on the newest.
 
-Every web build from PR #40 sends its engine’s major.minor in join presence.
-`LENIENT_ENGINES` is false. START checks the host and seated players. A tab
-missing its own announcement gets RELOAD. The host sees which players need
-to reload. A running match must also name its engine. Equal major.minor
-versions can play across patch releases.
+Every web build from PR #40 sends its engine’s major.minor in join presence; from
+engine 0.8.1 the page sends the room's engine marked `+engines` and every engine it
+carries (`docs/ENGINES.md` "Playing together"). `LENIENT_ENGINES` is false. START
+checks the host and seated players. When they share no engine the lobby says who and
+what to do and START is off. A running match must also name its engine, and is played
+only on it. Equal major.minor versions can play across patch releases.
 
 Before taking control of a running match, every member calls `room.mayPlay`, including
 watchers who could become host and run the computer. A refusal gives no team or CPU

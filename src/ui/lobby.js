@@ -114,6 +114,13 @@ export class Lobby {
       hidden: true,
       "data-test": "lobby-note",
     });
+    // what keeps the next match from starting, when the players' versions of the game
+    // have no engine in common (Pitch.lobbyEngine)
+    this.engineNote = h("p.lobby-note.lobby-engine", {
+      role: "status",
+      hidden: true,
+      "data-test": "lobby-engine",
+    });
     this.status = h("span.lobby-status");
 
     this.el = h(
@@ -127,6 +134,7 @@ export class Lobby {
       h("div.watch-row", this.watchList, this.sitOut),
       h("div.share-row", this.shareBtn, this.linkText, this.replayBtn),
       this.optionsBox,
+      this.engineNote,
       this.note,
       h(
         "div.row.start-row",
@@ -162,6 +170,14 @@ export class Lobby {
   say(text) {
     this.note.textContent = text || "";
     this.note.hidden = !text;
+  }
+
+  // Why the next match cannot start, or null when it can. While it cannot, START is off.
+  setEngine(text) {
+    if (this.engineNote.textContent !== (text || ""))
+      this.engineNote.textContent = text || "";
+    this.engineNote.hidden = !text;
+    if (text) this.startBtn.disabled = true;
   }
 
   // st: { you, host, members, doc, status, nameOf(id) }
