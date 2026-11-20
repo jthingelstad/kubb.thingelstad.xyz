@@ -809,7 +809,7 @@ and a `User-Agent`), send no `join`, and send one message:
 ```
 { "t": "share", "id": 1, "g": {
     "client": "ios",
-    "engine": "0.7.2",
+    "engine": "0.7.3",
     "start": "<the match's first snapshot, renamed>",
     "log": [ { "a": <action> }, ... ],
     "end": { "winner": "A", "throws": 60 } } }
@@ -913,22 +913,24 @@ and answers; it writes nothing:
    budget (248 KB), and such a match has no replay, so it is `too-long`. The document and
    the replay must each fit 256 KB, or it is `too-long`.
 
-Measured on v0.7.2 (club and beginner matches as the iPhone plays them; times on an
+Measured on v0.7.3 (club and beginner matches as the iPhone plays them; times on an
 Apple-silicon Mac under heavy load, and in Docker limited to 1.75 CPUs and 3008 MB, the
-renderer's Lambda size, on the same loaded machine):
+renderer's Lambda size, on the same loaded machine; v0.7.2's slower times are in
+`docs/REEL.md`):
 
-| Actions | Turns | Message (ASCII JSON) | Parts | Kept document | Kept replay | Check (Mac) | Check (Docker) |
-| ------- | ----- | -------------------- | ----- | ------------- | ----------- | ----------- | -------------- |
-| 65      | 9     | 30 KB                | 2     | 37 KB         | 37 KB       | 1.3 s       | 2.1 to 2.5 s   |
-| 123     | 14    | 52 KB                | 2     | 65 KB         | 64 KB       | 2.9 s       | 6.2 to 7.7 s   |
-| 179     | 19    | 74 KB                | 3     | 90 KB         | 90 KB       | 5.1 s       | 9.8 to 11.4 s  |
-| 402     | 34    | 162 KB               | 6     | 198 KB        | 197 KB      | 21 to 37 s  | 22 to 29 s     |
+| Actions | Turns | Message (ASCII JSON) | Parts | Kept document | Kept replay | Check (Mac)  | Check (Docker) |
+| ------- | ----- | -------------------- | ----- | ------------- | ----------- | ------------ | -------------- |
+| 65      | 9     | 30 KB                | 2     | 37 KB         | 37 KB       | 0.9 s        | 1.5 to 1.7 s   |
+| 123     | 14    | 52 KB                | 2     | 65 KB         | 64 KB       | 1.8 s        | 3.1 to 3.4 s   |
+| 179     | 19    | 74 KB                | 3     | 90 KB         | 90 KB       | 2.6 to 3.0 s | 4.3 to 4.9 s   |
+| 402     | 34    | 162 KB               | 6     | 198 KB        | 197 KB      | 11 to 13 s   | 7.5 to 13 s    |
+| 603     | 53    | 243 KB               | 9     | (`too-long`)  |             | 11 to 15 s   | 12 to 13 s     |
 
 The document grows about 490 bytes an action, so the engine's budget ends a shareable
 match at about 505 actions (about 40 turns): a message of about 204 KB, 7 of the 16
-parts. On v0.7.2 the check's time grows faster than the match (the engine measures the
-whole document on every action), so a match much past 300 actions does not finish
-within the 20 s wait and is answered `busy`; kubb-engine v0.7.3 is to fix that.
+parts. A longer match is played to its end before it is answered `too-long`; the
+603-action one is about the longest message the rooms take, so the worst check is about
+15 s, inside the 20 s wait.
 
 ### 13.5 The sealed pitch
 

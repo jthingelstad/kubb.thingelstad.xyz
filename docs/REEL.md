@@ -193,24 +193,39 @@ cap. The machine's load average was 15 to 85 while these ran, so the times are h
 
 How long a match may be is the engine's own limit, not a second one: the engine drops
 a document's log past its log budget (248 KB), and a match without its log has no
-replay, so it cannot be shared. Measured with the built check on v0.7.2 (all three
-engine checks on; the Mac's load average was over 100, and the Docker run, limited to
-the renderer's 1.75 CPUs and 3008 MB, was on the same machine):
+replay, so it cannot be shared. Measured with the built check (all three engine checks
+on), first on v0.7.2 and then on v0.7.3, which is vendored. The Docker runs were limited
+to the renderer's 1.75 CPUs and 3008 MB, on the same Mac; its load average was over 100
+for the v0.7.2 runs and 50 to 90 for v0.7.3's, so every time is high:
 
-| Actions | Turns | Message, as sent | Gzipped | Kept document | Kept replay | Replay gzipped | Check (Mac) | Check (Docker) |
-| ------- | ----- | ---------------- | ------- | ------------- | ----------- | -------------- | ----------- | -------------- |
-| 65      | 9     | 30 KB            | 6.9 KB  | 37 KB         | 37 KB       | 8 KB           | 1.3 s       | 2.1 to 2.5 s   |
-| 123     | 14    | 52 KB            | 11.9 KB | 65 KB         | 64 KB       | 14 KB          | 2.9 s       | 6.2 to 7.7 s   |
-| 179     | 19    | 74 KB            | 16.3 KB | 90 KB         | 90 KB       | 20 KB          | 5.1 s       | 9.8 to 11.4 s  |
-| 402     | 34    | 162 KB           | 34 KB   | 198 KB        | 197 KB      | 42 KB          | 21 to 37 s  | 22 to 29 s     |
+| Actions | Turns | Message, as sent | Gzipped | Kept document                   | Kept replay | Replay gzipped |
+| ------- | ----- | ---------------- | ------- | ------------------------------- | ----------- | -------------- |
+| 65      | 9     | 30 KB            | 6.9 KB  | 37 KB                           | 37 KB       | 8 KB           |
+| 123     | 14    | 52 KB            | 11.9 KB | 65 KB                           | 64 KB       | 14 KB          |
+| 179     | 19    | 74 KB            | 16.3 KB | 90 KB                           | 90 KB       | 20 KB          |
+| 402     | 34    | 162 KB           | 34 KB   | 198 KB                          | 197 KB      | 42 KB          |
+| 603     | 53    | 243 KB           |         | past the log budget: `too-long` |             |                |
 
-The document grows about 490 bytes an action, so the budget ends a shareable match at
-about 505 actions (about 40 turns), a message of about 204 KB. The check's time grows
-faster than the match on v0.7.2: with no checks the 402-action replay took 2 to 5 s, the
-throw checks 7 to 8 s, and building the document 22 to 31 s, because the engine measures
-the whole document after every action. kubb-engine v0.7.3 is to fix that; until it is
-vendored, a match much past 300 actions is not checked within the wait and is answered
-"busy". These replace the 256 KB guess this section had.
+| Actions | Check, v0.7.2 (Mac) | Check, v0.7.2 (Docker) | Check, v0.7.3 (Mac) | Check, v0.7.3 (Docker) |
+| ------- | ------------------- | ---------------------- | ------------------- | ---------------------- |
+| 65      | 1.3 s               | 2.1 to 2.5 s           | 0.9 s               | 1.5 to 1.7 s           |
+| 123     | 2.9 s               | 6.2 to 7.7 s           | 1.8 s               | 3.1 to 3.4 s           |
+| 179     | 5.1 s               | 9.8 to 11.4 s          | 2.6 to 3.0 s        | 4.3 to 4.9 s           |
+| 402     | 21 to 37 s          | 22 to 29 s             | 11 to 13 s          | 7.5 to 13 s            |
+| 603     |                     |                        | 11 to 15 s          | 12 to 13 s             |
+
+The documents are the same on both releases. The document grows about 490 bytes an
+action, so the budget ends a shareable match at about 505 actions (about 40 turns), a
+message of about 204 KB. On v0.7.2 the check grew faster than the match: with no checks
+the 402-action replay took 2 to 5 s, the throw checks 7 to 8 s, and building the
+document 22 to 31 s, because the engine measured the whole document after every action,
+so a match much past 300 actions missed the 20 s wait and was answered "busy". v0.7.3
+measures it cheaply on the replay path. The 603-action match (made with an 80-turn cap, club
+seed 5) is about the longest message the rooms take (256 KB) and is answered
+`too-long` after the whole replay, in 11 to 15 s. So the worst check fits the 20 s wait,
+with less margin than that number suggests on a busy machine and an unknown one on
+Lambda's CPU until the first live `ms` log lines; the wait stays 20 s. These replace the
+256 KB guess this section had.
 
 With drills (`build/reel/out-drills/`): `solo-11` shows Riverside's kubb out twice in
 turn 9, in place of the computer's second long base kubb (36.5 s, was 37.5); `seed-1`
@@ -330,7 +345,7 @@ already are:
 
 ```
 { "t": "share", "id": 1, "g": {
-    "client": "ios", "engine": "0.7.2",
+    "client": "ios", "engine": "0.7.3",
     "start": "<the match's first snapshot, with the shared name>",
     "log": [ { "a": <action> }, ... ],
     "end": { "winner": "A", "throws": 37 } } }
@@ -385,7 +400,7 @@ plays the match through the engine release of that major.minor, from `start`:
 4. each of the person's throws is one the dial could make (an engine request below).
    Until then a throw at 30 m/s is taken: the prototype's forged one was.
 
-**Built** on kubb-engine v0.7.2's own checks (`backend/reels/check.mjs`): `checkStart`
+**Built** on kubb-engine v0.7.2's own checks (vendored now at v0.7.3) (`backend/reels/check.mjs`): `checkStart`
 (the start is exactly what `newMatch` makes of its options), then `replayLoad` with
 `checkCpu`, `checkThrows` and `document`, `replayFinish`, `replayDocument`, and
 `replayOf` on the document's match. Side B must be named Computer, team and players.
@@ -528,7 +543,7 @@ engine release for each major.minor it serves (`REEL_ENGINES`; about 2 MB each),
 plays each match on the one it was played on: a pitch's `match.engine`, a shared
 match's `engine`.
 
-**Built: one engine.** The function carries this site's vendored engine (0.7.2) and
+**Built: one engine.** The function carries this site's vendored engine (0.7.3) and
 nothing else, and renders a match only when the replay's `engine` has that major.minor;
 any other is answered `why: "engine"` by the rooms function and refused by the renderer
 too. `REEL_ENGINES` stays a list (one entry, `0.7`, set from the vendored engine by
