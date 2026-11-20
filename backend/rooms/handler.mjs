@@ -5,7 +5,10 @@
 // Environment: TABLE (the DynamoDB table), ALLOWED_ORIGINS (comma separated; an origin
 // without a port allows any port), GAMES_BUCKET (where recorder.mjs keeps every committed
 // document version and every match played in one browser, and reports.mjs keeps players'
-// reports under reports/; without it nothing is recorded and reports are refused). Sends go back to the API the event came from
+// reports under reports/; without it nothing is recorded and reports are refused),
+// REELS_FUNCTION and REEL_ENGINES (the highlight reel function's ARN and the engine
+// major.minors it renders, docs/ROOMS.md section 12; without both every `reel` is
+// answered `unavailable`). Sends go back to the API the event came from
 // (https://<domainName>/<stage>) unless SEND_ENDPOINT says otherwise.
 
 import {
@@ -15,11 +18,13 @@ import {
 } from "@aws-sdk/client-apigatewaymanagementapi";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import { S3Client } from "@aws-sdk/client-s3";
 import { createRooms, originAllowed, parseOrigins } from "./core.mjs";
 import { dynamoStore } from "./dynamo-store.mjs";
 import { s3GameRecorder, s3Recorder } from "./recorder.mjs";
 import { s3Reporter } from "./reports.mjs";
+import { parseEngines } from "../reels/tag.mjs";
 
 const gone = (error) =>
   error?.name === "GoneException" || error?.$metadata?.httpStatusCode === 410;
@@ -50,6 +55,22 @@ export function gatewayAdapters(api) {
   };
 }
 
+// Asks the reel function for one render, asynchronously ("Event"): Lambda queues it,
+// answers at once and retries a failed render once (infra/site.json, ReelsInvokeConfig).
+export function lambdaReelStarter({ client, functionName }) {
+  return async function startReel({ room, v, tag }) {
+    const out = await client.send(
+      new InvokeCommand({
+        FunctionName: functionName,
+        InvocationType: "Event",
+        Payload: Buffer.from(JSON.stringify({ room, v, tag })),
+      }),
+    );
+    if (out.StatusCode !== 202)
+      throw new Error(`reel invoke answered ${out.StatusCode}`);
+  };
+}
+
 export function makeHandler({ rooms, origins }) {
   return async function handler(event) {
     const { routeKey, connectionId } = event.requestContext;
@@ -76,6 +97,14 @@ export function handler(event) {
   const endpoint =
     process.env.SEND_ENDPOINT || `https://${domainName}/${stage}`;
   const s3 = process.env.GAMES_BUCKET ? new S3Client({ maxAttempts: 2 }) : null;
+  const reelEngines = parseEngines(process.env.REEL_ENGINES);
+  const startReel =
+    process.env.REELS_FUNCTION && reelEngines.length
+      ? lambdaReelStarter({
+          client: new LambdaClient({ maxAttempts: 2 }),
+          functionName: process.env.REELS_FUNCTION,
+        })
+      : null;
   ready ??= makeHandler({
     rooms: createRooms({
       store: dynamoStore({
@@ -92,6 +121,8 @@ export function handler(event) {
       recordGame: s3
         ? s3GameRecorder({ client: s3, bucket: process.env.GAMES_BUCKET })
         : null,
+      startReel,
+      reelEngines,
     }),
     origins: parseOrigins(process.env.ALLOWED_ORIGINS),
   });

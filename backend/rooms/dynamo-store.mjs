@@ -3,6 +3,11 @@
 //   room#<code>  room            { rev, json, exp }       host and members: small, read on every message
 //   room#<code>  doc             { v, doc, by, sid, exp } the shared document, JSON text
 //   room#<code>  replay          { v, t, z, exp }         the room's kept replay: its JSON text, gzipped
+//   room#<code>  reel            { v, tag, job, state, at, tries, tall?, wide?, edit?,
+//                                  seconds?, done?, why?, exp }
+//                                                        the pitch's highlight reel: how it
+//                                                        stands and, once done, its paths
+//   reels#<day>  count           { n, exp }               highlight reels started that UTC day
 //   conn#<id>    conn            { room, member, exp }    which member a connection is
 //   conn#<id>    part#<msg>#<i>  { d, exp }               one part of a message being uploaded
 //   open         <made>#<code>   { room, made, players, seats, state, exp }
@@ -29,6 +34,7 @@ import {
 import { gunzipSync, gzipSync } from "node:zlib";
 
 import { listingKey } from "./core.mjs";
+import { REEL_TRIES } from "../reels/tag.mjs";
 
 const lost = (error) => error?.name === "ConditionalCheckFailedException";
 
@@ -164,6 +170,97 @@ export function dynamoStore({ client, table, now = Date.now }) {
         data: gunzipSync(Buffer.from(item.z)).toString(),
         exp: item.exp,
       };
+    },
+
+    // Highlight reels (docs/ROOMS.md section 12). The reel item's fields are its own
+    // (none of them is on the room, doc or replay items), which is what lets the reel
+    // function's role update only them (infra/site.json, ReelsRole).
+    async getReel(code) {
+      const item = await get(`room#${code}`, "reel");
+      if (!item) return null;
+      const { pk, sk, ...reel } = item;
+      return reel;
+    },
+    async putReel(code, { v, tag, job, at, exp }, { staleBefore }) {
+      try {
+        await client.send(
+          new PutCommand({
+            TableName: table,
+            Item: {
+              pk: `room#${code}`,
+              sk: "reel",
+              v,
+              tag,
+              job,
+              state: "rendering",
+              at,
+              tries: 0,
+              exp,
+            },
+            ConditionExpression:
+              "attribute_not_exists(pk) OR #exp < :now OR #v < :v OR " +
+              "(#v = :v AND #tag <> :tag) OR " +
+              "(#job = :job AND #state = :rendering AND #at < :stale AND #tries < :tries)",
+            ExpressionAttributeNames: {
+              "#exp": "exp",
+              "#v": "v",
+              "#tag": "tag",
+              "#job": "job",
+              "#state": "state",
+              "#at": "at",
+              "#tries": "tries",
+            },
+            ExpressionAttributeValues: {
+              ":now": seconds(),
+              ":v": v,
+              ":tag": tag,
+              ":job": job,
+              ":rendering": "rendering",
+              ":stale": staleBefore,
+              ":tries": REEL_TRIES,
+            },
+          }),
+        );
+        return true;
+      } catch (error) {
+        if (lost(error)) return false;
+        throw error;
+      }
+    },
+    async dropReel(code, job) {
+      try {
+        await client.send(
+          new DeleteCommand({
+            TableName: table,
+            Key: { pk: `room#${code}`, sk: "reel" },
+            ConditionExpression: "#job = :job",
+            ExpressionAttributeNames: { "#job": "job" },
+            ExpressionAttributeValues: { ":job": job },
+          }),
+        );
+      } catch (error) {
+        if (!lost(error)) throw error;
+      }
+    },
+    // One more render today, unless `cap` have started. Days do not repeat, so a day's
+    // counter only needs to outlive it (`exp`, a few days).
+    async countReel(day, cap, exp) {
+      try {
+        await client.send(
+          new UpdateCommand({
+            TableName: table,
+            Key: { pk: `reels#${day}`, sk: "count" },
+            UpdateExpression: "ADD #n :one SET #exp = :exp",
+            ConditionExpression: "attribute_not_exists(#n) OR #n < :cap",
+            ExpressionAttributeNames: { "#n": "n", "#exp": "exp" },
+            ExpressionAttributeValues: { ":one": 1, ":cap": cap, ":exp": exp },
+          }),
+        );
+        return true;
+      } catch (error) {
+        if (lost(error)) return false;
+        throw error;
+      }
     },
 
     async putConn(conn, who) {

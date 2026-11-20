@@ -30,6 +30,19 @@
 //                       has this v or a later one; data is JSON text
 //   getReplay(code) -> { v, t, data, exp } | null
 //
+// Highlight reels (docs/ROOMS.md section 12) use four more; a store without them
+// answers every `reel` with `reel: null`:
+//   getReel(code) -> { v, tag, job, state, at, tries, tall?, wide?, edit?, seconds?,
+//                       why?, exp } | null
+//   putReel(code, { v, tag, job, at, exp }, { staleBefore }) -> bool   the request that
+//                       may start this render: true only when there is no reel item, or
+//                       it is for an earlier version or another tag, or it is this very
+//                       render still "rendering" from before staleBefore (epoch ms)
+//   dropReel(code, job)  undoes putReel when the renderer could not be asked
+//   countReel(day, cap, exp) -> bool   one more render today, false once cap is reached
+// and one more adapter, `startReel({ room, v, tag })`, which asks the renderer (on AWS
+// an asynchronous Lambda invoke); without it reels are `unavailable`.
+//
 // The open games list (docs/ROOMS.md section 9) uses three more store methods; a store
 // without them lists nothing:
 //   putListing(code, entry)  entry = { made, rev, listed, players?, seats?, state?, exp },
@@ -40,6 +53,8 @@
 //
 // Invocations for one room run in parallel (one Lambda per message), so nothing here holds
 // state between calls except the cast rate buckets, which are only ever a best effort.
+
+import { REEL_TRIES, majorMinor, reelJob, reelTag } from "../reels/tag.mjs";
 
 export const LIMITS = Object.freeze({
   members: 16, // members in a room
@@ -70,6 +85,10 @@ export const LIMITS = Object.freeze({
   listTtl: 15 * 60, // seconds an open game stays listed after its room last changed
   listAgeMs: 24 * 3600 * 1000, // an open game made longer ago than this is not listed
   seatsMax: 16, // the most seats an open game may say it has
+  reelsPerConn: 3, // highlight reels one connection may start (asking how one stands is free)
+  reelsPerDay: 200, // highlight reels rendered a day, all pitches together (UTC days)
+  reelStaleMs: 25 * 60 * 1000, // a render "rendering" this long died without a word
+  reelCountTtl: 3 * 24 * 3600, // seconds a day's render counter is kept
 });
 
 // An open game's listing entry's sort key: when it was made (epoch ms, 13 digits), then
@@ -311,12 +330,15 @@ export function createRooms({
   record = null,
   report: keepReport = null,
   recordGame = null,
+  startReel = null,
+  reelEngines = [],
   now = Date.now,
   limits = LIMITS,
 }) {
   const buckets = new Map(); // conn -> { tokens, t, warned }
   const reported = new Map(); // conn -> reports kept (best effort, like the buckets)
   const recorded = new Map(); // conn -> one-browser matches kept (the same)
+  const reelsStarted = new Map(); // conn -> highlight reels started (the same)
   const listing = typeof store.putListing === "function";
 
   const expiry = (seconds) => Math.floor(now() / 1000) + seconds;
@@ -527,6 +549,135 @@ export function createRooms({
       conn,
       `${head.slice(0, -1)},"replay":${item ? item.data : "null"}}`,
     );
+  }
+
+  // ---------- highlight reels (docs/ROOMS.md section 12) ----------
+
+  // How a reel stands, as the asker is told it: no member ids, no names, the paths
+  // once it is done.
+  const reelView = (item, staleBefore) =>
+    item.state === "rendering" &&
+    item.at < staleBefore &&
+    (item.tries ?? 0) >= REEL_TRIES
+      ? { state: "failed", tag: item.tag, at: item.at } // timed out every try
+      : item.state === "done"
+        ? {
+            state: "done",
+            tag: item.tag,
+            at: item.at,
+            tall: item.tall,
+            wide: item.wide,
+            edit: item.edit,
+            seconds: item.seconds ?? null,
+          }
+        : { state: item.state, tag: item.tag, at: item.at };
+
+  // A finished pitch's highlight reel, by its code, on any connection (no join: anyone
+  // with the link, as for a replay). The first request for a kept replay's version
+  // asks the renderer; every later one is told how it stands. The room server still
+  // knows no Kubb: of the replay it reads only the engine's version, a tag.
+  async function reel(conn, msg) {
+    const id = msg.id ?? null;
+    const code = msg.room;
+    if (typeof code !== "string" || !ROOM_CODE.test(code))
+      throw new RoomError("bad-room", "That is not a room code.", { id });
+    const answer = (fields) =>
+      post(conn, asciiJson({ t: "reel", id, room: code, ...fields }));
+    if (
+      !startReel ||
+      typeof store.getReel !== "function" ||
+      typeof store.getReplay !== "function"
+    )
+      return answer({ v: 0, reel: null, why: "unavailable" });
+    let kept, item;
+    try {
+      kept = await store.getReplay(code);
+      item = kept ? await store.getReel(code) : null;
+    } catch (error) {
+      console.error("reel read failed", error?.name, error?.message);
+      throw new RoomError("failed", "The reel could not be read.", { id });
+    }
+    if (!kept) return answer({ v: 0, reel: null, why: "replay" });
+    let engine = null;
+    try {
+      const tagged = JSON.parse(kept.data)?.engine;
+      engine = typeof tagged === "string" ? majorMinor(tagged) : null;
+    } catch {
+      engine = null;
+    }
+    // A match from another engine is never rendered on this one: its throws could go
+    // differently from what was played.
+    if (!engine || !reelEngines.includes(engine))
+      return answer({ v: kept.v, reel: null, why: "engine" });
+    const tag = reelTag(engine);
+    const job = reelJob(kept.v, tag);
+    const t = now();
+    const staleBefore = t - limits.reelStaleMs;
+    // A render "rendering" long past its start died without a word (Lambda stopped,
+    // the invoke was lost): the next request may start it again, unless it was tried
+    // as often as it may be (then it is shown as failed).
+    const stale = (x) =>
+      x.state === "rendering" &&
+      x.at < staleBefore &&
+      (x.tries ?? 0) < REEL_TRIES;
+    if (item && item.job === job && !stale(item))
+      return answer({ v: kept.v, reel: reelView(item, staleBefore) });
+
+    // This request would start a render.
+    const count = reelsStarted.get(conn) ?? 0;
+    if (count >= limits.reelsPerConn)
+      throw new RoomError(
+        "too-many",
+        `A connection may start ${limits.reelsPerConn} reels.`,
+        { id },
+      );
+    // The one request that may start it writes the reel item; only that one is
+    // counted against the day, so viewers asking at once cost one render.
+    let won = false;
+    let counted = false;
+    try {
+      won = await store.putReel(
+        code,
+        { v: kept.v, tag, job, at: t, exp: kept.exp },
+        { staleBefore },
+      );
+      if (!won) item = await store.getReel(code);
+      else {
+        const day = new Date(t).toISOString().slice(0, 10);
+        counted = await store.countReel(
+          day,
+          limits.reelsPerDay,
+          expiry(limits.reelCountTtl),
+        );
+        if (!counted) await store.dropReel(code, job);
+      }
+    } catch (error) {
+      console.error("reel write failed", error?.name, error?.message);
+      if (won && !counted) await store.dropReel(code, job).catch(() => {});
+      throw new RoomError("failed", "The reel could not be asked for.", {
+        id,
+      });
+    }
+    if (won && !counted) return answer({ v: kept.v, reel: null, why: "busy" });
+    if (!won)
+      return answer({
+        v: kept.v,
+        reel: item && item.job === job ? reelView(item, staleBefore) : null,
+        ...(item && item.job === job ? {} : { why: "busy" }),
+      });
+    try {
+      await startReel({ room: code, v: kept.v, tag });
+    } catch (error) {
+      console.error("reel start failed", error?.name, error?.message);
+      await store.dropReel(code, job).catch(() => {});
+      throw new RoomError("failed", "The reel could not be started.", { id });
+    }
+    if (reelsStarted.size > 5000) reelsStarted.clear();
+    reelsStarted.set(conn, count + 1);
+    return answer({
+      v: kept.v,
+      reel: { state: "rendering", tag, at: t },
+    });
   }
 
   async function list(conn, msg) {
@@ -978,6 +1129,7 @@ export function createRooms({
       if (msg.t === "game") return await game(conn, msg, bytes);
       if (msg.t === "list") return await list(conn, msg);
       if (msg.t === "replay") return await getReplay(conn, msg);
+      if (msg.t === "reel") return await reel(conn, msg);
       if (msg.t === "join") return await join(conn, msg);
       const who = await store.getConn(conn);
       if (!who) throw new RoomError("not-joined", "Join the room first.");
@@ -1050,6 +1202,7 @@ export function createRooms({
     buckets.delete(conn);
     reported.delete(conn);
     recorded.delete(conn);
+    reelsStarted.delete(conn);
     if (who) await dropped(who.room, who.member, conn);
   }
 
