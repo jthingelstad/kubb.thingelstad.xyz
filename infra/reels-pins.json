@@ -1,0 +1,26 @@
+{
+  "ffmpeg": {
+    "what": "A static ffmpeg for Linux arm64 with libx264, the reel function's layer (/opt/bin/ffmpeg)",
+    "source": "John Van Sickle's static builds",
+    "version": "7.0.2",
+    "url": "https://johnvansickle.com/ffmpeg/releases/ffmpeg-7.0.2-arm64-static.tar.xz",
+    "fallbackUrl": "https://johnvansickle.com/ffmpeg/old-releases/ffmpeg-7.0.2-arm64-static.tar.xz",
+    "bytes": 19337412,
+    "sha256": "f4149bb2b0784e30e99bdda85471c9b5930d3402014e934a5098b41d0f7201b1",
+    "md5": "807afe21601db0a73e426121c7d636ea",
+    "license": "GPL-3.0-or-later",
+    "licenseNote": "The build includes libx264 (GPL), so the binary is GPL v3. The layer carries GPLv3.txt and the build's readme.txt beside it; the ffmpeg and x264 sources are at ffmpeg.org and videolan.org.",
+    "members": ["ffmpeg", "GPLv3.txt", "readme.txt"],
+    "checked": "2026-11-19"
+  },
+  "canvas": {
+    "what": "@napi-rs/canvas's Skia binary for Linux arm64 (glibc), beside the package's own JavaScript",
+    "package": "@napi-rs/canvas-linux-arm64-gnu",
+    "version": "1.1.1",
+    "url": "https://registry.npmjs.org/@napi-rs/canvas-linux-arm64-gnu/-/canvas-linux-arm64-gnu-1.1.1.tgz",
+    "integrity": "sha512-q1HBkNmB9mc6SF6uSz2492qSgsB46MqS+n3bPbPCE0kUXmWAPkH9vDADeawbhepQYn8RhlV2V/P5u6nykFXbuQ==",
+    "sha256": "ac8fb356ed911385a8b3d256e5caa87e0203c5be279e0324fa59ad4e78c8dd06",
+    "license": "MIT",
+    "checked": "2026-11-19"
+  }
+}

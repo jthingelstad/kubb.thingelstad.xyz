@@ -30,6 +30,24 @@
       "Default": "",
       "AllowedPattern": "^$|^[A-Za-z0-9_.-]+$",
       "Description": "The rooms table (stack kubb-xyz-rooms), which the pages function reads. Empty leaves the function out."
+    },
+    "ReelsCodeKey": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^reels/[0-9a-f]{64}\\.zip$",
+      "Description": "The highlight reel function's package in the code bucket (tools/reels-bundle.mjs). Empty leaves the reel function out."
+    },
+    "ReelsLayerKey": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^reels/ffmpeg-[0-9a-f]{64}\\.zip$",
+      "Description": "The reel function's ffmpeg layer in the code bucket (tools/reels-bundle.mjs, pinned in infra/reels-pins.json). Empty leaves the reel function out."
+    },
+    "ReelEngines": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^[0-9]{1,4}\\.[0-9]{1,4}(,[0-9]{1,4}\\.[0-9]{1,4})*$",
+      "Description": "The engine major.minors the reel function renders (its packaged engine's). Empty leaves the reel function out."
     }
   },
   "Conditions": {
@@ -39,6 +57,14 @@
     "HasPages": {
       "Fn::And": [
         { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "PagesCodeKey" }, ""] }] },
+        { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "RoomsTable" }, ""] }] }
+      ]
+    },
+    "HasReels": {
+      "Fn::And": [
+        { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "ReelsCodeKey" }, ""] }] },
+        { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "ReelsLayerKey" }, ""] }] },
+        { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "ReelEngines" }, ""] }] },
         { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "RoomsTable" }, ""] }] }
       ]
     }
@@ -106,6 +132,12 @@
               "Status": "Enabled",
               "NoncurrentVersionExpiration": { "NoncurrentDays": 30 },
               "ExpiredObjectDeleteMarker": true
+            },
+            {
+              "Id": "ExpireReels",
+              "Status": "Enabled",
+              "Prefix": "reels/",
+              "ExpirationInDays": 366
             }
           ]
         }
@@ -880,6 +912,157 @@
         },
         "FunctionCode": "// The embed's response headers (/e/*, viewer response). Written by\n// tools/site-template.mjs from infra/embed-response.mjs and src/site/csp.mjs:\n// edit those, never this copy.\nvar HEADERS = {\n  \"content-security-policy\": \"default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://tinylytics.app; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://avatars.micro.blog https://tinylytics.app; font-src 'self'; connect-src 'self' wss://throwingwood.com wss://*.execute-api.us-east-1.amazonaws.com https://tinylytics.app; media-src 'self' data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *\",\n  \"strict-transport-security\": \"max-age=31536000\",\n  \"x-content-type-options\": \"nosniff\",\n  \"referrer-policy\": \"strict-origin-when-cross-origin\"\n};\n\nfunction handler(event) {\n  var headers = event.response.headers;\n  delete headers[\"x-frame-options\"];\n  for (var name in HEADERS) headers[name] = { value: HEADERS[name] };\n  return event.response;\n}\n"
       }
+    },
+    "ReelsLogs": {
+      "Type": "AWS::Logs::LogGroup",
+      "Condition": "HasReels",
+      "Properties": {
+        "LogGroupName": { "Fn::Sub": "/aws/lambda/${AWS::StackName}-reels" },
+        "RetentionInDays": 30
+      }
+    },
+    "ReelsRole": {
+      "Type": "AWS::IAM::Role",
+      "Condition": "HasReels",
+      "Properties": {
+        "Description": "Highlight reel function: reads a kept replay, updates its reel item, writes the reel under reels/ in the site bucket and its own logs",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": { "Service": "lambda.amazonaws.com" },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "reels",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "ReadKeptReplay",
+                  "Effect": "Allow",
+                  "Action": "dynamodb:GetItem",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RoomsTable}"
+                  },
+                  "Condition": {
+                    "ForAllValues:StringLike": {
+                      "dynamodb:LeadingKeys": ["room#*"]
+                    },
+                    "ForAllValues:StringEquals": {
+                      "dynamodb:Attributes": ["pk", "sk", "v", "z", "exp"]
+                    },
+                    "StringEqualsIfExists": {
+                      "dynamodb:Select": "SPECIFIC_ATTRIBUTES"
+                    }
+                  }
+                },
+                {
+                  "Sid": "UpdateReelItem",
+                  "Effect": "Allow",
+                  "Action": "dynamodb:UpdateItem",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RoomsTable}"
+                  },
+                  "Condition": {
+                    "ForAllValues:StringLike": {
+                      "dynamodb:LeadingKeys": ["room#*"]
+                    },
+                    "ForAllValues:StringEquals": {
+                      "dynamodb:Attributes": [
+                        "pk",
+                        "sk",
+                        "job",
+                        "state",
+                        "tries",
+                        "tall",
+                        "wide",
+                        "edit",
+                        "seconds",
+                        "done",
+                        "why"
+                      ]
+                    },
+                    "StringEqualsIfExists": {
+                      "dynamodb:ReturnValues": ["NONE", "UPDATED_NEW"]
+                    }
+                  }
+                },
+                {
+                  "Sid": "WriteReels",
+                  "Effect": "Allow",
+                  "Action": "s3:PutObject",
+                  "Resource": { "Fn::Sub": "${SiteBucket.Arn}/reels/*" }
+                },
+                {
+                  "Sid": "OwnLogs",
+                  "Effect": "Allow",
+                  "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
+                  "Resource": { "Fn::GetAtt": ["ReelsLogs", "Arn"] }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "ReelsLayer": {
+      "Type": "AWS::Lambda::LayerVersion",
+      "Condition": "HasReels",
+      "Properties": {
+        "LayerName": { "Fn::Sub": "${AWS::StackName}-ffmpeg" },
+        "Description": "Static ffmpeg with libx264 for the reel function (infra/reels-pins.json)",
+        "Content": {
+          "S3Bucket": { "Ref": "CodeBucket" },
+          "S3Key": { "Ref": "ReelsLayerKey" }
+        },
+        "CompatibleArchitectures": ["arm64"],
+        "CompatibleRuntimes": ["nodejs24.x"],
+        "LicenseInfo": "GPL-3.0-or-later"
+      }
+    },
+    "ReelsFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Condition": "HasReels",
+      "Properties": {
+        "FunctionName": { "Fn::Sub": "${AWS::StackName}-reels" },
+        "Description": "Renders a finished pitch's highlight reel, tall and wide MP4s, from its kept replay",
+        "Runtime": "nodejs24.x",
+        "Architectures": ["arm64"],
+        "Handler": "index.handler",
+        "Code": {
+          "S3Bucket": { "Ref": "CodeBucket" },
+          "S3Key": { "Ref": "ReelsCodeKey" }
+        },
+        "Layers": [{ "Ref": "ReelsLayer" }],
+        "MemorySize": 3008,
+        "Timeout": 300,
+        "ReservedConcurrentExecutions": 2,
+        "Role": { "Fn::GetAtt": ["ReelsRole", "Arn"] },
+        "LoggingConfig": { "LogGroup": { "Ref": "ReelsLogs" } },
+        "Environment": {
+          "Variables": {
+            "TABLE": { "Ref": "RoomsTable" },
+            "SITE_BUCKET": { "Ref": "SiteBucket" },
+            "REEL_ENGINES": { "Ref": "ReelEngines" },
+            "FFMPEG": "/opt/bin/ffmpeg"
+          }
+        }
+      }
+    },
+    "ReelsInvokeConfig": {
+      "Type": "AWS::Lambda::EventInvokeConfig",
+      "Condition": "HasReels",
+      "Properties": {
+        "FunctionName": { "Ref": "ReelsFunction" },
+        "Qualifier": "$LATEST",
+        "MaximumRetryAttempts": 1,
+        "MaximumEventAgeInSeconds": 900
+      }
     }
   },
   "Outputs": {
@@ -930,6 +1113,16 @@
         ]
       },
       "Description": "The revision the live endpoint serves"
+    },
+    "ReelsFunctionArn": {
+      "Value": {
+        "Fn::If": ["HasReels", { "Fn::GetAtt": ["ReelsFunction", "Arn"] }, ""]
+      },
+      "Description": "The highlight reel function the rooms function invokes; empty while it is off"
+    },
+    "ReelEngines": {
+      "Value": { "Fn::If": ["HasReels", { "Ref": "ReelEngines" }, ""] },
+      "Description": "The engine major.minors the reel function renders; empty while it is off"
     }
   }
 }
