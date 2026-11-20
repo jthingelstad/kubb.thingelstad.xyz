@@ -76,7 +76,7 @@ async function hashedAsset(from, name) {
   return `/${file}`;
 }
 
-// The release this build is (src/site/release.js): the label "0.4.0 (0.8.1)" is the
+// The release this build is (src/site/release.js): the label "0.5.0 (0.9.0)" is the
 // app's version and the newest carried engine's; the older ones are only in its detail
 // ("Also plays 0.7.4").
 export function releaseOf(version, web, carried) {
