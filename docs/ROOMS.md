@@ -209,9 +209,10 @@ enforcing those bounds or timing out incomplete assemblies.
 | `open`   | `open`                                     | the host lists the room, or `null` takes it off (section 9)                                      |
 | `keep`   | `v`, `replay`                              | the match has ended: keep its replay and the room (section 10)                                   |
 | `replay` | `id?`, `room`                              | a room's kept replay (section 10); needs no join                                                 |
+| `reel`   | `id?`, `room`                              | a finished pitch's highlight reel: start it, or how it stands (section 12); needs no join        |
 
 `join` must be the first message on a connection (anything else but `ping`, `report`,
-`game`, `list` and `replay` answers `not-joined`).
+`game`, `list`, `replay` and `reel` answers `not-joined`).
 A connection joins one room as one member; a second `join` on the same connection for
 the same room and member is a rejoin, for anything else it is `already-joined`.
 
@@ -232,6 +233,7 @@ the same room and member is a rejoin, for anything else it is `already-joined`.
 | `recorded` | `id`                                                                               | your `game` is kept                                                                                  |
 | `list`     | `id`, `now`, `games`                                                               | the open games: `[{ room, made, players, seats, state }]`, newest first (section 9)                  |
 | `replay`   | `id`, `room`, `v`, `at`, `replay`                                                  | the room's kept replay, or `replay: null` (section 10)                                               |
+| `reel`     | `id`, `room`, `v`, `reel`, `why?`                                                  | how the kept replay's reel stands, or `reel: null` and why (section 12)                              |
 | `error`    | `code`, `message`, `re?`, `id?`                                                    | `re` = the `t` that failed; `id` = the `set` id                                                      |
 
 - `doc` is omitted from `joined` when the joiner sent `v` equal to the current version
@@ -304,7 +306,9 @@ castRate, castBurst, hostGraceMs }`. The server omits `parts`, `messageBytes`,
 `too-big`, `rate`, `host-present`, `host-recent`, `not-next`, `not-host` (an `open` from
 anyone but the host); for `report` and `game` also `too-many` (more than 3 on one
 connection), `failed` (it could not be written) and `unavailable` (this server keeps
-none).
+none); for `reel` also `too-many` (a fourth render started on one connection) and
+`failed` (the reel item could not be read or written, or the renderer could not be
+asked).
 
 ### 2.6 Client and engine tags
 
@@ -342,29 +346,31 @@ that says one, and the replays say when a record's engine is not this checkout's
 
 All in `LIMITS` in `backend/rooms/core.mjs`, the one place to change them.
 
-| Limit                   | Value                                                                   |
-| ----------------------- | ----------------------------------------------------------------------- |
-| members a room          | 16                                                                      |
-| document                | 256 KB of encoded ASCII JSON (section 2.1)                              |
-| `with` payload          | 4 KB                                                                    |
-| a cast message          | 2 KB                                                                    |
-| a member's `me` fields  | 512 B                                                                   |
-| frame (either way)      | 30 000 B; API Gateway's quota is 32 KB                                  |
-| parts a message         | 16; a reassembled message at most 300 KB                                |
-| cast rate               | 10 a second a connection, burst 20                                      |
-| host grace              | 15 s                                                                    |
-| room and document TTL   | 48 h after the last write                                               |
-| a kept room and replay  | 365 days from the `keep` (the end of the match)                         |
-| a kept replay           | 256 KB as ASCII JSON (stored gzipped)                                   |
-| connection record TTL   | 3 h (API Gateway closes every connection at 2 h)                        |
-| unfinished upload       | 10 min                                                                  |
-| room code               | 8 to 24 of `23456789abcdefghjkmnpqrstuvwxyz` (the client makes 10)      |
-| member id               | 8 to 40 of `A-Za-z0-9_-`                                                |
-| a report                | 64 KB as ASCII JSON; each answer 1000 code points; 3 a connection       |
-| a one-browser match     | 256 KB as ASCII JSON; 4000 actions; 3 a connection                      |
-| open games listed       | 20, newest first, read from at most 60 entries; made in the last 24 h   |
-| an open game's entry    | 15 min after its room last changed (the host says it again every 5 min) |
-| seats an open game says | 1 to 16 (the game says 12: six a side)                                  |
+| Limit                   | Value                                                                       |
+| ----------------------- | --------------------------------------------------------------------------- |
+| members a room          | 16                                                                          |
+| document                | 256 KB of encoded ASCII JSON (section 2.1)                                  |
+| `with` payload          | 4 KB                                                                        |
+| a cast message          | 2 KB                                                                        |
+| a member's `me` fields  | 512 B                                                                       |
+| frame (either way)      | 30 000 B; API Gateway's quota is 32 KB                                      |
+| parts a message         | 16; a reassembled message at most 300 KB                                    |
+| cast rate               | 10 a second a connection, burst 20                                          |
+| host grace              | 15 s                                                                        |
+| room and document TTL   | 48 h after the last write                                                   |
+| a kept room and replay  | 365 days from the `keep` (the end of the match)                             |
+| a kept replay           | 256 KB as ASCII JSON (stored gzipped)                                       |
+| connection record TTL   | 3 h (API Gateway closes every connection at 2 h)                            |
+| unfinished upload       | 10 min                                                                      |
+| room code               | 8 to 24 of `23456789abcdefghjkmnpqrstuvwxyz` (the client makes 10)          |
+| member id               | 8 to 40 of `A-Za-z0-9_-`                                                    |
+| a report                | 64 KB as ASCII JSON; each answer 1000 code points; 3 a connection           |
+| a one-browser match     | 256 KB as ASCII JSON; 4000 actions; 3 a connection                          |
+| open games listed       | 20, newest first, read from at most 60 entries; made in the last 24 h       |
+| an open game's entry    | 15 min after its room last changed (the host says it again every 5 min)     |
+| seats an open game says | 1 to 16 (the game says 12: six a side)                                      |
+| highlight reels         | 3 started a connection (asking is free); 200 started a UTC day, all pitches |
+| a reel left rendering   | 25 min, then the next request may start it again (twice in all)             |
 
 Fixed by API Gateway (not ours): 10 minutes idle and 2 hours total per connection (the
 client pings every 4 minutes and reconnects on its own), 500 new connections a second
@@ -390,14 +396,16 @@ a misbehaving client can cost. API Gateway drops throttled messages; the client'
 
 The table (`pk`, `sk`, both strings):
 
-| pk            | sk               | Holds                                                                                     |
-| ------------- | ---------------- | ----------------------------------------------------------------------------------------- |
-| `room#<code>` | `room`           | `rev`, `exp`, `json` (host and members, with each member's connection id)                 |
-| `room#<code>` | `doc`            | `v`, `doc` (ASCII JSON text), `by`, `sid`, `exp`                                          |
-| `room#<code>` | `replay`         | `v`, `t`, `z` (the replay's ASCII JSON, gzipped), `exp`: a finished match's replay        |
-| `conn#<id>`   | `conn`           | `room`, `member`, `exp`                                                                   |
-| `conn#<id>`   | `part#<msg>#<i>` | `d`, `exp`: one part of an upload                                                         |
-| `open`        | `<made>#<code>`  | `room`, `made`, `rev`, `listed`, `players`, `seats`, `state`, `exp`: an open game's entry |
+| pk            | sk               | Holds                                                                                                                                     |
+| ------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `room#<code>` | `room`           | `rev`, `exp`, `json` (host and members, with each member's connection id)                                                                 |
+| `room#<code>` | `doc`            | `v`, `doc` (ASCII JSON text), `by`, `sid`, `exp`                                                                                          |
+| `room#<code>` | `replay`         | `v`, `t`, `z` (the replay's ASCII JSON, gzipped), `exp`: a finished match's replay                                                        |
+| `conn#<id>`   | `conn`           | `room`, `member`, `exp`                                                                                                                   |
+| `conn#<id>`   | `part#<msg>#<i>` | `d`, `exp`: one part of an upload                                                                                                         |
+| `open`        | `<made>#<code>`  | `room`, `made`, `rev`, `listed`, `players`, `seats`, `state`, `exp`: an open game's entry                                                 |
+| `room#<code>` | `reel`           | `v`, `tag`, `job`, `state`, `at`, `tries`, `tall?`, `wide?`, `edit?`, `seconds?`, `done?`, `why?`, `exp`: its highlight reel (section 12) |
+| `reels#<day>` | `count`          | `n`, `exp`: highlight reels started that UTC day (section 12)                                                                             |
 
 The room is one item, so a relay costs one read; the document is its own item under the
 same key, so relays do not pay to read it. Every write that depends on a read is
@@ -704,3 +712,57 @@ rooms table by a second function, in the site stack (`infra/site.json`), not thi
   which serves the same files without the pitch's tags.
 - **Cost.** A share or an embed load is one or two `GetItem` reads and one short
   invocation; images are cached at the edge.
+
+## 12. Highlight reels
+
+A finished pitch's highlight reel: a video of its best throws, tall (1080x1920) and wide
+(1920x1080), made on the server from the kept replay with this engine (Jamie,
+2026-11-19; the design and what a player sees are `docs/REEL.md`, deploying it
+`docs/REEL-RUNBOOK.md`). Built for online pitches; a match against the computer gets
+one once it can be shared (not built).
+
+- **Asking.** `{ t: "reel", id, room }` on any connection, joined or not, by anyone with
+  the link (a reel shows nothing the replay does not). The answer is always
+  `{ t: "reel", id, room, v, reel, why? }`: `v` is the kept replay's version (0 when
+  none), and `reel` is `null` or `{ state, tag, at }` with, once `done`, `tall`, `wide`
+  and `edit` (site paths, `/reels/<code>/<v>-<tag>/...`) and `seconds`.
+  - `reel: null`, `why: "unavailable"`: this server has no renderer (a rooms stack
+    without the reel function, or a store without reel items).
+  - `why: "replay"`: the pitch has no kept replay.
+  - `why: "engine"`: the match was played on an engine the renderer does not carry, or
+    names none (a match from before `match.engine`). Its throws could go differently on
+    another engine, so it is never rendered.
+  - `why: "busy"`: today's 200 renders have started.
+  - `state: "rendering"`: started; ask again (a few seconds apart).
+  - `state: "done"`: the files are there for good (a year).
+  - `state: "failed"`: it was tried twice and did not render. Final for that version
+    and look.
+- **One render a match.** The first request for a kept replay's version writes
+  `room#<code> | reel` with a conditional put and only that request invokes the reel
+  function (`InvocationType: Event`); every other one reads the item. The day's counter
+  (`reels#<yyyy-mm-dd> | count`, a conditional `ADD`) is taken by that request alone.
+  A rematch that is kept is a new version and a new render. The room server reads only
+  the replay's `engine` field: it still knows no Kubb.
+- **The reel function** (`kubb-xyz-site-reels`, site stack, `backend/reels/`): given
+  `{ room, v, tag }`, it adds one to the item's `tries` (only while it is that render
+  and `rendering`), reads the replay, refuses another version or engine (`failed`,
+  `why: "replay"` or `"engine"`), renders both formats into `/tmp`, puts them and the
+  edit list under `reels/` in the site bucket and marks the item `done` with the paths
+  and duration. An error on the first try is thrown back for Lambda's one retry; on the
+  second it marks `failed`, `why: "render"`. It logs the step, the engine version and
+  the outcome, never a name.
+- **Stuck renders.** A render still `rendering` 25 minutes after it started died
+  without a word (a lost invoke, or a Lambda stopped at its timeout): the next request
+  starts it again, unless it was tried twice already, which is then shown as `failed`.
+- **Served** by CloudFront's default behaviour from the site bucket, like any static
+  file; the viewer request function passes `/reels/...` through. The objects are
+  `video/mp4` (and `application/json` for the edit) with
+  `Cache-Control: public, max-age=31536000, immutable`; a lifecycle rule expires
+  `reels/` after 366 days, and the reel item expires with the replay. A deploy never
+  writes or deletes under `reels/`.
+- **Share tags.** The pages function (section 11) reads the reel item beside a finished
+  match's own kept replay; when it is `done` for that version, `/p/<code>` gains
+  `og:video` (the wide MP4) and the description ends "Watch the highlights."
+- **Locally.** `npm run dev`'s room server renders reels in its own process with the
+  ffmpeg on the PATH into `build/reels-dev/`, and the preview serves them at
+  `/reels/...` (`tools/reels-dev.mjs`).

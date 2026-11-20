@@ -383,7 +383,8 @@ test("readRoom: a match from before replays is over by its snapshot, and its kep
   const read = await readRoom(item, "abcd2345");
   assert.deepEqual(asked, [
     ["room#abcd2345", "doc", "v,doc,exp"],
-    ["room#abcd2345", "replay", "z,exp"],
+    ["room#abcd2345", "replay", "v,z,exp"],
+    ["room#abcd2345", "reel", "v,state,wide,exp"],
   ]);
   const s = pitchState(read);
   assert.equal(s.state, "over");
@@ -402,4 +403,80 @@ test("readRoom: a match from before replays is over by its snapshot, and its kep
   const gone = pitchState(await readRoom(item, "abcd2345"));
   assert.equal(gone.state, "over");
   assert.equal(gone.replay, true);
+});
+
+test("a finished reel: one more GetItem, og:video tags on the pitch page, the image kept", async () => {
+  const code = "abcd2345";
+  const wide = `/reels/${code}/7-r1-0.7/wide.mp4`;
+  const items = {
+    replay: { v: 7, z: gzipSync(replay), exp: 2e9 },
+    reel: { v: 7, state: "done", wide, exp: 2e9 },
+  };
+  const item = async (pk, sk) => items[sk] ?? null;
+  const s = pitchState(await readRoom(item, code));
+  assert.deepEqual(s.reel, { wide });
+  assert.match(
+    previewOf(s).description,
+    /Watch the replay\. Watch the highlights\.$/,
+  );
+  const base = `<html><head><title>x</title>
+<meta name="description" content="x">
+<meta property="og:title" content="x">
+<meta property="og:description" content="x">
+<meta property="og:image" content="x">
+<meta property="og:image:alt" content="x">
+<meta name="twitter:image" content="x">
+</head><body></body></html>`;
+  const html = injectPreview(base, { code, s, path: `/p/${code}` });
+  const video = `https://throwingwood.com${wide}`;
+  for (const [k, v] of [
+    ["og:video", video],
+    ["og:video:secure_url", video],
+    ["og:video:type", "video/mp4"],
+    ["og:video:width", "1920"],
+    ["og:video:height", "1080"],
+  ])
+    assert.ok(
+      html.includes(`<meta property="${k}" content="${v}">`),
+      `${k} is set`,
+    );
+  assert.match(
+    html,
+    /<meta property="og:image" content="https:\/\/throwingwood\.com\/og\/abcd2345\.png">/,
+  );
+  // the embed is a player already: no video tags there
+  const embed = injectPreview(base, {
+    code,
+    s,
+    path: `/e/${code}`,
+    embed: true,
+  });
+  assert.doesNotMatch(embed, /og:video/);
+});
+
+test("no reel tags for a reel not done, of another version, of another pitch, or unreadable", async () => {
+  const code = "abcd2345";
+  const cases = [
+    { v: 7, state: "rendering", wide: null },
+    { v: 6, state: "done", wide: `/reels/${code}/6-r1-0.7/wide.mp4` },
+    { v: 7, state: "done", wide: `/reels/zzzz2345/7-r1-0.7/wide.mp4` },
+    { v: 7, state: "done", wide: "https://elsewhere.example/x.mp4" },
+    { v: 7, state: "failed", why: "render" },
+    "throw",
+  ];
+  for (const reel of cases) {
+    const item = async (pk, sk) => {
+      if (sk === "reel" && reel === "throw") throw new Error("boom");
+      if (sk === "replay") return { v: 7, z: gzipSync(replay), exp: 2e9 };
+      if (sk === "reel") return { ...reel, exp: 2e9 };
+      return null;
+    };
+    const s = pitchState(await readRoom(item, code));
+    assert.equal(s.state, "over");
+    assert.equal(s.reel, null, JSON.stringify(reel));
+    assert.doesNotMatch(previewOf(s).description, /highlights/);
+  }
+  // no reel without a replay to go with it
+  const s = pitchState({ doc: null, replay: null, reel: { wide: "/reels/x" } });
+  assert.equal(s.state, "none");
 });

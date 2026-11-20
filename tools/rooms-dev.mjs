@@ -19,6 +19,10 @@
 // Matches played in one browser (solo, watching the computer) go to
 // build/games-dev/browser/<yyyy-mm-dd>/..., so `npm run games:replay -- --dir build/games-dev`
 // plays them; startRoomsServer({ recordGame }) takes any recorder (none refuses them).
+// Highlight reels (`reel`, docs/ROOMS.md section 12): run from the command line it
+// renders them here (tools/reels-dev.mjs) into build/reels-dev/, which `npm run dev`'s
+// preview serves at /reels/...; startRoomsServer({ reelRenderer, reelEngines }) takes
+// any renderer (none answers every `reel` unavailable).
 
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
@@ -55,6 +59,8 @@ export async function startRoomsServer({
   record = null,
   report = null,
   recordGame = null,
+  reelRenderer = null, // (store) -> startReel({ room, v, tag })
+  reelEngines = [],
   log = () => {},
 } = {}) {
   const sockets = new Map(); // conn -> ws
@@ -66,6 +72,8 @@ export async function startRoomsServer({
     record,
     report,
     recordGame,
+    startReel: reelRenderer ? reelRenderer(store) : null,
+    reelEngines,
     async send(conn, text) {
       const ws = sockets.get(conn);
       if (!ws || ws.readyState !== ws.OPEN) return false;
@@ -146,8 +154,11 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     console.log(new Date().toISOString(), "match kept", file);
     return key;
   };
+  const { devReelRenderer, devReelEngines } = await import("./reels-dev.mjs");
   const server = await startRoomsServer({
     port,
+    reelRenderer: devReelRenderer(),
+    reelEngines: devReelEngines(),
     report: fileReporter,
     recordGame: fileGameRecorder,
     log: (...a) => console.log(new Date().toISOString(), ...a),

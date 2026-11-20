@@ -9,10 +9,15 @@ on the iPhone in particular (Jamie, 2026-11-19: "So if you just play versus the 
 I definitely want to make sure you can then submit that and create a highlight reel to
 share with friends.").
 
-This is the design for the real feature. The prototype in `tools/reel/` renders reels
-on a laptop from a kept replay; nothing of it ships to players or runs on AWS yet.
+This is the design for the real feature. **Built (2026-11-19): the server side for
+finished online pitches** ("The server" below says what was built and where it changed
+from the design; deploying it is `docs/REEL-RUNBOOK.md`). Not built yet: sharing a match
+against the computer (`share`, sealed rooms, the renderer's check), the buttons and
+cards in the browser, the home and privacy page wording, and the iPhone. The renderer's
+code is `backend/reels/` (moved there from the prototype in `tools/reel/`); the
+prototype's commands below still render reels on a laptop with that same code.
 
-## The prototype (`tools/reel/`)
+## The prototype (`tools/reel/`, renderer now in `backend/reels/`)
 
 ```
 node tools/reel/matches.mjs 1 3 8      # computer-against-computer matches, by seed
@@ -33,7 +38,8 @@ PNG per format. Both formats are H.264 High, yuv420p, 30 fps, AAC sound and fast
   are pointer throws with verdicts, not the computer's. Side B is the computer. The file
   is what a phone keeps of a solo match: the first snapshot and every action, with no
   hashes. Its `verifySolo` is the server's check below.
-- `scan.mjs` plays the replay through the engine (`replayLoad`, `replayStep`, wide view)
+- `scan.mjs` (now `backend/reels/`, as are `highlights.mjs`, `cameras.mjs`,
+  `overlay.mjs`, `audio.mjs` and the renderer itself, `render.mjs`) plays the replay through the engine (`replayLoad`, `replayStep`, wide view)
   and writes one fact per throw: who threw, what was hit and toppled, the ruling, the
   first hit, the touches and bursts, and the pieces standing before and after. A drill
   (a kubb thrown in, the engine's `how: "drill"`) also has its kubb, when it first
@@ -139,6 +145,14 @@ PNG per format. Both formats are H.264 High, yuv420p, 30 fps, AAC sound and fast
 
 ### Measured (an Apple-silicon Mac, other work running)
 
+The function's own package was also run in AWS's Lambda image for Node 24 on arm64
+(Docker, 1.75 CPUs and 3008 MB, the share of a 3008 MB function), on the kept replay
+fixture with DynamoDB and S3 stood in for: both formats of the 39.3 s reel in 71 s from
+the invoke to `done` (scan 4.0 s, draw and encode 65.3 s), a peak of 1.8 GB of memory
+(the container's, page cache included), 5.8 MB tall and 6.2 MB wide, both decoding
+clean. Lambda's own CPUs may be slower or faster than this Mac's under emulation; the
+durations on Lambda stay guesses until a real deploy.
+
 | Step                                         | Time                                    | Load average |
 | -------------------------------------------- | --------------------------------------- | ------------ |
 | a 36 s reel, tall and wide together, all in  | 24.9 to 30.6 s (four matches)           | 5.2 to 6.3   |
@@ -238,6 +252,9 @@ pitch, and its link shows the replay as the end card's WATCH THE WHOLE MATCH pro
 
 ## The server
 
+Built for finished online pitches (2026-11-19). Where the build differs from the design
+below, it says so in a **Built:** line. The protocol is `docs/ROOMS.md` section 12.
+
 ### Render once, cache for good
 
 A reel is keyed by **pitch code, replay version and reel version**:
@@ -247,6 +264,12 @@ A reel is keyed by **pitch code, replay version and reel version**:
   against the computer has `v` 1.
 - `reel` is a short tag of the renderer (its cameras, overlays and engine major.minor),
   so a new look renders again only when asked, never in bulk.
+
+**Built:** the tag is `r<look>-<major.minor>`, today `r1-0.7` (`backend/reels/tag.mjs`,
+`REEL_LOOK`). The files are `reels/<code>/<v>-r1-0.7/tall.mp4`, `wide.mp4` and
+`edit.json` (`application/json`), all `public, max-age=31536000, immutable`. A
+deploy never writes or deletes under `reels/` (`tools/delivery-plan.mjs` refuses the
+prefix; `tools/deploy.mjs` deletes nothing there).
 
 The site stack's bucket holds them under the `reels/` prefix. They are served through
 the existing CloudFront default behaviour from the existing S3 origin, so there is no
@@ -393,6 +416,25 @@ the link shown and COPY LINK already working. A match already shared skips the c
    later request reads the item and answers its state (`rendering`, `done` with the
    paths, or `failed`). The device asks again every 5 s while it renders.
 
+**Built**, with these details (`backend/rooms/core.mjs` `reel`):
+
+- Step 2 also reads the replay's `engine` and answers `{ reel: null, why: "engine" }`
+  when the renderer does not carry its major.minor (below), and a rooms function with no
+  renderer configured answers `{ reel: null, why: "unavailable" }`.
+- Step 3's item is `{ v, tag, job, state, at, tries, exp }` (`job` is `<v>-<tag>`, `exp`
+  the replay's). The write wins when there is no item, it is for an earlier `v` or
+  another tag, or it is this same render still `rendering` 25 minutes after it started
+  and tried fewer than twice: a render whose invoke was lost, or whose Lambda stopped
+  without a word, is started again by the next request. One that ran out of time on
+  both tries is shown as `failed`.
+- The daily counter is taken only by the request that won step 3, so viewers asking at
+  once cost one render. Over the cap, that request takes its item back and answers
+  `why: "busy"`.
+- "3 reel requests a connection" counts only requests that start a render; asking how
+  one stands is free, so a device can poll. The fourth start is the error `too-many`.
+- When the invoke itself fails, the item is taken back and the request is answered the
+  error `failed`.
+
 Limits, beside the existing ones (the stage throttle, `gamesPerConn` and
 `reportsPerConn`):
 
@@ -406,6 +448,12 @@ Limits, beside the existing ones (the stage throttle, `gamesPerConn` and
 - a share at most 256 KB and 4000 actions;
 - a render that fails is retried once, then marked `failed`.
 
+**Built:** the retry is Lambda's own for an asynchronous invoke (the function's event
+invoke config: one retry, events kept at most 15 minutes). The renderer counts its tries
+on the reel item; a failure on the first try is thrown back for the retry, on the second
+it marks the item `failed` with `why: "render"`. `failed` is final for that version and
+look.
+
 At the costs below, the two caps bound a bad day at under a dollar and a half.
 
 ### The renderer
@@ -413,10 +461,30 @@ At the costs below, the two caps bound a bad day at under a dollar and a half.
 `kubb-xyz-site-reels`, in the site stack beside the pages function. It carries one
 engine release for each major.minor it serves (`REEL_ENGINES`; about 2 MB each), and
 plays each match on the one it was played on: a pitch's `match.engine`, a shared
-match's `engine`. Its role may:
+match's `engine`.
+
+**Built: one engine.** The function carries this site's vendored engine (0.7.1) and
+nothing else, and renders a match only when the replay's `engine` has that major.minor;
+any other is answered `why: "engine"` by the rooms function and refused by the renderer
+too. `REEL_ENGINES` stays a list (one entry, `0.7`, set from the vendored engine by
+`tools/infra.mjs`), so carrying a second release later is a packaging change, not a
+protocol one. A match from before `match.engine` was written has no engine and gets no
+reel.
+
+Built as a zip function: Node 24 (`nodejs24.x`), arm64, 3008 MB, 5 minutes, reserved
+concurrency 2, `@napi-rs/canvas` 1.1.1 with its Linux arm64 binary, and a layer with a
+static ffmpeg 7.0.2 (libx264) at `/opt/bin/ffmpeg`, both pinned in
+`infra/reels-pins.json` and packaged by `tools/reels-bundle.mjs` (13 MB zipped, 30 MB
+unzipped; the layer 24 MB zipped, 49 MB unzipped; 79 MB of Lambda's 250 MB). The ffmpeg
+build is GPL v3 (libx264 is GPL): the layer carries its `GPLv3.txt` and `readme.txt`,
+the layer's licence is `GPL-3.0-or-later`, and the source is ffmpeg.org's and
+videolan.org's. Its role may:
 
 - `dynamodb:GetItem` the replay and `UpdateItem` the reel item, nothing else in the
-  table;
+  table (**built:** IAM can hold the partition key to `room#*` and the attributes to
+  the replay's `v`, `z` and `exp` for reads and the reel item's own for updates, but not
+  the sort key: the attributes are what keep it to those two items. See
+  `docs/REEL-RUNBOOK.md`);
 - `s3:PutObject` under `reels/` in the site bucket;
 - write its own logs.
 
@@ -437,8 +505,10 @@ together, by their TTL.
 
 ### Links and share tags
 
-- The pages function already reads the replay item. It also reads `room#<code> | reel`,
-  and when that is `done`, `/p/<code>` gains:
+- The pages function already reads the replay item. It also reads `room#<code> | reel`
+  (**built**, one more `GetItem`, only beside the match's own kept replay; a reel for
+  another version, not done, or unreadable is no reel), and when that is `done`,
+  `/p/<code>` gains:
   - `og:video` and `og:video:secure_url` (the wide MP4);
   - `og:video:type` `video/mp4`, `og:video:width` 1920 and `og:video:height` 1080;
   - `og:image` stays the pitch card.
@@ -531,9 +601,15 @@ this phone. TRY AGAIN" and sends nothing.
 | Cost per reel          | 3 GB x 90 s = 270 GB-s, about **$0.0036**                           | 4 GB x 500 s = 2000 GB-s, about **$0.027**                   |
 | Per 1,000 reels        | about **$3.60** compute, plus 11 GB stored (about $0.25 a month)    | about **$27** compute, plus the same storage                 |
 
-Compute is priced at the us-east-1 Lambda arm64 list price of about $0.0000133 a
-GB-second. Requests and DynamoDB are fractions of a cent. Serving 11 MB a reel is about
-$0.09 a reel past CloudFront's free monthly terabyte.
+Compute is priced at the us-east-1 Lambda arm64 price of $0.0000133334 a GB-second
+(first tier) and $0.20 a million requests. Storing is S3 Standard at $0.023 a GB-month
+and $0.005 per 1,000 PUTs (three a reel). Serving is CloudFront's data transfer out in
+the United States, $0.085 a GB past the free monthly terabyte: one full download of
+both files (11 MB) is about $0.0009, and a viewer normally fetches one file, about 5 MB,
+about $0.0004. A hundred full views of a reel cost about $0.09. DynamoDB is fractions of
+a cent. These prices were checked in the AWS price list on 2026-11-19. With the 71 s
+measured in the Lambda image (above), a reel is about 3 GB x 71 s = 213 GB-s, about
+**$0.003**, and the daily cap of 200 bounds a bad day's compute at about $0.60.
 
 **A shared match** adds a check before its reel: two passes of the match, 1.4 to 11 s
 here for 65 to 445 actions (under load), so guess 3 to 25 s at 3 GB, 9 to 75 GB-s, about
@@ -543,8 +619,8 @@ shared matches are about 20 MB, under a cent a month). So a shared match and its
 cost about the same as a pitch's reel, **about $0.005** in all, and the 200 shares a day
 cap adds at most about $0.20 to a bad day.
 
-The Lambda durations are guesses from the measurements here. The prices are from
-memory, not checked against the pricing API for this prototype.
+The Lambda durations are guesses from the measurements here until a real deploy. The
+prices were checked on 2026-11-19 (above).
 
 **Recommendation: the zip function with `@napi-rs/canvas` and an ffmpeg layer**, arm64,
 3008 MB, 5 minute timeout.
