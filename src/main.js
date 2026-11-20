@@ -28,11 +28,16 @@ import { shareable } from "./net/share.js";
 import { openSheet } from "./ui/sheet.js";
 import { recordMatch } from "./net/record.js";
 import { clientLabel, LOCATION } from "./net/sync.js";
-import { MATCH_OPTIONS, useOlderEngine, useRoomEngine } from "./net/lobby.js";
+import {
+  MATCH_OPTIONS,
+  OPTION_DEFAULTS,
+  useOlderEngine,
+  useRoomEngine,
+} from "./net/lobby.js";
 import { watchFreshness } from "./net/freshness.js";
 import { showUpdate } from "./ui/update.js";
 import { startEmbed, embedCode } from "./embed/embed.js";
-import { sceneFromQuery } from "./render/scenes.js";
+import { sceneFromQuery, sceneId, takesScene } from "./render/scenes.js";
 
 const config = readConfig();
 const ui = document.getElementById("ui");
@@ -145,10 +150,9 @@ async function boot() {
         : watching
           ? "watch"
           : "pitch";
-  // ?scene=night or ?scene=neon on practice, solo and watch, until their own
-  // options carry the scene (src/render/scenes.js)
-  if (mode !== "pitch")
-    game.useLook(sceneFromQuery(location.search, game.stage));
+  // ?scene=night (neon, day) on practice, solo and watch, over the saved Scene;
+  // never on a shared pitch, whose scene is the host's (src/render/scenes.js)
+  const asked = mode !== "pitch" ? sceneFromQuery(location.search) : null;
   let pitch = null;
   // Feedback goes to the room server: none in this build, no SEND FEEDBACK.
   const report = roomsUrl()
@@ -183,6 +187,14 @@ async function boot() {
         surface: s,
       });
     },
+    // the practice pitch's Scene (the solo card has its own row)
+    scene:
+      mode === "practice"
+        ? (s) => {
+            prefs.set("practiceScene", s);
+            game.practiceScene(s);
+          }
+        : null,
     sheet,
     report,
     // watching: WIDE VIEW or THROWER'S VIEW (startWatch sets it)
@@ -224,7 +236,7 @@ async function boot() {
   loading.remove();
 
   if (mode === "practice") {
-    startPractice(game, cards);
+    startPractice(game, cards, asked);
   } else if (mode === "solo" || mode === "watch") {
     const env = {
       sheet,
@@ -234,8 +246,8 @@ async function boot() {
         if (testing) window.__kubb.recorded.push(sent);
       },
     };
-    if (mode === "solo") startSolo(game, cards, { ...env, menu });
-    else startWatch(game, cards, { ...env, menu });
+    if (mode === "solo") startSolo(game, cards, { ...env, menu, asked });
+    else startWatch(game, cards, { ...env, menu, asked });
   } else {
     pitch = startPitch({
       game,
@@ -257,9 +269,15 @@ async function boot() {
 
 // ---------- practice ----------
 
-function startPractice(game, cards) {
+// The scene the engine takes on this page's newest engine (0.9 on), as an option for
+// newPractice and newMatch: none on an older one, which draws the day.
+const sceneOpt = (id) =>
+  takesScene({ OPTION_DEFAULTS }) ? { scene: sceneId(id) } : {};
+
+function startPractice(game, cards, asked) {
   game.newPractice({
     surface: prefs.get("practiceSurface", "grass"),
+    ...sceneOpt(asked ?? prefs.get("practiceScene", "day")),
   });
   // What practice throws: BATONS or KUBBS, both shown, the one in use
   // pressed. It was one DRILL button labelled with the mode it switched to
@@ -313,7 +331,7 @@ function startPractice(game, cards) {
 // older engine is told.
 const takesComputer = () => MATCH_OPTIONS.some(([k]) => k === "computer");
 
-function startSolo(game, cards, { sheet, record, menu }) {
+function startSolo(game, cards, { sheet, record, menu, asked }) {
   game.seat = { sides: ["A"], cpu: true };
   game.localSide = "A";
   // MAKE A HIGHLIGHT REEL on the winner card: the match is shared (with the name typed
@@ -327,10 +345,14 @@ function startSolo(game, cards, { sheet, record, menu }) {
       level: game.level,
       onLevel: (f) => game.onLevel(f),
       menu: () => menu.open(),
+      // the Scene row: ?scene= over the saved one; the pitch behind shows the pick
+      scene: asked,
+      onScene: (id) => game.showScene(id),
     });
   const play = (o) => {
     share?.destroy();
     share = null;
+    game.showScene(null); // the match's own view carries it now
     const now = new Date();
     game.newMatch({
       seed: Math.floor(Math.random() * 2 ** 31),
@@ -343,6 +365,7 @@ function startSolo(game, cards, { sheet, record, menu }) {
       },
       cpu: "B",
       ...(takesComputer() ? { computer: o.computer } : {}),
+      ...sceneOpt(o.scene),
       first: "A",
       opening: o.opening,
       raising: o.raising,
@@ -404,7 +427,7 @@ export const watchTune = {
 // the card holds it there. The options are the solo card's, as last saved.
 // The Game runs unattended: a timer steps it while the tab is hidden. Each
 // match is sent to be recorded once, when it ends, hidden tab or not.
-function startWatch(game, cards, { sheet, record, menu }) {
+function startWatch(game, cards, { sheet, record, menu, asked }) {
   game.seat = { sides: [], cpu: true };
   game.localSide = null;
   game.unattended = true;
@@ -429,6 +452,8 @@ function startWatch(game, cards, { sheet, record, menu }) {
       wind: o.wind,
       surface: o.surface,
       set: o.set,
+      // the solo card's Scene, or the address's
+      ...sceneOpt(asked ?? o.scene),
       maxTurns: watchTune.maxTurns,
       start: {
         year: now.getFullYear(),

@@ -26,9 +26,12 @@
 // replay and embed, the reel and its stills on the server) draws it through
 // one Stage (below). docs/SCENES.md.
 //
-// Until the match options carry it (stage B), the address switch
-// (?scene=night, ?scene=neon) picks one on the practice pitch, a match
-// against the computer and watching the computer.
+// The scene is a match option, Scene (SCENE_ROW below): on the solo card
+// (kept with its options; watching the computer takes the card's), in MENU
+// on the practice pitch, and, set by the host, in the lobby of a pitch on
+// 0.9 (the room keeps it in `settings.scene`). The address switch
+// (?scene=night, ?scene=neon) picks one for the practice pitch, a match
+// against the computer and watching the computer, never a shared pitch.
 import { makeNight } from "./night.js";
 import { makeNeon } from "./neon.js";
 import { useSkin } from "./palette.js";
@@ -46,6 +49,28 @@ export function sceneOf(id, opts = {}) {
 // The scenes this client draws, besides the day.
 export const SCENES = ["night", "neon"];
 const SWITCHED = new Set(SCENES);
+
+// The Scene row, as the solo card, MENU and the lobby draw it: [key, label,
+// [[value, label], ...]], the shape of the engine's MATCH_OPTIONS. The engine
+// takes any scene id and does not list them (its docs/ROOM.md difference 9),
+// so the labels are this client's.
+export const SCENE_ROW = [
+  "scene",
+  "Scene",
+  [
+    ["day", "Day"],
+    ["night", "Night"],
+    ["neon", "Neon"],
+  ],
+];
+
+// A scene id as this client draws it: a known one, else "day".
+export const sceneId = (id) => (SWITCHED.has(id) ? id : "day");
+
+// Does engine constants `k` (src/net/lobby.js engineConstants) take a scene?
+// Engine 0.9 on: `scene` is one of its OPTION_DEFAULTS.
+export const takesScene = (k) =>
+  !!k?.OPTION_DEFAULTS && "scene" in k.OPTION_DEFAULTS;
 
 // The look for a scene id, or null for the day (and any id not known here).
 export function lookOf(id, opts = {}) {
@@ -113,11 +138,12 @@ export class Stage {
   }
 }
 
-// The address switch: the scene `?scene=` names, or null for the day. Only
-// the exact lower-case name is taken.
-export function sceneFromQuery(search, opts = {}) {
+// The address switch: the scene id `?scene=` names ("day" too), or null
+// when it names none this client draws. Only the exact lower-case name is
+// taken.
+export function sceneFromQuery(search) {
   const want = new URLSearchParams(search || "").get("scene");
-  return SWITCHED.has(want) ? sceneOf(want, opts) : null;
+  return want === "day" || SWITCHED.has(want) ? want : null;
 }
 
 // The controls take the scene's skin (look.skin): the canvas HUD's colours

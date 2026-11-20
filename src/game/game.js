@@ -162,9 +162,11 @@ export class Game {
   }) {
     this.engine = engine;
     // the match's scene (src/render/scenes.js), from its view's `scene`;
-    // a look given here (or by useLook) is kept over it
+    // a scene being picked (showScene) or a look given here (useLook) is
+    // kept over it
     this.stage = new Stage({ skin: true });
     this.pinnedLook = false;
+    this.shownScene = null;
     if (look) this.useLook(look);
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
@@ -1163,6 +1165,18 @@ export class Game {
     this.enter(v && v.need ? v : this.engine.view());
   }
 
+  // The practice pitch in another scene (MENU's Scene). The engine keeps a scene
+  // from the start and has no setter for a look, so the practice starts again in
+  // it, on the same surface, throwing what it threw.
+  practiceScene(scene) {
+    if (this.mode !== "practice" || this.phase !== "aim") return;
+    this.newPractice({
+      surface: this.viewData?.surface ?? this.trail?.opts?.surface,
+      scene,
+      ...(this.need?.drill ? { drill: true } : {}),
+    });
+  }
+
   setLevel(level) {
     const changed = level !== this.level;
     this.level = level;
@@ -1396,8 +1410,14 @@ export class Game {
     this.fit = worldFit(this.W, this.H, this.panX);
   }
 
-  // A look chosen here (the address switch, until the options carry it)
-  // is kept over the match's own scene.
+  // A scene id shown over the pitch's own while it is being picked (the solo
+  // card, the lobby), so the pitch and the page show what the choice will
+  // look like; null goes back to the view's scene.
+  showScene(id) {
+    this.shownScene = id ?? null;
+  }
+
+  // A look object kept over the match's own scene (tests and tools).
   useLook(look) {
     this.pinnedLook = !!look;
     this.stage.useLook(look);
@@ -1406,7 +1426,8 @@ export class Game {
   // The pitch through a camera in the match's scene: the day is exactly
   // drawWorld's picture (tests/render/scene-day.test.mjs).
   world(camera, scene) {
-    if (!this.pinnedLook) this.stage.use(this.viewData?.scene);
+    if (!this.pinnedLook)
+      this.stage.use(this.shownScene ?? this.viewData?.scene);
     this.stage.draw(
       this.ctx,
       this.view,

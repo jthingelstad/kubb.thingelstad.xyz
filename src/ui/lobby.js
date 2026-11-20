@@ -16,6 +16,7 @@ import {
 } from "../net/lobby.js";
 import { roomEngine } from "../net/room-engine.js";
 import { levelLine } from "../game/throw-level.js";
+import { SCENE_ROW, sceneId, takesScene } from "../render/scenes.js";
 
 // "Computer level", as the iPhone app and the solo card say it (the engine's label
 // is "Computer")
@@ -164,8 +165,19 @@ export class Lobby {
     if (this.closeFn) return;
     // (Cards.show closes us when another card takes the screen)
     this.closeFn = this.cards.show(this.el, this.game, {
-      onClose: () => (this.closeFn = null),
+      onClose: () => {
+        this.closeFn = null;
+        this.game?.showScene?.(null);
+      },
     });
+    this.showScene();
+  }
+
+  // The pitch behind the lobby and the page show the room's Scene while the lobby
+  // is up (a pitch whose next match cannot take one: the day); a match then draws
+  // its own view's.
+  showScene() {
+    if (this.closeFn) this.game?.showScene?.(this.scene ?? "day");
   }
 
   hide() {
@@ -271,11 +283,18 @@ export class Lobby {
         h("p.access-note", ACCESS_NOTE[access]),
       );
       this.optionsBox.append(h("h3", "The match"));
-      const rows = mm
-        ? engineConstants(mm).MATCH_OPTIONS
-        : loaded
-          ? MATCH_OPTIONS
-          : MATCH_OPTIONS.filter(([k]) => k in l.options);
+      const rows = [
+        ...(mm
+          ? engineConstants(mm).MATCH_OPTIONS
+          : loaded
+            ? MATCH_OPTIONS
+            : MATCH_OPTIONS.filter(([k]) => k in l.options)),
+      ];
+      // the Scene: the engine takes any id and lists none, so the row is this
+      // client's, shown when the next match's engine takes a scene (0.9 on)
+      const scened = loaded && takesScene(engineConstants(mm));
+      this.scene = scened ? sceneId(options.scene) : "day";
+      if (scened) rows.push(SCENE_ROW);
       for (const [k, label, choices] of rows) {
         this.optionsBox.append(
           h(
@@ -283,15 +302,22 @@ export class Lobby {
             { "data-test": `lobby-opt-${k}` },
             h("span.opt-label", ROW_LABEL[k] ?? label),
             isHost
-              ? seg(choices, options[k], (v) => this.hooks.option(k, v), k).el
+              ? seg(
+                  choices,
+                  k === "scene" ? this.scene : options[k],
+                  (v) => this.hooks.option(k, v),
+                  k,
+                ).el
               : h(
                   "span.opt-value",
-                  choices.find(([v]) => v === options[k])?.[1] ??
-                    optionLabel(k, options[k]),
+                  choices.find(
+                    ([v]) => v === (k === "scene" ? this.scene : options[k]),
+                  )?.[1] ?? optionLabel(k, options[k]),
                 ),
           ),
         );
       }
+      this.showScene();
     }
 
     const players = ["A", "B"].reduce(
