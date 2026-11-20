@@ -646,7 +646,7 @@ browserTest("the lobby on a phone, as a guest", async () => {
 });
 
 browserTest(
-  "an open game: listed on the home page, joined from the list, taken off by the host",
+  "an open game: listed on the web game’s page, joined from the list, taken off by the host",
   async () => {
     const code = makeRoomCode();
     const host = await join(code, "Hanna", "desktop", { query: "&open=1" });
@@ -659,7 +659,7 @@ browserTest(
     await waitFor(host, () => window.__kubb.pitch.state().open === true);
     assert.equal(await access(), "Open");
 
-    // the home page, as someone passing by
+    // the web game's page, /web/, as someone passing by
     const ctx = await env.browser.newContext(VIEWPORTS.portrait);
     const home = await ctx.newPage();
     home.errors = [];
@@ -667,7 +667,9 @@ browserTest(
       if (m.type() === "error") home.errors.push(m.text());
     });
     const look = async () => {
-      await home.goto(`${env.base}/?rooms=${encodeURIComponent(rooms.url)}`);
+      await home.goto(
+        `${env.base}/web/?rooms=${encodeURIComponent(rooms.url)}`,
+      );
       await home.waitForFunction(
         () =>
           document.querySelector("[data-open-list]").children.length ||
@@ -712,7 +714,9 @@ browserTest(
     const ctx2 = await env.browser.newContext(VIEWPORTS.desktop);
     const passer = await ctx2.newPage();
     const lookAgain = async () => {
-      await passer.goto(`${env.base}/?rooms=${encodeURIComponent(rooms.url)}`);
+      await passer.goto(
+        `${env.base}/web/?rooms=${encodeURIComponent(rooms.url)}`,
+      );
       await passer.waitForFunction(
         () =>
           document.querySelector("[data-open-list]").children.length ||

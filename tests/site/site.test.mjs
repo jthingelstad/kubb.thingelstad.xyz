@@ -14,11 +14,18 @@ import {
 } from "../../src/site/csp.mjs";
 import { contentHash, zipFiles } from "../../tools/pages-bundle.mjs";
 import { pitchCode } from "../../src/site/config.js";
-import { CODE_ALPHABET, CODE_LENGTH, ref } from "../../src/site/site.mjs";
+import {
+  CODE_ALPHABET,
+  CODE_LENGTH,
+  TESTFLIGHT_URL,
+  ref,
+} from "../../src/site/site.mjs";
 import { ROOM_CODE } from "../../backend/rooms/core.mjs";
 import { releaseOf } from "../../tools/build.mjs";
 import { carriedEngines } from "../../tools/lua-bundle.mjs";
-import { footer } from "../../src/site/layout.mjs";
+import { NAV, footer } from "../../src/site/layout.mjs";
+import { LOVE, iosJoin } from "../../src/site/landing.mjs";
+import { PAGES } from "../../src/site/pages.mjs";
 
 const json = async (file) => JSON.parse(await fs.readFile(file, "utf8"));
 const viewer = await loadViewerRequest();
@@ -134,6 +141,13 @@ test("directories serve index.html; other paths get the slash", () => {
   const moved = request("/rules?ref=x");
   assert.equal(moved.statusCode, 301);
   assert.equal(moved.headers.location.value, "/rules/?ref=x");
+  // the landing site's pages, with and without the slash
+  for (const page of ["web", "ios", "playdate", "engine", "love"]) {
+    assert.equal(request(`/${page}/`).uri, `/${page}/index.html`);
+    const bare = request(`/${page}`);
+    assert.equal(bare.statusCode, 301);
+    assert.equal(bare.headers.location.value, `/${page}/`);
+  }
 });
 
 test("one pitch code alphabet everywhere, and the rooms accept its codes", async () => {
@@ -385,6 +399,10 @@ test("published files are typed and cached right", () => {
   assert.equal(wasm.ContentType, "application/wasm");
   assert.equal(wasm.CacheControl, "public, max-age=31536000, immutable");
   assert.equal(
+    prepareObject("landing/web-hit.webp", Buffer.from("x")).ContentType,
+    "image/webp",
+  );
+  assert.equal(
     cacheControl("index.html"),
     "public, max-age=0, s-maxage=60, must-revalidate",
   );
@@ -441,4 +459,48 @@ test("the version label: package.json's version and the newest engine's, never t
   const foot = footer(release.text);
   assert.match(foot, /data-release>Version 0\.3\.0 \(0\.8\.1\)<\/p>/);
   assert.ok(!foot.includes(sha.slice(0, 7)));
+});
+
+test("the landing site: / is the game, /web/ the web game, each nav page a page", () => {
+  const paths = PAGES.map((p) => p.path);
+  for (const { href } of NAV) assert.ok(paths.includes(href), href);
+  for (const p of ["/", "/web/", "/rules/", "/privacy/"])
+    assert.ok(paths.includes(p), p);
+  // the footer: the nav, then Rules and Privacy, the current page marked
+  const foot = footer("0.3.0 (0.8.1)", "/love/");
+  for (const href of [...NAV.map((n) => n.href), "/rules/", "/privacy/"])
+    assert.ok(foot.includes(`href="${href}"`), href);
+  assert.match(foot, /href="\/love\/" aria-current="page"/);
+});
+
+test("/ios/: no TestFlight button until there is a link, then one", () => {
+  const empty = iosJoin("");
+  assert.ok(!empty.includes("TestFlight</a>"));
+  assert.match(empty, /by invitation/);
+  assert.match(empty, /href="\/web\/"/);
+  const set = iosJoin("https://testflight.apple.com/join/EXAMPLE1");
+  assert.match(
+    set,
+    /<a class="button button--start" href="https:\/\/testflight\.apple\.com\/join\/EXAMPLE1" rel="noopener" data-test="testflight">Join the TestFlight<\/a>/,
+  );
+  assert.ok(!set.includes("by invitation"));
+  // the site's value: Jamie's public link
+  assert.equal(TESTFLIGHT_URL, "https://testflight.apple.com/join/rTx8uTn1");
+  assert.match(
+    iosJoin(),
+    /href="https:\/\/testflight\.apple\.com\/join\/rTx8uTn1"/,
+  );
+});
+
+test("/love/: the five sites Jamie named, in his order", () => {
+  assert.deepEqual(
+    LOVE.map((s) => s.name),
+    [
+      "USA Kubb",
+      "Kubb World Championship",
+      "Minnesota Kubb",
+      "Planet Kubb",
+      "JP's Backyard Games",
+    ],
+  );
 });

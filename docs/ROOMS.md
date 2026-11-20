@@ -18,7 +18,7 @@ protocol, the client library, the limits, the cost, and what is not protected.
 | Room logic (pure, both servers run it)  | `backend/rooms/core.mjs`                                                |
 | AWS Lambda handler, DynamoDB store      | `backend/rooms/handler.mjs`, `backend/rooms/dynamo-store.mjs`           |
 | The recorder (every version, to S3)     | `backend/rooms/recorder.mjs`, `src/net/record.js`, `tools/games.mjs`    |
-| Open games (the home page's list)       | `backend/rooms/core.mjs`, `public/js/open-games.js`, `src/net/pitch.js` |
+| Open games (the list on /web/)          | `backend/rooms/core.mjs`, `public/js/open-games.js`, `src/net/pitch.js` |
 | Reports (to S3)                         | `backend/rooms/reports.mjs`, `src/net/report.js`, `tools/reports.mjs`   |
 | Replays (a finished match, kept a year) | `backend/rooms/core.mjs`, `src/replay/fetch.js`, `src/net/pitch.js`     |
 | In-memory store (dev server, tests)     | `backend/rooms/memory-store.mjs`                                        |
@@ -34,7 +34,7 @@ Use this, not the raw protocol. It handles chunking, ordering, reconnects and re
 ```js
 import { connect, makeRoomCode, memberId } from "./net/room.js";
 
-const code = makeRoomCode(); // home page: a new pitch is /p/<code>
+const code = makeRoomCode(); // /web/: a new pitch is /p/<code>
 const room = connect({
   url: ROOMS_URL,
   room: code,
@@ -470,7 +470,7 @@ By design, friends on a link:
   any other listed origin. Nothing proves a connection comes from our app. The stage
   throttle and the size limits bound what such a client can do.
 - **The cast rate cap is best effort** on AWS (per Lambda instance).
-- **An open game can be joined by anyone who sees it on the home page.** Its entry shows
+- **An open game can be joined by anyone who sees it on the web game's page (/web/).** Its entry shows
   only how many are on the pitch, whether it has started and how long ago it was made,
   with its link; no names. The host chooses open; invite only is the default. Anyone may
   ask for the list without joining a room, and a script can open many rooms to crowd it:
@@ -517,7 +517,7 @@ with }` to `record` (`backend/rooms/recorder.mjs`), which writes one gzipped JSO
   well under a megabyte.
 - **Names.** The document carries the names players typed, and member ids. The bucket is
   never served; `tools/games.mjs pull` copies records to `build/games/`, which git
-  ignores. The home page says that matches are recorded.
+  ignores. The web game's page (/web/) says that matches are recorded.
 - **Reading them.** `npm run games:pull`, then `npm run games:replay`: each match is
   restored at its start and every recorded action applied to this checkout's engine:
   the match's own where the checkout carries it, else the newest, or the one
@@ -606,13 +606,13 @@ here either: it checks the shape and the size, keeps the report and acknowledges
 
 ## 9. Open games
 
-A host can make a pitch open, and it is listed on the home page under Open games so
+A host can make a pitch open, and it is listed on the web game's page (/web/) under Open games so
 anyone can join by showing up (Jamie, 2026-11-16: "allow a game to be created open so it
 can be joined by anyone ... Open and invite only are both supported"). Invite only, the
 link and nothing else, is the default.
 
 - **The choice.** The document's `open` (`docs/MULTIPLAYER.md`): set by the host in the
-  lobby (Who can join: Invite only, Open), or from the home page (Start a pitch with Open
+  lobby (Who can join: Invite only, Open), or from the web game's page (Start a pitch with Open
   picked goes to `/p/<code>?open=1`, and the new pitch's host writes `open: true`). The
   link works the same either way.
 - **The listing.** The room server knows nothing of the document, so the host's browser
@@ -637,7 +637,7 @@ link and nothing else, is the default.
   read, those made in the last 24 hours, expired and unlisted ones skipped (they count
   toward the 60, so the list can come back short, never long), the first 20 kept. No
   names or member ids. A read that fails answers an empty list.
-- **The page.** `public/js/open-games.js` on the home page asks on a socket of its own
+- **The page.** `public/js/open-games.js` on the web game's page (/web/) asks on a socket of its own
   when the page opens and every 30 seconds while it is in view, and shows each game as
   "2 of 12 on the pitch · waiting to start · made 4 min ago" with JOIN, the pitch's link.
   Without a rooms server in the build the section is left out.

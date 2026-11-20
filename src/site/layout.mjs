@@ -66,21 +66,41 @@ const SHARE = {
     "KUBB in cut wood letters over THROWING WOOD, a baton flying at a kubb and the king on green grass",
 };
 
+// The site's sections, in the rail along the top of every reading page and in
+// the footer (with the rules and privacy). Play is the web game's own page.
+export const NAV = [
+  { href: "/web/", label: "Play" },
+  { href: "/ios/", label: "iPhone" },
+  { href: "/playdate/", label: "Playdate" },
+  { href: "/engine/", label: "Engine" },
+  { href: "/love/", label: "Love" },
+];
+const FOOT_NAV = [
+  ...NAV,
+  { href: "/rules/", label: "Rules" },
+  { href: "/privacy/", label: "Privacy" },
+];
+const current = (href, path) => (href === path ? ' aria-current="page"' : "");
+
 // release: the release label ("0.2.0 (0.8.1)": the app's version and the newest engine's,
 // src/site/release.js), small at the foot; none in a build without one.
-export function footer(release = null) {
+export function footer(release = null, path = "") {
   return `<footer class="foot">
   <div class="frame">
+    <nav class="foot__nav" aria-label="Throwing Wood"><ul>${FOOT_NAV.map(
+      ({ href, label }) =>
+        `<li><a href="${href}"${current(href, path)}>${esc(label)}</a></li>`,
+    ).join("")}</ul></nav>
     <p>Made by
       <a class="h-card" href="${OWNER.url}" rel="me author"><img class="u-photo" src="${OWNER.avatar}" alt="" width="28" height="28"><span class="p-name">${esc(OWNER.name)}</span><data class="u-url" value="${OWNER.url}"></data><data class="p-note" value="${esc(OWNER.note)}"></data></a>.
-      It is <a href="${ref(PLAYDATE_GAME, "footer")}">the Playdate game</a> in the browser. Jamie’s other projects are on <a href="${ref("https://thingelstad.xyz/", "footer")}">Things I’ve built</a>.
+      Kubb: Throwing Wood plays in the browser, on iPhone and iPad, and on <a href="${ref(PLAYDATE_GAME, "footer")}">Playdate</a>. Jamie’s other projects are on <a href="${ref("https://thingelstad.xyz/", "footer")}">Things I’ve built</a>.
     </p>
-    <p class="foot__small"><a href="/privacy/">Privacy</a>. <a href="/engine/">The Kubb Engine</a>. Playdate is a trademark of Panic Inc. This game is not made by Panic. Display type: Londrina Solid, under the <a href="/fonts/OFL-LondrinaSolid.txt">SIL Open Font License</a>.</p>
+    <p class="foot__small">Playdate is a trademark of Panic Inc. This game is not made by Panic. iPhone and iPad are trademarks of Apple Inc. Display type: Londrina Solid, under the <a href="/fonts/OFL-LondrinaSolid.txt">SIL Open Font License</a>.</p>
 ${release ? `    <p class="foot__small foot__release" data-release>Version ${esc(release)}</p>\n` : ""}  </div>
 </footer>`;
 }
 
-// A reading page: home, rules, 404.
+// A reading page: the landing pages, the web game's page, rules, privacy, 404.
 export function page({
   path,
   title,
@@ -101,14 +121,17 @@ ${head({ title, description, path, noindex, ...SHARE })}
 <a class="skip" href="#main">Skip to the page</a>
 <header class="rail">
   <div class="frame rail__inner">
-    <a class="rail__brand" href="/"${path === "/" ? ' aria-current="page"' : ""}>Kubb: Throwing Wood</a>
-    <nav class="rail__nav" aria-label="Site"><a href="/rules/"${path === "/rules/" ? ' aria-current="page"' : ""}>Rules</a><a href="/practice/">Practice</a></nav>
+    <a class="rail__brand" href="/"${current("/", path)}>Kubb: Throwing Wood</a>
+    <nav class="rail__nav" aria-label="Site"><ul>${NAV.map(
+      ({ href, label }) =>
+        `<li><a href="${href}"${current(href, path)}>${esc(label)}</a></li>`,
+    ).join("")}</ul></nav>
   </div>
 </header>
 <main id="main">
 ${body}
 </main>
-${footer(release)}
+${footer(release, path)}
 <script type="module" src="/js/throw-mode.js"></script>
 ${scripts.map((src) => `<script src="${src}" defer></script>`).join("\n")}
 ${analytics(tinylytics)}
@@ -147,7 +170,7 @@ ${styles.map((href) => `<link rel="stylesheet" href="${href}">`).join("\n")}
   <div class="noscript">
     <h1 class="display">Kubb needs JavaScript</h1>
     <p>The game runs in your browser: the pitch is drawn by a script and the Kubb is the Playdate game’s own code. Turn JavaScript on for this site to play.</p>
-    <p>Meanwhile, <a href="/rules/">read the rules</a> or go <a href="/">back to the start</a>.</p>
+    <p>Meanwhile, <a href="/rules/">read the rules</a> or go <a href="/web/">back to the start</a>.</p>
   </div>
 </noscript>
 ${analytics(tinylytics)}

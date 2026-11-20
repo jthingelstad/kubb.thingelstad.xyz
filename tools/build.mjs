@@ -76,7 +76,7 @@ async function hashedAsset(from, name) {
   return `/${file}`;
 }
 
-// The release this build is (src/site/release.js): the label "0.2.0 (0.8.1)" is the
+// The release this build is (src/site/release.js): the label "0.3.0 (0.8.1)" is the
 // app's version and the newest carried engine's; the older ones are only in its detail
 // ("Also plays 0.7.4").
 export function releaseOf(version, web, carried) {
@@ -205,20 +205,26 @@ export async function buildSite({
     "dist/llms.txt",
     `# ${SITE_TITLE}
 
-> Kubb, the lawn game of wooden blocks and batons, played in the browser: the Playdate game Kubb: Throwing Wood running on the web. ${GAME_READY ? "Practice, or play the computer. Starting a pitch and sending the link so friends join on their own screens is coming next." : "The game is still being built: the pages are up, the pitch is not playable yet."}
+> Kubb, the lawn game of wooden blocks and batons, with the U.S. National Kubb Championship rules and real physics. It plays in the browser, on iPhone and iPad (in beta on TestFlight) and on Playdate (in development), all on one engine, the Kubb Engine. ${GAME_READY ? "On the web, start a pitch and send the link so friends join on their own screens, play or watch the computer, or practice." : "The game is still being built: the pages are up, the pitch is not playable yet."}
 
 ## Pages
 
-- [Home](${ORIGIN}/): start a pitch (a link of its own at /p/<code>), play the computer, or practice.
-- [How to play](${ORIGIN}/rules/): the rules of Kubb in five short cards, and how to throw on the web by dragging round a dial.
+- [Home](${ORIGIN}/): the game, the three ways to play it, online play on a link, replays and highlight reels.
+- [Play on the web](${ORIGIN}/web/): start a pitch (a link of its own at /p/<code>), play or watch the computer, practice, or join an open game.
+- [iPhone and iPad](${ORIGIN}/ios/): the native app, in beta on TestFlight.
+- [Playdate](${ORIGIN}/playdate/): the Playdate game, thrown with the crank, in development.
+- [The Kubb Engine](${ORIGIN}/engine/): the one engine all three run, how its throws are checked against tournament score sheets, video of real play and a second physics simulator, and how a browser and an iPhone agree to the last bit.
+- [Kubb sites we love](${ORIGIN}/love/): USA Kubb, the Kubb World Championship, Minnesota Kubb, Planet Kubb and JP's Backyard Games.
+- [How to play](${ORIGIN}/rules/): the rules of Kubb in five short cards, and how to throw on the web.
 - [Practice](${ORIGIN}/practice/): the practice pitch.
-- [The Kubb Engine](${ORIGIN}/engine/): how the game's throws are checked against score sheets, video of real play and a second physics simulator.
+- [Privacy](${ORIGIN}/privacy/): what the game keeps, on the web and on iPhone.
 
 A pitch at /p/<code> is one group's game, reached by its link; those pages are not indexed.
 
 ## Related
 
-- [Kubb: Throwing Wood for the Playdate](https://playdate.thingelstad.xyz/throwing-wood/): the game this is the web version of.
+- [Kubb: Throwing Wood on Jamie's Playdate games site](https://playdate.thingelstad.xyz/throwing-wood/)
+- [The Kubb Engine's source](https://github.com/jthingelstad/kubb-engine)
 `,
   );
   await fs.writeFile(

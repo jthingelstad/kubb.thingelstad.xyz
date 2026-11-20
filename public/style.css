@@ -111,9 +111,13 @@ a:focus-visible,
   font-size: 1.35rem;
   letter-spacing: 0.02em;
 }
-.rail__nav {
+.rail__nav ul {
   display: flex;
-  gap: 20px;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .rail__nav a {
   font-weight: 800;
@@ -397,6 +401,29 @@ main > section:not(.hero) {
 .foot__small {
   font-size: var(--jt-size-meta);
 }
+.foot a {
+  color: var(--baton);
+}
+.foot__nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin: 0 0 1.1rem;
+  padding: 0;
+  list-style: none;
+}
+.foot__nav a {
+  font-weight: 800;
+  font-size: var(--jt-size-label);
+  letter-spacing: var(--jt-tracking-label);
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.foot__nav a:hover,
+.foot__nav a[aria-current="page"] {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
 .h-card {
   display: inline-flex;
   align-items: center;
@@ -412,6 +439,151 @@ main > section:not(.hero) {
   border: 2px solid var(--ink);
   width: 28px;
   height: 28px;
+}
+
+/* The landing pages: real captures framed like cards, two-column sections
+   that stack on a phone, and bands of wood and grass between them. */
+.shot {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 3px solid var(--ink);
+  box-shadow: var(--shadow);
+  background: var(--ink);
+}
+.shot--tall {
+  max-width: 280px;
+  border-radius: 22px;
+}
+.shot--pixel {
+  image-rendering: pixelated;
+}
+figure {
+  margin: 0;
+}
+.kicker {
+  margin: 0 0 0.6rem;
+}
+.actions__note {
+  margin: 0.8rem 0;
+  font-size: var(--jt-size-small);
+}
+.actions .actions__note {
+  margin: -0.4rem 0 0;
+}
+.hero__split {
+  display: grid;
+  gap: 2rem;
+  align-items: center;
+  padding-bottom: clamp(1.5rem, 5vw, 3rem);
+}
+.hero--landing .hero__kubb {
+  font-size: clamp(4.5rem, 15vw, 8.5rem);
+}
+.section__lede {
+  font-size: 1.1em;
+  max-width: var(--jt-measure);
+}
+.ways__list,
+.features,
+.love {
+  list-style: none;
+  margin: 1.4rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2rem;
+}
+.ways__list {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+}
+.way {
+  display: flex;
+  flex-direction: column;
+}
+.way .shot {
+  aspect-ratio: 5 / 3;
+  object-fit: cover;
+  object-position: center;
+}
+.way .shot--tall {
+  max-width: none;
+  border-radius: 0;
+  object-position: center 45%;
+}
+.way__title {
+  font-size: 1.7rem;
+  margin: 1.2rem 0 0.4rem;
+}
+.way p {
+  margin: 0 0 0.8rem;
+}
+.way p:last-child {
+  margin-top: auto;
+  padding-top: 0.4rem;
+}
+.band {
+  border-block: 6px solid var(--ink);
+}
+.band--grass {
+  background: var(--grass);
+  color: var(--baton);
+}
+.band--grass a:not(.button) {
+  color: var(--baton);
+}
+.band--wood {
+  background: var(--wood);
+}
+.split {
+  display: grid;
+  gap: 2rem;
+  align-items: center;
+}
+.split p {
+  max-width: var(--jt-measure);
+}
+.phones {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+.phones .shot--tall {
+  width: calc(50% - 0.5rem);
+}
+.features {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 1.4rem 2rem;
+}
+.features h3 {
+  font-size: 1.45rem;
+  margin: 0 0 0.3rem;
+}
+.features p {
+  margin: 0;
+}
+.love {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 1.6rem;
+}
+.love__site {
+  display: flex;
+  flex-direction: column;
+}
+.love__host {
+  margin-top: auto !important;
+  padding-top: 0.4rem;
+  font-weight: 700;
+  font-size: var(--jt-size-small);
+}
+@media (min-width: 860px) {
+  .hero__split,
+  .split {
+    grid-template-columns: 1fr 1.15fr;
+    gap: 3rem;
+  }
+  .split--flip > :first-child {
+    order: 2;
+  }
 }
 
 /* The game page: the canvas fills the window; the client draws #ui over it. */

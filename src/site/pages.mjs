@@ -2,7 +2,8 @@
 // and its HTML. The game pages take the build's runtime config and assets.
 import { esc, gamePage, page } from "./layout.mjs";
 import { heroScene } from "./art.mjs";
-import { GAME_READY, PLAYDATE_GAME, SITE_TITLE, ref } from "./site.mjs";
+import { GAME_READY, SITE_TITLE } from "./site.mjs";
+import { LANDING_PAGES } from "./landing.mjs";
 
 // HOW TO PLAY, the Playdate game's six cards (playdate-kubb
 // source/core/howtoplay.lua), in sentence case. The sixth card (the score
@@ -56,7 +57,7 @@ const BUILDING = GAME_READY
   ? ""
   : `<p class="notice">The game is still being built. Until it is, a pitch only says so.</p>`;
 
-// The home page's list of open games (public/js/open-games.js asks the rooms
+// The web game's list of open games (public/js/open-games.js asks the rooms
 // server for it): only when this build has a rooms server.
 function openGames(roomsUrl) {
   if (!roomsUrl) return "";
@@ -68,7 +69,10 @@ function openGames(roomsUrl) {
 </section>`;
 }
 
-function home({ tinylytics, config = {} }) {
+// /web/: the web game's home (it was / until 2026-11-20, when / became the
+// landing page for the whole game, src/site/landing.mjs). Start a pitch, play or
+// watch the computer, practice, and the open games.
+function web({ tinylytics, config = {} }) {
   const body = `<section class="hero">
   <div class="frame hero__inner">
     <h1 class="hero__title"><span class="hero__kubb">Kubb</span><span class="hero__band">Throwing Wood</span></h1>
@@ -104,12 +108,12 @@ ${openGames(config.roomsUrl)}
 </section>
 <section class="frame about" aria-labelledby="about">
   <h2 class="display" id="about">The same game, in your browser</h2>
-  <p>This is <a href="${ref(PLAYDATE_GAME, "home")}">Kubb: Throwing Wood</a>, Jamie’s Kubb game, with the same rules, physics and computer thrower as on Playdate and iPhone. Here you throw with a finger or a mouse: pull the meter back to the orange mark, then flick it through and let go on the blue mark.</p>
+  <p>This is <a href="/">Kubb: Throwing Wood</a>, Jamie’s Kubb game, with the same rules, physics and computer thrower as on <a href="/playdate/">Playdate</a> and <a href="/ios/">iPhone</a>. Here you throw with a finger or a mouse: pull the meter back to the orange mark, then flick it through and let go on the blue mark.</p>
   <p><a class="more" href="/rules/">How Kubb is played, and how to throw</a></p>
 </section>`;
   return page({
-    path: "/",
-    title: SITE_TITLE,
+    path: "/web/",
+    title: `Play in your browser · ${SITE_TITLE}`,
     description:
       "Kubb, the lawn game, in your browser: start a pitch, send the link, and throw wood with your friends. Or play the computer, or practice.",
     body,
@@ -183,55 +187,6 @@ function rules({ tinylytics, config = {} }) {
   });
 }
 
-function engine({ tinylytics, config = {} }) {
-  const body = `<section class="hero">
-  <div class="frame hero__inner">
-    <h1 class="display">The Kubb Engine</h1>
-    <p class="lede">A baton clips a corner. The first kubb tips into the next. On Playdate, the web and iPhone, the same Lua code works out where the wood goes and what the throw scores.</p>
-  </div>
-  ${heroScene()}
-</section>
-<section class="frame" aria-labelledby="checks">
-  <h2 class="display" id="checks">How close to the lawn?</h2>
-  <div class="cards">
-    <article class="card">
-      <h3 class="card__title">150 scored games</h3>
-      <p>We compared the computer’s play with 150 games in the Planet Kubb archive. The sheets tell us how often a baton missed, took one kubb or toppled a whole group.</p>
-      <p>In the archive, 16% of batons aimed at field kubbs took exactly two. In a 150-game test at the computer’s pro level, 5.7% did. Taking two with one baton is still harder for the computer.</p>
-    </article>
-    <article class="card">
-      <h3 class="card__title">11 videos of real play</h3>
-      <p>We marked 220 events in YouTube footage. Most came from five tournament videos with a fixed camera. The painted pitch lines gave us a ruler for the near half of the field.</p>
-      <p>For 73 throws of a kubb, we could see both its landing and its resting place. That let us measure how far it travelled after it hit the grass.</p>
-    </article>
-    <article class="card">
-      <h3 class="card__title">1,063 physics cases</h3>
-      <p>We gave MuJoCo, a rigid-body physics simulator, the same pieces, masses and starting throws. We compared drops, strikes and chains of falling kubbs. Its solver settings gave stable enough measurements to score 1,039 cases.</p>
-      <p>One comparison caught a baton sliding too far after a bounce. Accounting for the friction during impact brought its stopping distance on grass closer to MuJoCo’s.</p>
-    </article>
-  </div>
-</section>
-<section class="frame prose" aria-labelledby="hashes">
-  <h2 class="display" id="hashes">One match on two screens</h2>
-  <p>A browser and an iPhone can sit on opposite sides of a pitch. Each plays the action locally, writes down the whole game state and calculates a short fingerprint called a hash. A difference shows up on the very action where the two states part ways.</p>
-  <p>The iPhone uses the same maths as the web. Both are checked against 437 saved hashes from 12 reference matches. In three more matches played between the two clients, all 750 actions agreed, from the first throw through the kept replay. Playdate uses the same rules and throw model with its own 32-bit arithmetic.</p>
-</section>
-<section class="frame prose" aria-labelledby="notation">
-  <h2 class="display" id="notation">What the scorekeeper writes</h2>
-  <p>Planet Kubb Notation fits a throw into a few characters. A dash is a miss. <code>2F</code> means one baton took two field kubbs. <code>K</code> means the king fell. Read the marks in order and you can follow a turn, baton by baton.</p>
-  <p>The engine writes that same notation as a match unfolds. The game can show you its score sheet, and the reader used for the archived games can score it.</p>
-</section>`;
-  return page({
-    path: "/engine/",
-    title: `The Kubb Engine · ${SITE_TITLE}`,
-    description:
-      "How Throwing Wood checks its throws against score sheets, video of real play and a second physics simulator.",
-    body,
-    tinylytics,
-    release: config.release?.text,
-  });
-}
-
 // The privacy policy (Jamie, 2026-11-18: "appropriately scaled for a hobby
 // project where there is no company, it's just me"). The iPhone app's App Store
 // listing links here, so it covers both the website and the app. Keep it in step
@@ -250,7 +205,7 @@ function privacy({ tinylytics, config = {} }) {
   <h2 class="display" id="pitch">Playing a match</h2>
   <p>A match on a pitch runs through the game’s own server. It gets what the match needs: the name you type, your team, your throws, the score, and that random number. Everyone on the pitch sees your name and team. Any name will do, so use a nickname if you like.</p>
   <p>Every match is recorded, names included: matches with friends, against the computer, and the computer playing itself. I keep these records privately and use them to test and improve the game. They are never published or shared.</p>
-  <p>When a match ends, its replay is kept for a year, and anyone with the pitch’s link can watch it, names included. An open game’s place in the list on the home page shows only how many are on the pitch and whether the match has started, never names.</p>
+  <p>When a match ends, its replay is kept for a year, and anyone with the pitch’s link can watch it, names included. An open game’s place in the list on the web game’s page shows only how many are on the pitch and whether the match has started, never names.</p>
   <p>Anyone with a finished pitch’s link can ask for a highlight reel: a short video of the match’s best throws, made on the game’s server from the kept replay. A reel shows the team names, which for a player alone on a side is the name they typed, as the replay does; nothing else typed in the lobby. Reels are stored with the website, anyone with the link can watch or download them, and they are deleted a year after the match. A video downloaded or posted elsewhere is out of my hands.</p>
   <p>A match you play against the computer is shared only if you press SHARE AND MAKE THE REEL on its winner card, and only that match, each time you choose to. What is sent is how the match started (including the day and time it began), every throw, and the name you type on that card for your side; the other side is Computer. Nothing else about you or your device goes with it, and it is not linked to the private record of the same match. A shared match is kept for a year under its own link, like a pitch, and anyone with the link can watch its replay and its reel.</p>
   <p>If you send feedback from the game’s menu, about a throw that looked wrong or anything else, what you type (and any pieces you mark) and the game as it stood are kept privately in the same way, and never published. The game as it stood can include the names of the players in that match.</p>
@@ -342,13 +297,8 @@ function embed({ config, assets }) {
 }
 
 export const PAGES = [
-  { path: "/", file: "index.html", render: home, sources: ["src/site"] },
-  {
-    path: "/engine/",
-    file: "engine/index.html",
-    render: engine,
-    sources: ["src/site"],
-  },
+  ...LANDING_PAGES,
+  { path: "/web/", file: "web/index.html", render: web, sources: ["src/site"] },
   {
     path: "/rules/",
     file: "rules/index.html",

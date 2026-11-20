@@ -11,7 +11,8 @@ This document only says what is different on the web.
 
 ## 1. What it is
 
-- **A pitch is a link** (Jamie). The home page starts a pitch at a random link
+- **A pitch is a link** (Jamie). The web game's page (`/web/`; `/` was the web game's
+  home until 2026-11-20 and is now the landing page for the whole game) starts a pitch at a random link
   (`/p/<code>`). Whoever opens the link arrives on the same pitch, in a lobby, types a
   name and picks Team A or Team B, up to six a side (Jamie). The host starts the match.
   An empty side is played by the computer.
