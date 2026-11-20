@@ -713,15 +713,8 @@ export class Pitch {
       return;
     }
     const mm = e.engine;
-    const ok = startCheck(lu.players, speakAs(room.members, mm), room.you, mm);
-    if (!ok.ok) {
-      const who = [...ok.differ, ...ok.unknown].map((id) => this.nameOf(id));
-      this.lobby.say(
-        `${namesLine(who)} ${who.length > 1 ? "are" : "is"} on another version of Throwing Wood: reload to play.`,
-      );
-      this.note("start-refused", ok.differ.length, ok.unknown.length);
-      return;
-    }
+    // the room's engine first: startCheck is that engine's own call, and an older one
+    // answers only once it has loaded (the lobby's prefetch may not be done, or failed)
     let engine = null;
     this.starting = true;
     try {
@@ -740,6 +733,15 @@ export class Pitch {
     if (!room.isHost() || this.mode !== "lobby") return;
     // the room moved while the engine loaded: from the top
     if (room.doc !== doc) return tries < 3 ? this.start(tries + 1) : undefined;
+    const ok = startCheck(lu.players, speakAs(room.members, mm), room.you, mm);
+    if (!ok.ok) {
+      const who = [...ok.differ, ...ok.unknown].map((id) => this.nameOf(id));
+      this.lobby.say(
+        `${namesLine(who)} ${who.length > 1 ? "are" : "is"} on another version of Throwing Wood: reload to play.`,
+      );
+      this.note("start-refused", ok.differ.length, ok.unknown.length);
+      return;
+    }
     const now = new Date();
     const opts = matchOptions(
       doc,
