@@ -28,6 +28,7 @@ import { NoHighlights, pickHighlights, resultLine } from "./highlights.mjs";
 import * as C from "./cameras.mjs";
 import * as O from "./overlay.mjs";
 import { mixReel } from "./audio.mjs";
+import { encodeQr, isQr } from "./qr.mjs";
 
 export const FPS = 30;
 
@@ -68,6 +69,44 @@ export function sampleCode(name) {
     s += A[(h >>> 0) % A.length];
   }
   return s;
+}
+
+// The end card's QR code: the address as the https:// link a viewer would type, at
+// level M (docs/REEL.md "The end card"). Null, and the card as it was, when it cannot
+// be made: a code never costs a reel.
+export function endCardCode(
+  address,
+  { log = console.log, encode = encodeQr } = {},
+) {
+  try {
+    const qr = encode(`https://${address}`, { level: "M" });
+    if (!isQr(qr)) throw new Error("not a QR symbol");
+    return qr;
+  } catch (error) {
+    log(`end card without its QR code (${error?.message})`);
+    return null;
+  }
+}
+
+// One end card frame. When its code cannot be drawn the frame is drawn again
+// (`redraw`, the pitch under it) as the card was, with the URL only, and the code it
+// returns (null) is the one the format's later frames use: a code never costs a reel.
+export function drawEndCard(
+  ctx,
+  L,
+  card,
+  { log = console.log, redraw = () => {} } = {},
+) {
+  try {
+    O.endCard(ctx, L, card);
+    return card.qr ?? null;
+  } catch (error) {
+    if (!card.qr) throw error;
+    log(`end card without its QR code (${error?.message})`);
+    redraw();
+    O.endCard(ctx, L, { ...card, qr: null });
+    return null;
+  }
 }
 
 // The reel as frames: every frame's recording time, camera and overlay, from the edit
@@ -230,6 +269,7 @@ export async function renderReel({
   // nothing to show: no encoder is started on nothing
   if (!edit.moments?.length) throw new NoHighlights();
   const address = `throwingwood.com/p/${code}`;
+  const qr = endCardCode(address, { log });
   const frames = planFrames(edit);
   const facts = new Map(scan.throws.map((t) => [t.i, t]));
   const tScan = performance.now();
@@ -366,15 +406,27 @@ export async function renderReel({
       drawWorld(ctx, v, camera, { ...scene, items });
       if (fr.card === "title")
         O.titleCard(ctx, L, { teams, a: Math.min(1, fr.u * 6) });
-      else if (fr.card === "end")
-        O.endCard(ctx, L, {
-          winner: edit.end?.winner,
-          teams,
-          line: howLine(edit.end),
-          address,
-          a: Math.min(1, fr.u * 6),
-        });
-      else {
+      else if (fr.card === "end") {
+        o.qr = drawEndCard(
+          ctx,
+          L,
+          {
+            winner: edit.end?.winner,
+            teams,
+            line: howLine(edit.end),
+            address,
+            qr: o.qr === undefined ? qr : o.qr,
+            a: Math.min(1, fr.u * 6),
+          },
+          {
+            log: (m) => log(`reel ${code}: ${o.f} ${m}`),
+            redraw: () => {
+              ctx.setTransform(1, 0, 0, 1, 0, 0);
+              drawWorld(ctx, v, camera, { ...scene, items });
+            },
+          },
+        );
+      } else {
         const size = Math.min(o.W, o.H) * 0.22;
         for (const bu of bursts) {
           const ph = now - bu.at;

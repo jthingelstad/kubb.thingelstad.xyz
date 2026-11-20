@@ -307,8 +307,50 @@ export function titleCard(ctx, L, { teams, a = 1 }) {
   ctx.restore();
 }
 
-// The end card: who won and how, and where to watch the whole match.
-export function endCard(ctx, L, { winner, teams, line, address, a = 1 }) {
+// The end card's QR plate: the symbol's modules in ink on a paper plate, a quiet zone
+// of four modules inside its ink edge, every module a whole number of pixels. Its box.
+export const QR_QUIET = 4;
+export function qrPlateSize(qr, px, edge = 4) {
+  return (qr.size + QR_QUIET * 2) * px + edge * 2;
+}
+
+export function qrPlate(ctx, qr, x, y, px, { edge = 4, shadow = 8 } = {}) {
+  if (!(Number.isInteger(px) && px > 0)) throw new Error("QR module size");
+  x = Math.round(x);
+  y = Math.round(y);
+  const S = qrPlateSize(qr, px, edge);
+  plate(ctx, x, y, S, S, PAPER, { shadow, edge });
+  ctx.fillStyle = INK;
+  const o = edge + QR_QUIET * px;
+  for (let r = 0; r < qr.size; r++)
+    for (let c = 0; c < qr.size; c++)
+      if (qr.modules[r][c])
+        ctx.fillRect(x + o + c * px, y + o + r * px, px, px);
+  return { x, y, w: S, h: S };
+}
+
+// Pixels per module: as many as fit `target` pixels across the symbol and its quiet
+// zone, never under `min` (docs/REEL.md "The end card").
+export const qrModule = (qr, target, min = 10) =>
+  Math.max(min, Math.floor(target / (qr.size + QR_QUIET * 2)));
+
+// The QR plate's side in each format, as a target (qrModule rounds it down to whole
+// modules): about 410 px across a tall frame's 1080, 460 px of a wide frame's 1080 high.
+export const QR_TARGET = { tall: 410, wide: 460 };
+
+// Shrinks a size so `text` in `face` fits `width`.
+function fitSize(ctx, text, size, width, face, weight) {
+  ctx.font = font(size, face, weight);
+  const w = ctx.measureText(text).width;
+  return w > width ? (size * width) / w : size;
+}
+
+// The end card: who won and how, and where to watch the whole match. With `qr` (an
+// encodeQr symbol of the address's https:// link), its code beside the address in a
+// wide frame and above it in a tall one; without one, the card as it was.
+export function endCard(ctx, L, { winner, teams, line, address, qr, a = 1 }) {
+  if (qr)
+    return endCardWithCode(ctx, L, { winner, teams, line, address, qr, a });
   wash(ctx, L, 0.84 * a);
   ctx.save();
   ctx.globalAlpha = a;
@@ -353,4 +395,92 @@ export function endCard(ctx, L, { winner, teams, line, address, a = 1 }) {
     weight: 700,
   });
   ctx.restore();
+}
+
+// The end card with its QR code. Tall: the card a little higher, the code between the
+// line and the address. Wide: the words centred in the room left of the code, which
+// stands at the right with its foot level with the address plate's.
+function endCardWithCode(ctx, L, { winner, teams, line, address, qr, a }) {
+  wash(ctx, L, 0.84 * a);
+  ctx.save();
+  try {
+    drawWithCode(ctx, L, { winner, teams, line, address, qr, a });
+  } finally {
+    ctx.restore();
+  }
+}
+
+function drawWithCode(ctx, L, { winner, teams, line, address, qr, a }) {
+  ctx.globalAlpha = a;
+  const u = L.unit;
+  const tall = L.H > L.W;
+  const px = qrModule(qr, tall ? QR_TARGET.tall : QR_TARGET.wide);
+  const S = qrPlateSize(qr, px);
+  const gap = 48 * u;
+  const cx = tall ? L.W / 2 : (L.left + (L.right - S - gap)) / 2;
+  const room = tall ? L.right - L.left : L.right - S - gap - L.left;
+  let y = tall ? L.top + 10 * u : L.top + 20 * u;
+  textPlate(
+    ctx,
+    "KUBB: THROWING WOOD",
+    cx,
+    y,
+    (tall ? 58 : 54) * u,
+    INK,
+    PAPER,
+    {
+      align: "center",
+    },
+  );
+  y += (tall ? 300 : 250) * u;
+  const t = team(winner);
+  const name = winner ? up(teams?.[winner] ?? winner) : "";
+  if (name) {
+    const size = fitSize(ctx, name, (tall ? 190 : 180) * u, room, DISPLAY, 900);
+    woodText(ctx, name, cx, y, size, t.fill);
+    y += (tall ? 150 : 140) * u;
+    woodText(ctx, "WINS", cx, y, (tall ? 140 : 120) * u, COLORS.wood);
+  }
+  y += (tall ? 70 : 50) * u;
+  if (line) {
+    const size = fitSize(
+      ctx,
+      up(line),
+      (tall ? 54 : 50) * u,
+      room * 0.9,
+      DISPLAY,
+      900,
+    );
+    textPlate(ctx, up(line), cx, y, size, PAPER, INK, { align: "center" });
+  }
+  const watch = (tall ? 40 : 38) * u;
+  const asize = fitSize(
+    ctx,
+    address,
+    (tall ? 50 : 48) * u,
+    // the plate's padding is 0.8 of the size; a tall frame's address may use its width
+    (tall ? L.W - 2 * L.left : room) - (tall ? 50 : 48) * u * 0.8,
+    LABEL,
+    700,
+  );
+  const ah = Math.round(asize * 1.28);
+  let wy; // the WATCH line's baseline
+  if (tall) {
+    const qy = y + (54 * 1.28 + 36) * u;
+    qrPlate(ctx, qr, L.W / 2 - S / 2, qy, px);
+    wy = qy + S + 64 * u;
+  } else {
+    wy = y + 150 * u;
+    const foot = wy + 26 * u + ah;
+    qrPlate(ctx, qr, L.right - S, foot - S, px);
+  }
+  ctx.font = font(watch);
+  ctx.fillStyle = INK;
+  ctx.textAlign = "center";
+  ctx.fillText("WATCH THE WHOLE MATCH", cx, wy);
+  textPlate(ctx, address, cx, wy + (tall ? 30 : 26) * u, asize, INK, PAPER, {
+    align: "center",
+    face: LABEL,
+    weight: 700,
+  });
 }
