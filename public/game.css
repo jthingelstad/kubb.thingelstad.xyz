@@ -1701,6 +1701,13 @@ body.embed .replay-controls {
 .reel-text {
   font-size: 15px;
 }
+/* the state line under the title: MAKING YOUR REEL */
+.reel-line {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
 /* a slow bar that never says how far: the server gives no fraction */
 .reel-bar {
   position: relative;

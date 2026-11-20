@@ -85,6 +85,8 @@ test("reel: MAKE, the kept replay checked, then rendering until done", () => {
   assert.equal(reelView(s).ask, "kept");
   assert.equal(reelView(s).text, REEL_WORDS.wait);
   assert.equal(reelView(s).bar, true);
+  assert.equal(reelView(s).title, "Highlight reel");
+  assert.equal(reelView(s).line, "MAKING YOUR REEL");
   s = reelStep(s, kept());
   assert.equal(s.phase, "asking");
   assert.equal(s.v, 14);
@@ -139,10 +141,11 @@ test("reel: a keep still on its way is looked for again, then 'no kept replay'",
 test("reel: every why in plain words", () => {
   const cases = {
     engine:
-      "This match was played on an older version of the game and cannot have a reel.",
+      "This match was played on another version of the game, so it cannot have a reel.",
     busy: "Reels are busy today.",
-    unavailable: "Reels cannot be made here.",
-    replay: "This match has no kept replay, so it cannot have a reel.",
+    unavailable: "Reels cannot be made right now.",
+    replay: "This match has no replay, so it cannot have a reel.",
+    moved: "This pitch has moved on to a newer match.",
   };
   for (const [why, words] of Object.entries(cases)) {
     const s = run([press, kept(), answer({ v: 14, reel: null, why })]);
@@ -150,6 +153,7 @@ test("reel: every why in plain words", () => {
     assert.equal(reelView(s).text, words, why);
     assert.equal(reelView(s).retry, false, why);
     assert.equal(reelView(s).label, REEL_WORDS.make, why);
+    assert.equal(reelView(s).title, "Highlight reel", why);
   }
   // a why this build does not know is "cannot be made here"
   const odd = run([press, kept(), answer({ v: 14, reel: null, why: "new" })]);
@@ -170,7 +174,10 @@ test("reel: every why in plain words", () => {
   // too many asked from one connection
   const many = run([press, kept(), error("too-many")]);
   assert.equal(many.phase, "refused");
-  assert.equal(reelView(many).text, REEL_WORDS.why["too-many"]);
+  assert.equal(
+    reelView(many).text,
+    "Too many reels asked for at once. Try again later.",
+  );
 });
 
 test("reel: a render that failed is final, with no TRY AGAIN", () => {
@@ -225,7 +232,8 @@ test("reel: a reel the page says is done is shown once the kept replay agrees", 
   assert.equal(reelView(s).label, REEL_WORDS.watch);
   s = reelStep(s, press);
   assert.equal(reelView(s).ask, "kept"); // read only: nothing is started
-  assert.equal(reelView(s).title, REEL_WORDS.doneTitle);
+  assert.equal(reelView(s).title, REEL_WORDS.title);
+  assert.equal(reelView(s).line, ""); // nothing is being made
   s = reelStep(s, kept());
   assert.equal(s.phase, "done");
   assert.deepEqual(reelView(s).video, { tall: p.tall, wide: p.wide });
