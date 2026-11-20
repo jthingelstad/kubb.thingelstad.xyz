@@ -762,7 +762,10 @@ once it is shared (section 13): its sealed pitch has a kept replay of version 1.
   function (`InvocationType: Event`); every other one reads the item. The day's counter
   (`reels#<yyyy-mm-dd> | count`, a conditional `ADD`) is taken by that request alone.
   A rematch that is kept is a new version and a new render. The room server reads only
-  the replay's `engine` field: it still knows no Kubb.
+  the replay's `engine` field: it still knows no Kubb. The tag is that engine's
+  (`r1-<major.minor>`). A done reel under it is answered even when the engine is no
+  longer among `REEL_ENGINES`. Otherwise, a match whose engine is not among them is
+  answered `reel: null`, `why: "engine"`, and nothing is started.
 - **The reel function** (`kubb-xyz-site-reels`, site stack, `backend/reels/`): given
   `{ room, v, tag }`, it adds one to the item's `tries` (only while it is that render
   and `rendering`), refuses a try past the second (`failed`, `why: "render"`, nothing

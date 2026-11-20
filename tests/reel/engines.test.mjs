@@ -292,14 +292,33 @@ test("after the site moves to 0.8: a 0.7 match keeps its r1-0.7 reel, a 0.8 matc
   assert.deepEqual(later.checked, ["0.7.4"]);
   assert.equal(asked.why, "does-not-replay");
 
-  // once 0.7 is dropped: refused before the check, as any engine not carried is
+  // once 0.7 is dropped: a share is refused before the check, as any engine not
+  // carried is, but the reel already made is still answered
   const dropped = roomsWith({ engines: ["0.8"], store });
   assert.equal((await dropped.say({ ...share, id: 5 })).why, "engine");
   assert.deepEqual(dropped.checked, []);
-  assert.equal(
-    (await dropped.say({ t: "reel", id: 6, room: "seventhm" })).why,
-    "engine",
+  const kept = await dropped.say({ t: "reel", id: 6, room: "seventhm" });
+  assert.equal(kept.reel.state, "done");
+  assert.equal(kept.reel.wide, "/reels/seventhm/2-r1-0.7/wide.mp4");
+  assert.equal(dropped.started.length, 0);
+
+  // a 0.7 match with no reel made yet: refused, and nothing is started or written
+  await keep("sxthmmmm", "0.7.4");
+  const none = await dropped.say({ t: "reel", id: 7, room: "sxthmmmm" });
+  assert.equal(none.reel, null);
+  assert.equal(none.why, "engine");
+  assert.equal(dropped.started.length, 0);
+  assert.equal(await store.getReel("sxthmmmm"), null);
+  // nor one whose render was started but never finished
+  await keep("ffthmmmm", "0.7.4");
+  await store.putReel(
+    "ffthmmmm",
+    { v: 2, tag: "r1-0.7", job: "2-r1-0.7", at: T0, exp },
+    { staleBefore: 0 },
   );
+  const rendering = await dropped.say({ t: "reel", id: 8, room: "ffthmmmm" });
+  assert.equal(rendering.why, "engine");
+  assert.equal(dropped.started.length, 0);
 });
 
 test("the command line renders a replay on its own engine where the checkout carries it", () => {

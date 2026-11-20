@@ -181,8 +181,9 @@ version and look. So the site stack goes first when an engine is added.
 
 ### The change that brought engines to the renderer (one engine)
 
-With one engine carried, nothing changes but the package's layout (`engines/0.7.json`
-where `lua-sources.json` was):
+With one engine carried, two things change: the package's layout (`engines/0.7.json`
+where `lua-sources.json` was), and the rooms function's code, which now answers a done
+reel before it checks the engine:
 
 1. `npm run reels:bundle`: a new code key, the same layer key, about 13 MB zipped and
    30 MB unzipped as before.
@@ -191,9 +192,14 @@ where `lua-sources.json` was):
    pitch pages code is the same, so there is no `PagesRevision`. The same
    evaluated-again list as in "Deploy" step 2. Anything else is a stop.
 3. `AWS_PROFILE=cloud-engineer npm run infra:apply -- site`
-4. `AWS_PROFILE=cloud-engineer npm run infra:plan -- rooms`: no change. The rooms
-   bundle and `ReelEngines` are the same; a change here is a stop.
-5. Commit the rewritten `infra/deployment.json` (`reels.codeKey`) in a pull request.
+4. `AWS_PROFILE=cloud-engineer npm run infra:plan -- rooms`: **Modify**
+   `RoomsFunction`, the code key only, with `RoomsIntegration` listed beside it as
+   before. `ReelEngines` stays `0.7`. No change to `RoomsRole`; anything else is a
+   stop. The merge's deploy (`tools/deploy.mjs`) already put the new code live; this
+   brings the stack's code key up to it.
+5. `AWS_PROFILE=cloud-engineer npm run infra:apply -- rooms`
+6. Commit the rewritten `infra/deployment.json` (`reels.codeKey`, `rooms.codeKey`) in a
+   pull request.
 
 ### Adding an engine (`vendor:sync -- --tag vX.Y.0 --keep`)
 
@@ -233,9 +239,10 @@ Run the two applies back to back. In the minutes between them, the rooms functio
 names the dropped engine. A reel requested then for one of its pitches is started and
 fails with `why: "engine"`, final. A share of it is refused, as it is after.
 
-After both, a pitch of the dropped engine asking for a reel is answered
-`why: "engine"`. A reel already made for it stays in `reels/` until the lifecycle rule
-expires it, and its `/p/<code>` keeps the `og:video`.
+After both, a reel already made for a pitch of the dropped engine is still answered
+`done`, in the app as on `/p/<code>` (its `og:video`), until the lifecycle rule expires
+it. A pitch of that engine with no reel made is answered `why: "engine"`, and nothing is
+started. A share of it is refused.
 
 ## Costs (estimates)
 
