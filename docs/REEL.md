@@ -35,7 +35,10 @@ PNG per format. Both formats are H.264 High, yuv420p, 30 fps, AAC sound and fast
   hashes. Its `verifySolo` is the server's check below.
 - `scan.mjs` plays the replay through the engine (`replayLoad`, `replayStep`, wide view)
   and writes one fact per throw: who threw, what was hit and toppled, the ruling, the
-  first hit, the touches and bursts, and the pieces standing before and after.
+  first hit, the touches and bursts, and the pieces standing before and after. A drill
+  (a kubb thrown in, the engine's `how: "drill"`) also has its kubb, when it first
+  touched the ground, where it came to rest, and the half as it stood at the next
+  baton: the kubbs raised and any punishment kubb placed (below).
 - `highlights.mjs` is pure and tested (`tests/reel/highlights.test.mjs`), with its
   numbers in one `tune`. It rates each throw:
 
@@ -46,17 +49,62 @@ PNG per format. Both formats are H.264 High, yuv420p, 30 fps, AAC sound and fast
   | a baton that takes 2+ kubbs  | 30, plus 14 for each kubb over 2     |
   | a base kubb from 7 m or more | 24, plus 4 a metre over 7            |
   | an inkasted kubb that knocks | 16, plus 12 if one fell              |
+  | a tight group thrown in      | 24, plus 7 a kubb over 3             |
+  |                              | plus 14 when a baton then takes 2+   |
+  | a kubb out twice (punished)  | 24                                   |
   | the field cleared            | 14, plus 10 with one baton left      |
   | a near miss (touched, stood) | 6, plus 14 right before a big moment |
 
   Every kubb down adds 3 and every turn adds 0.25, so late hits rank higher. Picking is
-  greedy. The end goes in first. Then the best throw left goes in each round, scored
-  down by 0.55 for each moment of the same kind already in. A pick must be at least 4
-  throws from the others and fit 25 to 40 s. That gives 4 to 6 moments, in match order,
-  with the end last.
+  greedy. The end goes in first, then the best drill that clears the bar (below). Then
+  the best throw left goes in each round, scored down by 0.55 for each moment of the
+  same kind already in. A pick must be at least 4 throws from the others, come before
+  the end, and fit 25 to 40 s. That gives 4 to 6 moments, in match order, with the end
+  last.
 
   A dull match falls back to the opening throw and its best hits. A resigned match ends
   on its last hit. A reel short of 25 s holds each moment's last beat longer.
+
+- **Drills** (Jamie, 2026-11-19, on the first samples: "you only showed baton throws,
+  and drills of cubes are often some of the really important things as well ... they
+  should definitely include important drills in addition to important baton
+  throws."). The first prototype rated drills but never showed one: a kubb thrown in
+  scored only its turn (0.25 a turn) unless it knocked another kubb, so it never
+  reached the bar of 20. What a player cares about in a drill, and what the replay
+  gives for it:
+  - **A tight group: kept.** The drilling team throws batons at those kubbs next, so
+    kubbs standing close together mean fewer batons. The reel takes the half as it
+    stood at the next baton (raised, which is what the batons face) and finds groups:
+    kubbs each within 40 cm of another, all within 90 cm, at least three, at least two
+    of them thrown in that turn. The beat is the last kubb thrown in that is part of
+    the group. "South lands five kubbs close together"; "South lands its kubbs in a
+    group of four" when a kubb from before is in it; "North throws seven kubbs in,
+    five close together" for a big turn.
+  - **A group that pays off: kept, as one beat.** When the same team's next batons take
+    two or more of the group with one throw, the group scores 14 more and the baton
+    follows it straight away (the 4-throw gap is waived for the pair). The two
+    captions read as one: the group, then "South: three kubbs with one baton".
+  - **Out twice: kept.** A kubb thrown in that goes out a second time becomes a
+    punishment kubb, stood by the other team where they choose. The beat is that kubb's
+    second throw (the ruling arrives on the throw that ends the round, which can be
+    another kubb's), held on where it was stood: "Riverside's kubb is out twice:
+    Computer puts it at the back" (or "by the middle line", or "places it"). The
+    engine's own placement puts it as deep as it can, on the far baseline.
+  - **A big turn as one quick sequence: dropped.** Five to ten similar throws cut
+    together cost 6 s or more for what the finished group shows in one hold; a big turn
+    shows as its group beat, and the caption counts the kubbs.
+  - **A deep or short drill that changed the turn: dropped.** The replay does not say
+    which batons were spent on which kubb, so "a stray kubb cost two batons" would be a
+    guess. A lone kubb far from the rest is common and dull on its own.
+  - The existing **inkast that knocks** another kubb stays, and counts as a drill.
+
+  The cap: at most one moment in three is a drill (one in a 4 or 5 moment reel, two in
+  a 6), and one a turn. The best drill that clears the bar goes in second, after the
+  end, so a drill is never crowded out by batons, and a match with no drill over the
+  bar gets none. What it displaces is usually the weakest baton moment of the earlier
+  reel. A drill beat runs about 4 to 5 s against a baton's 5 to 7 s, and the 40 s
+  limit is unchanged. Of the 22 matches here (`solo-2-you` is `solo-2` renamed), 21
+  reels now hold one or two drill beats.
 
 - `cameras.mjs` are the reel's own angles, built with the game's `lookAt` and drawn
   by `drawWorld`. They are:
@@ -64,11 +112,18 @@ PNG per format. Both formats are H.264 High, yuv420p, 30 fps, AAC sound and fast
   - **impact**: close and low on the first hit, pushing in.
   - **king**: low, looking up at the king.
   - **land**: for a miss.
+  - **group**: a drill. Close on the group the kubb lands by (or where it went out),
+    wide enough for the landing and every kubb of the group; then, after a cut, on
+    the same kubbs standing once raised (or on the punishment kubb where it was
+    stood).
   - **overview**: for the cards.
 - `render.mjs` shoots each moment with `showAt(t)` at a fixed 30 fps. Slow motion
   (0.28x, from 0.22 s before the first hit to 0.75 s after) is simply more frames per
   second of flight. A moment scored 40 or more plays whole at 1x, then again close and
-  slow under REPLAY. The game's bursts (TOK!, KING!) are drawn at their moment.
+  slow under REPLAY. The game's bursts (TOK!, KING!) are drawn at their moment. A drill
+  plays at 1x until just before the kubb touches the ground, then at half speed close
+  on the group through the landing and the roll, then holds 1.4 s on the half as it
+  stood at the next baton: the engine is stepped on past the raises to that state.
   `overlay.mjs` draws in the site's woodcut look:
   - a title card: KUBB: THROWING WOOD, HIGHLIGHTS and the team plates;
   - a caption per moment in plain words, with a TURN kicker;
@@ -122,6 +177,12 @@ The check is the replay plus the computer's throws made again by a second engine
 cap, so a very long match could pass the 256 KB a kept replay may be (about 60 turns at
 these sizes) and is then too long to share. The machine's load average was 15 to 85
 while these ran, so the times are high.
+
+With drills (`build/reel/out-drills/`): `solo-11` shows Riverside's kubb out twice in
+turn 9, in place of the computer's second long base kubb (36.5 s, was 37.5); `seed-1`
+shows South's five-kubb group in turn 8 and the baton that took three of it, in place
+of North's two-kubb baton in turn 9 (35.5 s, was 37.0); `solo-2` has no drill over
+the bar (a kubb that landed on another, alone) and is unchanged at 37.1 s.
 
 The edit needs three changes for these matches, not yet made in the prototype. Nothing
 else in it assumes two people:
@@ -564,9 +625,19 @@ throw bounds, which it cannot.
    other to the pages function and the pitch page, built by the engine since the rooms
    function knows no Kubb.
 
-6 to 9 change no throw, so they can go in a patch release of each minor a client is
+10. **Drill facts.** `result.restX`/`restY` are in the thrower's frame in the wide view,
+    like the landing, and the reel turns them. The round's ruling ("out twice:
+    punishment kubb") arrives on the throw that ends the round, not on the punished
+    kubb's: the reel finds that kubb from the engine's `punish` need when a person
+    places it, and otherwise (the computer places it with no action in the log) as the
+    kubb thrown twice that stands well away from where it came to rest. A `judgment`
+    per round (each kubb in, out, rethrown or punished, by id) and the placed spot would
+    make both exact. Whether a kubb near the middle line is in is the engine's call; the
+    reel never judges it.
+
+6 to 10 change no throw, so they can go in a patch release of each minor a client is
 on. 6 can also be done outside the engine, with a second engine as `verifySolo` does,
-for any release; 7 to 9 cannot.
+for any release; 7 to 9 cannot. 10 is a convenience: the prototype works without it.
 
 ## Open questions for the owner
 
@@ -597,3 +668,12 @@ for any release; 7 to 9 cannot.
 9. **iPhone solo matches are not recorded** privately as the web's are. Sharing does not
    need it. **Recommend: decide it apart from reels**; step 1 of the iPhone's work makes
    it possible either way.
+10. **How many drills.** One moment in three at most, and one whenever a drill clears
+    the bar (a tight group of three, a punishment, an inkast that topples a kubb).
+    **Recommend: start there** and look at more reels; the numbers are in one `tune`.
+11. **Marking the punishment kubb.** It stands on the far baseline among the base
+    kubbs, told apart only by its team colour at its foot and by the caption. A ring or
+    a burst on it would be a new look. **Recommend: leave it unmarked** until a reel
+    shows it is missed.
+12. **A big turn's drilling as a quick sequence.** Dropped for now (above). It could
+    come back for a turn of eight or more kubbs if a single hold proves too little.
