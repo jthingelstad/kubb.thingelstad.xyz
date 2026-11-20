@@ -1,7 +1,8 @@
 // The plan's sliders in a real browser (src/game/plan-sliders.js; Jamie,
 // 2026-11-19: "I'd like to make arc and tilt less buttons and more a slider
-// with continuous movement"): ARC is continuous, TILT and SPIN settle on the
-// engine's detents, a drag shows the side view, SIDE VIEW is a toggle, and
+// with continuous movement"): ARC, TILT and SPIN take any value in the engine's
+// range (engine 0.9's aim.controls; on 0.8 and 0.7 TILT and SPIN settled on
+// steps), a drag shows the side view, SIDE VIEW is a toggle, and
 // in every layout the sliders keep clear of the meter, the minimap and MENU.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -19,7 +20,6 @@ import {
   swing,
   VIEWPORTS,
 } from "./browser.mjs";
-import { sideFraction } from "../../src/game/plan-sliders.js";
 
 let available = false;
 try {
@@ -98,13 +98,23 @@ browserTest("dragging ARC sets a release between the old steps", async () => {
   }
 });
 
+// Engine 0.9: the sliders take any value in the engine's range (aim.controls); the
+// ticks are marks, not stops (Jamie, 2026-11-20: "sliders, not step buttons").
 browserTest(
-  "the tilt slider settles on steps of 5, to 20 either way",
+  "the tilt slider takes any value to 20 either way, between the ticks too",
   async () => {
     const page = await open(env, "/practice/?nohowto=1", "portrait");
     try {
       await waitPhase(page, "aim", 10000);
+      const c = await page.evaluate(
+        () => window.__kubb.game.out.aim.controls.tilt,
+      );
+      assert.deepEqual([c.min, c.max, c.tick], [-20, 20, 1]);
       assert.equal((await slider(page, "side")).head, "TILT 0");
+      const ticks = await page.evaluate(
+        () => document.querySelectorAll("[data-test=side] .slider-tick").length,
+      );
+      assert.equal(ticks, 41, "a mark at every degree");
       await dragSlider(page, "side", [0.5, 0.7, 0.9, 1], { touch: true });
       await nextFrame(page);
       assert.equal((await state(page)).plan.tilt, 20);
@@ -116,20 +126,85 @@ browserTest(
       assert.equal(s.head, "TILT 20L");
       assert.equal(s.min, -20);
       assert.equal(s.max, 20);
-      assert.equal(s.now, -20);
-      // let go between detents: the nearest, and the knob settles there
-      await dragSlider(page, "side", [0.5, 0.6, 0.64], { touch: true });
+      // let go between the old steps of 5, and off a tick: the value stays there
+      await dragSlider(page, "side", [0.5, 0.6, 0.641], { touch: true });
       await nextFrame(page);
       const tilt = (await state(page)).plan.tilt;
-      assert.equal(tilt % 5, 0);
-      assert.equal(tilt, 5);
-      assert.equal((await slider(page, "side")).f, sideFraction(1, false));
+      assert.ok(tilt > 3 && tilt < 8, `${tilt}`);
+      assert.ok(
+        Math.abs(tilt - Math.round(tilt)) > 0.01,
+        `off a tick: ${tilt}`,
+      );
+      const after = await slider(page, "side");
+      assert.equal(after.head, `TILT ${Math.round(tilt)}R`);
+      assert.ok(Math.abs(after.f - (tilt + 20) / 40) < 1e-6, "the knob stays");
+      // an arrow key moves one tick, from where it is
+      await page.focus("[data-test=side]");
+      await page.keyboard.press("ArrowRight");
+      await nextFrame(page);
+      const t2 = (await state(page)).plan.tilt;
+      assert.ok(Math.abs(t2 - (tilt + 1)) < 1e-6, `${tilt} -> ${t2}`);
       assert.deepEqual(page.errors, []);
     } finally {
       await page.context().close();
     }
   },
 );
+
+// Engine 0.9: a kubb's spin is kept for the turn (in practice, throw to throw): the
+// slider shows the kept value when the next kubb comes up, and nothing resets it.
+browserTest("the spin a kubb was thrown with is the next kubb's", async () => {
+  const page = await open(env, "/practice/?nohowto=1", "desktop");
+  try {
+    await waitPhase(page, "aim", 10000);
+    await page.locator("[data-test=drill]").click();
+    await page.waitForFunction(
+      () => window.__kubb.game.out?.aim?.projectile === "kubb",
+      null,
+      { timeout: 5000, polling: 50 },
+    );
+    await nextFrame(page);
+    await dragSlider(page, "side", [0.5, 0.6, 0.7, 0.71]);
+    await nextFrame(page);
+    const spin = (await state(page)).plan.spin;
+    assert.ok(spin > 0.8 && spin < 1.8, `${spin}`);
+    assert.ok(
+      Math.abs(spin * 4 - Math.round(spin * 4)) > 0.01,
+      `off a tick: ${spin}`,
+    );
+    await page.waitForTimeout(900); // the side view's peek goes
+    const p = (await state(page)).plan;
+    await swing(
+      page,
+      sweep({
+        back: (p.powerLo + p.powerHi) / 2,
+        stop: p.release,
+        backDps: 900,
+        flickDps: 3600,
+      }),
+    );
+    await waitPhase(page, "play", 3000);
+    await waitPhase(page, "aim", 20000);
+    await page.waitForFunction(
+      () => window.__kubb.game.out?.aim?.projectile === "kubb",
+      null,
+      { timeout: 5000, polling: 50 },
+    );
+    await nextFrame(page);
+    const next = await page.evaluate(() => ({
+      plan: window.__kubb.game.out.aim.plan.spin,
+      control: window.__kubb.game.out.aim.controls.spin.value,
+    }));
+    assert.ok(Math.abs(next.plan - spin) < 1e-9, `${spin} -> ${next.plan}`);
+    assert.ok(Math.abs(next.control - spin) < 1e-9);
+    const s = await slider(page, "side");
+    assert.equal(s.head, `SPIN ${Math.round(spin * 10) / 10}R`);
+    assert.ok(Math.abs(s.f - (spin + 3) / 6) < 1e-6, "the knob where it was");
+    assert.deepEqual(page.errors, []);
+  } finally {
+    await page.context().close();
+  }
+});
 
 browserTest("throwing KUBBS the slider is SPIN, to 3 either way", async () => {
   const page = await open(env, "/practice/?nohowto=1", "desktop");

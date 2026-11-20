@@ -13,6 +13,15 @@
 // the thumb, so the value reads while it is dragged. The whole body takes the
 // press: a press anywhere jumps the knob there and keeps dragging.
 //
+// Since engine 0.9 the engine gives each slider its numbers (`aim.controls`,
+// the engine's docs/SESSION.md "The controls": { min, max, value, default,
+// tick, step, unit, scope }) and takes any value in the range (setArc,
+// setTilt, setSpin; Jamie, 2026-11-20: "more analog allow the slider to select
+// any value in a range"). Then the scale is the control's, a mark is drawn at
+// every `tick` (a long one at every `step`) and the knob rests wherever it is
+// let go. A match on an older engine has no `controls`: the scale is `limits`
+// and TILT and SPIN settle on the engine's steps, as before.
+//
 // The pure part (the scale both ways) is exported for tests; PlanSlider is
 // the DOM and the pointer. The game decides what a drag does (game.js
 // planSlide): the engine is called at most once a frame.
@@ -63,24 +72,71 @@ export function sideFraction(step, kubb) {
   return clamp01((step / n + 1) / 2);
 }
 
-// The header's words: ARC 32° from the plan's loft; TILT 10R, SPIN 2L,
-// TILT 0.
-export const arcLabel = (plan) => `ARC ${Math.round(plan?.loft ?? 0)}°`;
-export function sideLabel(plan, kubb) {
-  const v = kubb ? plan?.spin || 0 : plan?.tilt || 0;
-  const word = kubb ? "SPIN" : "TILT";
-  if (Math.round(v) === 0) return `${word} 0`;
-  return `${word} ${Math.abs(Math.round(v))}${v < 0 ? "L" : "R"}`;
+// ---------- the engine's controls (0.9 on) ----------
+
+// The control a slider shows: ARC's, or a baton's tilt or a kubb's spin; null on
+// an engine before 0.9 (no `aim.controls`).
+export function controlOf(controls, what, kubb) {
+  if (!controls) return null;
+  const c =
+    what === "arc" ? controls.arc : kubb ? controls.spin : controls.tilt;
+  return c && Number.isFinite(c.min) && Number.isFinite(c.max) && c.max > c.min
+    ? c
+    : null;
 }
-// For a screen reader: "Tilt 10 degrees right", "Spin 2 left", "straight".
-export function sideValueText(plan, kubb) {
-  const v = Math.round(kubb ? plan?.spin || 0 : plan?.tilt || 0);
+// The value for a place on the track (0 the bottom or left end, 1 the top or
+// right), any value in the range, and a value's place.
+export const valueAt = (c, f) => c.min + clamp01(f) * (c.max - c.min);
+export const fractionOf = (c, v) =>
+  clamp01(((v ?? c.default ?? c.min) - c.min) / (c.max - c.min));
+// The marks: a small one at every tick, a full one at every step, and the long
+// heavy one at the middle of a side slider (0) and ARC's normal throw (3
+// o'clock), as the step scale has them.
+export function controlMarks(c, what) {
+  const n = Math.round((c.max - c.min) / c.tick);
+  if (!(n > 0) || n > 200) return [];
+  const centre = what === "arc" ? limits.releaseNormal : 0;
+  const on = (v, by) => Math.abs(v / by - Math.round(v / by)) < 1e-6;
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const v = c.min + i * c.tick;
+    const mid = Math.abs(v - centre) < 1e-6;
+    out.push({
+      f: fractionOf(c, v),
+      long: mid,
+      centre: mid && what !== "arc",
+      minor: !mid && !(c.step > 0 && on(v - c.min, c.step)),
+    });
+  }
+  return out;
+}
+// A value as the header shows it: whole degrees, a spin to a tenth of a tap.
+function shown(v, kubb) {
+  const d = kubb ? 10 : 1;
+  const r = Math.round(Math.abs(v) * d) / d;
+  return r === 0 ? 0 : r;
+}
+
+// The header's words: ARC 32° from the plan's loft; TILT 10R, SPIN 2L,
+// TILT 0, and since 0.9 values between the steps: TILT 7R, SPIN 1.3L.
+export const arcLabel = (plan) => `ARC ${Math.round(plan?.loft ?? 0)}°`;
+const sideOf = (plan, kubb, c) =>
+  c ? c.value || 0 : kubb ? plan?.spin || 0 : plan?.tilt || 0;
+export function sideLabel(plan, kubb, c = null) {
+  const v = sideOf(plan, kubb, c);
+  const word = kubb ? "SPIN" : "TILT";
+  const a = c ? shown(v, kubb) : Math.abs(Math.round(v));
+  if (a === 0) return `${word} 0`;
+  return `${word} ${a}${v < 0 ? "L" : "R"}`;
+}
+// For a screen reader: "Tilt 10 degrees right", "Spin 2 left", "Tilt none".
+export function sideValueText(plan, kubb, c = null) {
+  const raw = sideOf(plan, kubb, c);
+  const a = c ? shown(raw, kubb) : Math.abs(Math.round(raw));
   const word = kubb ? "Spin" : "Tilt";
-  if (v === 0) return `${word} none`;
-  const dir = v < 0 ? "left" : "right";
-  return kubb
-    ? `${word} ${Math.abs(v)} ${dir}`
-    : `${word} ${Math.abs(v)} degrees ${dir}`;
+  if (a === 0) return `${word} none`;
+  const dir = raw < 0 ? "left" : "right";
+  return kubb ? `${word} ${a} ${dir}` : `${word} ${a} degrees ${dir}`;
 }
 
 // What the held slider does, in a line shown while it is held and through
@@ -107,14 +163,15 @@ export function captionOf(what, kubb) {
 // The lean of the caption's baton for a plan: its tilt in degrees, right
 // positive, kept to the engine's range.
 export function leanOf(plan) {
-  const t = Math.round(plan?.tilt || 0);
+  const t = plan?.tilt || 0;
   return Math.max(-limits.tiltMax, Math.min(limits.tiltMax, t));
 }
 
 // A slider. what: "arc" | "side"; onSlide(what, f, phase) with phase
 // "down", "move" or "up" and f the place on the track (0..1, bottom to top
 // or left to right), or "cancel" when the hold ends without a release;
-// onKey(what, step) for the arrow keys.
+// onKey(what, step, fine) for the arrow keys (fine: an arrow, a tick where the
+// engine has ticks; PageUp and PageDown a step).
 export class PlanSlider {
   constructor(what, { onSlide, onKey }) {
     this.what = what;
@@ -174,7 +231,7 @@ export class PlanSlider {
     this.lane.replaceChildren(
       ...list.map((m) => {
         const t = h(
-          `div.slider-tick${m.long ? ".long" : ""}${m.centre ? ".centre" : ""}`,
+          `div.slider-tick${m.long ? ".long" : ""}${m.centre ? ".centre" : ""}${m.minor ? ".minor" : ""}`,
         );
         t.style.setProperty("--at", String(m.f));
         return t;
@@ -235,7 +292,7 @@ export class PlanSlider {
       else return;
       e.preventDefault();
       e.stopPropagation();
-      this.onKey(this.what, step);
+      this.onKey(this.what, step, !e.code.startsWith("Page"));
     });
   }
 
@@ -249,8 +306,14 @@ export class PlanSlider {
     this.onSlide(this.what, 0, "cancel");
   }
 
-  // Each frame the plans show: plan is the engine's aim.plan.
-  update(plan, kubb) {
+  // Each frame the plans show: plan is the engine's aim.plan, controls its
+  // aim.controls (engine 0.9 on; null before).
+  update(plan, kubb, controls = null) {
+    const c = controlOf(controls, this.what, kubb);
+    if (c) return this.updateControl(plan, kubb, c);
+    this.set("scale", "steps", () =>
+      this.vertical ? this.marks(this.arcMarks()) : this.cache.delete("kind"),
+    );
     let f, text, now, min, max, label, valueText;
     if (this.vertical) {
       f = arcFraction(plan?.release);
@@ -282,5 +345,45 @@ export class PlanSlider {
     this.set("max", max, (v) => this.el.setAttribute("aria-valuemax", v));
     this.set("now", now, (v) => this.el.setAttribute("aria-valuenow", v));
     this.set("vt", valueText, (v) => this.el.setAttribute("aria-valuetext", v));
+  }
+
+  // The engine's own control: its range and marks, the knob where the value is,
+  // under the finger while held. A kubb's spin kept for the turn (scope "turn")
+  // is the value the engine gives for the next kubb, so it shows as it is.
+  updateControl(plan, kubb, c) {
+    const what = this.vertical ? "arc" : kubb ? "spin" : "tilt";
+    this.set("scale", `${what}:${c.min}:${c.max}:${c.tick}:${c.step}`, () => {
+      this.cache.delete("kind");
+      this.marks(controlMarks(c, this.vertical ? "arc" : "side"));
+    });
+    const f = this.drag ? this.drag.f : fractionOf(c, c.value);
+    const d = !this.vertical && kubb ? 10 : 1;
+    const round = (v) => Math.round(v * d) / d;
+    this.set(
+      "text",
+      this.vertical ? arcLabel(plan) : sideLabel(plan, kubb, c),
+      (t) => (this.head.textContent = t),
+    );
+    this.set("f", Math.round(f * 1000) / 1000, (v) =>
+      this.el.style.setProperty("--f", String(v)),
+    );
+    const label = this.vertical ? "Arc" : kubb ? "Spin" : "Tilt";
+    this.set("label", label, (v) => this.el.setAttribute("aria-label", v));
+    this.set("min", round(c.min), (v) =>
+      this.el.setAttribute("aria-valuemin", v),
+    );
+    this.set("max", round(c.max), (v) =>
+      this.el.setAttribute("aria-valuemax", v),
+    );
+    this.set("now", round(c.value ?? c.default ?? 0), (v) =>
+      this.el.setAttribute("aria-valuenow", v),
+    );
+    this.set(
+      "vt",
+      this.vertical
+        ? `Arc ${Math.round(plan?.loft ?? 0)} degrees`
+        : sideValueText(plan, kubb, c),
+      (v) => this.el.setAttribute("aria-valuetext", v),
+    );
   }
 }

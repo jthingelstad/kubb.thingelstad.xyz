@@ -215,8 +215,9 @@ export class Hud {
     if (showPlans) {
       const p = aim.plan || {};
       const kubb = aim.projectile === "kubb";
-      this.arc.update(p, kubb);
-      this.side.update(p, kubb);
+      // engine 0.9 on: each slider's range and value from the engine
+      this.arc.update(p, kubb, aim.controls);
+      this.side.update(p, kubb, aim.controls);
       const on = !!st.plan;
       if (this.cache.get("sideView") !== on) {
         this.cache.set("sideView", on);

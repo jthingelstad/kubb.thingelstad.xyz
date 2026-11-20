@@ -642,6 +642,13 @@ body.game {
   height: 3px;
   margin-top: -1.5px;
 }
+/* engine 0.9's ticks between the steps: the value is free between them */
+.slider.vertical .slider-tick.minor {
+  width: 22%;
+  height: 1px;
+  margin-top: -0.5px;
+  opacity: 0.6;
+}
 .slider.vertical .slider-index {
   left: calc(30% + 1px);
   top: calc((1 - var(--f)) * 100%);
@@ -726,6 +733,12 @@ body.game {
   height: 7px;
   margin-left: -1px;
   left: calc(var(--at) * 100%);
+}
+.slider.horizontal .slider-tick.minor {
+  width: 1px;
+  height: 4px;
+  margin-left: -0.5px;
+  opacity: 0.6;
 }
 .slider.horizontal .slider-tick.centre {
   width: 3px;
@@ -829,7 +842,7 @@ body.game {
 }
 /* the report card stays above the winner card and the panels, which go on under it */
 #ui .report-scrim,
-#ui .sheet-scrim {
+#ui .sheet-scrim,
   z-index: 5;
 }
 .panel-host > *,
