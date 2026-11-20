@@ -704,9 +704,10 @@ browserTest(
 // The engine's own raises, not a staged one: the computer's throws of a seeded
 // match (both sides, played here in Node) are applied in the page to a pass and
 // play match that raises by hand, up to its nth raise, which the page then
-// draws. With seed 5 the 1st raise is South's (Team B's turned frame), the 2nd
-// North's, and the 5th South's with end 1 refused by the rules.
-const REAL_RAISE_SEED = 5;
+// draws. On engine 0.9 with seed 116 the 1st raise is South's (Team B's turned
+// frame), the 2nd North's, and the 3rd South's with end 1 refused by the rules, each
+// after a throw, so each has its settle card (on 0.8 it was seed 5 and the 5th).
+const REAL_RAISE_SEED = 116;
 function realRaiseOptions(cpu, raising) {
   return {
     seed: REAL_RAISE_SEED,
@@ -877,7 +878,7 @@ browserTest(
 
     // the rules refuse end 1: a tap nearer it sends nothing, the other stands
     {
-      const need = await toRealRaise(page, acts, 4);
+      const need = await toRealRaise(page, acts, 2);
       assert.deepEqual(
         need.ends.map((e) => e.ok),
         [false, true],
