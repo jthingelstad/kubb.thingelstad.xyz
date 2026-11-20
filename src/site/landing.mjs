@@ -16,12 +16,10 @@ import { heroScene } from "./art.mjs";
 import {
   ENGINE_REPO,
   IOS_REPO,
-  PLAYDATE_GAME,
   PLAYDATE_REPO,
   SITE_TITLE,
   TESTFLIGHT_URL,
   WEB_REPO,
-  ref,
 } from "./site.mjs";
 
 // A WebP's width and height from its header (VP8X, VP8 or VP8L).
@@ -226,49 +224,159 @@ function ios({ tinylytics, config = {} }) {
   });
 }
 
-// /playdate/: where the game began. Not released and with no date (the
-// Playdate games site says so), so the page promises neither.
+// /playdate/: the Playdate game, watched and installed right here (Jamie,
+// 2026-11-20: "do not require people to go to the playdate site to download
+// and install… reference the same file on that page… pull the video that we
+// are using into the throwing wood.com page so folks can see the game before
+// doing the work"). The reel, its poster, the screens and the build are the
+// ones the Playdate games site shows (its src/pages.mjs and src/games.mjs),
+// by their URLs there: one copy of each. The CSP allows that one origin for
+// images and media (src/site/csp.mjs). When the Playdate site moves to a new
+// build, change PLAYDATE_BUILD to its URL, size and notes. The version shown
+// is read from the file's own name (`make release` in playdate-kubb names it
+// from the game's pdxinfo), so the page never names another.
+export const PLAYDATE_MEDIA = "https://playdate.thingelstad.xyz/throwing-wood";
+export const PLAYDATE_REEL = `${PLAYDATE_MEDIA}/reel/throwing-wood-0.9.5`;
+export const PLAYDATE_BUILD = {
+  url: "https://files.thingelstad.com/playdate/throwing-wood/ThrowingWood-0.9.7.pdx.zip",
+  size: "571 KB", // its Content-Length, 570,996 bytes
+  notes: [
+    "Club and Pro throwers try for a half turn of the baton. Long throws from the baseline wobble more.",
+    "The computer puts spin on its drilled kubbs at Club and Pro.",
+    "A sliding baton can shove a fallen kubb into another piece.",
+  ],
+};
+export const playdateBuildFile = (url = PLAYDATE_BUILD.url) =>
+  new URL(url).pathname.split("/").pop();
+export const playdateBuildVersion = (url = PLAYDATE_BUILD.url) =>
+  playdateBuildFile(url).match(/^ThrowingWood-(\d+\.\d+\.\d+)\.pdx\.zip$/)[1];
+
+// Simulator captures from the Playdate site (800 x 480). They are from before
+// the clock throw, so the page says the dial looks different now.
+const PLAYDATE_SCREENS = [
+  [
+    "flight",
+    "A baton in the air over the pitch, flying toward the far baseline and its kubbs.",
+  ],
+  [
+    "hit",
+    "A baton strikes a kubb, which starts to tip. Its shadow is on the ground.",
+  ],
+  [
+    "three-kubbs",
+    "A low baton heads into three kubbs standing close together.",
+  ],
+  [
+    "hand-off",
+    "A black card between turns: pass the Playdate to Team A, with a small map of the pitch.",
+  ],
+  [
+    "winner",
+    "A black card at the end: Team A wins, with the turns, the hit rate and a broken king.",
+  ],
+];
+
+const SIDELOAD_HELP = "https://help.play.date/games/sideloading/";
+
 function playdate({ tinylytics, config = {} }) {
+  const version = playdateBuildVersion();
   const body = `<section class="hero">
   <div class="frame hero__inner hero__split">
     <div class="hero__text">
       <p class="label kicker">In development</p>
       <h1 class="display">On Playdate</h1>
       <p class="lede">This is where the game began. Kubb in black and white on the little yellow handheld. The crank is your throwing arm.</p>
-      <p>It is not out yet. You can load a test build from ${external(ref(PLAYDATE_GAME, "playdate"), "Jamie’s Playdate games site")}. The code is ${external(PLAYDATE_REPO, "on GitHub")}.</p>
+      <p>It is not in a store yet, but you can put the test build on your own Playdate today. It is free.</p>
+      <p class="actions"><a class="button button--start" href="#get">Get the test build</a></p>
     </div>
-    <figure class="hero__shot">
-      ${img("playdate-card", "The Playdate game’s black and white card. A baton strikes the B in KUBB, over the words THROWING WOOD.", { eager: true, cls: "shot shot--pixel" })}
+    <figure class="hero__shot reel">
+      <video class="shot shot--pixel reel__video" data-reel src="${PLAYDATE_REEL}.mp4" poster="${PLAYDATE_REEL}-poster.png" width="800" height="480" controls playsinline preload="metadata" aria-label="Kubb: Throwing Wood on Playdate, 26 seconds with no sound" aria-describedby="reel-about">
+        <a href="${PLAYDATE_REEL}.mp4" rel="noopener">Watch the game in play (MP4, 26 seconds)</a>
+      </video>
+      <figcaption id="reel-about">The game in the Playdate Simulator. The title screen, the first HOW TO PLAY card, the Playdate passed to the next team, a first baton, two field kubbs down with one baton, a kubb thrown in with a little spin, a shot at the king and the winner card. 26 seconds, no sound.</figcaption>
     </figure>
   </div>
 </section>
-<section class="frame" aria-labelledby="crank">
+<section class="frame prose" aria-labelledby="what">
+  <h2 class="display" id="what">What it is</h2>
+  <p>Kubb is a lawn game played with blocks of wood. You throw batons at the other side’s kubbs. Knock them all down, then topple the king to win.</p>
+  <p>Here it plays on the Playdate’s tiny black and white screen. The pitch is 5 meters by 8, seen from behind the thrower. Every baton and kubb is its real size, and real physics decides what falls. A baton can tumble, skid, or knock one kubb into the next. Throw it sideways like a helicopter and it does not count.</p>
+  <p>You play by the U.S. National Kubb Championship rules, with a 2-4-6 start. Every finished match is written down in Planet Kubb Notation, and you can read it back as a score sheet.</p>
+</section>
+<section class="frame prose" aria-labelledby="crank">
   <h2 class="display" id="crank">Crank to throw</h2>
+  <p class="section__lede">Think of the crank as a clock. Hanging straight down is 6. That is your arm.</p>
   <ol class="steps">
-    <li><strong>Wind it back.</strong> The crank is a clock, and six is your arm hanging down. Turn back past seven. The farther back, the harder the throw.</li>
-    <li><strong>Swing it forward.</strong> Bring it through six and up. Where you stop, the baton lets go. That sets the arc.</li>
-    <li><strong>Let it fly.</strong> Stop short and you drop the wind-up. Crank past twelve and it is a sky ball.</li>
+    <li><strong>Wind it back.</strong> Pull it up the left side for power. 9 o’clock throws about 4 meters. 10 o’clock throws about 8.</li>
+    <li><strong>Swing it forward.</strong> Bring it through 6 and up the right side, then stop. Where you stop sets the arc: 3 for a base kubb, 4 for a field kubb, half past 3 for the king. Crank all the way to 12 and it is a sky ball.</li>
+    <li><strong>Let it fly.</strong> TOK! The game tells you in a word how your power, your release and your aim went. Stop before 6 and you drop the wind-up with no throw.</li>
   </ol>
+  <p>Just want to throw? The aim circle starts on a kubb and the arc is picked for you. All you do is crank. HOW TO PLAY teaches the rules on six short cards, and HOW TO THROW walks you through a throw with the real crank.</p>
+  <table class="controls">
+    <caption class="label">Before the throw</caption>
+    <tbody>
+      <tr><th scope="row">D-pad</th><td>Move the aim circle. It does not stick to a kubb, so you can aim off one for the wind.</td></tr>
+      <tr><th scope="row">Hold A and the d-pad</th><td>Walk along the throwing line, step back, or come up to the advantage line</td></tr>
+      <tr><th scope="row">Hold B, up and down</th><td>Plan the arc. You see the pitch over your shoulder.</td></tr>
+      <tr><th scope="row">Hold B, left and right</th><td>Tilt the baton, or spin a drilled kubb</td></tr>
+      <tr><th scope="row">Crank back, forward, stop</th><td>Power, throw, and the arc</td></tr>
+    </tbody>
+  </table>
 </section>
 <section class="frame" aria-labelledby="modes">
   <h2 class="display" id="modes">What you can play</h2>
   <ul class="features">
-    <li><h3>Pass and play</h3><p>Pass the Playdate around. Up to six can play on each side.</p></li>
-    <li><h3>Play the Playdate</h3><p>The computer throws like you do. It picks a target and an arc, then swings.</p></li>
-    <li><h3>Saved players</h3><p>Each player is saved with their recent games, drill records and level.</p></li>
-    <li><h3>Seven drills</h3><p>8 Meters, The House, King Shots, Blast, The Wall, Around the Pitch and Doubles. Each keeps your best and your last ten tries.</p></li>
-    <li><h3>Score sheets</h3><p>Every finished game is saved as a Planet Kubb score sheet.</p></li>
-    <li><h3>Black and white</h3><p>Bold black lines and hard shadows on a white pitch.</p></li>
+    <li><h3>Play the Playdate</h3><p>A whole match against the computer. It throws like you do, and you see its swing on the clock.</p></li>
+    <li><h3>Pass and play</h3><p>Pass the Playdate around. One to six can play on each side.</p></li>
+    <li><h3>Saved players</h3><p>Each player keeps their own level (Beginner, Club or Pro), their games and their drill records.</p></li>
+    <li><h3>Seven drills</h3><p>8 Meters, The House, King Shots, Blast, The Wall, Around the Pitch and Doubles. Or just throw on an open pitch.</p></li>
+    <li><h3>Grass, sand or snow</h3><p>Pick the ground, add wind if you dare, and choose from five kubb sets.</p></li>
+    <li><h3>Real wood sounds</h3><p>The knock of wood on wood, recorded from a real set.</p></li>
+    <li><h3>Pick it up later</h3><p>Stop a match partway and finish it later.</p></li>
+    <li><h3>Score sheets</h3><p>Every finished game is saved as a Planet Kubb score sheet you can read back.</p></li>
   </ul>
-  <p>The web and iPhone games grew from this one. All three run the same <a href="/engine/">Kubb Engine</a>.</p>
+</section>
+<section class="frame" aria-labelledby="screens">
+  <h2 class="display" id="screens">Screens</h2>
+  <p class="section__lede">From an earlier build, at twice the Playdate’s size. The throwing dial looks different now.</p>
+  <ul class="pd-screens">
+    ${PLAYDATE_SCREENS.map(
+      ([name, alt]) =>
+        `<li><img class="shot shot--pixel" src="${PLAYDATE_MEDIA}/screens/${name}.png" width="800" height="480" alt="${esc(alt)}" loading="lazy" decoding="async"></li>`,
+    ).join("\n    ")}
+  </ul>
+</section>
+<section class="band band--wood" aria-labelledby="get">
+  <div class="frame prose">
+    <h2 class="display" id="get">Put it on your Playdate</h2>
+    <p class="section__lede">This is test build ${esc(version)}. It is free. It may still change, and a thing or two may break.</p>
+    <p class="actions"><a class="button button--start" href="${esc(PLAYDATE_BUILD.url)}" rel="noopener" data-test="playdate-download">Download the game</a></p>
+    <p class="actions__note">${esc(playdateBuildFile())}, ${esc(PLAYDATE_BUILD.size)}. A zipped Playdate game.</p>
+    <ol class="steps pd-install">
+      <li>Download the file and keep it zipped.</li>
+      <li>Sign in at ${external("https://play.date/account/sideload/", "play.date")} and open your account’s Sideload page. Upload the file there. Your Playdate must be registered to your account.</li>
+      <li>On your Playdate, open the Game Library (Settings, then Games, on older system versions). Refresh the list if it has not, then download Kubb: Throwing Wood.</li>
+    </ol>
+    <p>A newer build goes on the same way and replaces this one. Panic’s ${external(SIDELOAD_HELP, "sideloading help")} shows other ways, like over USB.</p>
+    <h3>New in ${esc(version)}</h3>
+    <ul class="pd-notes">
+      ${PLAYDATE_BUILD.notes.map((n) => `<li>${esc(n)}</li>`).join("\n      ")}
+    </ul>
+  </div>
+</section>
+<section class="frame prose" aria-labelledby="open">
+  <h2 class="display" id="open">One game, three screens</h2>
+  <p>No Playdate? The same game plays <a href="/web/">in your browser</a> and <a href="/ios/">on iPhone and iPad</a>, in color. They grew from this one, and all three run the same <a href="/engine/">Kubb Engine</a>.</p>
+  <p>The Playdate game is open source. Its code is ${external(PLAYDATE_REPO, "on GitHub")}.</p>
 </section>`;
   return page({
     path: "/playdate/",
     title: `Playdate · ${SITE_TITLE}`,
     description:
-      "Kubb: Throwing Wood for Playdate, still in development. Throw with the crank, pass and play, and practice seven drills.",
+      "Kubb: Throwing Wood for Playdate. Watch it play, then put the free test build on your Playdate. The crank is your throwing arm.",
     body,
     tinylytics,
+    scripts: ["/js/reel.js"],
     release: config.release?.text,
   });
 }

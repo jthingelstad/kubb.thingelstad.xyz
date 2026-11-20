@@ -711,3 +711,32 @@ main > section.intro + section {
 .open-status:empty {
   display: none;
 }
+
+/* /playdate/: the reel at the top, the screens, the install steps on wood. */
+.reel__video {
+  aspect-ratio: 800 / 480;
+  background: #fff;
+}
+.reel figcaption {
+  margin-top: 0.7rem;
+  font-size: var(--jt-size-small);
+  max-width: var(--jt-measure);
+}
+.pd-screens {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 1.2rem;
+}
+.pd-install li::before {
+  background: var(--paper);
+}
+.pd-notes {
+  max-width: var(--jt-measure);
+  padding-left: 1.2rem;
+}
+.pd-notes li + li {
+  margin-top: 0.4rem;
+}
