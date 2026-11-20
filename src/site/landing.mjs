@@ -63,16 +63,18 @@ const external = (href, text) =>
   `<a href="${esc(href)}" rel="noopener">${text}</a>`;
 
 // The home of the game: what it is, the three ways in, and why it feels right.
-// One click from the top to the web game.
+// One click from the top to the web game. The words are short and plain (Jamie,
+// 2026-11-20: "Keep the language simple and short. 5th grade level. it is a
+// game. This is fun.").
 function landing({ tinylytics, config = {} }) {
   const body = `<section class="hero hero--landing">
   <div class="frame hero__inner hero__split">
     <div class="hero__text">
       <h1 class="hero__title"><span class="hero__kubb">Kubb</span><span class="hero__band">Throwing Wood</span></h1>
-      <p class="lede">Kubb, the Swedish lawn game of wooden batons and blocks, played the way it is on the grass: the tournament rules, real physics, and a throw you make by feel.</p>
+      <p class="lede">Throw sticks of wood at blocks of wood. Knock them all over, then topple the king. That is kubb, the lawn game from Sweden. Some folks call it Viking chess.</p>
       <div class="actions">
         <a class="button button--start" href="/web/">Play now</a>
-        <p class="actions__note">Free in your browser. No sign-up, no download.</p>
+        <p class="actions__note">It runs in your browser. No sign-up and nothing to download.</p>
         <div class="actions__more">
           <a class="button" href="/ios/">iPhone and iPad</a>
           <a class="button" href="/playdate/">Playdate</a>
@@ -80,30 +82,30 @@ function landing({ tinylytics, config = {} }) {
       </div>
     </div>
     <figure class="hero__shot">
-      ${img("web-hit", "The thrower’s view on the web: a baton strikes a kubb on the far baseline and a TOK! burst marks the hit, with the throwing dial at the right", { eager: true })}
+      ${img("web-hit", "A baton hits a kubb on the far baseline with a TOK! burst. The throwing dial is at the right.", { eager: true })}
     </figure>
   </div>
 </section>
 <section class="frame ways" aria-labelledby="ways">
   <h2 class="display" id="ways">Three ways to play</h2>
-  <p class="section__lede">One game in three places. The same rules, the same physics and the same computer opponent, because the same engine runs underneath all three.</p>
+  <p class="section__lede">Pick a screen. The rules and the wood are the same on each one.</p>
   <ul class="ways__list">
     <li class="way">
-      ${img("web-aim", "The web game before a throw: the aim circle on a kubb, the plan controls and the throwing dial")}
+      ${img("web-aim", "The web game before a throw. The aim circle sits on a kubb next to the throwing dial.")}
       <h3 class="way__title">In your browser</h3>
-      <p>Start a pitch and send the link, play the computer, watch the computer play itself, or practice. Throw with a finger or a mouse.</p>
+      <p>Start a pitch and send friends the link. Or play the computer, or just practice.</p>
       <p><a class="button" href="/web/">Play on the web</a></p>
     </li>
     <li class="way">
-      ${img("ios-aim", "The iPhone app before a throw: the aim circle on a kubb and the throwing dial, wind back", { cls: "shot shot--tall" })}
+      ${img("ios-aim", "The iPhone app before a throw, with the aim circle on a kubb and the dial reading WIND BACK.", { cls: "shot shot--tall" })}
       <h3 class="way__title">iPhone and iPad</h3>
-      <p>A native app with haptics under your thumb. It plays on the same pitches as the web, so a phone and a browser can share a match.</p>
+      <p>Throw with your thumb. Your phone can join the same pitch as a browser.</p>
       <p><a class="button" href="/ios/">The iPhone app</a></p>
     </li>
     <li class="way">
-      ${img("playdate-card", "The Playdate game’s launcher card in one-bit black and white: KUBB in block letters with a baton striking the B, over THROWING WOOD", { cls: "shot shot--pixel" })}
+      ${img("playdate-card", "The Playdate game’s black and white card. A baton strikes the B in KUBB, over the words THROWING WOOD.", { cls: "shot shot--pixel" })}
       <h3 class="way__title">Playdate</h3>
-      <p>Where the game began. The crank is your throwing arm: wind it back, swing it forward and let go.</p>
+      <p>This is where the game began. You throw by turning the crank.</p>
       <p><a class="button" href="/playdate/">The Playdate game</a></p>
     </li>
   </ul>
@@ -112,53 +114,52 @@ function landing({ tinylytics, config = {} }) {
   <div class="frame split">
     <div>
       <h2 class="display" id="friends">A pitch is a link</h2>
-      <p>Start a pitch and you get a link of its own. Send it. Whoever opens it joins you, types a name and picks a side, up to six a side, each on their own screen. Everyone sees every throw. An empty side is played by the computer.</p>
-      <p>Make a pitch open and anyone can find it in the list of open games and join.</p>
+      <p>Start a pitch and send its link. Friends type a name and pick a side, up to six a side. Each plays on their own screen. The computer plays any empty side.</p>
       <p><a class="button" href="/web/">Start a pitch</a></p>
     </div>
     <figure class="split__shot">
-      ${img("lobby", "A pitch’s lobby on the web: Pick a side, a name typed, a level of Beginner, Club or Pro, and Team A and Team B with room for six each")}
+      ${img("lobby", "A pitch’s lobby. A player named Birch picks a level and a side, with room for six on each team.")}
     </figure>
   </div>
 </section>
 <section class="frame split" aria-labelledby="again">
   <div>
-    <h2 class="display" id="again">Every throw, again</h2>
-    <p>When a match ends, its pitch keeps the replay for a year. Anyone with the link can watch the whole match again, throw by throw, from high on the sideline, and put it on another website.</p>
-    <p>Ask for a highlight reel and the game’s server cuts a short video of the match’s best throws, tall for a phone and wide for everything else, ready to share.</p>
+    <h2 class="display" id="again">Watch it again</h2>
+    <p>A finished match keeps its replay for a year. Anyone with the link can watch it again, throw by throw.</p>
+    <p>Want just the good parts? Ask for a highlight reel, a short video of the best throws.</p>
   </div>
   <figure class="split__shot">
-    ${img("reel", "A frame of a highlight reel: two kubbs knocked over by one baton with KLAK! bursts, captioned NORTH: THREE KUBBS WITH ONE BATON")}
+    ${img("reel", "A highlight reel frame. One baton knocks over two kubbs, KLAK! The caption says NORTH: THREE KUBBS WITH ONE BATON.")}
   </figure>
 </section>
 <section class="frame split split--flip" aria-labelledby="feel">
   <div>
-    <h2 class="display" id="feel">Thrown by feel</h2>
-    <p>There are no dice. Pull the meter back for power, flick it through and let go for the arc, and the baton flies, turns end over end and hits the wood where the physics says it does. A kubb tips into the next one. A clipped corner spins away.</p>
-    <p>The rules are the U.S. National Kubb Championship’s, with the 2-4-6 opening, and every match is written down as a score sheet in Planet Kubb Notation, the way a scorekeeper on the lawn writes it.</p>
-    <p><a class="more" href="/rules/">How Kubb is played</a></p>
+    <h2 class="display" id="feel">Throw by feel</h2>
+    <p>No dice here. Pull back for power, then flick and let go. The baton flips end over end. Real physics does the rest. TOK!</p>
+    <p>You play by the U.S. National Kubb Championship rules.</p>
+    <p><a class="more" href="/rules/">How to play kubb</a></p>
   </div>
   <figure class="split__shot">
-    ${img("web-flight", "A baton in flight toward two standing kubbs in the thrower’s view, in slow motion")}
+    ${img("web-flight", "A baton flies toward two standing kubbs, in slow motion.")}
   </figure>
 </section>
 <section class="band band--wood" aria-labelledby="engine-teaser">
   <div class="frame">
     <h2 class="display" id="engine-teaser">Why it feels right</h2>
-    <p class="section__lede">The Kubb Engine works out where the wood goes. It was tuned against 150 tournament games scored by hand and against video of real throws, and it gives the same answer to the last bit in a browser and on an iPhone.</p>
+    <p class="section__lede">We studied 150 tournament games and video of real throws. Then we tuned the game to match.</p>
     <p><a class="button" href="/engine/">Meet the engine</a></p>
   </div>
 </section>
 <section class="frame love-teaser" aria-labelledby="love-teaser">
-  <h2 class="display" id="love-teaser">Kubb creates peace and unites people</h2>
-  <p>Kubb is played on real lawns by real clubs. Go and find them: the championships, the leagues and the people who make the sets.</p>
+  <h2 class="display" id="love-teaser">Kubb creates peace on earth</h2>
+  <p>The best kubb is on real grass with real people. Go find a club near you.</p>
   <p><a class="more" href="/love/">Kubb sites we love</a></p>
 </section>`;
   return page({
     path: "/",
     title: SITE_TITLE,
     description:
-      "Kubb, the lawn game, with the tournament rules and real physics: play in your browser, on iPhone and iPad, or on Playdate. Start a pitch and send friends the link.",
+      "Kubb, the lawn game, in your browser, on iPhone and iPad, and on Playdate. Start a pitch and send friends the link.",
     body,
     bodyClass: "landing",
     tinylytics,
@@ -171,9 +172,9 @@ function landing({ tinylytics, config = {} }) {
 export function iosJoin(url = TESTFLIGHT_URL) {
   if (url)
     return `<p class="actions"><a class="button button--start" href="${esc(url)}" rel="noopener" data-test="testflight">Join the TestFlight</a></p>
-<p class="actions__note">TestFlight is Apple’s app for trying apps before they are released. Install it, then open the link on your iPhone or iPad.</p>`;
+<p class="actions__note">TestFlight is Apple’s app for trying apps early. Get it, then open the link on your iPhone or iPad.</p>`;
   return `<p class="notice" data-test="testflight-invite">The beta is by invitation for now.</p>
-<p class="actions__note">Meanwhile the same game is free in your browser.</p>
+<p class="actions__note">You can play the same game in your browser.</p>
 <p><a class="button" href="/web/">Play on the web</a></p>`;
 }
 
@@ -182,43 +183,43 @@ function ios({ tinylytics, config = {} }) {
   <div class="frame hero__inner hero__split">
     <div class="hero__text">
       <p class="label kicker">In beta on TestFlight</p>
-      <h1 class="display">Throwing Wood for iPhone and iPad</h1>
-      <p class="lede">The same Kubb, made for the phone in your hand: a native app with haptics, sound and a throw under your thumb. On an iPad it is the same game on a bigger screen.</p>
+      <h1 class="display">On iPhone and iPad</h1>
+      <p class="lede">Kubb in the palm of your hand. Wind up with your thumb and feel the dial tick. On an iPad the pitch is just bigger.</p>
       ${iosJoin()}
     </div>
     <div class="phones">
-      ${img("ios-aim", "The iPhone app before a throw: Turn 1, two batons left, the aim circle on a kubb and the dial reading WIND BACK", { eager: true, cls: "shot shot--tall" })}
-      ${img("ios-flight", "The iPhone app mid-throw: a baton in the air toward the far baseline, one baton left", { cls: "shot shot--tall" })}
+      ${img("ios-aim", "The iPhone app before a throw. Turn 1, two batons left, and the dial reads WIND BACK.", { eager: true, cls: "shot shot--tall" })}
+      ${img("ios-flight", "The iPhone app mid-throw. A baton flies toward the far baseline.", { cls: "shot shot--tall" })}
     </div>
   </div>
 </section>
 <section class="frame" aria-labelledby="app">
-  <h2 class="display" id="app">What is in the app</h2>
+  <h2 class="display" id="app">In the app</h2>
   <ul class="features">
-    <li><h3>Play online</h3><p>Start a pitch and share its link, or join one by link or code. Phones and browsers meet in the same lobby: pick a team or watch, with friends playing on the web.</p></li>
-    <li><h3>Play the computer</h3><p>The full match: the turn order, raising the kubbs, punishment kubbs, and the computer’s throws. A match cut short picks up where you left it.</p></li>
-    <li><h3>Practice</h3><p>Pick a surface, tap a kubb and throw, with nothing riding on it.</p></li>
-    <li><h3>Felt as well as seen</h3><p>The dial ticks as your arm crosses a target. Wood knocks when it hits, and the king rings when he falls. Sound and haptics each have their own switch.</p></li>
-    <li><h3>Highlight reels</h3><p>A finished pitch can make a short video of its best throws, and a match against the computer can be shared with a reel of its own.</p></li>
-    <li><h3>The score sheet</h3><p>Every match is written in Planet Kubb Notation, ready to copy at the end.</p></li>
+    <li><h3>Play online</h3><p>Join a pitch with a link or a code. Phones and browsers meet in the same lobby.</p></li>
+    <li><h3>Play the computer</h3><p>Play a full match against the computer. Stop partway and pick it up later.</p></li>
+    <li><h3>Practice</h3><p>Pick a surface, tap a kubb and throw. Nothing counts.</p></li>
+    <li><h3>Hear the wood</h3><p>Wood knocks when it hits. The king rings when he falls. Sound and the buzz each have their own switch.</p></li>
+    <li><h3>Highlight reels</h3><p>Make a short video of a match’s best throws.</p></li>
+    <li><h3>The score sheet</h3><p>Every match is written down in Planet Kubb Notation. Copy it at the end.</p></li>
   </ul>
 </section>
 <section class="band band--wood" aria-labelledby="same">
   <div class="frame">
-    <h2 class="display" id="same">The same throw on both screens</h2>
-    <p class="section__lede">The app runs the Kubb Engine, the same Lua as the web, with the same maths library built in, so a throw on an iPhone lands exactly where the same throw lands in a browser. That is why a phone and a browser can play one match. Its tests replay the engine’s reference matches and check every hash.</p>
-    <p><a class="more" href="/engine/">How the engine stays in step</a></p>
+    <h2 class="display" id="same">Same throw, both screens</h2>
+    <p class="section__lede">The app and the web run the same engine and the same math. A throw on an iPhone lands right where it lands in a browser. That is how the two can share one match.</p>
+    <p><a class="more" href="/engine/">How the engine keeps them together</a></p>
   </div>
 </section>
 <section class="frame prose" aria-labelledby="source">
   <h2 class="display" id="source">Open source</h2>
-  <p>The app is open source under the MIT licence: ${external(IOS_REPO, "throwingwood-ios on GitHub")}. The <a href="/privacy/">privacy page</a> says what the game keeps, on the web and in the app.</p>
+  <p>The app is open source under the MIT license. Its code is ${external(IOS_REPO, "on GitHub")}. The <a href="/privacy/">privacy page</a> says what the game keeps, on the web and in the app.</p>
 </section>`;
   return page({
     path: "/ios/",
     title: `iPhone and iPad · ${SITE_TITLE}`,
     description:
-      "Kubb: Throwing Wood for iPhone and iPad, in beta on TestFlight: a native app with haptics that plays on the same pitches as the web.",
+      "Kubb: Throwing Wood for iPhone and iPad, in beta on TestFlight. Throw with your thumb and play friends on the web.",
     body,
     tinylytics,
     release: config.release?.text,
@@ -232,40 +233,40 @@ function playdate({ tinylytics, config = {} }) {
   <div class="frame hero__inner hero__split">
     <div class="hero__text">
       <p class="label kicker">In development</p>
-      <h1 class="display">Throwing Wood for Playdate</h1>
-      <p class="lede">Where the game began: Kubb on the little yellow handheld, in crisp one-bit black and white. The crank is your throwing arm.</p>
-      <p>It is not released yet. A test build to sideload is on ${external(ref(PLAYDATE_GAME, "playdate"), "Jamie’s Playdate games site")}, and the source is ${external(PLAYDATE_REPO, "on GitHub")}.</p>
+      <h1 class="display">On Playdate</h1>
+      <p class="lede">This is where the game began. Kubb in black and white on the little yellow handheld. The crank is your throwing arm.</p>
+      <p>It is not out yet. You can load a test build from ${external(ref(PLAYDATE_GAME, "playdate"), "Jamie’s Playdate games site")}. The code is ${external(PLAYDATE_REPO, "on GitHub")}.</p>
     </div>
     <figure class="hero__shot">
-      ${img("playdate-card", "The Playdate game’s launcher card in one-bit black and white: KUBB in block letters with a baton striking the B, over THROWING WOOD", { eager: true, cls: "shot shot--pixel" })}
+      ${img("playdate-card", "The Playdate game’s black and white card. A baton strikes the B in KUBB, over the words THROWING WOOD.", { eager: true, cls: "shot shot--pixel" })}
     </figure>
   </div>
 </section>
 <section class="frame" aria-labelledby="crank">
-  <h2 class="display" id="crank">The crank is the arm</h2>
+  <h2 class="display" id="crank">Crank to throw</h2>
   <ol class="steps">
-    <li><strong>Wind it back.</strong> Read the crank as a clock, with 6 as the arm hanging down. Turn it back up past 7 and the wind-up starts; how far back you go is the power.</li>
-    <li><strong>Swing it forward.</strong> Bring it through 6 and on up the other side. Where the crank stops is where the baton leaves your hand, so it decides the arc.</li>
-    <li><strong>Let the physics decide.</strong> The throw is a simulation at real dimensions, not a dice roll. Stop short and the wind-up drops; crank on past 12 and it is a sky ball.</li>
+    <li><strong>Wind it back.</strong> The crank is a clock, and six is your arm hanging down. Turn back past seven. The farther back, the harder the throw.</li>
+    <li><strong>Swing it forward.</strong> Bring it through six and up. Where you stop, the baton lets go. That sets the arc.</li>
+    <li><strong>Let it fly.</strong> Stop short and you drop the wind-up. Crank past twelve and it is a sky ball.</li>
   </ol>
 </section>
 <section class="frame" aria-labelledby="modes">
-  <h2 class="display" id="modes">On the device</h2>
+  <h2 class="display" id="modes">What you can play</h2>
   <ul class="features">
-    <li><h3>Pass and play</h3><p>Hand the Playdate round. Up to six a side, each throwing in turn.</p></li>
-    <li><h3>Against the Playdate</h3><p>The computer throws the same way you do: it plans a target and an arc and makes a swing.</p></li>
-    <li><h3>Saved players</h3><p>Players are kept on the device with their histories: recent games, drill records and their level.</p></li>
-    <li><h3>Seven drills</h3><p>8 Meters, The House, King Shots, Blast, The Wall, Around the Pitch and Doubles, each with its best and its last ten runs.</p></li>
-    <li><h3>Score sheets</h3><p>Every finished game is saved as a score sheet in Planet Kubb Notation.</p></li>
-    <li><h3>One bit, hard shadows</h3><p>Bold black outlines, solid shadows and a white pitch, drawn for the Playdate’s screen.</p></li>
+    <li><h3>Pass and play</h3><p>Pass the Playdate around. Up to six can play on each side.</p></li>
+    <li><h3>Play the Playdate</h3><p>The computer throws like you do. It picks a target and an arc, then swings.</p></li>
+    <li><h3>Saved players</h3><p>Each player is saved with their recent games, drill records and level.</p></li>
+    <li><h3>Seven drills</h3><p>8 Meters, The House, King Shots, Blast, The Wall, Around the Pitch and Doubles. Each keeps your best and your last ten tries.</p></li>
+    <li><h3>Score sheets</h3><p>Every finished game is saved as a Planet Kubb score sheet.</p></li>
+    <li><h3>Black and white</h3><p>Bold black lines and hard shadows on a white pitch.</p></li>
   </ul>
-  <p>The web and the iPhone app grew out of this game, and all three run the same <a href="/engine/">Kubb Engine</a>. The Playdate does its sums in 32-bit numbers, so it plays its matches on its own.</p>
+  <p>The web and iPhone games grew from this one. All three run the same <a href="/engine/">Kubb Engine</a>.</p>
 </section>`;
   return page({
     path: "/playdate/",
     title: `Playdate · ${SITE_TITLE}`,
     description:
-      "Kubb: Throwing Wood for Playdate, in development: throw with the crank, pass and play up to six a side, seven drills and score sheets in Planet Kubb Notation.",
+      "Kubb: Throwing Wood for Playdate, still in development. Throw with the crank, pass and play, and practice seven drills.",
     body,
     tinylytics,
     release: config.release?.text,
@@ -281,7 +282,7 @@ function engine({ tinylytics, config = {} }) {
   const body = `<section class="hero">
   <div class="frame hero__inner">
     <h1 class="display">The Kubb Engine</h1>
-    <p class="lede">A baton clips a corner. The first kubb tips into the next. On Playdate, the web and iPhone, the same Lua code works out where the wood goes and what the throw scores.</p>
+    <p class="lede">A baton clips a corner. One kubb tips into the next. KLAK. The engine is the code that decides where the wood goes.</p>
   </div>
   ${heroScene()}
 </section>
@@ -290,63 +291,64 @@ function engine({ tinylytics, config = {} }) {
   <div class="cards">
     <article class="card">
       <h3 class="card__title">Written once</h3>
-      <p>The rules, the physics, the computer thrower, the score sheet and the online room are one body of pure Lua with no drawing, input or network of its own. Each game supplies those.</p>
+      <p>The rules, the physics and the computer player live in one place. Each game adds its own pictures and controls.</p>
     </article>
     <article class="card">
-      <h3 class="card__title">Copied byte for byte</h3>
-      <p>The Playdate, the web and the iPhone each carry a tagged release of the engine, unchanged. Each checks its copy against the release’s fingerprint of every file, and a build fails if a single byte differs.</p>
+      <h3 class="card__title">Copied exactly</h3>
+      <p>Each game carries an exact copy. If one tiny piece is different, the game will not build.</p>
     </article>
     <article class="card">
       <h3 class="card__title">Fixed in one place</h3>
-      <p>A change to how the game plays is made in the engine, released as a new tag and then taken up by each game. No game ever patches its own copy.</p>
+      <p>To change how the game plays, we change the engine. Then every game takes the new version.</p>
     </article>
   </div>
 </section>
 <section class="frame" aria-labelledby="checks">
-  <h2 class="display" id="checks">How close to the lawn?</h2>
+  <h2 class="display" id="checks">Checked against real kubb</h2>
   <div class="cards">
     <article class="card">
       <h3 class="card__title">150 tournament games</h3>
-      <p>We compared the computer’s play with 150 tournament games, many from the final rounds of a bracket, scored by hand in Planet Kubb Notation. The sheets tell us how often a baton missed, took one kubb or toppled a whole group.</p>
-      <p>At the computer’s pro level, a baton at a base kubb from 8 m hits 33.5% of the time; the tournament players hit 32.7%. Shots at the king: 82.8% against 83.8%. Taking two field kubbs with one baton is still harder for the computer: 5.7% against 16%.</p>
+      <p>Volunteers scored 150 tournament games by hand, throw by throw. We had the computer play and compared.</p>
+      <p>From the 8 meter line, the computer at its best hits a base kubb 33.5% of the time. Real players hit 32.7%. At the king it is 82.8% to 83.8%.</p>
+      <p>Taking two field kubbs with one baton is harder. The computer does it 5.7% of the time. Real players do it 16%.</p>
     </article>
     <article class="card">
-      <h3 class="card__title">220 moments of real play</h3>
-      <p>We marked 220 events frame by frame in public video of real play, most of them from tournament footage with a fixed camera. The painted pitch lines gave us a ruler for the near half of the field.</p>
-      <p>For 73 throws of a kubb, we could see both its landing and its resting place. That let us measure how far it travelled after it hit the grass.</p>
+      <h3 class="card__title">220 moments on video</h3>
+      <p>We marked 220 moments in videos of real games, frame by frame. The painted pitch lines worked as a ruler.</p>
+      <p>An inkast is a kubb thrown back over to the other side. In 73 inkasts we saw where the kubb landed and where it stopped. That told us how far a kubb rolls on grass.</p>
     </article>
     <article class="card">
-      <h3 class="card__title">1,063 physics cases</h3>
-      <p>We gave MuJoCo, a rigid-body physics simulator, the same pieces, masses and starting throws. We compared drops, strikes and chains of falling kubbs. Its solver settings gave stable enough measurements to score 1,039 cases.</p>
-      <p>One comparison caught a baton sliding too far after a bounce. Accounting for the friction during impact brought its stopping distance on grass closer to MuJoCo’s.</p>
+      <h3 class="card__title">1,063 physics tests</h3>
+      <p>We built the same pieces in MuJoCo, another physics program. Then we ran 1,063 tests with them.</p>
+      <p>One test caught a baton sliding too far after a bounce. We fixed its friction. Now it stops closer to where MuJoCo says.</p>
     </article>
   </div>
 </section>
 <section class="frame prose" aria-labelledby="hashes">
-  <h2 class="display" id="hashes">The same to the last bit</h2>
-  <p>A browser and an iPhone can sit on opposite sides of a pitch. Each plays every action itself, writes down the whole game state and calculates a short fingerprint of it called a hash. If the two ever disagreed, it would show on the very action where they parted.</p>
-  <p>They do not part. The web’s engine runs in WebAssembly with a portable maths library, the same bytes in every browser. The iPhone app builds that same maths library into its Lua, with the compiler told not to take shortcuts, so its floating point comes out identical. The engine’s reference corpus, 505 action hashes from 13 matches, is replayed on every change to the engine, and both the web and the iPhone app check it in their own tests.</p>
-  <p>In three complete matches played between the two clients, on grass, sand and snow, every action’s hash agreed, and each kept replay played back without a single difference. Playdate uses the same rules and throw model with its own 32-bit arithmetic, so it plays alone.</p>
+  <h2 class="display" id="hashes">Phone and browser agree</h2>
+  <p>A browser and an iPhone can share a pitch. Each works out every throw by itself. Then each turns the whole game into a short code, called a hash. If the two ever disagreed, the codes would not match.</p>
+  <p>They match. The web uses WebAssembly, which does math the same way in every browser. The iPhone uses the same math code, built to round numbers the same way.</p>
+  <p>We keep 505 hashes from 13 test matches. Every change to the engine must match them all.</p>
+  <p>We also played three full matches between a browser and an iPhone, on grass, sand and snow. Every throw matched. The Playdate does its math its own way, so it plays alone.</p>
 </section>
 <section class="frame prose" aria-labelledby="versions">
-  <h2 class="display" id="versions">A match keeps its engine</h2>
-  <p>Anything that could change where a throw lands gets a new engine version. A match belongs to the version it started on for its whole life: its play, its replay, its embed, its highlight reel and its score sheet. The web carries more than one engine, so a match started last month still replays exactly as it was played.</p>
-  <p>That is also what makes a replay honest. It is not a recording of pictures: it is the match played again from its start, action by action, by the same engine. A highlight reel is cut from that same re-run on the game’s server.</p>
+  <h2 class="display" id="versions">Old matches still work</h2>
+  <p>A change that could move a throw gets a new engine version. Each match keeps the version it started on. So do its replay and its reel. That is why last month’s match still plays back just as it happened.</p>
 </section>
 <section class="frame prose" aria-labelledby="notation">
   <h2 class="display" id="notation">What the scorekeeper writes</h2>
-  <p>Planet Kubb Notation fits a throw into a few characters. A dash is a miss. <code>2F</code> means one baton took two field kubbs. <code>K</code> means the king fell. Read the marks in order and you can follow a turn, baton by baton.</p>
-  <p>The engine writes that same notation as a match unfolds. The game can show you its score sheet, and the reader used for the archived games can score it.</p>
+  <p>Planet Kubb Notation writes each throw in a mark or two. A dash is a miss. <code>2F</code> means one baton took two field kubbs. <code>K</code> means the king fell. Read the marks in order and you can follow a whole turn.</p>
+  <p>The engine writes the same marks as you play.</p>
 </section>
 <section class="frame prose" aria-labelledby="open">
   <h2 class="display" id="open">Open source</h2>
-  <p>The engine is MIT-licensed and on GitHub: ${external(ENGINE_REPO, "kubb-engine")}. So are the games built on it: ${external(WEB_REPO, "the web")}, ${external(IOS_REPO, "the iPhone app")} and ${external(PLAYDATE_REPO, "the Playdate game")}.</p>
+  <p>The engine is open source under the MIT license, on GitHub as ${external(ENGINE_REPO, "kubb-engine")}. So are ${external(WEB_REPO, "the web game")}, ${external(IOS_REPO, "the iPhone app")} and ${external(PLAYDATE_REPO, "the Playdate game")}.</p>
 </section>`;
   return page({
     path: "/engine/",
     title: `The Kubb Engine · ${SITE_TITLE}`,
     description:
-      "One Kubb engine for Playdate, the web and iPhone: tuned against 150 tournament games and video of real play, and the same to the last bit in a browser and on an iPhone.",
+      "One kubb engine for Playdate, the web and iPhone. Tuned on 150 tournament games and video of real throws. A throw lands the same on a phone and in a browser.",
     body,
     tinylytics,
     release: config.release?.text,
@@ -359,34 +361,34 @@ export const LOVE = [
   {
     name: "USA Kubb",
     url: "https://www.usakubb.org",
-    text: "Home of the U.S. National Kubb Championship, the oldest and largest kubb tournament outside Europe, and the rules this game plays.",
+    text: "Home of the U.S. National Kubb Championship. They call it the oldest and biggest kubb tournament outside Europe. This game plays its rules.",
   },
   {
     name: "Kubb World Championship",
     url: "https://www.kubbvm.com",
-    text: "The world championship on Gotland in Sweden, whose own motto is that kubb unites people and creates peace on earth.",
+    text: "The world championship, on the island of Gotland in Sweden. Its motto says kubb unites people and creates peace on earth.",
   },
   {
     name: "Minnesota Kubb",
     url: "http://minnesotakubb.com",
-    text: "Home of the world’s largest winter kubb tournament, with leagues and a guide to the game for players in Minnesota.",
+    text: "Home of the world’s biggest winter kubb tournament. It has leagues too, and a guide to the game.",
   },
   {
     name: "Planet Kubb",
     url: "https://planetkubb.com",
-    text: "The home of Planet Kubb Notation, the scoresheet this game writes every match in; the Kubb Engine was tuned against an archive of 150 tournament games scored in it.",
+    text: "Home of Planet Kubb Notation, the way this game writes down every match. Our engine learned from 150 games scored with it.",
   },
   {
     name: "JP's Backyard Games",
     url: "https://www.jpsbackyardgames.com/",
-    text: "Lawn games for fun with friends, family and neighbours: game sets to buy or rent, and help making your own.",
+    text: "Lawn games for fun with friends, family and neighbors. Buy or rent a set, or get help making your own.",
   },
 ];
 
 function love({ tinylytics, config = {} }) {
   const body = `<section class="frame intro">
   <h1 class="display">Kubb Creates Peace and Unites People</h1>
-  <p class="lede">Throwing Wood is a game about a game. The real one is played on lawns, beaches and frozen lakes by clubs and families. Here are some of the places that keep it going.</p>
+  <p class="lede">Throwing Wood is a game about a game. The real one is played on grass, and even in the snow. Go say hi to the people who keep it going.</p>
 </section>
 <section class="frame" aria-labelledby="sites">
   <h2 class="display visually-hidden" id="sites">Kubb sites</h2>
@@ -404,7 +406,7 @@ function love({ tinylytics, config = {} }) {
     path: "/love/",
     title: `Kubb sites we love · ${SITE_TITLE}`,
     description:
-      "Kubb creates peace and unites people: USA Kubb, the Kubb World Championship, Minnesota Kubb, Planet Kubb and JP's Backyard Games.",
+      "Kubb creates peace and unites people. Visit USA Kubb, the Kubb World Championship, Minnesota Kubb, Planet Kubb and JP's Backyard Games.",
     body,
     tinylytics,
     release: config.release?.text,

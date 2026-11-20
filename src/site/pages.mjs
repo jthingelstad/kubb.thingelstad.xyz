@@ -63,7 +63,7 @@ function openGames(roomsUrl) {
   if (!roomsUrl) return "";
   return `<section class="frame open-games" aria-labelledby="open-games" data-rooms="${esc(roomsUrl)}" hidden>
   <h2 class="display" id="open-games">Open games</h2>
-  <p>Pitches whose host made them open. Join one and pick a side.</p>
+  <p>These pitches are open to anyone. Join one and pick a side.</p>
   <ul class="open-list" data-open-list></ul>
   <p class="open-status" data-open-status role="status">Looking for open games...</p>
 </section>`;
@@ -76,13 +76,13 @@ function web({ tinylytics, config = {} }) {
   const body = `<section class="hero">
   <div class="frame hero__inner">
     <h1 class="hero__title"><span class="hero__kubb">Kubb</span><span class="hero__band">Throwing Wood</span></h1>
-    <p class="lede">The lawn game of wooden blocks and batons, in your browser. Friends on one pitch, each on their own screen.</p>
+    <p class="lede">Kubb in your browser. Play with friends on one pitch, each on your own screen.</p>
     <div class="actions">
       <a class="button button--start" href="/p/" data-pitch="" data-start>Start a pitch</a>
       <fieldset class="access" data-access hidden>
         <legend class="label">Who can join</legend>
-        <label><input type="radio" name="access" value="invite" checked> Invite only: whoever has the link</label>
-        <label><input type="radio" name="access" value="open"> Open: listed below so anyone can join</label>
+        <label><input type="radio" name="access" value="invite" checked> Invite only, for people with the link</label>
+        <label><input type="radio" name="access" value="open"> Open, in the list below for anyone</label>
       </fieldset>
       <div class="actions__more">
         <a class="button" href="/p/?solo=1" data-pitch="?solo=1">Play the computer</a>
@@ -98,24 +98,27 @@ ${openGames(config.roomsUrl)}
 <section class="frame how" aria-labelledby="how">
   <h2 class="display" id="how">How it works</h2>
   <ol class="steps">
-    <li><strong>Start a pitch.</strong> You get a pitch of your own at its own link.</li>
-    <li><strong>Send the link.</strong> Whoever opens it joins you, types a name and picks a team, up to six a side. An empty side is played by the computer. Make it open and it is listed here under Open games, so anyone can join.</li>
-    <li><strong>Throw wood.</strong> Everyone watches every throw. Knock down their kubbs, then the king.</li>
+    <li><strong>Start a pitch.</strong> You get a pitch with its own link.</li>
+    <li><strong>Send the link.</strong> Friends open it, type a name and pick a team. Up to six can play on each side. The computer plays an empty side. Make your pitch open and it shows up under Open games for anyone.</li>
+    <li><strong>Throw wood.</strong> Everyone sees every throw. Knock down their kubbs, then the king.</li>
   </ol>
-  <p>No one to play with? Play the computer on a pitch of your own, or throw batons on the practice pitch. Or watch the computer play itself, one match after another.</p>
-  <p>Every match is recorded, with the names typed, so the game can be tested against real play: matches with friends, against the computer, and the computer against itself. Practice is not. Records are kept privately and not published. An open game’s place in the list shows only how many are on the pitch and whether it has started, never names. Feedback sent from the game’s menu, about a throw that looked wrong or anything else, is kept the same way: what you typed and the game as it stood, which can include the players’ names.</p>
-  <p>Anyone with a finished pitch’s link can make a highlight reel: a short video of the match’s best throws, with the team names, kept for a year like the replay. A match against the computer is shared only when you choose to, one match at a time: how it started (with the day and time), every throw, and the name you type for your side when you share it. It gets its own link, anyone with the link can watch it, and it is kept for a year.</p>
+  <p>No one to play with? Play the computer, or throw batons on the practice pitch. You can also sit back and watch the computer play itself, match after match.</p>
+  <p>Every match is recorded, with the names typed. That helps us test the game against real play. It covers matches with friends, against the computer and the computer against itself. Practice is not recorded. Records stay private and are never published.</p>
+  <p>The Open games list shows how many are on a pitch and if the match has started. It never shows names. Feedback from the game’s menu is kept privately too. It holds what you typed and the game as it stood, which can include the players’ names.</p>
+  <p>Anyone with a finished pitch’s link can make a highlight reel. It is a short video of the best throws, with the team names. Like the replay, it is kept for a year.</p>
+  <p>A match against the computer is shared only when you choose, one match at a time. It carries how the match started, with the day and time. It also carries every throw and the name you type for your side. It gets its own link. Anyone with the link can watch it, and it is kept for a year.</p>
 </section>
 <section class="frame about" aria-labelledby="about">
-  <h2 class="display" id="about">The same game, in your browser</h2>
-  <p>This is <a href="/">Kubb: Throwing Wood</a>, Jamie’s Kubb game, with the same rules, physics and computer thrower as on <a href="/playdate/">Playdate</a> and <a href="/ios/">iPhone</a>. Here you throw with a finger or a mouse: pull the meter back to the orange mark, then flick it through and let go on the blue mark.</p>
-  <p><a class="more" href="/rules/">How Kubb is played, and how to throw</a></p>
+  <h2 class="display" id="about">The same game</h2>
+  <p>This is <a href="/">Kubb: Throwing Wood</a>, Jamie’s kubb game. The rules, the physics and the computer player match the games on <a href="/playdate/">Playdate</a> and <a href="/ios/">iPhone</a>.</p>
+  <p>Here you throw with a finger or a mouse. Pull the meter back to the orange mark. Then flick it through and let go on the blue mark.</p>
+  <p><a class="more" href="/rules/">How to play and how to throw</a></p>
 </section>`;
   return page({
     path: "/web/",
     title: `Play in your browser · ${SITE_TITLE}`,
     description:
-      "Kubb, the lawn game, in your browser: start a pitch, send the link, and throw wood with your friends. Or play the computer, or practice.",
+      "Play kubb in your browser. Start a pitch, send the link and throw wood with friends. Or play the computer, or practice.",
     body,
     bodyClass: "home",
     tinylytics,
@@ -136,7 +139,7 @@ function rules({ tinylytics, config = {} }) {
   ).join("\n  ");
   const body = `<section class="frame intro">
   <h1 class="display">How to play</h1>
-  <p class="lede">Kubb in five short cards, the way a friend explains it on the lawn. The game plays the U.S. National Kubb Championship rules.</p>
+  <p class="lede">Kubb in five short cards, the way a friend explains it on the lawn. The game uses the U.S. National Kubb Championship rules.</p>
 </section>
 <section class="frame" aria-labelledby="rules">
   <h2 class="display visually-hidden" id="rules">The rules</h2>
@@ -147,40 +150,40 @@ function rules({ tinylytics, config = {} }) {
 <section class="frame prose" aria-labelledby="throw">
   <h2 class="display" id="throw">Throwing on the web</h2>
   ${GAME_READY ? "" : `<p class="notice">The game is still being built; this is how its throw is designed to work.</p>`}
-  <p>You throw with the meter, low on the screen beside the pitch. It is a clock or a straight track, whichever you like (MENU, Meter), on the left or the right (MENU, Meter side).</p>
+  <p>You throw with the meter, low on the screen beside the pitch. It can be a clock or a straight track (MENU, Meter). It can sit on the left or the right (MENU, Meter side).</p>
   <ol class="throw-steps">
-    <li><strong>Pull back to the orange mark.</strong> On the clock, drag the knob from the bottom up the left side; on the track, drag the knob down. Go at any speed. How far back you go is the power.</li>
+    <li><strong>Pull back to the orange mark.</strong> On the clock, drag the knob from the bottom up the left side. On the track, drag the knob down. Go at any speed. How far back you go is the power.</li>
     <li><strong>Flick through and let go on the blue mark.</strong> Swing quickly back through the bottom and up, and let go on the blue mark. Where you let go is the arc. A slow flick throws short.</li>
     <li><strong>Or change your mind.</strong> Bring the knob back to the bottom slowly and nothing is thrown.</li>
   </ol>
-  <p>Your finger does not have to cover the meter. With a finger you can drag outside the clock’s ring, and with the track you can stroke anywhere low on the screen. For your first few throws, and after a slow one, the meter says what to do next; the last throw’s marks stay on it as faint knobs.</p>
+  <p>Your finger does not have to cover the meter. You can drag outside the clock’s ring, or stroke anywhere low on the screen with the track. For your first few throws, and after a slow one, the meter tells you what to do next. Your last throw’s marks stay on it as faint knobs.</p>
   <table class="controls">
     <caption class="label">Before the throw</caption>
     <tbody>
-      <tr><th scope="row">Tap the pitch, or drag; the arrow keys</th><td>Aim: the circle is where the throw should land. A tap puts it there; a finger’s drag moves it at half the finger’s speed, so you can see it.</td></tr>
+      <tr><th scope="row">Tap or drag the pitch, or the arrow keys</th><td>Aim. The circle is where the throw should land. A tap puts it there. A drag moves it at half your finger’s speed, so you can see it.</td></tr>
       <tr><th scope="row">ARC, or R and F</th><td>A higher arc drops in steeper. A lower one skids in.</td></tr>
       <tr><th scope="row">TILT, or Q and E</th><td>Tilt leans the baton to steer it through a group. For a kubb it is SPIN, which keeps it steady in the air.</td></tr>
       <tr><th scope="row">SIDE VIEW, or hold Shift</th><td>The camera out over your shoulder, with the arc drawn. Sliding ARC or TILT shows it too.</td></tr>
-      <tr><th scope="row">STAND, or A and D, W and S</th><td>Where you stand: drag the ring along your line or back from it, and up to the advantage line when there is one.</td></tr>
+      <tr><th scope="row">STAND, or A and D, W and S</th><td>Where you stand. Drag the ring along your line or back from it. When there is an advantage line, you can go up to it.</td></tr>
     </tbody>
   </table>
   <table class="controls">
     <caption class="label">In a match</caption>
     <tbody>
-      <tr><th scope="row">Touch the kubb</th><td>Raise a kubb: touch it nearer the end it should stand on, or drag it up toward that end.</td></tr>
+      <tr><th scope="row">Touch the kubb</th><td>Raise a kubb. Touch it near the end it should stand on, or drag it up toward that end.</td></tr>
       <tr><th scope="row">AUTO, AUTO ALL</th><td>Let the game raise this kubb, or the rest of this turn’s. MENU, Raising does it for the rest of the game.</td></tr>
       <tr><th scope="row">Drag or tap, then PLACE IT</th><td>Put a punishment kubb in the defenders’ half, clear of the stakes and the king.</td></tr>
       <tr><th scope="row">SKIP, or Space</th><td>Skip to the end of a throw.</td></tr>
       <tr><th scope="row">MENU, SEND FEEDBACK</th><td>Tell us a throw looked wrong, or anything else.</td></tr>
     </tbody>
   </table>
-  <p>Touch nothing but the meter and the throw is a sensible one at the nearest kubb.</p>
+  <p>If you only touch the meter, you get a good throw at the nearest kubb.</p>
 </section>`;
   return page({
     path: "/rules/",
     title: `How to play Kubb · ${SITE_TITLE}`,
     description:
-      "How Kubb is played, in five short cards, and how to throw on the web with a finger or a mouse.",
+      "How to play kubb in five short cards, and how to throw on the web with a finger or a mouse.",
     body,
     tinylytics,
     release: config.release?.text,
