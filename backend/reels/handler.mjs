@@ -1,7 +1,8 @@
 // The reel function on AWS (kubb-xyz-site-reels): one render a call, invoked
-// asynchronously by the rooms function with { room, v, tag }. docs/REEL.md,
-// docs/ROOMS.md section 12. The work is job.mjs; this file is the adapters and the
-// package's own files.
+// asynchronously by the rooms function with { room, v, tag }, or one check of a shared
+// match against the computer, invoked synchronously with { check: g } (docs/REEL.md,
+// docs/ROOMS.md sections 12 and 13). The work is job.mjs and check.mjs; this file is the
+// adapters and the package's own files. A check reads and writes nothing: it answers.
 //
 //   TABLE         the rooms table: GetItem on the kept replay, UpdateItem on the reel item
 //   SITE_BUCKET   the site bucket: PutObject under reels/
@@ -16,6 +17,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { reelStore, s3Uploader } from "./aws.mjs";
+import { checkShare } from "./check.mjs";
 import { runReel } from "./job.mjs";
 import { renderReel } from "./render.mjs";
 import { parseEngines } from "./tag.mjs";
@@ -36,10 +38,41 @@ export function packageAssets() {
   };
 }
 
+// A check, answered to the rooms function that waits for it. Logged: the step that
+// failed, the engine and the size, never a name.
+export async function checkHandler(event, { sources, engine, engines }) {
+  const t0 = Date.now();
+  const out = await checkShare({ g: event.check, sources, engine, engines });
+  console.log(
+    JSON.stringify({
+      check: out.ok ? "ok" : out.why,
+      step: out.ok ? null : out.step,
+      engine,
+      played:
+        typeof event.check?.engine === "string"
+          ? event.check.engine.slice(0, 64)
+          : null,
+      actions: Array.isArray(event.check?.log) ? event.check.log.length : null,
+      ms: Date.now() - t0,
+    }),
+  );
+  return out;
+}
+
+let assets = null;
 let ready = null;
 export async function handler(event) {
+  if (event && typeof event === "object" && "check" in event) {
+    assets ??= packageAssets();
+    return checkHandler(event, {
+      sources: assets.sources,
+      engine: assets.engine,
+      engines: parseEngines(process.env.REEL_ENGINES),
+    });
+  }
   ready ??= (() => {
-    const { sources, engine, assets } = packageAssets();
+    assets ??= packageAssets();
+    const { sources, engine } = assets;
     return {
       engine,
       store: reelStore({
@@ -56,7 +89,7 @@ export async function handler(event) {
           code,
           out,
           sources,
-          assets,
+          assets: assets.assets,
           log: (line) => console.log(line),
         }),
     };
