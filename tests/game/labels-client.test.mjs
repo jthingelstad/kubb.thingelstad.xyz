@@ -120,7 +120,7 @@ browserTest("the menu's rows say what they set and show it", async () => {
     // the older engine the page also plays under it
     assert.equal(
       await page.textContent("[data-test=menu-version-label]"),
-      "0.2.1 (0.8.1)",
+      "0.2.2 (0.8.1)",
     );
     assert.equal(
       await page.textContent("[data-test=menu-version-also]"),
