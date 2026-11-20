@@ -44,8 +44,6 @@ import {
   drawLinear,
   linearGeometry,
   armAtY,
-  knobHit,
-  bodyHit,
   linearTune,
   drawNudge,
   fingerAt,
@@ -55,11 +53,15 @@ import {
 } from "./draw.js";
 import {
   layoutFor,
+  meterRoom,
+  linearFirst,
+  inLinearZone,
   worldFit,
   panFor,
   isTall,
   stillFit,
   wideBox,
+  tune as layoutTune,
 } from "./layout.js";
 import {
   settleItems,
@@ -332,6 +334,7 @@ export class Game {
     const was = this.wide;
     this.wide = next;
     if (was?.key !== next?.key) this.refetch();
+    this.placeRoom();
     this.onWide?.(this);
   }
 
@@ -1191,6 +1194,8 @@ export class Game {
       swing,
       finger: this.coarse ? "touch" : "mouse",
       zoneFrom: tune.zoneFrom,
+      // the header row's foot: the fingertip stays under it on a wide canvas
+      ceiling: this.L.safe.top + layoutTune.railH + layoutTune.margin * 1.5,
       caption,
     };
     drawNudge(this.ctx, this.L, frame, opts);
@@ -1270,6 +1275,22 @@ export class Game {
     }
     this.fit = worldFit(W, H, this.panX);
     if (this.engine) this.applyWide();
+    this.placeRoom();
+  }
+
+  // The top corner's plates (MENU and the practice tray, or the rail and the
+  // shouts) move in beside a wide canvas's linear meter where it comes up
+  // into the header row (layout.js meterRoom; game.css --meter-l, --meter-r).
+  // The wide view draws no meter, so they stay put there.
+  placeRoom() {
+    const root = typeof document !== "undefined" && document.documentElement;
+    if (!root?.style) return;
+    const r = this.wide ? { left: 0, right: 0 } : meterRoom(this.L);
+    const key = `${r.left}:${r.right}`;
+    if (this.roomKey === key) return;
+    this.roomKey = key;
+    root.style.setProperty("--meter-l", `${r.left}px`);
+    root.style.setProperty("--meter-r", `${r.right}px`);
   }
 
   resizeIfNeeded() {
@@ -1395,6 +1416,8 @@ export class Game {
   }
 
   drawMap(aim, pieces, extra = {}) {
+    // not drawn where a narrow wide canvas has no room for it (layout.js planAt)
+    if (!this.L.minimap) return;
     const v = this.viewData || {};
     drawMinimap(this.ctx, this.L.minimap, {
       items: pieces,
@@ -1672,13 +1695,21 @@ export class Game {
       // The linear meter is grabbed by its knob, which is home: the press is
       // the arm at 6 wherever on the knob it lands, and the rest of the body
       // only keeps the press from the pitch.
+      // On a wide canvas a finger grabs the knob across its channel only, and
+      // the rest of the body is throw zone (layout.js linearFirst).
+      const onLinear = linear
+        ? linearFirst(this.L, g, x, y, {
+            touch,
+            reach: touch ? linearTune.grabTouch : linearTune.grabMouse,
+          })
+        : null;
       const onDial = linear
-        ? knobHit(g, x, y, touch ? linearTune.grabTouch : linearTune.grabMouse)
+        ? onLinear === "dial"
         : swipe
           ? Math.hypot(x - g.cx, y - g.cy) <= g.r
           : hitTest(g, x, y);
       if (onDial) kind = swipe ? "swipe" : "dial";
-      else if (linear && bodyHit(g, x, y)) kind = "none";
+      else if (onLinear) kind = onLinear;
       else if (
         this.near(aim.marker, x, y, touch ? tune.grabTouch : tune.grabMouse)
       )
@@ -1696,7 +1727,11 @@ export class Game {
       }
       // the linear meter's throw zone: a tap there aims as any tap does; a
       // drag becomes the stroke (move)
-      else if (linear && y >= this.H * tune.zoneFrom) kind = "zone";
+      else if (
+        linear &&
+        inLinearZone(this.L, x, y, { touch, zoneFrom: tune.zoneFrom })
+      )
+        kind = "zone";
       else kind = "tap";
       if (kind === "swipe") {
         this.sampleTouch(e, "down");

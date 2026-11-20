@@ -7,7 +7,8 @@
 import { h, button } from "../ui/dom.js";
 import { PlanSlider, captionOf, leanOf } from "./plan-sliders.js";
 import { StandPad, standCaption } from "./stand-pad.js";
-import { linearGeometry } from "../render/linear.js";
+import { linearGeometry, tabRect } from "../render/linear.js";
+import { tune as layoutTune } from "./layout.js";
 import { dialGeometry, tune as dialTune } from "../render/dial.js";
 
 // The verdict chips under the flag, from the core's words (throwplan.lua
@@ -276,17 +277,25 @@ export class Hud {
     this.cache.set("capPlace", pk);
     const r = this.plans.getBoundingClientRect();
     const s = this.caption.style;
-    // and above the linear meter's prompt tab, which hangs toward the plan
-    let top = r.top;
-    if (L.meter === "linear") {
-      const g = linearGeometry(L.dial, L.meterSide);
-      top = Math.min(top, g.y0 - g.promptH / 2 - 4);
-    }
-    s.bottom = `${L.H - top + 8}px`;
     const split = L.side === "both";
     // it grows away from the meter beside it, or from the screen's edge
     // the block is at (a wide touchscreen, L.planEdge)
     const toRight = L.planEdge ? L.planEdge === "left" : L.side === "right";
+    // and above the linear meter's prompt tab, which hangs toward the plan,
+    // where the caption's span reaches it (the block at the far edge of a
+    // phone on its side leaves the tab well clear), and above a minimap
+    // stacked over the block (layout.js planAt)
+    let top = r.top;
+    if (L.meter === "linear") {
+      const t = tabRect(linearGeometry(L.dial, L.meterSide));
+      const w = Math.max(r.width, 330);
+      const x0 = split ? r.left : toRight ? r.left : r.right - w;
+      const x1 = split ? r.right : x0 + w;
+      if (split || (x0 < t.x + t.width + 8 && x1 > t.x - 8))
+        top = Math.min(top, t.y - 4);
+    }
+    if (L.mapStacked && L.minimap) top = Math.min(top, L.minimap.y);
+    s.bottom = `${L.H - top + 8}px`;
     this.caption.classList.toggle("split", split);
     this.caption.classList.toggle("from-left", !split && toRight);
     if (split) {
@@ -321,11 +330,20 @@ export class Hud {
     const linear = L.meter === "linear";
     const d = L.dial;
     let bottom, anchor, align; // anchor: the x the line is centred on or ends at
+    // Beside a wide canvas's linear meter with the plan block away at the
+    // far edge (a phone on its side) the line hangs under the tab instead,
+    // in the meter's half: over the tab it would meet the verdicts and the
+    // header on a short screen (the iPhone app's coachBand).
+    let under = null;
     if (linear) {
       const g = linearGeometry(d, L.meterSide);
       bottom = g.y0 - g.promptH / 2 - 8;
       align = L.meterSide === "left" ? "left" : "right";
       anchor = align === "right" ? d.x : d.x + d.width;
+      if (!L.tall && L.planEdge) {
+        const t = tabRect(g);
+        under = t.y + t.height + 8;
+      }
     } else {
       const g = dialGeometry(d);
       const ph = Math.max(14, g.r * dialTune.promptH);
@@ -337,15 +355,22 @@ export class Hud {
     // edges and of plan controls level with the line (up to 76 px above it)
     let lo = L.safe.left + 8;
     let hi = L.W - L.safe.right - 8;
+    if (under != null) {
+      const mid = L.W / 2;
+      if (align === "right") lo = Math.max(lo, mid + layoutTune.planClear);
+      else hi = Math.min(hi, mid - layoutTune.planClear);
+    }
+    const band = under != null ? [under, under + 76] : [bottom - 76, bottom];
     for (const el of this.plans.children) {
       const r = el.getBoundingClientRect();
-      if (!r.width || r.bottom < bottom - 76 || r.top > bottom) continue;
+      if (!r.width || r.bottom < band[0] || r.top > band[1]) continue;
       if (r.right <= anchor) lo = Math.max(lo, r.right + 8);
       else if (r.left >= anchor) hi = Math.min(hi, r.left - 8);
     }
     const max = 280;
     const s = this.coach.style;
-    s.bottom = `${L.H - bottom}px`;
+    s.bottom = under != null ? "" : `${L.H - bottom}px`;
+    s.top = under != null ? `${under}px` : "";
     this.coach.dataset.align = align;
     if (align === "center") {
       const w = Math.min(max, 2 * Math.min(anchor - lo, hi - anchor));

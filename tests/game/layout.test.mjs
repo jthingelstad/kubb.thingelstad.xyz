@@ -9,6 +9,9 @@ import {
   stillFit,
   panFor,
   isTall,
+  meterRoom,
+  linearFirst,
+  inLinearZone,
   tune,
 } from "../../src/game/layout.js";
 import { pickTake } from "../../src/game/sound.js";
@@ -24,7 +27,11 @@ import {
   projectView,
   unprojectView,
 } from "../../src/render/camera.js";
-import { linearGeometry, tune as linearTune } from "../../src/render/linear.js";
+import {
+  linearGeometry,
+  tabRect,
+  tune as linearTune,
+} from "../../src/render/linear.js";
 import { dialGeometry, tune as dialTune } from "../../src/render/dial.js";
 
 const overlaps = (a, b) =>
@@ -122,16 +129,260 @@ test("the shorter linear meter keeps its foot: the quarter comes off the top", (
 });
 
 test("the linear meter gives way to the clock where it would be cramped", () => {
-  // a phone on its side has no height for it, nor a small phone's browser
-  const L = layoutFor(844, 390, {}, false, "linear");
-  assert.equal(L.meter, "clock");
-  assert.deepEqual(L.dial, layoutFor(844, 390).dial);
+  // a small phone's browser held upright has no height for it
   assert.equal(layoutFor(375, 553, {}, false, "linear").meter, "clock");
+  // nor a wide canvas whose track would be under wideMinTravel (260): with
+  // no insets the box needs a canvas 349 px high (17 px of margins, the
+  // body's 71.7 px of caps and shadow)
+  for (const [W, H, safe] of [
+    [740, 340, {}],
+    [740, 348, {}],
+    [568, 320, {}],
+    [852, 393, { top: 0, bottom: 50, left: 59, right: 59 }],
+  ]) {
+    for (const side of ["right", "left"]) {
+      const L = layoutFor(W, H, safe, false, "linear", { side });
+      assert.equal(L.meter, "clock", `${W}x${H} ${side}`);
+      assert.deepEqual(
+        L.dial,
+        layoutFor(W, H, safe, false, "clock", { side }).dial,
+      );
+      assert.deepEqual(L.meterRoom, { left: 0, right: 0 });
+    }
+  }
+  assert.equal(layoutFor(740, 349, {}, false, "linear").meter, "linear");
   // and the touch trial keeps the clock it was built on
   assert.equal(layoutFor(390, 844, {}, true, "linear").meter, "clock");
   // the clock is the default
   assert.equal(layoutFor(390, 844).meter, "clock");
   assert.equal(layoutFor(390, 844, {}, false, "clock").side, "both");
+});
+
+// The phones on their side the iPhone app checks, and browsers' sizes of
+// them (the bars take some height), and short desktop windows.
+const SIDEWAYS = [
+  [844, 390, {}],
+  [852, 393, { left: 59, right: 59, bottom: 21, top: 0 }],
+  [932, 430, { left: 59, right: 59, bottom: 21, top: 0 }],
+  [667, 375, {}],
+  [740, 350, {}],
+  [1280, 400, {}],
+  [600, 380, {}],
+  [600, 420, {}],
+];
+
+test("a phone on its side keeps the linear meter: the whole safe height at its edge", () => {
+  // Jamie, 2026-11-19: "Bug: On iPhone if I turn on linear and then rotate
+  // it goes back to the circular swing."
+  for (const [W, H, safe] of SIDEWAYS) {
+    const s = { top: 0, right: 0, bottom: 0, left: 0, ...safe };
+    for (const side of ["right", "left"]) {
+      for (const coarse of [true, false]) {
+        const tag = `${W}x${H} ${side} ${coarse ? "touch" : "mouse"}`;
+        const L = layoutFor(W, H, safe, false, "linear", { side, coarse });
+        assert.equal(L.meter, "linear", tag);
+        assert.equal(L.meterSide, side, tag);
+        const d = L.dial;
+        const top = s.top + tune.linearTopWide;
+        const foot = H - s.bottom - tune.margin * 0.5;
+        assert.ok(
+          Math.abs(d.y + d.height - foot) < 1e-9,
+          `${tag}: on the bottom`,
+        );
+        assert.ok(
+          Math.abs(d.y - Math.max(top, foot - tune.linearHMax)) < 1e-9,
+          `${tag}: top`,
+        );
+        if (side === "right")
+          assert.ok(
+            Math.abs(d.x + d.width - (W - s.right - tune.margin * 0.5)) < 1e-9,
+            tag,
+          );
+        else assert.equal(d.x, s.left + tune.margin * 0.5, tag);
+        const g = linearGeometry(d, side);
+        assert.ok(g.travel >= linearTune.wideMinTravel, `${tag}: ${g.travel}`);
+      }
+    }
+  }
+  const travel = (W, H, safe = {}) =>
+    linearGeometry(layoutFor(W, H, safe, false, "linear").dial).travel;
+  assert.equal(Math.round(travel(844, 390) * 10) / 10, 301.3);
+  assert.equal(Math.round(travel(740, 350) * 10) / 10, 261.3);
+  // the iPhone's 375 pt phones with the home indicator: 265.3, as the app
+  assert.equal(
+    Math.round(travel(812, 375, { left: 50, right: 50, bottom: 21 }) * 10) / 10,
+    265.3,
+  );
+});
+
+test("a desktop window keeps its linear meter where it was", () => {
+  // tall enough for the 450 px box to stand under the header row: the same
+  // box, the plan beside it, nothing moves
+  for (const [W, H] of [
+    [1280, 768],
+    [1440, 900],
+    [1024, 600],
+    [1280, 560],
+  ]) {
+    for (const side of ["right", "left"]) {
+      const L = layoutFor(W, H, {}, false, "linear", { side });
+      const tag = `${W}x${H} ${side}`;
+      const d = L.dial;
+      assert.equal(d.height, tune.linearHMax, tag);
+      assert.equal(d.y, H - tune.margin * 0.5 - tune.linearHMax, tag);
+      assert.deepEqual(L.meterRoom, { left: 0, right: 0 }, tag);
+      assert.equal(L.planEdge, null, `${tag}: beside the meter`);
+      if (side === "right")
+        assert.equal(L.plan.x + L.plan.width, d.x - tune.planBeside, tag);
+      else assert.equal(L.plan.x, d.x + d.width + tune.planBeside, tag);
+    }
+  }
+  const d = layoutFor(1280, 768, {}, false, "linear").dial;
+  assert.deepEqual(
+    [d.x, d.y, d.width, d.height].map((v) => Math.round(v * 10) / 10),
+    [1177, 311, 96, 450],
+  );
+});
+
+test("beside a wide canvas's linear meter MENU or the rail moves in, 10 px off its body", () => {
+  for (const [W, H, safe] of SIDEWAYS) {
+    const s = { top: 0, right: 0, bottom: 0, left: 0, ...safe };
+    for (const side of ["right", "left"]) {
+      const L = layoutFor(W, H, safe, false, "linear", { side, coarse: true });
+      const g = linearGeometry(L.dial, side);
+      const r = L.meterRoom;
+      const tag = `${W}x${H} ${side}`;
+      if (L.dial.y >= s.top + tune.railBox + tune.meterGap) {
+        assert.deepEqual(r, { left: 0, right: 0 }, tag);
+        continue;
+      }
+      if (side === "right") {
+        assert.equal(r.left, 0, tag);
+        // MENU's right edge (game.css: 12 px off the safe edge, plus --meter-r)
+        const menuRight = W - s.right - 12 - r.right;
+        assert.ok(Math.abs(menuRight - (g.left - tune.meterGap)) < 1e-9, tag);
+      } else {
+        assert.equal(r.right, 0, tag);
+        const railLeft = s.left + 12 + r.left;
+        assert.ok(
+          Math.abs(railLeft - (g.right + g.sh + tune.meterGap)) < 1e-9,
+          tag,
+        );
+      }
+    }
+  }
+  const r = layoutFor(844, 390, {}, false, "linear").meterRoom;
+  assert.equal(Math.round(r.right * 10) / 10, 99.6);
+  // a tall canvas and the clock move nothing
+  assert.deepEqual(layoutFor(390, 844, {}, false, "linear").meterRoom, {
+    left: 0,
+    right: 0,
+  });
+  assert.deepEqual(layoutFor(844, 390).meterRoom, { left: 0, right: 0 });
+  assert.deepEqual(meterRoom(null), { left: 0, right: 0 });
+});
+
+test("beside the linear meter the plan block never goes over the prompt tab", () => {
+  for (const [W, H, safe] of SIDEWAYS) {
+    const s = { top: 0, right: 0, bottom: 0, left: 0, ...safe };
+    for (const side of ["right", "left"]) {
+      for (const coarse of [true, false]) {
+        const tag = `${W}x${H} ${side} ${coarse ? "touch" : "mouse"}`;
+        const L = layoutFor(W, H, safe, false, "linear", { side, coarse });
+        const g = linearGeometry(L.dial, side);
+        const t = tabRect(g);
+        const p = L.plan;
+        assert.ok(!overlaps(p, t), `${tag}: the block and the tab`);
+        assert.ok(!overlaps(p, L.dial), `${tag}: the block and the meter`);
+        assert.ok(p.x >= s.left && p.x + p.width <= W - s.right, tag);
+        assert.ok(p.y >= s.top + tune.railBox, `${tag}: under the rail`);
+        assert.ok(p.y + p.height <= H - s.bottom, tag);
+        // at the edge away from the meter on a phone on its side
+        if (coarse)
+          assert.equal(L.planEdge, side === "right" ? "left" : "right", tag);
+        const m = L.minimap;
+        if (m) {
+          assert.ok(!overlaps(m, p), `${tag}: the minimap and the block`);
+          assert.ok(!overlaps(m, L.dial), `${tag}: the minimap and the meter`);
+          assert.ok(!overlaps(m, t), `${tag}: the minimap and the tab`);
+          assert.ok(
+            m.y >= s.top + tune.railBox,
+            `${tag}: the minimap under the rail`,
+          );
+          assert.ok(m.x >= s.left && m.x + m.width <= W - s.right, tag);
+        } else assert.ok(L.mapStacked, `${tag}: only a stacked minimap goes`);
+        // at the far edge, the block and the minimap are off the meter's half
+        for (const r of L.planEdge ? [p, m].filter(Boolean) : []) {
+          const mid = W / 2;
+          if (side === "right")
+            assert.ok(r.x + r.width <= mid - tune.planClear, tag);
+          else assert.ok(r.x >= mid + tune.planClear, tag);
+        }
+      }
+    }
+  }
+  // a short window with a mouse: beside, the block would cover the tab, so it
+  // goes to the far edge as on a touchscreen
+  const M = layoutFor(1280, 400, {}, false, "linear");
+  assert.equal(M.planEdge, "left");
+  assert.equal(M.mapStacked, false);
+  // a narrow one: the minimap over the block where the header row leaves room
+  const N = layoutFor(600, 420, {}, false, "linear", { coarse: true });
+  assert.equal(N.mapStacked, true);
+  assert.ok(N.minimap, "drawn");
+  assert.equal(N.minimap.x, N.plan.x + N.plan.width - N.minimap.width);
+  assert.equal(N.minimap.y + N.minimap.height, N.plan.y - tune.planGap);
+  // and none where it would meet the header row
+  const O = layoutFor(600, 380, {}, false, "linear", { coarse: true });
+  assert.equal(O.mapStacked, true);
+  assert.equal(O.minimap, null);
+  // the clock beside a narrow canvas's block is as before
+  assert.equal(
+    layoutFor(600, 420, {}, false, "clock", { coarse: true }).planEdge,
+    null,
+  );
+});
+
+test("a finger on a wide canvas: the knob's channel grabs, the body and the meter's half are throw zone", () => {
+  for (const side of ["right", "left"]) {
+    const L = layoutFor(844, 390, {}, false, "linear", { side, coarse: true });
+    const g = linearGeometry(L.dial, side);
+    const reach = linearTune.grabTouch;
+    const touch = { touch: true, reach };
+    const mouse = { touch: false, reach: linearTune.grabMouse };
+    const chanMid = g.chanX + g.chanW / 2;
+    const laneMid = g.laneLeft + g.laneW / 2;
+    const outer = side === "right" ? g.right + 4 : g.left - 4;
+    const tag = side;
+    // the knob's channel, and a little past the body's outer edge
+    assert.equal(linearFirst(L, g, chanMid, g.y0 + 30, touch), "dial", tag);
+    assert.equal(linearFirst(L, g, outer, g.y0, touch), "dial", tag);
+    // the lane beside the knob, and the body away from it: a tap aims, a drag strokes
+    assert.equal(linearFirst(L, g, laneMid, g.y0, touch), "zone", tag);
+    assert.equal(linearFirst(L, g, chanMid, g.yF + 4, touch), "zone", tag);
+    // a mouse grabs across the body and the body keeps its press, as before
+    assert.equal(linearFirst(L, g, laneMid, g.y0, mouse), "dial", tag);
+    assert.equal(linearFirst(L, g, chanMid, g.yF + 4, mouse), "none", tag);
+    // off the meter: nothing claimed first
+    assert.equal(linearFirst(L, g, L.W / 2, g.y0, touch), null, tag);
+    // the zone: the meter's half, top to bottom, for a finger
+    const near = side === "right" ? L.W * 0.75 : L.W * 0.25;
+    const far = side === "right" ? L.W * 0.25 : L.W * 0.75;
+    assert.equal(inLinearZone(L, near, 20, { touch: true }), true, tag);
+    assert.equal(inLinearZone(L, far, L.H - 5, { touch: true }), false, tag);
+    // a mouse keeps the lower band
+    assert.equal(inLinearZone(L, near, 20), false, tag);
+    assert.equal(inLinearZone(L, far, L.H * 0.7), true, tag);
+  }
+  // upright, a finger is as before: across the body, the body swallowed,
+  // the lower 40% the zone
+  const T = layoutFor(390, 844, {}, false, "linear", { coarse: true });
+  const g = linearGeometry(T.dial, "right");
+  const touch = { touch: true, reach: linearTune.grabTouch };
+  assert.equal(linearFirst(T, g, g.laneLeft + 2, g.y0, touch), "dial");
+  assert.equal(linearFirst(T, g, g.cx, g.yF + 4, touch), "none");
+  assert.equal(inLinearZone(T, 100, 844 * 0.65, { touch: true }), true);
+  assert.equal(inLinearZone(T, 300, 844 * 0.5, { touch: true }), false);
 });
 
 test("the meter's side: the linear meter at the left edge, mirrored", () => {

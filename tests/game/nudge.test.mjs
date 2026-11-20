@@ -235,3 +235,39 @@ test("the captions are the plate's own words", () => {
   assert.equal(captionFor("release"), null);
   assert.equal(captionFor("rest"), null);
 });
+
+test("on a phone on its side the fingertip strokes in the meter's half, under the header", async () => {
+  const { layoutFor, tune: lt } = await import("../../src/game/layout.js");
+  const { fingerAt } = await import("../../src/render/nudge.js");
+  const { linearGeometry, tabRect } =
+    await import("../../src/render/linear.js");
+  const swing = { back: 120, release: 60 };
+  for (const [W, H] of [
+    [844, 390],
+    [740, 350],
+  ]) {
+    for (const side of ["right", "left"]) {
+      const L = layoutFor(W, H, {}, false, "linear", { side, coarse: true });
+      const g = linearGeometry(L.dial, side);
+      const t = tabRect(g);
+      const ceiling = lt.railH + lt.margin * 1.5;
+      const opts = { swing, finger: "touch", ceiling };
+      const tag = `${W}x${H} ${side}`;
+      const at = (arm) => fingerAt(L, { arm, step: "back" }, opts);
+      const top = at(swing.release);
+      const foot = at(-swing.back);
+      const R = 19;
+      for (const p of [top, foot]) {
+        if (side === "right") {
+          assert.ok(p.x - R >= W / 2, `${tag}: in the meter's half`);
+          assert.ok(p.x + R <= t.x, `${tag}: clear of the tab`);
+        } else {
+          assert.ok(p.x + R <= W / 2, `${tag}: in the meter's half`);
+          assert.ok(p.x - R >= t.x + t.width, `${tag}: clear of the tab`);
+        }
+      }
+      assert.ok(top.y - R >= ceiling, `${tag}: under the header`);
+      assert.ok(foot.y + R <= H, `${tag}: on the screen`);
+    }
+  }
+});

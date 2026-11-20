@@ -11,6 +11,7 @@
 //         trigger's fade folded into alpha
 //   opts  { swing: { back, release }, finger: "touch" | "mouse",
 //           zoneFrom: the throw zone's top, of the canvas height,
+//           ceiling: on a wide canvas, the y the fingertip's flick stays under,
 //           caption: the plate's words, for its width }
 import { INK, PAPER, HUD, FONT } from "./palette.js";
 import { dialGeometry, armPoint, tune as dialTune } from "./dial.js";
@@ -81,6 +82,25 @@ function zonePath(L, g, opts) {
   }
   x = right ? Math.min(x, tab) : Math.max(x, tab);
   const backPx = Math.abs(opts.swing.back) * g.scale;
+  if (!L.tall && opts.finger === "touch") {
+    // a wide touchscreen's zone is the meter's half (layout.js
+    // inLinearZone): the fingertip strokes there, halfway from the centre
+    // line to the tab, level with the knob's home, its flick's top under
+    // `ceiling` (the header row's foot) where the screen has the height
+    const line = L.W / 2;
+    x = right
+      ? Math.max(line + R + 4, Math.min(tab, (line + tab) / 2))
+      : Math.min(line - R - 4, Math.max(tab, (line + tab) / 2));
+    const releasePx = Math.abs(opts.swing.release) * g.scale;
+    const ceiling = opts.ceiling ?? 0;
+    return {
+      x,
+      y0: Math.min(
+        Math.max(g.y0, ceiling + 4 + R + releasePx),
+        L.H - R - 8 - backPx,
+      ),
+    };
+  }
   const zoneTop = L.H * (opts.zoneFrom ?? 0.6);
   let y0 = Math.max(zoneTop + R + 4, g.y0);
   y0 = Math.min(y0, L.H - R - 8 - backPx);

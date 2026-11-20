@@ -10,6 +10,7 @@ import {
   armAtY,
   knobHit,
   bodyHit,
+  tabRect,
   tune,
 } from "../../src/render/linear.js";
 
@@ -88,4 +89,47 @@ test("on the left edge the body is mirrored: the lane toward the centre", () => 
   for (const a of [-120, 0, 90]) close(armY(g, a), armY(R, a));
   assert.equal(knobHit(g, g.cx, g.y0, tune.grabTouch), true);
   assert.equal(bodyHit(g, g.laneX, g.yB), true);
+});
+
+test("on a wide touchscreen only the knob's channel grabs, either side", () => {
+  for (const side of ["right", "left"]) {
+    const g = linearGeometry(BOX, side);
+    const r = tune.grabTouch;
+    const lane = g.laneLeft + g.laneW / 2;
+    const chan = g.chanX + g.chanW / 2;
+    // across the body as before
+    assert.equal(knobHit(g, lane, g.y0, r), true, side);
+    // the channel only: the lane is not the knob's
+    assert.equal(knobHit(g, chan, g.y0, r, true), true, side);
+    assert.equal(knobHit(g, lane, g.y0, r, true), false, side);
+    // up to chanOuter past the body's outer edge, never past its inner one
+    const outer = side === "right" ? g.right : g.left;
+    const dir = side === "right" ? 1 : -1;
+    assert.equal(
+      knobHit(g, outer + dir * tune.chanOuter, g.y0, r, true),
+      true,
+      side,
+    );
+    assert.equal(
+      knobHit(g, outer + dir * (tune.chanOuter + 1), g.y0, r, true),
+      false,
+      side,
+    );
+    assert.equal(knobHit(g, chan, g.y0 + r + 1, r, true), false, side);
+  }
+});
+
+test("the prompt tab hangs toward the centre at home, clear of the body", () => {
+  for (const side of ["right", "left"]) {
+    const g = linearGeometry(BOX, side);
+    const t = tabRect(g);
+    close(t.y + g.promptH / 2, g.y0);
+    assert.equal(t.width, g.promptH * 5);
+    if (side === "right") close(t.x + t.width, g.left);
+    else close(t.x, g.right + g.sh);
+  }
+  // the wide floor is under the upright one: a phone on its side has no
+  // taller track to give
+  assert.ok(tune.wideMinTravel < tune.minTravel);
+  assert.equal(tune.wideMinTravel, 260);
 });
