@@ -388,7 +388,21 @@ function moment(t, r, groups = new Map()) {
   };
 }
 
-// The edit list. throws: scan.mjs's facts; end: how the match ended.
+// A match with nothing to show: no throw at all (a player resigned before the first),
+// or no moment picked for any other reason. Such a match gets no reel: the renderer
+// throws this before it starts an encoder, and the reel job marks it failed with
+// why "empty", for good.
+export const REEL_EMPTY = "REEL_EMPTY";
+export class NoHighlights extends Error {
+  code = REEL_EMPTY;
+  name = "NoHighlights";
+  constructor(message = "this match has no highlights to show") {
+    super(message);
+  }
+}
+
+// The edit list. throws: scan.mjs's facts; end: how the match ended. No throws, no
+// moments: { moments: [], seconds: 0 } and no title or end card.
 export function pickHighlights({ throws, end = null, teams = null }) {
   const groups = drillGroups(throws);
   const ctx = { end, teams, groups };

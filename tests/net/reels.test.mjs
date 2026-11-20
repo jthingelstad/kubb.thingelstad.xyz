@@ -7,20 +7,32 @@ import { LIMITS, asciiJson, createRooms } from "../../backend/rooms/core.mjs";
 import { memoryStore } from "../../backend/rooms/memory-store.mjs";
 import { dynamoStore } from "../../backend/rooms/dynamo-store.mjs";
 import { lambdaReelStarter } from "../../backend/rooms/handler.mjs";
+import { reelStore } from "../../backend/reels/aws.mjs";
+import { runReel } from "../../backend/reels/job.mjs";
+import { REEL_TRIES } from "../../backend/reels/tag.mjs";
+import { gzipSync } from "node:zlib";
 
 const ROOM = "abcdefgh23";
 const T0 = 1_700_000_000_000;
-const REPLAY = { v: 1, n: 1, engine: "0.7.1", log: [], snap: "{}" };
+const REPLAY = {
+  v: 1,
+  n: 1,
+  engine: "0.7.1",
+  log: [{ a: { type: "throw", how: "baton" } }],
+  snap: "{}",
+};
 
 function harness({
   limits = LIMITS,
   engines = ["0.7"],
   starter = true,
   failStart = false,
+  clock = null,
+  store: given = null,
 } = {}) {
   let t = T0;
-  const now = () => t;
-  const store = memoryStore({ now });
+  const now = clock?.now ?? (() => t);
+  const store = given ?? memoryStore({ now });
   const started = [];
   const inbox = new Map();
   const rooms = createRooms({
@@ -51,7 +63,7 @@ function harness({
       v,
       t: now(),
       data: JSON.stringify(replay),
-      exp: Math.floor(now() / 1000) + 3600,
+      exp: Math.floor(now() / 1000) + 30 * 86400,
     });
   return {
     rooms,
@@ -59,7 +71,7 @@ function harness({
     started,
     ask,
     keep,
-    advance: (ms) => (t += ms),
+    advance: clock?.advance ?? ((ms) => (t += ms)),
     now,
   };
 }
@@ -251,7 +263,10 @@ function fakeClient() {
         return { Item: structuredClone(items.get(key(i.Key))) };
       if (name === "PutCommand") {
         const had = items.get(key(i.Item));
-        assert.match(i.ConditionExpression, /#tries < :tries/);
+        assert.match(
+          i.ConditionExpression,
+          /#tries = :had AND #tries < :tries/,
+        );
         const ok =
           !had ||
           at(had, "#exp") < v[":now"] ||
@@ -260,6 +275,7 @@ function fakeClient() {
           (at(had, "#job") === v[":job"] &&
             at(had, "#state") === v[":rendering"] &&
             at(had, "#at") < v[":stale"] &&
+            at(had, "#tries") === v[":had"] &&
             at(had, "#tries") < v[":tries"]);
         if (!ok) fail();
         items.set(key(i.Item), structuredClone(i.Item));
@@ -269,6 +285,23 @@ function fakeClient() {
         const had = items.get(key(i.Key));
         if (!had || at(had, "#job") !== v[":job"]) fail();
         items.delete(key(i.Key));
+        return {};
+      }
+      if (name === "UpdateCommand" && i.Key.sk === "reel") {
+        // the reel item: the reel function's try and outcome, the rooms' undo
+        const had = items.get(key(i.Key));
+        if (!had || at(had, "#job") !== v[":job"]) fail();
+        if (/#state = :rendering/.test(i.ConditionExpression ?? ""))
+          if (at(had, "#state") !== v[":rendering"]) fail();
+        if (i.UpdateExpression === "ADD #tries :one") {
+          had.tries = (had.tries ?? 0) + 1;
+          return { Attributes: { tries: had.tries } };
+        }
+        const sets = i.UpdateExpression.replace(/^SET /, "").split(", ");
+        for (const set of sets) {
+          const [alias, value] = set.split(" = ");
+          had[n[alias]] = v[value];
+        }
         return {};
       }
       if (name === "UpdateCommand") {
@@ -350,4 +383,152 @@ test("the rooms function asks the reel function asynchronously", async () => {
     functionName: "x",
   });
   await assert.rejects(refused({ room: ROOM, v: 4, tag: "r1-0.7" }));
+});
+
+// ---------- the bound: a job renders at most REEL_TRIES times ----------
+
+// Drives one job the worst way: every invoke reaches the reel function, which starts
+// rendering and dies without a word (a Lambda timeout), Lambda retries it once, which
+// dies the same way; then a viewer asks after the 25 minutes and takes the render
+// over. Until the job is shown failed, and then a while longer.
+async function driveStaleTakeovers({ h, jobStore }) {
+  let renders = 0;
+  const render = () => {
+    renders++;
+    return new Promise(() => {}); // never ends: the function is stopped at its timeout
+  };
+  const invoke = (input) =>
+    runReel({
+      input,
+      store: jobStore,
+      render,
+      upload: async () => {},
+      engine: "0.7.1",
+      engines: ["0.7"],
+      now: h.now,
+      log: () => {},
+    });
+  const results = [];
+  let shown = null;
+  for (let round = 0; round < 8; round++) {
+    const a = await h.ask(`c${round}`);
+    shown = a.reel?.state ?? null;
+    results.push(shown);
+    // every invoke the rooms made since, and Lambda's one retry of each
+    for (const input of h.started.splice(0)) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const out = await Promise.race([
+          invoke(input),
+          new Promise((r) => setImmediate(() => r("running"))),
+        ]);
+        if (out !== "running" && out.state === "failed") break;
+      }
+    }
+    h.advance(LIMITS.reelStaleMs + 1000);
+  }
+  return { renders, results, shown };
+}
+
+test("memory store: stale takeovers keep the tries; a job renders twice at most, then is failed", async () => {
+  const h = harness();
+  h.started.length = 0;
+  await h.keep(4);
+  const { renders, results, shown } = await driveStaleTakeovers({
+    h,
+    jobStore: h.store,
+  });
+  assert.equal(renders, REEL_TRIES);
+  assert.equal(shown, "failed");
+  // once failed, no request starts it again
+  const firstFailed = results.indexOf("failed");
+  assert.ok(firstFailed > 0);
+  for (const r of results.slice(firstFailed)) assert.equal(r, "failed");
+});
+
+test("dynamo store: stale takeovers keep the tries; a job renders twice at most, then is failed", async () => {
+  let t = T0;
+  const clock = { now: () => t, advance: (ms) => (t += ms) };
+  const client = fakeClient();
+  const store = dynamoStore({ client, table: "rooms", now: clock.now });
+  const h = harness({ clock, store });
+  // the kept replay, as the rooms store writes it (gzipped)
+  client.items.set(`room#${ROOM}|replay`, {
+    pk: `room#${ROOM}`,
+    sk: "replay",
+    v: 4,
+    z: gzipSync(JSON.stringify(REPLAY)),
+    exp: Math.floor(T0 / 1000) + 30 * 86400,
+  });
+  const jobStore = reelStore({ client, table: "rooms", now: clock.now });
+  const { renders, results, shown } = await driveStaleTakeovers({
+    h,
+    jobStore,
+  });
+  assert.equal(renders, REEL_TRIES);
+  assert.equal(shown, "failed");
+  const firstFailed = results.indexOf("failed");
+  assert.ok(firstFailed > 0);
+  for (const r of results.slice(firstFailed)) assert.equal(r, "failed");
+  assert.ok(client.items.get(`room#${ROOM}|reel`).tries >= REEL_TRIES);
+});
+
+test("a takeover the day's cap refuses gives the item back stale, its tries kept", async () => {
+  for (const kind of ["memory", "dynamo"]) {
+    let t = T0;
+    const clock = { now: () => t, advance: (ms) => (t += ms) };
+    const client = fakeClient();
+    const store =
+      kind === "memory"
+        ? memoryStore({ now: clock.now })
+        : dynamoStore({ client, table: "rooms", now: clock.now });
+    // the reel function's side: the memory store has it, DynamoDB is aws.mjs's
+    const jobStore =
+      kind === "memory"
+        ? store
+        : reelStore({ client, table: "rooms", now: clock.now });
+    const h = harness({
+      clock,
+      store,
+      limits: { ...LIMITS, reelsPerDay: 1 },
+    });
+    if (kind === "memory") await h.keep(4);
+    else
+      client.items.set(`room#${ROOM}|replay`, {
+        pk: `room#${ROOM}`,
+        sk: "replay",
+        v: 4,
+        z: gzipSync(JSON.stringify(REPLAY)),
+        exp: Math.floor(T0 / 1000) + 30 * 86400,
+      });
+    assert.equal((await h.ask("c1")).reel.state, "rendering", kind); // the day's one
+    await jobStore.attemptReel(ROOM, "4-r1-0.7"); // one try, then silence
+    const before = await store.getReel(ROOM);
+    h.advance(LIMITS.reelStaleMs + 1000);
+    const busy = await h.ask("c2"); // a takeover the cap refuses
+    assert.equal(busy.why, "busy", kind);
+    const after = await store.getReel(ROOM);
+    assert.equal(after.tries, 1, kind);
+    assert.equal(after.at, before.at, kind);
+    // the next day it is taken over once more, still with its one try
+    h.advance(24 * 3600 * 1000);
+    assert.equal((await h.ask("c3")).reel.state, "rendering", kind);
+    assert.equal((await store.getReel(ROOM)).tries, 1, kind);
+  }
+});
+
+test("reel: a match with nothing to show is answered failed, why empty, and not started again", async () => {
+  const h = harness();
+  await h.keep(4);
+  await h.ask("c1");
+  await h.store.attemptReel(ROOM, "4-r1-0.7");
+  await h.store.finishReel(ROOM, "4-r1-0.7", { state: "failed", why: "empty" });
+  h.advance(LIMITS.reelStaleMs + 1000);
+  const a = await h.ask("c2");
+  assert.deepEqual(a.reel, {
+    state: "failed",
+    tag: "r1-0.7",
+    at: T0,
+    why: "empty",
+  });
+  assert.equal(h.started.length, 1);
 });

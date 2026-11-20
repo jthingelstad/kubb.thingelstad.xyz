@@ -24,7 +24,7 @@ import { drawWorld } from "../../src/render/world.js";
 import { drawBurst, burstLength } from "../../src/render/burst.js";
 import { projectView } from "../../src/render/camera.js";
 import { scanReplay, openReplay, piecesCount } from "./scan.mjs";
-import { pickHighlights, resultLine } from "./highlights.mjs";
+import { NoHighlights, pickHighlights, resultLine } from "./highlights.mjs";
 import * as C from "./cameras.mjs";
 import * as O from "./overlay.mjs";
 import { mixReel } from "./audio.mjs";
@@ -227,6 +227,8 @@ export async function renderReel({
   const scan = await scanReplay(replay, { sources });
   const teams = scan.teams || scan.end?.teams || { A: "Team A", B: "Team B" };
   const edit = pickHighlights(scan);
+  // nothing to show: no encoder is started on nothing
+  if (!edit.moments?.length) throw new NoHighlights();
   const address = `throwingwood.com/p/${code}`;
   const frames = planFrames(edit);
   const facts = new Map(scan.throws.map((t) => [t.i, t]));

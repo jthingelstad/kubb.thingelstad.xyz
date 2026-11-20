@@ -34,11 +34,13 @@
 // answers every `reel` with `reel: null`:
 //   getReel(code) -> { v, tag, job, state, at, tries, tall?, wide?, edit?, seconds?,
 //                       why?, exp } | null
-//   putReel(code, { v, tag, job, at, exp }, { staleBefore }) -> bool   the request that
-//                       may start this render: true only when there is no reel item, or
-//                       it is for an earlier version or another tag, or it is this very
-//                       render still "rendering" from before staleBefore (epoch ms)
-//   dropReel(code, job)  undoes putReel when the renderer could not be asked
+//   putReel(code, { v, tag, job, at, exp, tries }, { staleBefore }) -> bool   the
+//                       request that may start this render: true only when there is no
+//                       reel item, or it is for an earlier version or another tag, or it
+//                       is this very render still "rendering" from before staleBefore
+//                       (epoch ms) with exactly `tries` tries, which the item keeps
+//   dropReel(code, job, { at? })  undoes putReel when the renderer could not be asked:
+//                       a takeover puts the stale item's `at` back, a new render's goes
 //   countReel(day, cap, exp) -> bool   one more render today, false once cap is reached
 // and one more adapter, `startReel({ room, v, tag })`, which asks the renderer (on AWS
 // an asynchronous Lambda invoke); without it reels are `unavailable`.
@@ -570,7 +572,9 @@ export function createRooms({
             edit: item.edit,
             seconds: item.seconds ?? null,
           }
-        : { state: item.state, tag: item.tag, at: item.at };
+        : item.state === "failed" && item.why
+          ? { state: "failed", tag: item.tag, at: item.at, why: item.why }
+          : { state: item.state, tag: item.tag, at: item.at };
 
   // A finished pitch's highlight reel, by its code, on any connection (no join: anyone
   // with the link, as for a replay). The first request for a kept replay's version
@@ -632,13 +636,23 @@ export function createRooms({
         { id },
       );
     // The one request that may start it writes the reel item; only that one is
-    // counted against the day, so viewers asking at once cost one render.
+    // counted against the day, so viewers asking at once cost one render. Taking over
+    // a stale render keeps its tries: a job renders at most REEL_TRIES times in all.
+    const takeover = item && item.job === job ? item : null;
+    const undo = takeover ? { at: takeover.at } : {};
     let won = false;
     let counted = false;
     try {
       won = await store.putReel(
         code,
-        { v: kept.v, tag, job, at: t, exp: kept.exp },
+        {
+          v: kept.v,
+          tag,
+          job,
+          at: t,
+          exp: kept.exp,
+          tries: takeover?.tries ?? 0,
+        },
         { staleBefore },
       );
       if (!won) item = await store.getReel(code);
@@ -649,11 +663,12 @@ export function createRooms({
           limits.reelsPerDay,
           expiry(limits.reelCountTtl),
         );
-        if (!counted) await store.dropReel(code, job);
+        if (!counted) await store.dropReel(code, job, undo);
       }
     } catch (error) {
       console.error("reel write failed", error?.name, error?.message);
-      if (won && !counted) await store.dropReel(code, job).catch(() => {});
+      if (won && !counted)
+        await store.dropReel(code, job, undo).catch(() => {});
       throw new RoomError("failed", "The reel could not be asked for.", {
         id,
       });
@@ -669,7 +684,7 @@ export function createRooms({
       await startReel({ room: code, v: kept.v, tag });
     } catch (error) {
       console.error("reel start failed", error?.name, error?.message);
-      await store.dropReel(code, job).catch(() => {});
+      await store.dropReel(code, job, undo).catch(() => {});
       throw new RoomError("failed", "The reel could not be started.", { id });
     }
     if (reelsStarted.size > 5000) reelsStarted.clear();

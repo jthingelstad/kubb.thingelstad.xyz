@@ -735,8 +735,10 @@ one once it can be shared (not built).
   - `why: "busy"`: today's 200 renders have started.
   - `state: "rendering"`: started; ask again (a few seconds apart).
   - `state: "done"`: the files are there for good (a year).
-  - `state: "failed"`: it was tried twice and did not render. Final for that version
-    and look.
+  - `state: "failed"`: it was tried twice and did not render (`reel.why` `"render"`,
+    or none when the renders timed out), or (`reel.why` `"empty"`) the match had
+    nothing to show: no throw at all, as when a player
+    resigned before the first, or no moment picked. Final for that version and look.
 - **One render a match.** The first request for a kept replay's version writes
   `room#<code> | reel` with a conditional put and only that request invokes the reel
   function (`InvocationType: Event`); every other one reads the item. The day's counter
@@ -745,15 +747,28 @@ one once it can be shared (not built).
   the replay's `engine` field: it still knows no Kubb.
 - **The reel function** (`kubb-xyz-site-reels`, site stack, `backend/reels/`): given
   `{ room, v, tag }`, it adds one to the item's `tries` (only while it is that render
-  and `rendering`), reads the replay, refuses another version or engine (`failed`,
-  `why: "replay"` or `"engine"`), renders both formats into `/tmp`, puts them and the
-  edit list under `reels/` in the site bucket and marks the item `done` with the paths
-  and duration. An error on the first try is thrown back for Lambda's one retry; on the
-  second it marks `failed`, `why: "render"`. It logs the step, the engine version and
-  the outcome, never a name.
+  and `rendering`), refuses a try past the second (`failed`, `why: "render"`, nothing
+  rendered), reads the replay, refuses another version or engine (`failed`,
+  `why: "replay"` or `"engine"`) and a match with no throw (`failed`, `why: "empty"`),
+  renders both formats into `/tmp`, puts them and the edit list under `reels/` in the
+  site bucket and marks the item `done` with the paths and duration. A renderer that
+  picks no moment declines before it starts an encoder, and that too is `failed`,
+  `why: "empty"`, at once and with no retry. An error on the first try is thrown back
+  for Lambda's one retry; on the second it marks `failed`, `why: "render"`. It logs the
+  step, the engine version and the outcome, never a name.
 - **Stuck renders.** A render still `rendering` 25 minutes after it started died
   without a word (a lost invoke, or a Lambda stopped at its timeout): the next request
   starts it again, unless it was tried twice already, which is then shown as `failed`.
+  The takeover keeps the item's `tries` (the conditional put names the count it read,
+  and only a new version or look starts from zero), and a takeover that the day's cap
+  refuses or whose invoke fails puts the item back as it was, its `at` and `tries`
+  kept.
+- **The bound.** Every try that reaches the renderer adds one to `tries` before it
+  renders, a stale takeover never lowers it, and the renderer renders only tries 1 and 2. So one job (a version and look) costs **at most two renders in all**, Lambda's own
+  retry and every takeover included; a third invoke, from a takeover or a retry, marks
+  it `failed` without rendering. Invokes that never reach the renderer render nothing,
+  and each takeover is counted against the day's 200. The worst job is two renders
+  stopped at the 300 s timeout: about 1,800 GB-s.
 - **Served** by CloudFront's default behaviour from the site bucket, like any static
   file; the viewer request function passes `/reels/...` through. The objects are
   `video/mp4` (and `application/json` for the edit) with

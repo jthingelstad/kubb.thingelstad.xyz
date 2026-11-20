@@ -64,7 +64,7 @@ export function memoryStore({ now = Date.now } = {}) {
     async getReel(code) {
       return copy(live(reels.get(code)));
     },
-    async putReel(code, { v, tag, job, at, exp }, { staleBefore }) {
+    async putReel(code, { v, tag, job, at, exp, tries = 0 }, { staleBefore }) {
       const had = live(reels.get(code));
       const may =
         !had ||
@@ -73,6 +73,7 @@ export function memoryStore({ now = Date.now } = {}) {
         (had.job === job &&
           had.state === "rendering" &&
           had.at < staleBefore &&
+          (had.tries ?? 0) === tries &&
           (had.tries ?? 0) < REEL_TRIES);
       if (!may) return false;
       reels.set(code, {
@@ -81,13 +82,16 @@ export function memoryStore({ now = Date.now } = {}) {
         job,
         state: "rendering",
         at,
-        tries: 0,
+        tries,
         exp,
       });
       return true;
     },
-    async dropReel(code, job) {
-      if (reels.get(code)?.job === job) reels.delete(code);
+    async dropReel(code, job, { at = null } = {}) {
+      const had = reels.get(code);
+      if (had?.job !== job) return;
+      if (at != null) had.at = at;
+      else reels.delete(code);
     },
     async countReel(day, cap, exp) {
       const had = live(reelDays.get(day));

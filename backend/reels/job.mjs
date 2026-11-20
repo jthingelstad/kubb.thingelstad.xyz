@@ -11,6 +11,11 @@
 //   upload(key, file, contentType)                       one file to the site bucket
 //   render({ replay, code, out }) -> { files: { tall, wide, edit }, edit }
 //
+// A match with nothing to show (no throw, or no moment picked) is failed with why
+// "empty" at once and never retried. Each attempt adds one to the item's `tries`, which
+// a stale takeover keeps, and an attempt past REEL_TRIES fails without rendering: a job
+// renders at most twice, Lambda's own retry included.
+//
 // It renders only a match played on the engine it carries: the tag names the engine's
 // major.minor, the replay says what it was played on, and both must be `engine`'s and
 // among `engines` (REEL_ENGINES). It logs the step, the engine and the outcome, never a
@@ -28,7 +33,13 @@ import {
   tagEngine,
 } from "./tag.mjs";
 
+import { REEL_EMPTY } from "./highlights.mjs";
+
 const ROOM_CODE = /^[2-9a-hjkmnp-z]{8,24}$/; // as backend/rooms/core.mjs
+
+// Whether a kept replay has a throw at all: one resigned before the first has none.
+export const anyThrow = (replay) =>
+  Array.isArray(replay?.log) && replay.log.some((e) => e?.a?.type === "throw");
 
 export const REEL_CACHE = "public, max-age=31536000, immutable";
 
@@ -76,6 +87,9 @@ export async function runReel({
     say("failed", { why, tries: tried.tries });
     return { state: "failed", why };
   };
+  // Every attempt counts on the item, and a stale takeover keeps the count, so this is
+  // the bound: a job renders at most REEL_TRIES times, whatever invokes it.
+  if (tried.tries > REEL_TRIES) return await fail("render");
 
   let out = null;
   try {
@@ -90,6 +104,8 @@ export async function runReel({
       !engines.includes(carried)
     )
       return await fail("engine");
+    // a match with no throw (resigned before the first) has nothing to show
+    if (!anyThrow(replay)) return await fail("empty");
 
     say("render", { tries: tried.tries });
     out = fs.mkdtempSync(path.join(tmp, "reel-"));
@@ -108,6 +124,8 @@ export async function runReel({
     say("done", { seconds, kept: mine });
     return { state: "done", ...paths, seconds };
   } catch (error) {
+    // the renderer found no moment to show: final, and no retry
+    if (error?.code === REEL_EMPTY) return await fail("empty");
     say("error", {
       tries: tried.tries,
       error: error?.name,

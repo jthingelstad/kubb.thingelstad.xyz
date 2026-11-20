@@ -24,6 +24,7 @@ import {
   planFrames,
 } from "../../backend/reels/render.mjs";
 import * as O from "../../backend/reels/overlay.mjs";
+import { REEL_EMPTY } from "../../backend/reels/highlights.mjs";
 
 export { FORMATS, FPS, planFrames, sampleCode };
 
@@ -151,12 +152,18 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   }
   const replay = JSON.parse(fs.readFileSync(file, "utf8"));
   const name = arg("name", path.basename(file).replace(/\.json$/, ""));
-  await renderReel({
-    replay,
-    name,
-    code: arg("code", sampleCode(name)),
-    out: arg("out", "build/reel/out"),
-    formats: arg("formats", "tall,wide").split(","),
-    peek: Number(arg("peek", 0)),
-  });
+  try {
+    await renderReel({
+      replay,
+      name,
+      code: arg("code", sampleCode(name)),
+      out: arg("out", "build/reel/out"),
+      formats: arg("formats", "tall,wide").split(","),
+      peek: Number(arg("peek", 0)),
+    });
+  } catch (error) {
+    if (error?.code !== REEL_EMPTY) throw error;
+    console.error(`${file}: no reel: ${error.message}`);
+    process.exit(1);
+  }
 }
