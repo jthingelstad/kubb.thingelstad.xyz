@@ -180,6 +180,7 @@ export async function buildSite({
 - [Home](${ORIGIN}/): start a pitch (a link of its own at /p/<code>), play the computer, or practice.
 - [How to play](${ORIGIN}/rules/): the rules of Kubb in five short cards, and how to throw on the web by dragging round a dial.
 - [Practice](${ORIGIN}/practice/): the practice pitch.
+- [The Kubb Engine](${ORIGIN}/engine/): how the game's throws are checked against score sheets, video of real play and a second physics simulator.
 
 A pitch at /p/<code> is one group's game, reached by its link; those pages are not indexed.
 
