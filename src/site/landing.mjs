@@ -212,7 +212,7 @@ function ios({ tinylytics, config = {} }) {
 </section>
 <section class="frame prose" aria-labelledby="source">
   <h2 class="display" id="source">Open source</h2>
-  <p>The app is open source under the MIT licence: ${external(IOS_REPO, "throwingwood-ios on GitHub")}. It keeps what the website keeps; the <a href="/privacy/">privacy page</a> covers both.</p>
+  <p>The app is open source under the MIT licence: ${external(IOS_REPO, "throwingwood-ios on GitHub")}. The <a href="/privacy/">privacy page</a> says what the game keeps, on the web and in the app.</p>
 </section>`;
   return page({
     path: "/ios/",

@@ -44,6 +44,23 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
 - Dev servers bind to 127.0.0.1 and are stopped when the work is done.
 - No italics on sans-serif type. Type and tokens come from `../../thingelstad.com/shared/`.
 
+## The site
+
+throwingwood.com is the landing site for the whole game (Jamie, 2026-11-20: "We need to
+separately land the throwingwood.com website as a real landing page for the game, not just
+the game."). `/` is the landing page and never the lobby (a site check holds it to that);
+the web game's own page, with Start a pitch, Play the computer, Watch the computer,
+Practice and Open games, is `/web/`, and every in-game HOME goes there. `/ios/`,
+`/playdate/`, `/engine/` and `/love/` are the other landing pages
+(`src/site/landing.mjs`; `/rules/`, `/privacy/` and the game pages are in
+`src/site/pages.mjs`). A path without its trailing slash answers with a 301 to the slashed
+one. `/love/` lists the five kubb sites Jamie named, in his order, under his heading; a
+check pins the names, URLs and order. `TESTFLIGHT_URL` in `src/site/site.mjs` is the one
+switch for `/ios/`: set, the page shows "Join the TestFlight"; empty, it says the beta is
+by invitation and shows no button. Every claim on `/engine/` has a source in the engine's
+docs or tests; keep it that way. The pages announce nothing that is not live: no dates,
+no store, no features in progress.
+
 ## Build and check
 
 `npm ci`, then `npm run check` and `npm run format:check`. `check` runs, in order:
@@ -75,7 +92,7 @@ address or home path in `dist/`, no account id in Markdown).
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `0.2.0 (0.8.1)`, at the foot of
+the full version of the newest engine the site carries, `0.3.0 (0.8.1)`, at the foot of
 every reading page and of MENU, with "Also plays 0.7.4" under it in MENU while an older
 engine is carried (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
@@ -139,7 +156,7 @@ of a room's document, with the action that made it, to the private games bucket 
 room: the browser sends each once when it ends (`src/net/record.js`, Jamie 2026-11-16:
 "watch mode should record ... All games recorded"), kept under
 `games/browser/<yyyy-mm-dd>/`. The names players typed are in them: records are pulled to
-`build/games/` (never in git) and never published. The home page says what is recorded.
+`build/games/` (never in git) and never published. The web game's page (`/web/`) says what is recorded.
 Practice is not recorded.
 
 - `npm run games:pull` (as `cloud-engineer`) fetches new records; `--room <code>`,
@@ -191,7 +208,7 @@ under `reports/<yyyy-mm-dd>/`, kept for good like the games.
 
 ## Watch the computer
 
-`/p/<code>?watch=1` (home page: "Watch the computer", added 2026-11-16 on Jamie's ask: "I
+`/p/<code>?watch=1` (the web game's page, `/web/`: "Watch the computer", added 2026-11-16 on Jamie's ask: "I
 could oddly imagine watching that in a background window. Also a great way to get test
 data."): the session's `cpu = "both"` with a seat that plays no side
 (`startWatch` in `src/main.js`). The computer throws, raises and places punishment kubbs
@@ -220,8 +237,8 @@ matches keep the thrower's view. docs/CLIENT.md "The wide view".
 
 A host can make a pitch open (Jamie, 2026-11-16: "allow a game to be created open so it
 can be joined by anyone ... Open and invite only are both supported"): the lobby's "Who
-can join" (Invite only, the default, or Open), or Open on the home page's start step
-(`?open=1`). The home page lists open games under "Open games" (`public/js/open-games.js`):
+can join" (Invite only, the default, or Open), or Open on the web game's page's start step
+(`?open=1`). That page (`/web/`) lists open games under "Open games" (`public/js/open-games.js`):
 counts, state and age only, never names, the 20 newest, refreshed every 30 s. The host's
 browser tells the room server what to list (`docs/MULTIPLAYER.md`), and the server keeps
 it in the rooms table's `open` partition with a 15 minute TTL: no new AWS resources, no
@@ -300,7 +317,7 @@ docs/REEL.md, including its AWS resources in the throwingwood.com web stack". Th
 is `docs/REEL.md`, the protocol `docs/ROOMS.md` section 12, deploying, checking and
 rolling back `docs/REEL-RUNBOOK.md`. The browser's button and card for online pitches
 are `src/ui/reel.js` over `src/net/reel.js` (docs/CLIENT.md "Highlight reels"), and the
-home and privacy pages say what a reel shows. A match against the computer gets one once
+web game's and privacy pages say what a reel shows. A match against the computer gets one once
 shared: the server side (`share`, the renderer's `{ check: g }` in
 `backend/reels/check.mjs`, sealed rooms; `docs/ROOMS.md` section 13), and the browser's
 share card on the solo winner card and a sealed pitch's page (`src/ui/share.js` over
@@ -464,7 +481,7 @@ labels are plain words.
   engine's Playdate "BASE 5" (`railCount` in `src/game/hud.js`).
 - MENU's rows say what they set and show their value: Your level, Meter, Meter side,
   Raising, View, Surface, Sound (On/Off, once a SOUND: ON button).
-- The home and rules pages describe the web's controls in their own words, with one line
+- The web game's page and the rules page describe the web's controls in their own words, with one line
   that it is the same game as on Playdate and iPhone.
 
 ## Pitch lines
