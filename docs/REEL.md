@@ -11,8 +11,9 @@ share with friends.").
 
 This is the design for the real feature. **Built (2026-11-19): the server side for
 finished online pitches** ("The server" below says what was built and where it changed
-from the design; deploying it is `docs/REEL-RUNBOOK.md`). Not built yet: sharing a match
-against the computer (`share`, sealed rooms, the renderer's check), the buttons and
+from the design; deploying it is `docs/REEL-RUNBOOK.md`). **Built (2026-11-19): the
+server side of sharing a match against the computer** (`share`, the renderer's check,
+sealed rooms; the protocol is `docs/ROOMS.md` section 13). Not built yet: the buttons and
 cards in the browser, the home and privacy page wording, and the iPhone. The renderer's
 code is `backend/reels/` (moved there from the prototype in `tools/reel/`); the
 prototype's commands below still render reels on a laptop with that same code.
@@ -188,9 +189,28 @@ again the same. Then `render.mjs`, unchanged, made reels of them:
 
 The check is the replay plus the computer's throws made again by a second engine.
 `solo.mjs` stops a match at 40 turns, as `matches.mjs` does; the iPhone sets no such
-cap, so a very long match could pass the 256 KB a kept replay may be (about 60 turns at
-these sizes) and is then too long to share. The machine's load average was 15 to 85
-while these ran, so the times are high.
+cap. The machine's load average was 15 to 85 while these ran, so the times are high.
+
+How long a match may be is the engine's own limit, not a second one: the engine drops
+a document's log past its log budget (248 KB), and a match without its log has no
+replay, so it cannot be shared. Measured with the built check on v0.7.2 (all three
+engine checks on; the Mac's load average was over 100, and the Docker run, limited to
+the renderer's 1.75 CPUs and 3008 MB, was on the same machine):
+
+| Actions | Turns | Message, as sent | Gzipped | Kept document | Kept replay | Replay gzipped | Check (Mac) | Check (Docker) |
+| ------- | ----- | ---------------- | ------- | ------------- | ----------- | -------------- | ----------- | -------------- |
+| 65      | 9     | 30 KB            | 6.9 KB  | 37 KB         | 37 KB       | 8 KB           | 1.3 s       | 2.1 to 2.5 s   |
+| 123     | 14    | 52 KB            | 11.9 KB | 65 KB         | 64 KB       | 14 KB          | 2.9 s       | 6.2 to 7.7 s   |
+| 179     | 19    | 74 KB            | 16.3 KB | 90 KB         | 90 KB       | 20 KB          | 5.1 s       | 9.8 to 11.4 s  |
+| 402     | 34    | 162 KB           | 34 KB   | 198 KB        | 197 KB      | 42 KB          | 21 to 37 s  | 22 to 29 s     |
+
+The document grows about 490 bytes an action, so the budget ends a shareable match at
+about 505 actions (about 40 turns), a message of about 204 KB. The check's time grows
+faster than the match on v0.7.2: with no checks the 402-action replay took 2 to 5 s, the
+throw checks 7 to 8 s, and building the document 22 to 31 s, because the engine measures
+the whole document after every action. kubb-engine v0.7.3 is to fix that; until it is
+vendored, a match much past 300 actions is not checked within the wait and is answered
+"busy". These replace the 256 KB guess this section had.
 
 With drills (`build/reel/out-drills/`): `solo-11` shows Riverside's kubb out twice in
 turn 9, in place of the computer's second long base kubb (36.5 s, was 37.5); `seed-1`
@@ -304,11 +324,13 @@ This is the choice over the alternatives:
 - **Send the private record and publish from it.** The record carries the typed names
   and the build, and was promised private. Sharing is a separate act with its own words.
 
-**The message.** On a socket of its own, with no join, as a report is sent:
+**The message.** On a socket of its own, with no join, as a report is sent, cut into
+parts like any long message (`docs/ROOMS.md` section 2.1), as `game` and `report`
+already are:
 
 ```
 { "t": "share", "id": 1, "g": {
-    "client": "ios", "engine": "0.7.1",
+    "client": "ios", "engine": "0.7.2",
     "start": "<the match's first snapshot, with the shared name>",
     "log": [ { "a": <action> }, ... ],
     "end": { "winner": "A", "throws": 37 } } }
@@ -322,18 +344,31 @@ prototype's renamed match played the same to its end, on other hashes. So the de
 claims only the winner and the number of throws, and sends no hashes: the server works
 them out and keeps them in the replay.
 
+**Built:** one message, as drafted. A plan made while building it split the match into
+`share-part` messages, gzipped and in base64, on the belief that one message could not
+pass API Gateway's 128 KB message and 32 KB frame quotas. That was wrong: the rooms'
+own framing already cuts every message into parts of 30,000 bytes, up to 16 of them and
+300 KB in all, and `set`, `game` and `report` travel that way today. The largest
+shareable match is about 204 KB, 7 parts. Half a message is never handled: until every
+part is there it is only parts in the table, which expire after 10 minutes, so it
+counts against no cap and invokes nothing; each part costs one write and one query,
+under the stage throttle.
+
 **What the rooms function checks** (it knows no Kubb, as for every other message):
 
 - the shape: `start` a string, `log` an array of objects with an object `a`, `end` an
   object;
-- the size: the whole message at most 256 KB as ASCII JSON (`replayBytes`), at most
-  4000 actions (`gameActions`), `start` at most 16 KB;
+- the size: the whole message at most 256 KB as ASCII JSON (`shareBytes`), at most
+  1000 actions (`shareActions`, a cheap ceiling well past the engine's limit), `start`
+  at most 16 KB; otherwise `{ code: null, why: "too-long" }` before anything is read;
 - `engine`: its major.minor is one the renderer carries (an environment value on the
-  rooms function, `REEL_ENGINES`, today `0.5,0.7`); otherwise `{ code: null, why:
+  rooms function, `REEL_ENGINES`, today `0.7`); otherwise `{ code: null, why:
 "engine" }`;
-- the caps below;
-- a match shared before: the key `share#<fnv of start and log>` names its code, and the
-  same code is answered. A device that loses the answer and asks again gets one link.
+- a match shared before: the key `share#<sha256 of start and log>` names its code, and
+  the same code is answered, free. A device that loses the answer and asks again gets
+  one link. (**Built:** SHA-256, not FNV: a 32-bit collision would hand out another
+  match's link);
+- the caps below.
 
 **What the renderer checks.** The rooms function invokes the renderer with
 `InvocationType: RequestResponse` and `{ check: g }`, and waits up to 20 s. The renderer
@@ -350,8 +385,19 @@ plays the match through the engine release of that major.minor, from `start`:
 4. each of the person's throws is one the dial could make (an engine request below).
    Until then a throw at 30 m/s is taken: the prototype's forged one was.
 
+**Built** on kubb-engine v0.7.2's own checks (`backend/reels/check.mjs`): `checkStart`
+(the start is exactly what `newMatch` makes of its options), then `replayLoad` with
+`checkCpu`, `checkThrows` and `document`, `replayFinish`, `replayDocument`, and
+`replayOf` on the document's match. Side B must be named Computer, team and players.
+After them comes the size: a document past the log budget has no replay, and either the
+document or the replay over 256 KB is `too-long`. The engine's docs say what this
+cannot prove: that a person made the throws (a program inside the bounds passes), that
+a fast throw was likely (a legal overpowered baton reaches about 57 m/s), and anything
+about the computer's moves other than its throws (raising and placing are legal moves,
+not made again).
+
 A match that fails any of these is answered `{ code: null, why: "does-not-replay" }`
-and nothing is kept; the renderer logs the step that failed and the engine version, no
+(or `too-long`, or `engine`) and nothing is kept; the renderer logs the step that failed and the engine version, no
 names. One that passes comes back with the replay to keep (the start, the log, and the
 hash after each action) and the finished document for the page (teams, result, the last
 snapshot), both built by the engine. The rooms function then writes the room as a
@@ -360,6 +406,12 @@ snapshot), both built by the engine. The rooms function then writes the room as 
 - the room record with `sealed: true` and `keep = { v: 1, until }`, its document, and
   `room#<code> | replay`, all a year on, conditional on the code being new;
 - `share#<hash>` with the code and the same expiry.
+
+**Built:** the `share#` key is written first, conditional on there being none (or one
+whose room is gone), so two devices sharing the same match at once get one link; then
+the room, conditional on the code being new, then the document and the replay. A room
+write that fails takes the key back. The device's `client` is checked and passed on to
+nothing: it is not in the check's input and not stored.
 
 A sealed room refuses `join`, `set` and `keep` (`sealed`): nobody plays on, rematches or
 replaces its match. Its page goes straight to the finished-match card. The pages
@@ -439,13 +491,21 @@ Limits, beside the existing ones (the stage throttle, `gamesPerConn` and
 `reportsPerConn`):
 
 - the renderer's reserved concurrency is 2, and async invokes that are throttled wait
-  in Lambda's own queue for up to 6 hours. A check waits behind renders at most 20 s,
-  then is answered "busy" and stays on the device;
+  in Lambda's own queue for up to 6 hours. A check waits at most 20 s, then is answered
+  "busy" and stays on the device. **Built, and worse than drafted:** a synchronous
+  invoke is not queued. While two renders run, it is refused at once
+  (`TooManyRequestsException`); the rooms function tries again every 2 s until its 20 s
+  are up, so a check gets in only if a render ends in time. A render takes about a
+  minute, so a share made while two run is usually "busy". A check that runs past the
+  20 s keeps running in the renderer and holds one of its two places until it ends.
+  A separate check function, with its own concurrency, would end both (an open
+  question below);
 - 3 reel requests and 2 shares a connection;
 - a day's cap of 200 renders (`reels#<yyyy-mm-dd>`) and 200 shares
   (`shares#<yyyy-mm-dd>`), conditional counter items, after which the answers are
   "Reels are busy today" and "Sharing is busy today";
-- a share at most 256 KB and 4000 actions;
+- a share at most 256 KB and 1000 actions, and in fact the engine's log budget (about
+  505 actions);
 - a render that fails is retried once, then marked `failed`.
 
 **Built:** the retry is Lambda's own for an asynchronous invoke (the function's event
@@ -468,7 +528,7 @@ engine release for each major.minor it serves (`REEL_ENGINES`; about 2 MB each),
 plays each match on the one it was played on: a pitch's `match.engine`, a shared
 match's `engine`.
 
-**Built: one engine.** The function carries this site's vendored engine (0.7.1) and
+**Built: one engine.** The function carries this site's vendored engine (0.7.2) and
 nothing else, and renders a match only when the replay's `engine` has that major.minor;
 any other is answered `why: "engine"` by the rooms function and refused by the renderer
 too. `REEL_ENGINES` stays a list (one entry, `0.7`, set from the vendored engine by
@@ -495,7 +555,10 @@ videolan.org's. Its role may:
 
 A check writes nothing: it answers the rooms function, which writes the sealed room
 with the role it already has. The rooms function's role gains `lambda:InvokeFunction`
-on this one function, for both checks and renders. The renderer never reads the private
+on this one function, for both checks and renders. **Built:** the role already had it
+for renders, so sharing changed no IAM; the rooms function's timeout went from 10 s to
+30 s for the 20 s wait (API Gateway's 29 s integration limit does not matter: the answer
+is posted to the connection, not returned). The renderer never reads the private
 games bucket. It renders both formats in one run, uploads them, then marks the item
 `done`. A failure leaves `failed` and a log line.
 
@@ -654,7 +717,10 @@ the device writes it into the match before sending, so the typed one never leave
 device in a share. The other side is always Computer. The share sends no player
 name, member id, build, clock or user agent; the private record of the same match (the
 web's `game` message) is a separate thing, kept privately as before, and is not linked
-to the shared code.
+to the shared code. **Built, with one correction:** "build" holds (`client` is checked
+and dropped), but "clock" does not: the match's start carries the date and time it
+began, to the minute, as every setup does, and it is kept and served with the replay
+(open question 14).
 
 - **Home page**, under what is recorded: "Anyone with a finished pitch's link can make a
   highlight reel: a short video of the match's best throws, with the team names, kept
@@ -716,8 +782,9 @@ throw bounds, which it cannot.
     make both exact. Whether a kubb near the middle line is in is the engine's call; the
     reel never judges it.
 
-6 to 10 change no throw, so they can go in a patch release of each minor a client is
-on. 6 can also be done outside the engine, with a second engine as `verifySolo` does,
+6 to 9 are in kubb-engine v0.7.2 (`checkCpu`, `checkThrows`, `renameStart`,
+`replayDocument`), and the server's check uses them. 6 to 10 change no throw, so they
+can go in a patch release of each minor a client is on. 6 can also be done outside the engine, with a second engine as `verifySolo` does,
 for any release; 7 to 9 cannot. 10 is a convenience: the prototype works without it.
 
 ## Open questions for the owner
@@ -758,3 +825,15 @@ for any release; 7 to 9 cannot. 10 is a convenience: the prototype works without
     shows it is missed.
 12. **A big turn's drilling as a quick sequence.** Dropped for now (above). It could
     come back for a turn of eight or more kubbs if a single hold proves too little.
+13. **A separate check function.** A share's check runs in the reel function today and
+    is refused while two renders run (above). A small function of its own (the engine
+    and Node, no ffmpeg or canvas, 1 to 2 GB, a reserved concurrency of 1 or 2) would
+    check whatever renders, and a late check would hold no render's place. It is one
+    more function and role in the site stack. **Recommend: watch the "busy" answers
+    first**, and build it if shares are turned away.
+14. **The time a match began is published.** A shared match's start, and so its replay
+    and document, carry the date and time the match began, to the minute, as every
+    setup does. The privacy section said no clock is sent; the start is the clock. Rounding or
+    clearing it before sharing would need an engine call that renames the time as
+    `renameStart` renames a side. **Recommend: leave it**; a pitch's own match carries
+    the same.

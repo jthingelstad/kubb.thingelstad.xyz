@@ -245,7 +245,7 @@
         "Architectures": ["arm64"],
         "Handler": "index.handler",
         "MemorySize": 256,
-        "Timeout": 10,
+        "Timeout": 30,
         "Role": {
           "Fn::GetAtt": ["RoomsRole", "Arn"]
         },

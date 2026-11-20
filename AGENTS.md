@@ -271,9 +271,10 @@ tall (1080x1920) and wide (1920x1080), made on the server from the kept replay w
 engine. Jamie, 2026-11-19: "Approved: build the highlight reel feature as designed in
 docs/REEL.md, including its AWS resources in the throwingwood.com web stack". The design
 is `docs/REEL.md`, the protocol `docs/ROOMS.md` section 12, deploying, checking and
-rolling back `docs/REEL-RUNBOOK.md`. Not built yet: sharing a match against the computer,
-sealed rooms, the renderer's check, the browser's button and player, the home and privacy
-wording, and the iPhone.
+rolling back `docs/REEL-RUNBOOK.md`. A match against the computer gets one once shared:
+the server side of sharing is built (`share`, the renderer's `{ check: g }` in
+`backend/reels/check.mjs`, sealed rooms; `docs/ROOMS.md` section 13). Not built yet: the
+browser's buttons, cards and player, the home and privacy wording, and the iPhone.
 
 - `backend/reels/`: the renderer (`render.mjs` over `scan`, `highlights`, `cameras`,
   `overlay`, `audio`), the job (`job.mjs`: try, read the replay, refuse another engine,
