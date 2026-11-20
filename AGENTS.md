@@ -274,9 +274,12 @@ is `docs/REEL.md`, the protocol `docs/ROOMS.md` section 12, deploying, checking 
 rolling back `docs/REEL-RUNBOOK.md`. The browser's button and card for online pitches
 are `src/ui/reel.js` over `src/net/reel.js` (docs/CLIENT.md "Highlight reels"), and the
 home and privacy pages say what a reel shows. A match against the computer gets one once
-shared: the server side of sharing is built (`share`, the renderer's `{ check: g }` in
-`backend/reels/check.mjs`, sealed rooms; `docs/ROOMS.md` section 13). Not built yet: the
-browser's share card and its wording, showing a sealed pitch, and the iPhone.
+shared: the server side (`share`, the renderer's `{ check: g }` in
+`backend/reels/check.mjs`, sealed rooms; `docs/ROOMS.md` section 13), and the browser's
+share card on the solo winner card and a sealed pitch's page (`src/ui/share.js` over
+`src/net/share.js`, `Pitch.showSealed`; docs/CLIENT.md "Sharing a match"). The share
+card's words are a contract with the iPhone (docs/REEL.md "The share card"). Not built
+yet: the iPhone.
 
 - `backend/reels/`: the renderer (`render.mjs` over `scan`, `highlights`, `cameras`,
   `overlay`, `audio`), the job (`job.mjs`: try, read the replay, refuse another engine,

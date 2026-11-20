@@ -705,10 +705,10 @@ tested without a browser.
 
 - **Where.** MAKE A HIGHLIGHT REEL beside EMBED on the winner card of a shared pitch
   and on the replay bar and the replay's end card, only when the match has a replay
-  (`Pitch.reelFor`). Not on the embed, not when watching the computer, not in practice
-  or a match against the computer: that needs sharing (docs/REEL.md), and the card
-  already takes nothing but a pitch code for it. One `Reel` a finished match, so the
-  winner card and the replay say the same.
+  (`Pitch.reelFor`). Not on the embed, not when watching the computer, not in practice.
+  A match against the computer has the same button, which shares it first ("Sharing a
+  match" below); the card takes nothing but a pitch code, so a shared match's is this
+  one. One `Reel` a finished match, so the winner card and the replay say the same.
 - **The button follows the reel.** MAKE A HIGHLIGHT REEL, MAKING YOUR REEL while it is
   asked for or renders, WATCH THE REEL once it is done. Pressing it opens the card.
 - **Asking is starting.** The first `reel` request for a kept replay starts its render,
@@ -760,6 +760,62 @@ tested without a browser.
   taken back, so asking again really starts again: "The reel could not be made." with
   TRY AGAIN, once; a second such failure is "Not this time". No connection: "No
   connection." with TRY AGAIN, as often as pressed (nothing was started).
+
+## Sharing a match
+
+A match against the computer has no pitch, so its reel needs the match shared first:
+sent once, checked by the server playing it again, and kept as a sealed room under a
+new code (docs/REEL.md "Sharing a match against the computer", docs/ROOMS.md section
+13). The button and card are `Share` in `src/ui/share.js`; the name rules, the message
+and the card's states are a pure reducer in `src/net/share.js` (`shareStart`,
+`shareStep`, `shareView`), tested in `tests/net/share-client.test.mjs`.
+
+- **Where.** MAKE A HIGHLIGHT REEL on the winner card of a solo match (`startSolo` in
+  `src/main.js`), when the page has a rooms server and the match is one of side A
+  against the computer on B with its whole trail (`shareable`). Not when watching the
+  computer against itself (docs/REEL.md "What a player sees": nobody played), not in
+  practice. A rematch starts a new `Share`; the old match's is dropped with its card.
+- **The share card** (words: docs/REEL.md "The share card", `SHARE_WORDS`). What sharing
+  does, the name field, what the other side is called, and that the score sheet shows
+  the day and time the match was played (the start carries it, to the minute, and it is
+  kept: docs/REEL.md open question 14). Then SHARE AND MAKE THE REEL and NOT NOW. Nothing
+  is sent before SHARE. NOT NOW (BACK once sent), Escape and a press outside close it.
+- **The name.** It starts as the name typed for the match, or empty when that was the
+  game's stand-in "You". It takes what the server's check takes (`nameProblem`, as
+  `nameAllowed` in `backend/reels/check.mjs`): 1 to 16 characters, counted as code
+  points and cut there as typed (`clipName`), trimmed, never "You" in any case. SHARE is
+  faded while the name will not do, and a line under it says why.
+- **The message.** One `share` message: `client: "web"` (checked by the server, never
+  stored), `engine` (the engine's version), `start` and `log` as the engine's
+  `renameStart` gives them with side A renamed to the typed name (team and player; the
+  name typed for the match never leaves the page in a share), and `end` (`winner` from
+  the `over` need, `throws` the log's throws). No hashes, member id or clock of the
+  browser's. It goes on a socket of its own, in parts over 30,000 bytes (`src/net/ask.js`,
+  `askShare`), and waits up to 45 s for the answer: the server plays the match first.
+- **Too long, known here.** Past the server's ceilings (256 KB, 1000 actions, a 16 KB
+  start), or plainly past the engine's log budget as the finished document would hold it
+  (each action with its hash, and the last snapshot, against `LOG_BUDGET`), the card says
+  "This match is too long to share." without sending. Short of that the server decides.
+- **Answers.** `shared` with a code: the share card closes and the reel card opens for
+  that code (`Reel` with `link`: the link `https://throwingwood.com/p/<code>` and COPY
+  LINK in every state), and it asks for the reel at once, as a press would: SHARE AND
+  MAKE THE REEL was the request. Closed while checking, the reel is asked for all the
+  same and the button shows how it goes. From then on the button opens the reel card; the
+  card is not shown again. A share is idempotent on the server (the same start and log
+  are answered the same code, free), so TRY AGAIN after a lost answer gives one link.
+- **Refusals** (`code: null` with a why): `engine`, `does-not-replay`, `too-long`, `busy`
+  and `unavailable` each have a line, and an error `too-many` too; `too-big` reads as
+  too long and `bad-message` as does-not-replay. None offers TRY AGAIN. Opened again,
+  `busy`, `unavailable` and `too-many` start over at the name; the others stay. The error
+  `failed`: "This match could not be shared." with TRY AGAIN once, then "Not this time".
+  No connection: "No connection." with TRY AGAIN as often as pressed.
+- **A sealed pitch.** `/p/<code>` of a shared match: the join is refused `sealed`, and
+  `Pitch.showSealed` reads the kept replay (`fetchReplay`) and shows the finished match
+  as a browser arriving after a pitch's end sees it: the result, who played, WATCH
+  REPLAY, EMBED, MAKE A HIGHLIGHT REEL and SCORE SHEET, no lobby, seats or rematch. BACK
+  TO THE PITCH from the replay puts the finished match back. The room never moves on,
+  so its reel is this match's. `/e/<code>` needs nothing new: the embed reads only the
+  replay.
 
 ## Score sheet
 
