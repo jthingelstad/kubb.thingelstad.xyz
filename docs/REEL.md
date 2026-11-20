@@ -400,7 +400,7 @@ plays the match through the engine release of that major.minor, from `start`:
 4. each of the person's throws is one the dial could make (an engine request below).
    Until then a throw at 30 m/s is taken: the prototype's forged one was.
 
-**Built** on kubb-engine v0.7.2's own checks (vendored now at v0.7.3) (`backend/reels/check.mjs`): `checkStart`
+**Built** on kubb-engine v0.7.2's own checks (vendored now at v0.7.4) (`backend/reels/check.mjs`): `checkStart`
 (the start is exactly what `newMatch` makes of its options), then `replayLoad` with
 `checkCpu`, `checkThrows` and `document`, `replayFinish`, `replayDocument`, and
 `replayOf` on the document's match. Side B must be named Computer, team and players.
@@ -547,7 +547,7 @@ engine release for each major.minor it serves (`REEL_ENGINES`; about 2 MB each),
 plays each match on the one it was played on: a pitch's `match.engine`, a shared
 match's `engine`.
 
-**Built: one engine.** The function carries this site's vendored engine (0.7.3) and
+**Built: one engine.** The function carries this site's vendored engine (0.7.4) and
 nothing else, and renders a match only when the replay's `engine` has that major.minor;
 any other is answered `why: "engine"` by the rooms function and refused by the renderer
 too. `REEL_ENGINES` stays a list (one entry, `0.7`, set from the vendored engine by

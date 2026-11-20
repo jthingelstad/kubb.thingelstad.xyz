@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { Engine } from "../../src/engine/index.js";
 import { bundleLua, bundleText } from "../../tools/lua-bundle.mjs";
-import { clientLabel } from "../../src/net/sync.js";
+import { clientLabel, LOCATION } from "../../src/net/sync.js";
 
 const read = (p) => fs.readFileSync(new URL(`../../${p}`, import.meta.url));
 const manifest = JSON.parse(read("vendor/engine/engine.json"));
@@ -28,7 +28,11 @@ test("the Lua the site ships is the engine's bundle, byte for byte", () => {
 });
 
 test("Engine.create loads the pointer tune and labels the game file", async () => {
-  const e = await Engine.create({ sources, client: clientLabel(pkg.version) });
+  const e = await Engine.create({
+    sources,
+    client: clientLabel(pkg.version),
+    location: LOCATION,
+  });
   assert.equal(e.version, manifest.version);
   assert.deepEqual(e.call("useTune", { name: "pointer" }), { tune: "pointer" });
   e.newMatch({ seed: 3, cpu: "both", start: START, maxTurns: 1 });
@@ -39,10 +43,12 @@ test("Engine.create loads the pointer tune and labels the game file", async () =
       `\\[Scored by "Throwing Wood web ${pkg.version.replaceAll(".", "\\.")}"\\]`,
     ),
   );
-  // the label is never in the hash: a host without one plays the same match
+  assert.match(e.sheet().text, /\[Location "throwingwood\.com"\]/);
+  // neither is ever in the hash: a host without them plays the same match
   const plain = await Engine.create({ sources });
   plain.newMatch({ seed: 3, cpu: "both", start: START, maxTurns: 1 });
   assert.equal(plain.hash().hash, e.hash().hash);
+  assert.match(plain.sheet().text, /\[Location "Playdate"\]/);
 });
 
 test("the engine's golden corpus, every hash, under this wasmoon", async () => {
