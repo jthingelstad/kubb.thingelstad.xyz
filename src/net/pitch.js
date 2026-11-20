@@ -1001,7 +1001,16 @@ export class Pitch {
       engines?.has(mm) &&
       mm !== engines.newest;
     if (!own) return this.sheet?.();
+    const mode = this.mode;
     return withEngineFor(engines, mm, null, (engine) => {
+      // the engine may have loaded after something else began on it: WATCH REPLAY
+      // pressed while it loaded is playing by now, and a restore would end its replay
+      const still =
+        this.mode === mode &&
+        (mode === "sealed"
+          ? this.sealed === m
+          : this.room?.doc?.match?.n === m.n);
+      if (!still) return this.sheet?.();
       engine.restore(m.snap);
       return openSheet(this.ui, { game: this.game, engine });
     });
