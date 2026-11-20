@@ -530,7 +530,9 @@ export class ReplayPlayer {
       replayLabel: "REPLAY AGAIN",
       first: true,
       rematch: null,
-      home: this.embedded ? null : (this.home ?? (() => (location.href = "/"))),
+      home: this.embedded
+        ? null
+        : (this.home ?? (() => (location.href = "/web/"))),
       embed: this.embed,
       reel: this.reel,
       back: this.close,

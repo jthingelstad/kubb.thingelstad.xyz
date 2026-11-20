@@ -257,7 +257,7 @@ export class Pitch {
     const room = this.room;
     if (this.lobby.note.textContent.startsWith("Still trying"))
       this.lobby.say("");
-    // the host's own options go in on a new pitch, and OPEN from the home page
+    // the host's own options go in on a new pitch, and OPEN from the web game’s page
     // (/p/<code>?open=1) makes it an open game
     if (room.isHost() && room.v === 0) {
       const o = cleanOptions(prefs.get("pitchOptions", {}));
@@ -297,7 +297,7 @@ export class Pitch {
     const text = {
       full: "Sixteen people are on this pitch already, every one of them connected. Start a pitch of your own, or try again when someone leaves.",
       "bad-room":
-        "That is not a pitch's link. Pitch links come from the home page.",
+        "That is not a pitch's link. Pitch links come from Start a pitch on the web game’s page.",
       replaced: "This pitch is open in another tab or window of this browser.",
     }[code];
     this.cards.notice({
@@ -434,7 +434,7 @@ export class Pitch {
     this.write((d) => setOptions(d, { [k]: v }));
   }
 
-  // The host: open (listed on the home page) or invite only.
+  // The host: open (listed on the web game’s page) or invite only.
   setAccess(open) {
     if (!this.room.isHost()) return;
     this.write((d) => setAccess(d, open));

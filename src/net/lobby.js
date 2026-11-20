@@ -33,7 +33,7 @@ export const LENIENT_ENGINES = false;
 // engine the page plays on. engineConstants(mm) is any carried engine's.
 export let DOC_VERSION;
 export let TEAM_MAX;
-export let SEATS; // an open game's places, as the home page's list shows them
+export let SEATS; // an open game's places, as the web game's open-games list shows them
 export let SIDES;
 export let NAME_MAX;
 export let OPTION_DEFAULTS;

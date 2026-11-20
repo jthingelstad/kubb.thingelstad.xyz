@@ -31,8 +31,8 @@ vendored engine's major.minor (`"0.3"`), read from `room.constants`. The lobby c
 - **Watching**: everyone in the room on neither team.
 - **SHARE THE LINK**: `navigator.share` where there is one, else the clipboard.
 - **Who can join**: Invite only ("Only people with the link can join.", the default) or
-  Open ("Listed under Open games on the home page: anyone can join."). The host picks;
-  everyone else reads it. Starting a pitch from the home page with Open picked arrives as
+  Open ("Listed under Open games on the web game’s page: anyone can join."). The host picks;
+  everyone else reads it. Starting a pitch from the web game's page (`/web/`) with Open picked arrives as
   `/p/<code>?open=1`, and the new pitch's host (at `v` 0) writes it open.
 - **The match** options: surface, opening, raising, wind, kubb set. The host sets them
   (and the host's choices are remembered as `kubb:pitchOptions` for their next pitch);
@@ -94,7 +94,7 @@ what to list (`Pitch.publishOpen`, on every tick): `{ players, seats: 12, state 
 `openListing` in `src/net/lobby.js` (`players` is the members connected, `state` is
 `waiting`, `playing` or `over`), sent when it changes and again every 5 minutes so the
 entry (15 minutes to live) stays; `null` when the host makes it invite only. A new host
-sends it afresh. The home page's list and the server's rules are docs/ROOMS.md section 9.
+sends it afresh. The web game's list and the server's rules are docs/ROOMS.md section 9.
 
 **START** (the host): the lineup is the lobby's teams with each member's name and level;
 an empty side is the computer. The host's browser makes the match
