@@ -33,8 +33,19 @@ throwingwood.com web stack". Run everything here as `cloud-engineer` in `us-east
    - **Add** `ReelsLogs` (`/aws/lambda/kubb-xyz-site-reels`, 30 days), `ReelsRole`,
      `ReelsLayer`, `ReelsFunction` (`kubb-xyz-site-reels`), `ReelsInvokeConfig`.
    - **Modify** `SiteBucket` (the `ExpireReels` lifecycle rule; no replacement).
-   - Nothing else. A replacement of anything, or a change to the distribution, the
-     pages function or the certificate, is a stop: find out why first.
+   - When the pitch pages code changed since the last apply: `PagesRevision`
+     (REPLACEMENT, a new revision from the new code key, which is how that function
+     takes new code) and `PagesEndpoint` (its weight moves to the new revision).
+   - The tool's list also names `Distribution`, `PagesAccess`, `SiteBucketPolicy` and
+     the six DNS records as Modify. They refer to resources above and are evaluated
+     again; nothing in them changes. To be sure, read the change set the plan leaves
+     on the stack with property values
+     (`aws cloudformation describe-change-set --include-property-values`): it lists
+     only the resources that really change, with before and after. The first deploy
+     (2026-11-19) showed exactly the five adds, `SiteBucket`, `PagesRevision` and
+     `PagesEndpoint`.
+   - A real change to the distribution, the certificate or a record, or a replacement
+     of anything but `PagesRevision`, is a stop: find out why first.
 
 3. `AWS_PROFILE=cloud-engineer npm run infra:apply -- site`
 
@@ -49,6 +60,8 @@ throwingwood.com web stack". Run everything here as `cloud-engineer` in `us-east
    - **Modify** `RoomsRole` (the `StartReels` statement: `lambda:InvokeFunction` on
      that one ARN) and `RoomsFunction` (environment `REELS_FUNCTION`, `REEL_ENGINES`,
      and new code when its bundle changed). No replacement.
+     `RoomsIntegration` is listed as Modify beside them because it refers to the
+     function; nothing in it changes.
 
 5. `AWS_PROFILE=cloud-engineer npm run infra:apply -- rooms`
 

@@ -22,7 +22,7 @@
     "webSocketUrl": "wss://x3wdf2kum4.execute-api.us-east-1.amazonaws.com/prod",
     "apiDomain": "x3wdf2kum4.execute-api.us-east-1.amazonaws.com",
     "stage": "prod",
-    "codeKey": "rooms/eb0d9060399ae616fac4058da0e81bc58ad76d2fe65a0ed89dd601790838f4f7.zip"
+    "codeKey": "rooms/c7677e2fa68bf7328ad731a44a0bdeec128371fa4904a5599769e7e96c4025c6.zip"
   },
   "stackTags": {
     "Application": "Thingelstad",
@@ -32,8 +32,14 @@
     "Environment": "production"
   },
   "pages": {
-    "codeKey": "pages/822d6c8d6770e5915a0013bc5212aa736d1cb62cc987a46f305b8937a2189110.zip",
+    "codeKey": "pages/b0409e5d38b9be20cbd84ab44ef6d7c05cbf64b545d0119b73a2271ad43c5e4a.zip",
     "endpointDomain": "7t0zxpdy22vtgxb5.btq.lambda-web.us-east-1.on.aws",
-    "revisionId": "rev-l8qv1"
+    "revisionId": "rev-hnric"
+  },
+  "reels": {
+    "functionArn": "arn:aws:lambda:us-east-1:999153317627:function:kubb-xyz-site-reels",
+    "engines": "0.7",
+    "codeKey": "reels/f64ac3957b6c1a95660be7ba249557864daf6c3e4b3568aad124b5c1f536c048.zip",
+    "layerKey": "reels/ffmpeg-f4149bb2b0784e30e99bdda85471c9b5930d3402014e934a5098b41d0f7201b1.zip"
   }
 }
