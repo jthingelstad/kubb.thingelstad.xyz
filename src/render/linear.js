@@ -41,6 +41,17 @@ export const tune = {
   // px: a track shorter than this is cramped (the straight trial of 2026-11
   // had 300 for the whole swing and was), so the clock is used instead
   minTravel: 320,
+  // px: the shortest track on a wide screen (a phone on its side). The
+  // player's choice of meter holds when the phone turns (Jamie, 2026-11-19:
+  // "Bug: On iPhone if I turn on linear and then rotate it goes back to the
+  // circular swing."), so there the box takes the whole safe height at its
+  // edge (layout.js linearBox) and the swing spans it, unlike the 2026-11-18
+  // trial's 300 in a corner. 844 x 390 gives 301; it needs a canvas 349 px
+  // high with no insets. The iPhone app's wideMinTravel.
+  wideMinTravel: 260,
+  // px past the body's outer edge that a finger still grabs the knob on a
+  // wide touchscreen, where only the knob's channel grabs (knobHit)
+  chanOuter: 6,
 };
 
 // ---------- geometry (also for input) ----------
@@ -111,9 +122,30 @@ export function armAtY(g, y) {
 }
 
 // Is a press at (px, py) on the knob at its home? `reach` is how far up or
-// down from it counts (tune.grabTouch, tune.grabMouse).
-export function knobHit(g, px, py, reach) {
-  return px >= g.left - 6 && px <= g.right + 6 && Math.abs(py - g.y0) <= reach;
+// down from it counts (tune.grabTouch, tune.grabMouse). Across the body, or
+// with `channel` (a finger on a wide screen) across the knob's channel only
+// and chanOuter px past the body's outer edge: the lane beside it stands over
+// the far baseline's outer kubb there, and a press in it is throw zone (a tap
+// aims, a drag strokes).
+export function knobHit(g, px, py, reach, channel = false) {
+  if (Math.abs(py - g.y0) > reach) return false;
+  if (!channel) return px >= g.left - 6 && px <= g.right + 6;
+  const lo = g.chanX - (g.side === "left" ? tune.chanOuter : 0);
+  const hi = g.chanX + g.chanW + (g.side === "right" ? tune.chanOuter : 0);
+  return px >= lo && px <= hi;
+}
+
+// The prompt tab's rect at the knob's home, as wide as its longest words
+// could make it (5 of its heights, the nudge's allowance), its shadow
+// included: what the coach line and the plan keep clear of.
+export function tabRect(g) {
+  const w = g.promptH * 5;
+  return {
+    x: g.tabDir < 0 ? g.left - w : g.right + g.sh,
+    y: g.y0 - g.promptH / 2,
+    width: w,
+    height: g.promptH + g.sh,
+  };
 }
 
 // Is it anywhere on the meter's body? (The body keeps a press from the

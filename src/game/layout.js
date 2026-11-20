@@ -14,7 +14,13 @@
 // and the near pitch below carries the dial. The mapping travels as
 // view.fit, which drawWorld and every un-projection use.
 
-import { linearGeometry, tune as linearTune } from "../render/linear.js";
+import {
+  linearGeometry,
+  knobHit,
+  bodyHit,
+  tabRect,
+  tune as linearTune,
+} from "../render/linear.js";
 import { dialGeometry, tune as dialTune } from "../render/dial.js";
 import { minimapGeometry, tune as mapTune } from "../render/minimap.js";
 
@@ -83,6 +89,21 @@ export const tune = {
   planBeside: 6, // px between the meter and the block beside it
   planGap: 12,
   planClear: 24,
+  // A wide canvas's linear meter (a phone on its side: the player's choice of
+  // meter holds when the phone turns; Jamie, 2026-11-19: "Bug: On iPhone if I
+  // turn on linear and then rotate it goes back to the circular swing."). Its
+  // box takes the whole safe height at its edge, from linearTopWide under the
+  // safe top to half a margin over the safe bottom (at most linearHMax, so a
+  // taller window's stands on the bottom as before), and its track needs
+  // linear.js wideMinTravel. Where it comes up into the header row, the plates
+  // at that top corner (MENU and the practice tray at the right, the rail and
+  // the shouts at the left) move in beside it, meterGap off its body
+  // (`meterRoom`). The iPhone app's WideLayout keeps the same numbers.
+  linearTopWide: 10,
+  meterGap: 10,
+  // a minimap stacked over the plan block (a narrow wide canvas beside the
+  // linear meter) keeps this many px under the header row, or is not drawn
+  stackedMapGap: 10,
 };
 
 export function isTall(W, H) {
@@ -132,24 +153,22 @@ export function panFor(W, H, fx, room = 40) {
   return Math.max(lo, Math.min(hi, 200));
 }
 
-// The linear meter's box, or null where its track would be cramped (a phone
-// on its side): the right edge (or the left, MENU, Side), under the minimap
-// on a tall canvas and under the rail's row on a wide one, down to the
-// bottom.
+// The linear meter's box, or null where its track would be cramped: the
+// right edge (or the left, MENU, Side). On a tall canvas under the minimap,
+// 47% of the height (linearH) and a track of at least minTravel; on a wide
+// one the whole safe height (linearTopWide under the safe top, at most
+// linearHMax) and a track of at least wideMinTravel. Both stand on the bottom.
 function linearBox(W, H, s, tall, minimap, side) {
   const m = tune.margin;
   const w = Math.max(
     tune.linearWMin,
     Math.min(tune.linearWMax, W * tune.linearW),
   );
-  // on the left of a wide canvas the rail's box is above it, on the right
-  // the MENU's row; a tall canvas keeps the top for the rail, the practice
-  // tray and the minimap, so either side starts under the minimap
+  // a tall canvas keeps the top for the rail, the practice tray and the
+  // minimap, so either side starts under the minimap
   const top = tall
     ? minimap.y + minimap.height + m * 0.7
-    : side === "left"
-      ? s.top + tune.railBox + m * 0.7
-      : s.top + tune.railH + m * 1.5;
+    : s.top + tune.linearTopWide;
   const bottom = H - s.bottom - m * 0.5;
   const h = Math.min(
     bottom - top,
@@ -169,9 +188,36 @@ function linearBox(W, H, s, tall, minimap, side) {
     box.x +=
       p.x + p.w + p.pad + mapTune.frame - linearGeometry(box, side).right;
   }
-  return h > 0 && linearGeometry(box, side).travel >= linearTune.minTravel
-    ? box
-    : null;
+  const least = tall ? linearTune.minTravel : linearTune.wideMinTravel;
+  return h > 0 && linearGeometry(box, side).travel >= least - 1e-9 ? box : null;
+}
+
+// The header row's foot at either top corner of a wide canvas: MENU's row
+// at the right, the rail's box at the left. A linear meter whose box comes
+// up past it (less meterGap) moves that corner's plates in beside it.
+function headerFoot(s, side) {
+  return side === "left"
+    ? s.top + tune.railBox
+    : s.top + tune.railH + tune.margin * 1.5 - tune.meterGap;
+}
+
+// How far in from their usual place the top corner's plates move to stand
+// meterGap off a wide canvas's linear meter: { left, right } in CSS px (0
+// where the meter's box stays under the header row, as on a desktop).
+// public/game.css reads them as --meter-l and --meter-r.
+export function meterRoom(L) {
+  const room = { left: 0, right: 0 };
+  if (!L || L.tall || L.meter !== "linear") return room;
+  const s = L.safe;
+  const d = L.dial;
+  if (d.y >= headerFoot(s, L.meterSide) + tune.meterGap) return room;
+  const g = linearGeometry(d, L.meterSide);
+  const plate = 12; // the plates' px off the safe edge (game.css)
+  if (L.meterSide === "left")
+    room.left = Math.max(0, g.right + g.sh + tune.meterGap - (s.left + plate));
+  else
+    room.right = Math.max(0, L.W - s.right - plate - (g.left - tune.meterGap));
+  return room;
 }
 
 // The screen's regions in CSS px. safe = { top, right, bottom, left }.
@@ -269,7 +315,7 @@ export function layoutFor(
     // throwing line on a tall one (hud.js place); a wide touchscreen's
     // block goes to the far edge (planAt)
     const side = tall ? "both" : onLeft ? "right" : "left";
-    return {
+    const L = {
       W,
       H,
       safe: s,
@@ -278,12 +324,17 @@ export function layoutFor(
       dial: linear,
       plansY: linear.y,
       plansFoot: null,
-      ...planAt(W, s, tall, coarse, side, linear, linear.y, minimap),
+      ...planAt(W, s, tall, coarse, side, linear, linear.y, minimap, {
+        g: linearGeometry(linear, meterSide),
+        side: meterSide,
+      }),
       side,
       meter: "linear",
       meterSide,
       track: false,
     };
+    L.meterRoom = meterRoom(L);
+    return L;
   }
   const plansY = dial.y; // keep the side buttons in reach, beside the downstroke
   const plan = planAt(W, s, tall, coarse, side, dial, plansY, minimap);
@@ -305,21 +356,30 @@ export function layoutFor(
     // a tall canvas's clock is centred whichever side is chosen
     meterSide: tall ? "centre" : meterSide,
     track,
+    meterRoom: { left: 0, right: 0 },
   };
 }
 
-// The plan block on a wide canvas: { plan, planEdge, minimap }. plan is the
-// block's rect (from tune.planW and planH, its foot planFoot above the
-// meter's box's foot); planEdge is the screen edge it is anchored at,
-// "left" or "right", or null where it sits beside the meter (`side`: the
+// The plan block on a wide canvas: { plan, planEdge, minimap, mapStacked }.
+// plan is the block's rect (from tune.planW and planH, its foot planFoot
+// above the meter's box's foot); planEdge is the screen edge it is anchored
+// at, "left" or "right", or null where it sits beside the meter (`side`: the
 // block is left or right of it). A touchscreen's block is at the edge away
 // from the meter, so one hand sets the plan and the other throws, and the
 // minimap leaves its corner for the block's inner side; a mouse keeps the
 // block beside the meter (one hand does everything, so near is better), as
 // does a canvas too narrow to keep the block and the minimap off the
 // throwing line. A tall canvas has no block (null plan, the same minimap).
-function planAt(W, s, tall, coarse, side, meter, plansY, minimap) {
-  if (tall) return { plan: null, planEdge: null, minimap };
+//
+// Beside the linear meter (`lin`: its geometry and side) the block never
+// goes over the prompt tab: where beside would reach the tab (a short
+// window with a mouse) the block goes to the far edge as on a touchscreen,
+// and where the far edge cannot keep the block and the minimap off the
+// throwing line the block stays there and the minimap goes over it
+// (`mapStacked`), or is not drawn (minimap null) where that would meet the
+// header row. The minimap is a picture, never a control.
+function planAt(W, s, tall, coarse, side, meter, plansY, minimap, lin = null) {
+  if (tall) return { plan: null, planEdge: null, minimap, mapStacked: false };
   const w = tune.planW,
     h = tune.planH;
   const y = plansY + meter.height - tune.planFoot - h;
@@ -335,8 +395,22 @@ function planAt(W, s, tall, coarse, side, meter, plansY, minimap) {
     },
     planEdge: null,
     minimap,
+    mapStacked: false,
   };
-  if (!coarse) return beside;
+  // beside the linear meter, does the block reach its prompt tab?
+  const onTab =
+    !!lin &&
+    (() => {
+      const t = tabRect(lin.g);
+      const b = beside.plan;
+      return (
+        b.y < t.y + t.height + 4 &&
+        b.y + b.height > t.y &&
+        b.x < t.x + t.width &&
+        t.x < b.x + b.width
+      );
+    })();
+  if (!coarse && !onTab) return beside;
   // the block's edge is the one away from the meter: the meter is right of
   // a block on its left
   const edge = side === "left" ? "left" : "right";
@@ -345,12 +419,57 @@ function planAt(W, s, tall, coarse, side, meter, plansY, minimap) {
   const mx =
     edge === "left" ? x + w + tune.planGap : x - tune.planGap - minimap.width;
   const inner = edge === "left" ? mx + minimap.width : W - mx;
-  if (inner > W / 2 - tune.planClear) return beside;
+  if (inner <= W / 2 - tune.planClear)
+    return {
+      plan: { x, y, width: w, height: h },
+      planEdge: edge,
+      minimap: { ...minimap, x: mx },
+      mapStacked: false,
+    };
+  const blockInner = edge === "left" ? x + w : W - x;
+  if (!lin || blockInner > W / 2 - tune.planClear) return beside;
+  // the block at the far edge, the minimap over it, its inner edge with the
+  // block's, clear of the header row (the rail's box, or MENU's row)
+  const map = {
+    ...minimap,
+    x: edge === "left" ? x + w - minimap.width : x,
+    y: y - tune.planGap - minimap.height,
+  };
+  const ceiling = s.top + tune.railBox + tune.stackedMapGap;
   return {
     plan: { x, y, width: w, height: h },
     planEdge: edge,
-    minimap: { ...minimap, x: mx },
+    minimap: map.y >= ceiling ? map : null,
+    mapStacked: true,
   };
+}
+
+// What a press claims of the linear meter (L.meter "linear", g its
+// geometry), in the press order of Game.down. `first` comes before the
+// target circle and the thrower: "dial" (the knob, grabbed), "none" (the
+// body away from the knob: kept from the pitch, nothing happens) or null.
+// On a wide canvas a finger (`touch`) grabs only across the knob's channel
+// and the rest of the body is "zone" (a tap aims, a drag strokes): the
+// whole-height box stands over the far baseline's outer kubb, which a tap
+// there must still reach. A mouse, and every pointer on a tall canvas, are
+// as before.
+export function linearFirst(L, g, x, y, { touch = false, reach }) {
+  const wideTouch = touch && !L.tall;
+  if (knobHit(g, x, y, reach, wideTouch)) return "dial";
+  if (bodyHit(g, x, y)) return wideTouch ? "zone" : "none";
+  return null;
+}
+
+// Is a press (that nothing else took) in the linear meter's throw zone,
+// where a drag strokes the knob and a tap still aims? The canvas below
+// `zoneFrom` of its height; on a wide canvas with a finger the meter's half
+// of it, top to bottom (the lower 40% of a phone on its side, about 156 px,
+// is too shallow for a whole draw back and flick; the plan block and the
+// minimap are on the other half). A mouse keeps the lower band.
+export function inLinearZone(L, x, y, { touch = false, zoneFrom = 0.6 } = {}) {
+  if (touch && !L.tall)
+    return L.meterSide === "left" ? x <= L.W / 2 : x >= L.W / 2;
+  return y >= L.H * zoneFrom;
 }
 
 // The wide view's box: where the whole pitch is fitted (vendor/engine/session/wide.lua), in
