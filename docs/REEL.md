@@ -16,7 +16,8 @@ and home and privacy wording for them (docs/CLIENT.md "Highlight reels"). **Buil
 (2026-11-19): the server side of sharing a match against the computer** (`share`, the
 renderer's check, sealed rooms; the protocol is `docs/ROOMS.md` section 13), and **the
 browser's share card and a sealed pitch's page** (docs/CLIENT.md "Sharing a match";
-its words are "The share card" below). Not built yet: the iPhone. The renderer's
+its words are "The share card" below). **Built (2026-11-20): the iPhone app's reel card
+and share card**, in its own repository, on the same messages and words. The renderer's
 code is `backend/reels/` (moved there from the prototype in `tools/reel/`); the
 prototype's commands below still render reels on a laptop with that same code.
 

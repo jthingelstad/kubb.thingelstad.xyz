@@ -278,8 +278,9 @@ shared: the server side (`share`, the renderer's `{ check: g }` in
 `backend/reels/check.mjs`, sealed rooms; `docs/ROOMS.md` section 13), and the browser's
 share card on the solo winner card and a sealed pitch's page (`src/ui/share.js` over
 `src/net/share.js`, `Pitch.showSealed`; docs/CLIENT.md "Sharing a match"). The share
-card's words are a contract with the iPhone (docs/REEL.md "The share card"). Not built
-yet: the iPhone.
+card's words are a contract with the iPhone (docs/REEL.md "The share card"). The iPhone
+app has both cards too (2026-11-20, in `../throwingwood-ios`: its `docs/ONLINE.md`), and
+sends the same `reel` and `share` messages.
 
 - `backend/reels/`: the renderer (`render.mjs` over `scan`, `highlights`, `cameras`,
   `overlay`, `audio`), the job (`job.mjs`: try, read the replay, refuse another engine,
