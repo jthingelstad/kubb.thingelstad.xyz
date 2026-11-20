@@ -4,7 +4,7 @@ import fs from "node:fs";
 export const ORIGIN = "https://throwingwood.com";
 export const HOST = new URL(ORIGIN).hostname;
 export const SITE_NAME = "Kubb: Throwing Wood";
-export const SITE_TITLE = "Kubb: Throwing Wood on the web";
+export const SITE_TITLE = "Kubb: Throwing Wood";
 
 // Whether the game client is in place: practice, a match against the
 // computer and a pitch shared on a link are playable. While false, the home
@@ -46,3 +46,14 @@ export const ref = (url, placement) =>
   `${url}${url.includes("?") ? "&" : "?"}ref=kubb-${placement}`;
 
 export const PLAYDATE_GAME = "https://playdate.thingelstad.xyz/throwing-wood/";
+
+// The other places the game lives (the /ios/ and /playdate/ pages).
+export const ENGINE_REPO = "https://github.com/jthingelstad/kubb-engine";
+export const WEB_REPO = "https://github.com/jthingelstad/kubb.thingelstad.xyz";
+export const IOS_REPO = "https://github.com/jthingelstad/throwingwood-ios";
+export const PLAYDATE_REPO = "https://github.com/jthingelstad/playdate-kubb";
+
+// The iPhone app's public TestFlight link (Jamie, 2026-11-20). /ios/ shows
+// JOIN THE TESTFLIGHT pointing here. Cleared to "", /ios/ says the beta is by
+// invitation and shows no button (src/site/landing.mjs iosJoin).
+export const TESTFLIGHT_URL = "https://testflight.apple.com/join/rTx8uTn1";

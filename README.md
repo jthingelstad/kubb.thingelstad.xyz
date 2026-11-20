@@ -22,13 +22,23 @@ npm run preview        # dist/ on http://127.0.0.1:4322, /p/<code> as live
 npm run dev            # rebuild on change, plus the local rooms on ws://127.0.0.1:8788
 ```
 
-| Path         | What                                                       |
-| ------------ | ---------------------------------------------------------- |
-| `/`          | Home: start a pitch, play the computer, practice           |
-| `/p/<code>`  | A pitch: every code serves the one game page (not indexed) |
-| `/p/?solo=1` | A pitch of your own against the computer                   |
-| `/practice/` | The practice pitch                                         |
-| `/rules/`    | How Kubb is played, and how to throw on the web            |
+| Path         | What                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------ |
+| `/`          | The landing page: the game, its three ways to play, online play, replays, reels      |
+| `/web/`      | The web game: start a pitch, play or watch the computer, practice, open games        |
+| `/ios/`      | The iPhone and iPad app, in beta on TestFlight (`TESTFLIGHT_URL`, src/site/site.mjs) |
+| `/playdate/` | The Playdate game, in development                                                    |
+| `/engine/`   | The Kubb Engine                                                                      |
+| `/love/`     | Kubb sites we love                                                                   |
+| `/p/<code>`  | A pitch: every code serves the one game page (not indexed)                           |
+| `/p/?solo=1` | A pitch of your own against the computer                                             |
+| `/practice/` | The practice pitch                                                                   |
+| `/rules/`    | How Kubb is played, and how to throw on the web                                      |
+
+Every page is in `src/site/`: the landing pages in `landing.mjs`, the web game's page,
+rules, privacy and the game pages in `pages.mjs`. A path without its trailing slash
+redirects to it (`infra/viewer-request.js`). The landing pages' pictures are real
+captures in `public/landing/` (WebP; each `<img>` takes its size from the file).
 
 ## Deploy
 

@@ -6,7 +6,9 @@ import path from "node:path";
 import { contentType } from "./delivery-plan.mjs";
 import { loadViewerRequest, cloudfrontRequest } from "./preview.mjs";
 import { PAGES } from "../src/site/pages.mjs";
-import { ORIGIN, TINYLYTICS_SITE } from "../src/site/site.mjs";
+import { LOVE, webpSize } from "../src/site/landing.mjs";
+import { NAV } from "../src/site/layout.mjs";
+import { ORIGIN, TESTFLIGHT_URL, TINYLYTICS_SITE } from "../src/site/site.mjs";
 
 async function walk(dir, skip = () => false) {
   const out = [];
@@ -53,8 +55,27 @@ for (const page of PAGES) {
   for (const [, ref] of html.matchAll(/(?:src|href)="(\/[^"#]*)"/g))
     assert.ok(resolves(ref), `${page.file} names ${ref}, which is not served`);
   // Every image has alt text (empty only when it repeats a link's words).
-  for (const [tag] of html.matchAll(/<img\b[^>]*>/g))
+  for (const [tag] of html.matchAll(/<img\b[^>]*>/g)) {
     assert.match(tag, /\balt="/, `${page.file}: an image without alt`);
+    // A picture holds its place: its width and height are the file's own.
+    const src = tag.match(/\bsrc="\/([^"]+\.webp)"/)?.[1];
+    if (!src) continue;
+    const size = webpSize(await fs.readFile(path.join("dist", src)));
+    assert.match(
+      tag,
+      new RegExp(`width="${size.width}" height="${size.height}"`),
+      `${page.file}: ${src} size`,
+    );
+  }
+  // External links on reading pages open nothing that can reach back.
+  if (!page.game)
+    for (const [tag] of html.matchAll(/<a\b[^>]*href="https?:[^"]*"[^>]*>/g))
+      if (!/rel="me|class="u-url/.test(tag) && !tag.includes("thingelstad"))
+        assert.match(
+          tag,
+          /rel="noopener"/,
+          `${page.file}: ${tag} without noopener`,
+        );
   // No inline script: the CSP allows none. A JSON data block is not script.
   for (const [tag] of html.matchAll(/<script\b[^>]*>/g))
     assert.ok(
@@ -105,15 +126,78 @@ for (const page of PAGES) {
   assert.ok(keys.has(new URL(image).pathname.slice(1)), `og:image ${image}`);
 }
 
-// The engine page is served, indexed (canonical and sitemap above), listed in
-// llms.txt and linked from the footer every reading page carries.
-assert.ok(resolves("/engine/"), "/engine/ serves the engine page");
+// The site's pages: each served with and without its trailing slash,
+// indexed, in llms.txt and in the nav every reading page carries.
+const landing = await read("index.html");
+for (const { href } of NAV) {
+  assert.ok(resolves(href), `${href} is served`);
+  assert.ok(resolves(href.slice(0, -1)), `${href.slice(0, -1)} redirects`);
+  assert.ok(!PAGES.find((p) => p.path === href).noindex, `${href} is indexed`);
+  assert.ok(
+    (await read("llms.txt")).includes(`${ORIGIN}${href}`),
+    `${href} in llms.txt`,
+  );
+  assert.match(landing, new RegExp(`<a href="${href}"`), `/ links ${href}`);
+}
+// / is the landing page, not the lobby: one click from its hero to the web
+// game, and no pitch buttons or open games of its own. /web/ has them.
 assert.ok(
-  !PAGES.find((p) => p.path === "/engine/").noindex,
-  "/engine/ is indexed",
+  !/data-pitch|data-rooms|data-access/.test(landing),
+  "/ is not the lobby",
 );
-assert.ok((await read("llms.txt")).includes(`${ORIGIN}/engine/`));
-assert.match(await read("index.html"), /<a href="\/engine\/">/);
+assert.match(
+  landing.slice(0, landing.indexOf("</section>")),
+  /<a class="button button--start" href="\/web\/">/,
+  "/ reaches the web game from its hero",
+);
+const web = await read("web/index.html");
+for (const mark of [
+  'data-pitch=""',
+  'data-pitch="?solo=1"',
+  'data-pitch="?watch=1"',
+  'href="/practice/"',
+  "data-access",
+  'src="/js/start.js"',
+])
+  assert.ok(web.includes(mark), `/web/ has ${mark}`);
+// /ios/ shows a TestFlight button only when there is a link to put on it.
+const iosPage = await read("ios/index.html");
+assert.equal(
+  iosPage.includes('data-test="testflight"'),
+  Boolean(TESTFLIGHT_URL),
+  "/ios/ TestFlight button",
+);
+assert.equal(
+  iosPage.includes('data-test="testflight-invite"'),
+  !TESTFLIGHT_URL,
+  "/ios/ by invitation",
+);
+// /love/: the heading and the five sites, in order, each a noopener link.
+const lovePage = await read("love/index.html");
+assert.match(
+  lovePage,
+  /<h1 class="display">Kubb Creates Peace and Unites People<\/h1>/,
+);
+const named = [
+  ...lovePage.matchAll(
+    /<h3 class="card__title"><a href="([^"]+)" rel="noopener">([^<]+)<\/a>/g,
+  ),
+].map((m) => [m[1], m[2].replace("&#39;", "'")]);
+assert.deepEqual(
+  named,
+  LOVE.map((s) => [s.url, s.name]),
+  "/love/ lists the five sites",
+);
+assert.deepEqual(
+  LOVE.map((s) => s.url),
+  [
+    "https://www.usakubb.org",
+    "https://www.kubbvm.com",
+    "http://minnesotakubb.com",
+    "https://planetkubb.com",
+    "https://www.jpsbackyardgames.com/",
+  ],
+);
 
 // The pitch page is reached at /p/<code>, never at /pitch/ by a link.
 assert.ok(resolves("/p/abcdefgh"), "/p/<code> serves the game page");
