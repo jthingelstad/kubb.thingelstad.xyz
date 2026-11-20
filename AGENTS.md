@@ -69,6 +69,17 @@ by invitation and shows no button. Every claim on `/engine/` has a source in the
 docs or tests; keep it that way. The pages announce nothing that is not live: no dates,
 no store, no features in progress.
 
+`/playdate/` shows the Playdate game's reel and installs it on the page itself (Jamie,
+2026-11-20: "do not require people to go to the playdate site to download and install…
+reference the same file on that page"). The reel, its poster, the screens and the
+download are not copies: they are the Playdate games site's own files, by their URLs
+there (`PLAYDATE_REEL`, `PLAYDATE_BUILD` in `src/site/landing.mjs`), and the CSP allows
+that one origin for `img-src` and `media-src` only (`PLAYDATE_SITE` in
+`src/site/csp.mjs`). When that site moves to a new build, set `PLAYDATE_BUILD` to its URL,
+size and notes; the version on the page is read from the file's name. The reel plays
+muted on a loop only without reduced motion (`public/js/reel.js`); in the markup it has
+no autoplay.
+
 ## Build and check
 
 `npm ci`, then `npm run check` and `npm run format:check`. `check` runs, in order:
