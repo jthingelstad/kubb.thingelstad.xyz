@@ -18,7 +18,8 @@ the engine's.
 | `/p/<code>`         | A shared pitch: the lobby (name, level, Team A or B or watching, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md.                                                                                                                                   |
 | `/e/<code>`         | The embed: a kept replay alone, for a frame on another site ("The embed", below).                                                                                                                                                                                                                   |
 
-A failure to start shows a plain error card with RELOAD and HOME. The HOW TO THROW overlay
+A failure to start shows a plain error card with RELOAD and HOME. HOME, on every card, is
+the web game's page, `/web/` (`/` is the landing page for the whole game). The HOW TO THROW overlay
 (four steps, an animated dial) shows on the first visit and from the menu; `?nohowto` skips it.
 
 ## Files

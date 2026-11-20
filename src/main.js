@@ -66,14 +66,14 @@ function fail(err) {
     h(
       "div.row",
       button("RELOAD", () => location.reload(), "go"),
-      h("a.btn", { href: "/" }, "HOME"),
+      h("a.btn", { href: "/web/" }, "HOME"),
     ),
   );
   ui.append(h("div.scrim", box));
 }
 
 const home = () => {
-  location.href = "/";
+  location.href = "/web/";
 };
 
 // Every engine the site carries, each made the first time it is asked for
