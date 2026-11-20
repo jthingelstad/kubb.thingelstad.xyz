@@ -9,6 +9,7 @@ import { PAGES } from "../src/site/pages.mjs";
 import { LOVE, webpSize } from "../src/site/landing.mjs";
 import { NAV } from "../src/site/layout.mjs";
 import { NEWSLETTER_PAGES } from "../src/site/newsletter.mjs";
+import { robotsTxt } from "../src/site/robots.mjs";
 import {
   NEWSLETTER_ACTION,
   ORIGIN,
@@ -252,6 +253,11 @@ assert.ok(
 for (const image of ["share/kubb.png", "favicon.png", "apple-touch-icon.png"])
   assert.ok(keys.has(image), `${image} was not built`);
 
+assert.equal(
+  await read("robots.txt"),
+  robotsTxt(ORIGIN),
+  "robots.txt is src/site/robots.mjs",
+);
 assert.match(
   await read("robots.txt"),
   new RegExp(`^Sitemap: ${ORIGIN}/sitemap\\.xml$`, "m"),
