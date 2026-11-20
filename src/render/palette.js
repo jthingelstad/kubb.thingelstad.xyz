@@ -191,11 +191,15 @@ const DAY_SKIN = {
   burst: { ...BURST },
   aim: { ...AIM },
 };
+function reskin(into, day, over) {
+  for (const k of Object.keys(into)) if (!(k in day)) delete into[k];
+  Object.assign(into, day, over);
+}
 export function useSkin(skin = null) {
-  Object.assign(UI, DAY_SKIN.ui, skin?.ui);
-  Object.assign(HUD, DAY_SKIN.hud, skin?.hud);
-  Object.assign(BURST, DAY_SKIN.burst, skin?.burst);
-  Object.assign(AIM, DAY_SKIN.aim, skin?.aim);
+  reskin(UI, DAY_SKIN.ui, skin?.ui);
+  reskin(HUD, DAY_SKIN.hud, skin?.hud);
+  reskin(BURST, DAY_SKIN.burst, skin?.burst);
+  reskin(AIM, DAY_SKIN.aim, skin?.aim);
 }
 
 // Type. Londrina Solid Black is the display face (bursts, prompts, numbers);
