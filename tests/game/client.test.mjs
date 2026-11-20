@@ -17,6 +17,7 @@ import {
   dialGeometry,
   nextFrame,
 } from "./browser.mjs";
+import { linearGeometry } from "../../src/render/linear.js";
 import { startRoomsServer } from "../../tools/rooms-dev.mjs";
 import { memoryReporter } from "../../backend/rooms/reports.mjs";
 import { memoryGameRecorder } from "../../backend/rooms/recorder.mjs";
@@ -1523,25 +1524,51 @@ browserTest(
   },
 );
 
-browserTest(
-  "a phone on its side keeps the clock: the linear meter has no room",
-  async () => {
-    const page = await open(env, "/practice/?nohowto=1", "landscape", {
-      prefs: { meter: "linear" },
-    });
-    await waitPhase(page, "aim", 10000);
-    assert.equal(
-      await page.evaluate(() => window.__kubb.game.L.meter),
-      "clock",
-    );
-    await watchThrows(page);
-    await throwOnce(page, { touch: true });
-    await waitPhase(page, "play", 5000);
-    assert.equal((await page.evaluate(() => window.__throws)).length, 1);
-    assert.deepEqual(page.errors, []);
-    await page.context().close();
-  },
-);
+// The player's choice of meter holds when the phone turns (Jamie,
+// 2026-11-19: "Bug: On iPhone if I turn on linear and then rotate it goes
+// back to the circular swing."): the linear meter stands at its edge with
+// the whole height, MENU or the rail moves in beside it, a stroke in the
+// meter's half throws, and a tap on its body away from the knob's channel
+// is a tap (layout.js linearFirst, inLinearZone).
+for (const side of ["right", "left"]) {
+  browserTest(
+    `a phone on its side keeps the linear meter (${side})`,
+    async () => {
+      const page = await open(env, "/practice/?nohowto=1", "landscape", {
+        prefs: { meter: "linear", meterSide: side },
+      });
+      try {
+        await waitPhase(page, "aim", 10000);
+        const L = await page.evaluate(() => window.__kubb.game.L);
+        assert.equal(L.meter, "linear");
+        assert.equal(L.meterSide, side);
+        const g = linearGeometry(L.dial, side);
+        assert.ok(g.travel >= 260, `travel ${g.travel}`);
+        // the plate at the meter's top corner stands 10 px off its body
+        const sel = side === "right" ? "[data-test=menu]" : "[data-test=rail]";
+        const r = await page.locator(sel).boundingBox();
+        if (side === "right") assert.ok(r.x + r.width <= g.left - 9, "MENU");
+        else assert.ok(r.x >= g.right + g.sh + 9, "the rail");
+        // a tap on the lane beside the knob is a tap: nothing thrown
+        await page.touchscreen.tap(g.laneLeft + g.laneW / 2, g.y0 - 20);
+        await nextFrame(page);
+        await nextFrame(page);
+        assert.equal((await state(page)).phase, "aim");
+        assert.equal(
+          await page.evaluate(() => window.__kubb.game.ptr),
+          null,
+          "the press is over",
+        );
+        // a stroke high in the meter's half, off the meter, throws
+        const x = side === "right" ? L.W * 0.62 : L.W * 0.38;
+        await judgedThrow(page, { touch: true, from: [x, L.H * 0.4] });
+        assert.deepEqual(page.errors, []);
+      } finally {
+        await page.context().close();
+      }
+    },
+  );
+}
 
 // One practice throw, watched: the result the engine judged.
 async function judgedThrow(page, opts) {
