@@ -20,7 +20,8 @@ import os from "node:os";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
-import { drawWorld } from "../../src/render/world.js";
+import { Stage } from "../../src/render/scenes.js";
+import { setSpriteMaker } from "../../src/render/glow.js";
 import { drawBurst, burstLength } from "../../src/render/burst.js";
 import { projectView } from "../../src/render/camera.js";
 import { scanReplay, openReplay, piecesCount } from "./scan.mjs";
@@ -258,6 +259,7 @@ export async function renderReel({
   log = console.log,
   peek = 0, // every nth frame as a PNG and no video (looking at cameras)
   capture = null, // (format, { camera, items, scene }) per frame, drawing nothing (bench.mjs)
+  scene: sceneId = null, // draw in this scene instead of the match's own (tools)
 }) {
   if (!sources) throw new Error("renderReel needs the engine's Lua sources");
   loadFonts(assets);
@@ -300,6 +302,14 @@ export async function renderReel({
   // the engine, played to each moment in turn
   const { engine, view } = await openReplay(replay, { sources });
   const scene = { surface: view.surface, set: view.set };
+  // the match in its own scene, as the game draws it (src/render/scenes.js);
+  // glows are sprites on this canvas, the stars and halos of the night
+  const stage = new Stage({ reduced: false });
+  stage.use(sceneId ?? view.scene);
+  if (stage.look) setSpriteMaker((w, h) => createCanvas(w, h));
+  const ui = stage.look?.skin?.ui;
+  if (ui) for (const o of F) o.L = { ...o.L, wash: ui.paper, washInk: ui.ink };
+  let fxT = null;
   const startItems = view.items;
   let stepped = -1;
   let rec = null;
@@ -340,6 +350,7 @@ export async function renderReel({
       if (fr.moment !== curMoment) {
         curMoment = fr.moment;
         reachMoment(m.i);
+        fxT = null;
         hitShown = false;
         bursts.length = 0;
       }
@@ -368,7 +379,20 @@ export async function renderReel({
         if (fact.firstHit && inSlice(fact.firstHit.t)) hitShown = true;
       }
       if (fr.first && fr.replay) bursts.length = 0;
-    } else if (fr.card === "title") items = startItems;
+      // the scene's effects follow the throw shown: from its start again on a
+      // new moment or an action replay, still on a hold or the settled half
+      if (stage.look) {
+        if (fr.first && (fr.replay || fxT == null || fr.t < fxT)) {
+          stage.clear();
+          stage.watch(rec);
+        }
+        if (fr.dt > 0) stage.observe(items, (fxT = fr.t));
+        else stage.tick(1 / FPS);
+      }
+    } else {
+      if (fr.card === "title") items = startItems;
+      stage.tick(1 / FPS);
+    }
     const pid = rec?.projectile?.id;
     for (const o of F) {
       const { ctx, view: v, frame, L } = o;
@@ -403,7 +427,7 @@ export async function renderReel({
         continue;
       }
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      drawWorld(ctx, v, camera, { ...scene, items });
+      stage.draw(ctx, v, camera, { ...scene, items }, now);
       if (fr.card === "title")
         O.titleCard(ctx, L, { teams, a: Math.min(1, fr.u * 6) });
       else if (fr.card === "end") {
@@ -422,7 +446,7 @@ export async function renderReel({
             log: (m) => log(`reel ${code}: ${o.f} ${m}`),
             redraw: () => {
               ctx.setTransform(1, 0, 0, 1, 0, 0);
-              drawWorld(ctx, v, camera, { ...scene, items });
+              stage.draw(ctx, v, camera, { ...scene, items }, now);
             },
           },
         );
