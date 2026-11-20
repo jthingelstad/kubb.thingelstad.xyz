@@ -213,7 +213,7 @@ function engine({ tinylytics, config = {} }) {
 <section class="frame prose" aria-labelledby="hashes">
   <h2 class="display" id="hashes">One match on two screens</h2>
   <p>A browser and an iPhone can sit on opposite sides of a pitch. Each plays the action locally, writes down the whole game state and calculates a short fingerprint called a hash. A difference shows up on the very action where the two states part ways.</p>
-  <p>The iPhone uses the same maths as the web. Both are checked against 453 saved hashes from 12 reference matches. In three more matches played between the two clients, all 750 actions agreed, from the first throw through the kept replay. Playdate uses the same rules and throw model with its own 32-bit arithmetic.</p>
+  <p>The iPhone uses the same maths as the web. Both are checked against 437 saved hashes from 12 reference matches. In three more matches played between the two clients, all 750 actions agreed, from the first throw through the kept replay. Playdate uses the same rules and throw model with its own 32-bit arithmetic.</p>
 </section>
 <section class="frame prose" aria-labelledby="notation">
   <h2 class="display" id="notation">What the scorekeeper writes</h2>
@@ -225,7 +225,6 @@ function engine({ tinylytics, config = {} }) {
     title: `The Kubb Engine · ${SITE_TITLE}`,
     description:
       "How Throwing Wood checks its throws against score sheets, video of real play and a second physics simulator.",
-    noindex: true,
     body,
     tinylytics,
     release: config.release?.text,
@@ -345,7 +344,6 @@ export const PAGES = [
     path: "/engine/",
     file: "engine/index.html",
     render: engine,
-    noindex: true,
     sources: ["src/site"],
   },
   {
