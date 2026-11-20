@@ -11,7 +11,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { drawWorld } from "../../src/render/world.js";
-import { sceneOf, sceneFromQuery } from "../../src/render/scenes.js";
+import {
+  sceneOf,
+  sceneFromQuery,
+  lookOf,
+  Stage,
+  SCENES,
+} from "../../src/render/scenes.js";
 
 const PINNED =
   "51df1e91be684ad39e286ec1b5db6a243ad7f327ac377a6614040210b2d58c0a";
@@ -223,5 +229,62 @@ test("the night and the neon draw without failing, and differ from the day", () 
   for (const id of ["night", "neon"]) {
     const h = drawAll({ look: sceneOf(id), time: 1.5 });
     assert.notEqual(h, PINNED);
+  }
+});
+
+// Every surface draws a match through one Stage: the scene id is all it is
+// given, and an id this client does not know is the day.
+function drawStaged(id) {
+  const all = [];
+  const stage = new Stage({ reduced: false });
+  stage.use(id);
+  for (const p of PICTURES) {
+    const { ctx, log } = recorder();
+    stage.draw(ctx, p.view, p.cam, p.scene, 1.5);
+    all.push(log.join("\n"));
+  }
+  return crypto.createHash("sha256").update(all.join("\n--\n")).digest("hex");
+}
+
+test("a Stage draws the match's scene; the day and an unknown id are the day", () => {
+  for (const id of [undefined, null, "", "day", "dusk", "NIGHT", "night2", 7])
+    assert.equal(drawStaged(id), PINNED, String(id));
+  assert.deepEqual(SCENES, ["night", "neon"]);
+  for (const id of SCENES) {
+    assert.equal(lookOf(id).id, id);
+    assert.equal(drawStaged(id), drawAll({ look: sceneOf(id), time: 1.5 }));
+  }
+  assert.equal(lookOf("day"), null);
+  assert.equal(lookOf("dusk"), null);
+  const stage = new Stage({ reduced: false });
+  assert.equal(stage.use("night"), true);
+  assert.equal(stage.use("night"), false);
+  assert.equal(stage.id, "night");
+  assert.equal(stage.use("dusk"), true);
+  assert.equal(stage.id, "day");
+  assert.equal(stage.fx, null);
+});
+
+// WCAG contrast of two #rrggbb colours
+function contrast(a, b) {
+  const lum = (h) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => {
+      const c = parseInt(h.slice(i, i + 2), 16) / 255;
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+}
+
+test("a scene's type is 7:1 or better on its paper and on its accent plates", async () => {
+  const P = await import("../../src/render/palette.js");
+  for (const skin of [P.NIGHT.skin, P.NEON.skin]) {
+    const c = skin.css;
+    assert.ok(contrast(c["--ink"], c["--paper"]) >= 7, "ink on paper");
+    assert.ok(contrast(c["--muted"], c["--paper"]) >= 7, "muted on paper");
+    assert.ok(contrast(c["--on-accent"], c["--accent"]) >= 7, "on the accent");
+    assert.ok(contrast(skin.ui.ink, skin.ui.paper) >= 7, "canvas type");
   }
 });

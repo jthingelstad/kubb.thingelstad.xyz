@@ -19,13 +19,21 @@
 // drawWorld given no scene, or the day, draws exactly what it always drew
 // (tests/render/scene-day.test.mjs pins it).
 //
-// The night and the neon are prototypes, shown only by the address switch
-// (?scene=night, ?scene=neon) on the practice pitch, a match against the
-// computer and watching the computer. They are in no menu, never saved,
-// sent or recorded.
+// A match carries its scene as an id (the engine's `scene` option, since
+// 0.9; the view's `scene`, "day" when none). The engine keeps the id and
+// never reads it: a scene is a look only. An id this client does not know
+// is drawn as the day. Every surface that draws a match (the game, its
+// replay and embed, the reel and its stills on the server) draws it through
+// one Stage (below). docs/SCENES.md.
+//
+// Until the match options carry it (stage B), the address switch
+// (?scene=night, ?scene=neon) picks one on the practice pitch, a match
+// against the computer and watching the computer.
 import { makeNight } from "./night.js";
 import { makeNeon } from "./neon.js";
 import { useSkin } from "./palette.js";
+import { drawWorld } from "./world.js";
+import { Stardust } from "./stardust.js";
 
 export const DAY = { id: "day" };
 
@@ -35,7 +43,75 @@ export function sceneOf(id, opts = {}) {
   return DAY;
 }
 
-const SWITCHED = new Set(["night", "neon"]);
+// The scenes this client draws, besides the day.
+export const SCENES = ["night", "neon"];
+const SWITCHED = new Set(SCENES);
+
+// The look for a scene id, or null for the day (and any id not known here).
+export function lookOf(id, opts = {}) {
+  return SWITCHED.has(id) ? sceneOf(id, opts) : null;
+}
+
+const reducedMotion = () =>
+  typeof matchMedia === "function" &&
+  matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// A match drawn in its scene: the look, its effects (fed by the throw being
+// shown) and the controls' skin. One a game, replay or reel.
+//   const stage = new Stage({ reduced, skin })  skin: also skin the page
+//   stage.use(id)                  the scene to draw ("day", unknown: day)
+//   stage.watch(rec)               a throw starts playing
+//   stage.observe(items, t)        a shown frame of it, at shown time t
+//   stage.tick(dt), stage.clear()  between throws; a skipped one
+//   stage.draw(ctx, view, camera, scene, time)   drawWorld in the scene
+export class Stage {
+  constructor({ reduced = reducedMotion(), skin = false } = {}) {
+    this.reduced = reduced;
+    this.skin = skin;
+    this.id = "day";
+    this.look = null;
+    this.fx = null;
+  }
+  use(id) {
+    const want = SWITCHED.has(id) ? id : "day";
+    if (want === this.id) return false;
+    this.useLook(lookOf(want, { reduced: this.reduced }));
+    return true;
+  }
+  useLook(look) {
+    this.look = look && look.id !== "day" ? look : null;
+    this.id = this.look ? this.look.id : "day";
+    // a scene brings its own effects (makeFx), or the stardust's numbers
+    this.fx = this.look?.makeFx
+      ? this.look.makeFx()
+      : this.look?.dust
+        ? new Stardust(this.look.dust)
+        : null;
+    if (this.skin) skinPage(this.look);
+  }
+  watch(rec) {
+    this.fx?.watch(rec);
+  }
+  observe(items, t) {
+    this.fx?.observe(items, t);
+  }
+  tick(dt) {
+    this.fx?.tick(dt);
+  }
+  clear() {
+    this.fx?.clear();
+  }
+  // With the day, exactly drawWorld's picture (tests/render/scene-day.test.mjs).
+  draw(ctx, view, camera, scene, time = 0) {
+    if (!this.look) return drawWorld(ctx, view, camera, scene);
+    drawWorld(ctx, view, camera, {
+      ...scene,
+      look: this.look,
+      fx: this.fx,
+      time,
+    });
+  }
+}
 
 // The address switch: the scene `?scene=` names, or null for the day. Only
 // the exact lower-case name is taken.
