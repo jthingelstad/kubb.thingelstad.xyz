@@ -1,12 +1,23 @@
 {
   "repository": "jthingelstad/kubb-engine",
-  "tag": "v0.7.4",
-  "commit": "7f9296df1d1f4e475bbc2effdfb20d68e65cea6b",
+  "tag": "v0.8.1",
+  "commit": "37672f017840edf1e37537e9794c6597bb2d3743",
   "files": {
-    "engine.json": "ae2ea0432101b801e8c6fb6ad39d0141ca907bc6bf88b6073eaab73eccf30af8",
+    "engine.json": "7a22a41f2e36fdd56ba0c069f2545a5f87e769c855c3f1627b8218464041aa7b",
     "LICENSE": "de0c7d070681e50fdd7aa83fa32408c86867238eeedaa75ccea617fe854de4b3",
-    "golden/drive.lua": "0dcf294defc9f1d828e2d274fd910fc5aaa0abd6a86b87391462e89ca369101f",
-    "golden/hashes.json": "cd9fb27cfd582778d39a759cf95f2e7e414af26843a6829c043e8543ca1d21e2"
+    "golden/drive.lua": "fc5d95dbba0df137cb9ba979548d3a3bd75a1c4a86e3b4907417796087e55119",
+    "golden/hashes.json": "c09cc663230b0edf3f9ad46971bebf205aa9a9a9c64ac2e1406afb14dd205cf5"
   },
-  "older": {}
+  "older": {
+    "0.7": {
+      "tag": "v0.7.4",
+      "commit": "7f9296df1d1f4e475bbc2effdfb20d68e65cea6b",
+      "files": {
+        "engine.json": "ae2ea0432101b801e8c6fb6ad39d0141ca907bc6bf88b6073eaab73eccf30af8",
+        "LICENSE": "de0c7d070681e50fdd7aa83fa32408c86867238eeedaa75ccea617fe854de4b3",
+        "golden/drive.lua": "0dcf294defc9f1d828e2d274fd910fc5aaa0abd6a86b87391462e89ca369101f",
+        "golden/hashes.json": "cd9fb27cfd582778d39a759cf95f2e7e414af26843a6829c043e8543ca1d21e2"
+      }
+    }
+  }
 }

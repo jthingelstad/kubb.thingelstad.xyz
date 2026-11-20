@@ -7,7 +7,8 @@ The web is the client that carries more than one (Jamie: "it feels like the web 
 needs to support a wide variety ... the iPhone, if it were running an older version than
 what web runs, could just request the match out of certain version."). The iPhone app
 carries one engine; the site carries the newest and the older minors it still plays
-back.
+back. Today that is 0.8 (the newest, 0.8.1) and 0.7 (0.7.4): 0.8.0 changed short batons
+under 2 m, so a 0.7 match plays differently on 0.8.
 
 ## The rule
 

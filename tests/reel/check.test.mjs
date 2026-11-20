@@ -23,7 +23,12 @@ const share = (over = {}) => ({
   ...over,
 });
 const check = (g) =>
-  checkShare({ g, sources, engine: ENGINE, engines: ["0.7"] });
+  checkShare({
+    g,
+    sources,
+    engine: ENGINE,
+    engines: [ENGINE.split(".").slice(0, 2).join(".")],
+  });
 const copy = (log) => JSON.parse(JSON.stringify(log));
 
 // The start and log under other names, as the device's share card makes them.
@@ -159,7 +164,7 @@ test("check: another engine, a broken start or a log the engine cannot read", as
         g: share(),
         sources,
         engine: ENGINE,
-        engines: ["0.8"],
+        engines: ["0.9"],
       })
     ).why,
     "engine",
@@ -185,7 +190,11 @@ test("check: the handler logs the step and engine, never a name", async () => {
     const r = await renamed({ A: "Zebediah" });
     const out = await checkHandler(
       { check: share(r) },
-      { sources, engine: ENGINE, engines: ["0.7"] },
+      {
+        sources,
+        engine: ENGINE,
+        engines: [ENGINE.split(".").slice(0, 2).join(".")],
+      },
     );
     assert.equal(out.ok, true);
   } finally {
