@@ -16,7 +16,8 @@
 // Options: home (HOME on the end card), close (BACK TO THE PITCH on the bar and the end
 // card; without it there is no way back but HOME), menu (MENU's View follows the
 // replay's view while it plays), onEnd (the end card is shown), embed (an EMBED
-// button on the bar and the end card: src/ui/embed.js), embedded (an embed's
+// button on the bar and the end card: src/ui/embed.js), reel (a highlight reel,
+// src/ui/reel.js: its button on the bar and the end card), embedded (an embed's
 // player, /e/<code>: no HOME, the score sheet closed until asked for).
 //
 // What it shows: the wide view by default (THROWER'S VIEW / WIDE VIEW switches, the
@@ -87,6 +88,7 @@ export class ReplayPlayer {
     menu = null,
     onEnd = null,
     embed = null,
+    reel = null,
     embedded = false,
   }) {
     Object.assign(this, {
@@ -98,6 +100,7 @@ export class ReplayPlayer {
       menu,
       onEnd,
       embed,
+      reel,
       embedded,
     });
     this.playing = true;
@@ -250,6 +253,9 @@ export class ReplayPlayer {
           ? button("EMBED", () => this.embed(), "small", {
               "data-test": "replay-embed",
             })
+          : null,
+        this.reel
+          ? this.reel.button("small", { "data-test": "replay-reel" })
           : null,
         this.close
           ? button("BACK TO THE PITCH", () => this.close(), "small", {
@@ -507,6 +513,7 @@ export class ReplayPlayer {
       rematch: null,
       home: this.embedded ? null : (this.home ?? (() => (location.href = "/"))),
       embed: this.embed,
+      reel: this.reel,
       back: this.close,
       sheet: () => openSheet(this.root, { game: g }),
       note: this.info.differs ? DIFFERS : null,

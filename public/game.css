@@ -1691,6 +1691,66 @@ body.embed .replay-controls {
   -webkit-user-select: text;
 }
 
+/* the highlight reel's card (src/ui/reel.js) */
+.reel-card {
+  width: min(460px, 100%);
+}
+.reel-card.reel-done {
+  width: min(760px, 100%);
+}
+.reel-text {
+  font-size: 15px;
+}
+/* a slow bar that never says how far: the server gives no fraction */
+.reel-bar {
+  position: relative;
+  height: 14px;
+  margin: 10px 0 12px;
+  overflow: hidden;
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  background: #fff;
+}
+.reel-bar > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 34%;
+  background: var(--marigold);
+  border-right: 3px solid var(--ink);
+  animation: reel-bar 4.5s ease-in-out infinite alternate;
+}
+@keyframes reel-bar {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reel-bar > span {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}
+.reel-video {
+  display: block;
+  max-width: 100%;
+  margin: 8px auto 0;
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  background: var(--ink);
+}
+.reel-video[data-format="wide"] {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+.reel-video[data-format="tall"] {
+  height: min(58vh, 640px);
+  aspect-ratio: 9 / 16;
+}
+
 /* ---------- a tall screen (a phone held upright) ---------- */
 
 @media (max-aspect-ratio: 20/21) {

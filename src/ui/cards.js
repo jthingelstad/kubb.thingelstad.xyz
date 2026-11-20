@@ -81,7 +81,8 @@ export class Cards {
   // main action when `first`; replayLabel its words (REPLAY AGAIN); back: a
   // BACK TO THE PITCH button (the end of a replay); teams: a line naming who
   // played (a finished pitch, for a browser that arrived after the end); embed: an
-  // EMBED button (src/ui/embed.js); home: null leaves HOME out (an embed).
+  // EMBED button (src/ui/embed.js); reel: a highlight reel (src/ui/reel.js), whose
+  // button goes beside EMBED; home: null leaves HOME out (an embed).
   winner(
     need,
     {
@@ -97,6 +98,7 @@ export class Cards {
       back = null,
       teams = null,
       embed = null,
+      reel = null,
     },
   ) {
     const w = need.winner || {};
@@ -163,6 +165,7 @@ export class Cards {
         embed
           ? button("EMBED", embed, "", { "data-test": "winner-embed" })
           : null,
+        reel ? reel.button("", { "data-test": "winner-reel" }) : null,
         stopBtn,
         sheet
           ? button("SCORE SHEET", sheet, "", { "data-test": "winner-sheet" })
