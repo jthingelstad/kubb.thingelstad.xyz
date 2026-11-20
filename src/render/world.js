@@ -1075,7 +1075,10 @@ function drawBox(ctx, cam, kx, s, P, set, paint = DAY_PAINT, lt = DAYLIGHT) {
   const seed = hashStr(item.id || "x");
   // a set may be a whole body's paint (the night's glowing set) or bands
   const WOOD = set?.wood || paint.wood;
-  const INK = paint.ink;
+  // a scene may light each piece its own way (the neon: its side's colour,
+  // dimmed while it lies): { ink, bevel, band, bandDeep }
+  const lit = paint.litOf ? paint.litOf(item) : null;
+  const INK = lit ? lit.ink : paint.ink;
   const bands = set?.bands || null;
   const pal = stake ? paint.stake : WOOD;
   const faces = [];
@@ -1111,7 +1114,10 @@ function drawBox(ctx, cam, kx, s, P, set, paint = DAY_PAINT, lt = DAYLIGHT) {
         );
       }
       if (item.team && TEAM[item.team]) {
-        ctx.fillStyle = dark ? TEAM[item.team].deep : TEAM[item.team].fill;
+        const T = lit?.band ? { fill: lit.band, deep: lit.bandDeep } : null;
+        ctx.fillStyle = dark
+          ? (T || TEAM[item.team]).deep
+          : (T || TEAM[item.team]).fill;
         bandPath(ctx, S, F, tune.teamFrom, tune.teamTo);
         ctx.fill();
       }
@@ -1155,7 +1161,7 @@ function drawBox(ctx, cam, kx, s, P, set, paint = DAY_PAINT, lt = DAYLIGHT) {
     if (tall >= tune.bevelFrom && !dark) {
       // a bevelled edge: a light line just inside the face's edges
       const c = faceAt(S, F, 0.5, 0.5);
-      ctx.strokeStyle = WOOD.bevel;
+      ctx.strokeStyle = lit?.bevel || WOOD.bevel;
       ctx.lineWidth = ow * 0.55;
       ctx.beginPath();
       for (let i = 0; i < 4; i++) {
@@ -1203,7 +1209,7 @@ function drawBox(ctx, cam, kx, s, P, set, paint = DAY_PAINT, lt = DAYLIGHT) {
 function drawKing(ctx, cam, kx, s, P, set, paint = DAY_PAINT, lt = DAYLIGHT) {
   const { S } = P;
   const WOOD = set?.kingWood || set?.wood || paint.wood;
-  const INK = paint.ink;
+  const INK = paint.litOf ? paint.litOf(s.item).ink : paint.ink;
   const KING_MARK = set?.kingMark || paint.kingMark;
   const { tall, ow } = sizes(s, cam, kx);
   const W = s.W;

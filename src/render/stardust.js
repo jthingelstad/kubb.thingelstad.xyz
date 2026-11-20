@@ -73,6 +73,7 @@ export class Stardust {
     // the king's flash: where, and its age (s), or -1
     this.flash = new Float64Array(3);
     this.flashAge = -1;
+    this.flashScale = 1; // a hit's flash (cfg.hitFlash) is smaller than the king's
     this.byId = new Map();
     this.peak = 0; // most particles alive at once since the last clear
   }
@@ -302,6 +303,15 @@ export class Stardust {
         KIND.puff,
         king ? cfg.king : D,
       );
+      // a scene may flash where the baton hits (the neon)
+      if (baton && cfg.hitFlash && this.flashAge < 0) {
+        this.flash[0] = (a.x + b.x) / 2;
+        this.flash[1] = (a.y + b.y) / 2;
+        this.flash[2] = Math.max(0.05, (a.z + b.z) / 2);
+        this.flashAge = 0;
+        this.flashScale = cfg.hitFlash * (0.6 + 0.4 * s);
+        this.flashColor = cfg.hitFlashColor || cfg.flashColor;
+      }
     }
     // the baton's first landing on the ground
     if (this.landT != null && this.landT <= t) {
@@ -361,6 +371,8 @@ export class Stardust {
         this.flash[1] = k.y;
         this.flash[2] = Math.max(0.1, k.z);
         this.flashAge = 0;
+        this.flashScale = 1;
+        this.flashColor = cfg.flashColor;
       }
     }
     this.tick(Math.max(0, Math.min(0.1, dt)));
@@ -425,14 +437,14 @@ export class Stardust {
       if (d > 0.05) {
         const s = f / d;
         const u = this.flashAge / this.cfg.flashFor;
-        const rad = this.cfg.flashSize * (0.5 + u) * s;
+        const rad = this.cfg.flashSize * this.flashScale * (0.5 + u) * s;
         drawGlow(
           ctx,
           cx + s * (X * rx + Y * ry + Z * rz),
           cy - s * (X * ux + Y * uy + Z * uz),
           rad,
           rad,
-          this.cfg.flashColor,
+          this.flashColor || this.cfg.flashColor,
           this.cfg.flashAlpha * (1 - u) * (1 - u),
         );
       }

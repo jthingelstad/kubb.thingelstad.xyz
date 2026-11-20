@@ -145,7 +145,7 @@ async function boot() {
         : watching
           ? "watch"
           : "pitch";
-  // The night scene, a prototype (src/render/scenes.js): by the address only,
+  // The night and neon scenes, prototypes (src/render/scenes.js): by the address only,
   // and only where nobody else shares the pitch. In no menu; never saved, sent
   // or recorded.
   if (mode !== "pitch") {
