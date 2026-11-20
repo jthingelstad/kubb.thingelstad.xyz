@@ -1,4 +1,4 @@
-// The night scene (a prototype, ?scene=night only; src/render/scenes.js):
+// The night scene (src/render/scenes.js, docs/SCENES.md):
 // a pitch in a moonlit clearing under the stars. Its lines and stakes glow,
 // it plays with the glowing set (kubbs pale aqua, the king gold), the batons
 // stay plain wood lit by the moon, and the throws leave stardust
@@ -176,9 +176,40 @@ function visible(n) {
 }
 const MOON = dirOf(tune.moonAz, tune.moonEl);
 
-function skyBody(ctx, cam, kx, B, scene, part) {
+// B: the box drawn and looked in (the rows the sky can show); Bf: the whole
+// frame, which places the gradient. layers: SOFT (the gradient, the milky
+// haze, the moon's halo), SHARP (the stars and the moon's disc) or both; the
+// soft layer goes under the sharp one, so the two drawn apart are the same
+// picture.
+function skyBody(ctx, cam, kx, B, scene, part, Bf = B, layers = SOFT | SHARP) {
   if (part === TWINKLE)
     return twinklers(ctx, cam, kx, B, stars(), scene.time || 0, part);
+  if (layers & SOFT) skySoft(ctx, cam, B, Bf);
+  if (layers & SHARP) skySharp(ctx, cam, kx, B, scene, part);
+}
+
+const skyRgb = new Map();
+function rgbOf(hex) {
+  let c = skyRgb.get(hex);
+  if (!c)
+    skyRgb.set(
+      hex,
+      (c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))),
+    );
+  return c;
+}
+// The sky's colour at f (0 overhead, 1 at the rim; 0.6 the middle stop).
+function skyAt(S, f) {
+  f = Math.max(0, Math.min(1, f));
+  const [a, b, u] =
+    f < 0.6 ? [S.top, S.mid, f / 0.6] : [S.mid, S.low, (f - 0.6) / 0.4];
+  const A = rgbOf(a),
+    Bc = rgbOf(b);
+  const m = (k) => Math.round(A[k] + (Bc[k] - A[k]) * u);
+  return `rgb(${m(0)},${m(1)},${m(2)})`;
+}
+
+function skySoft(ctx, cam, B, Bf) {
   const S = NIGHT.sky;
   // the gradient: deep overhead, a little lighter down at the rim
   // (a direction a little under the horizon, so the sky is the same wherever
@@ -192,21 +223,36 @@ function skyBody(ctx, cam, kx, B, scene, part) {
     Math.sin(dip),
     pt,
   );
-  const y1 = low ? Math.min(B.bottom, Math.max(B.top + 20, pt[1])) : B.bottom;
-  const grd = ctx.createLinearGradient(0, B.top, 0, y1);
-  grd.addColorStop(0, S.top);
-  grd.addColorStop(0.6, S.mid);
-  grd.addColorStop(1, S.low);
-  ctx.fillStyle = grd;
-  ctx.fillRect(
-    B.left - 2,
-    B.top - 2,
-    B.right - B.left + 4,
-    B.bottom - B.top + 4,
-  );
+  const y1 = low
+    ? Math.min(Bf.bottom, Math.max(Bf.top + 20, pt[1]))
+    : Bf.bottom;
+  // in solid bands a colour step apart, which a slow canvas fills far faster
+  // than a gradient and the eye cannot tell from one (the sky's colours are
+  // dark and close: a step is one level of one channel)
+  const t = ctx.getTransform ? ctx.getTransform() : null;
+  const step = 1.5 / (t && t.d > 0 ? t.d : 1); // 1.5 device px
+  const x0 = B.left - 2,
+    w = B.right - B.left + 4;
+  let y = B.top - 2,
+    from = y,
+    last = null;
+  const end = B.bottom + 2;
+  for (;;) {
+    const c =
+      y < end ? skyAt(S, (y - Bf.top) / Math.max(1, y1 - Bf.top)) : null;
+    if (c !== last) {
+      if (last) {
+        ctx.fillStyle = last;
+        ctx.fillRect(x0, from, w, Math.min(y, end) - from);
+      }
+      from = y;
+      last = c;
+    }
+    if (c === null) break;
+    y += step;
+  }
 
   const st = stars();
-  const t = scene.time || 0;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   // the milky band's haze, a row of faint glows along it
@@ -222,6 +268,20 @@ function skyBody(ctx, cam, kx, B, scene, part) {
     if (pt[1] + r < B.top || pt[1] - r > B.bottom) continue;
     drawGlow(ctx, pt[0], pt[1], r * 1.3, r * 0.7, NIGHT.milky, 0.075);
   }
+  // the moon's halo
+  if (projectDir(cam, MOON[0], MOON[1], MOON[2], pt)) {
+    const R = tune.moonR * cam.f;
+    drawGlow(ctx, pt[0], pt[1], R * 9, R * 9, NIGHT.moon.halo, 0.22);
+    drawGlow(ctx, pt[0], pt[1], R * 3.2, R * 3.2, NIGHT.moon.halo, 0.35);
+  }
+  ctx.restore();
+}
+
+function skySharp(ctx, cam, kx, B, scene, part) {
+  const st = stars();
+  const t = scene.time || 0;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
   // the stars: those in view found once, then the steady ones in a few
   // batches (colour by brightness), twinklers and bright ones alone
   const cols = NIGHT.star;
@@ -259,12 +319,10 @@ function skyBody(ctx, cam, kx, B, scene, part) {
     }
   }
   twinklers(ctx, cam, kx, B, st, t, part, nv);
-  // the full moon, its halo, then the disc
+  // the full moon's disc (its halo is in the soft layer)
   if (projectDir(cam, MOON[0], MOON[1], MOON[2], pt)) {
     const R = tune.moonR * cam.f;
     const M = NIGHT.moon;
-    drawGlow(ctx, pt[0], pt[1], R * 9, R * 9, M.halo, 0.22);
-    drawGlow(ctx, pt[0], pt[1], R * 3.2, R * 3.2, M.halo, 0.35);
     ctx.globalCompositeOperation = "source-over";
     const g = ctx.createRadialGradient(
       pt[0] - R * 0.2,
@@ -363,7 +421,9 @@ function twinklers(ctx, cam, kx, B, st, t, part, nv = -1) {
 const ALL = 0,
   STEADY = 1,
   TWINKLE = 2;
-const SKY = { key: "", seen: 0, canvas: null, rows: 0 };
+const SOFT = 1,
+  SHARP = 2;
+const SKY = { key: "", seen: 0, canvas: null };
 function skyRows(cam, t, H) {
   let low = -Infinity;
   for (const [x, y] of [
@@ -384,6 +444,14 @@ function drawSky(ctx, cam, kx, B, G, scene, reduced) {
   const t = ctx.getTransform ? ctx.getTransform() : null;
   const cv = ctx.canvas;
   if (!t || !cv || !cv.width) return skyBody(ctx, cam, kx, B, look, ALL);
+  // only the rows the sky can show, down to the clearing's lowest corner: a
+  // throw's camera looking down at the ground often shows none at all
+  const rows = skyRows(cam, t, cv.height);
+  if (rows <= 0) return;
+  const Bs =
+    t.b === 0 && t.c === 0 && t.d > 0
+      ? { ...B, bottom: Math.min(B.bottom, (rows - t.f) / t.d) }
+      : B;
   // stars and moon are at infinity: the eye's place is not in the key
   const key = [
     cam.fx,
@@ -411,7 +479,7 @@ function drawSky(ctx, cam, kx, B, G, scene, reduced) {
   if (key !== SKY.key) {
     SKY.key = key;
     SKY.seen = 0;
-    return skyBody(ctx, cam, kx, B, look, ALL);
+    return skyBody(ctx, cam, kx, Bs, look, ALL, B);
   }
   if (SKY.seen++ === 0) {
     if (
@@ -421,23 +489,18 @@ function drawSky(ctx, cam, kx, B, G, scene, reduced) {
     )
       SKY.canvas = newCanvas(cv.width, cv.height);
     const g = SKY.canvas?.getContext("2d");
-    if (!g) return skyBody(ctx, cam, kx, B, look, ALL);
+    if (!g) return skyBody(ctx, cam, kx, Bs, look, ALL, B);
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.clearRect(0, 0, cv.width, cv.height);
     g.setTransform(t);
-    skyBody(g, cam, kx, B, look, STEADY);
+    skyBody(g, cam, kx, B, look, STEADY); // once, the whole frame
   }
-  // only the rows the sky can show: down to the clearing's lowest corner
-  if (SKY.seen === 1) SKY.rows = skyRows(cam, t, cv.height);
-  if (SKY.rows > 0) {
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    const w = cv.width,
-      h = SKY.rows;
-    ctx.drawImage(SKY.canvas, 0, 0, w, h, 0, 0, w, h);
-    ctx.restore();
-  }
-  if (!reduced) skyBody(ctx, cam, kx, B, look, TWINKLE);
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const w = cv.width;
+  ctx.drawImage(SKY.canvas, 0, 0, w, rows, 0, 0, w, rows);
+  ctx.restore();
+  if (!reduced) skyBody(ctx, cam, kx, Bs, look, TWINKLE, B);
 }
 
 // ---------- the clearing ----------
