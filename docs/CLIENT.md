@@ -13,7 +13,7 @@ the engine's.
 | Page                | What it is                                                                                                                                                                                                                                                                                          |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/practice/`        | The open practice pitch: BATONS or KUBBS (the drill), surface, reset and level.                                                                                                                                                                                                                     |
-| `/p/<code>?solo=1`  | A match against the computer. The options card first (name, the level you throw at with CHANGE IN MENU, Computer level, surface, opening, raising, wind, kubb set; remembered), then START.                                                                                                         |
+| `/p/<code>?solo=1`  | A match against the computer. The options card first (name, the level you throw at with CHANGE IN MENU, Computer level, surface, opening, raising, wind, kubb set, scene; remembered), then START.                                                                                                  |
 | `/p/<code>?watch=1` | The computer against itself, match after match: no options card, the solo card's saved options, North against South. The winner card stays up 10 s (NEXT MATCH, STOP, HOME), then the next match starts by itself, the other team first. Seen in the wide view by default ("The wide view", below). |
 | `/p/<code>`         | A shared pitch: the lobby (name, the level you throw at, Team A or B or watching, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md.                                                                                                                  |
 | `/e/<code>`         | The embed: a kept replay alone, for a frame on another site ("The embed", below).                                                                                                                                                                                                                   |
@@ -661,7 +661,7 @@ throws he took for perfect had been judged long.
   the lobby with the same teams), SCORE SHEET and HOME.
 - **The menu**: its rows (Your level, the player's own throw tolerance, with "A change
   applies from your next throw."; Meter; Meter side;
-  Raising in a match; View when watching; Surface in practice; Sound) each show their
+  Raising in a match; View when watching; Surface and Scene in practice; Sound) each show their
   value as a choice. Then how to throw, score sheet (a match), resign, send feedback,
   rules, home; Escape closes it. It opens over a card too, from CHANGE IN MENU.
 - **Two levels** (Jamie, 2026-11-20; `src/game/throw-level.js`), as the iPhone app has
@@ -673,6 +673,12 @@ throws he took for perfect had been judged long.
   player), and on a pitch the host's row (engine 0.9 on). A device's older choices move
   across once: the device level is the `level` pref, else the solo card's old Level,
   else Club; the solo card's old Level becomes its Computer level.
+- **The scene** (docs/SCENES.md): Scene (Day, Night, Neon), a look only. The solo card's
+  last row (prefs `solo.scene`, passed as `scene`; watching the computer takes it), MENU's
+  row on the practice pitch (prefs `practiceScene`; a change starts the practice again
+  in it), and on a pitch the host's row, shown while the next match's engine takes a
+  scene (0.9 on). The pitch behind the card or lobby shows the pick (`Game.showScene`);
+  a match draws its view's `scene` through the `Stage`. `?scene=` sets it off a pitch.
 - **The rail** counts in words ("5 BASE KUBBS", "2 FIELD KUBBS", "AT THE KING", practice
   kubbs "TARGET 2.3 M"; `railCount` in `hud.js`) where the engine's rail says the
   Playdate's "BASE 5". Practice's tray is a joined pair, BATONS | KUBBS, the one in use

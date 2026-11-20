@@ -131,7 +131,8 @@ this deploy) agree with the page without any change to them. In `src/net/pitch.j
   the engine's `room.optionsOf`, which adds the computer's level and the scene from the
   document's top-level `settings`; before 0.9, which has no such call, `lobbyOf(doc)`'s
   five. The lobby's rows are the room engine's `MATCH_OPTIONS`, so the Computer level
-  row shows only on a 0.9 pitch. A 0.8 client's writes keep `settings` as the host set
+  row shows only on a 0.9 pitch; the Scene row, the web's own (the engine lists no
+  scenes), shows when the room engine's `OPTION_DEFAULTS` has `scene` (docs/SCENES.md). A 0.8 client's writes keep `settings` as the host set
   it (a top-level key it does not know), and a 0.8 match's `matchOptions` leaves it out:
   the match it always started.
 - **Tests:** `tests/net/room-engines.test.mjs` (the wrappers with both engines),

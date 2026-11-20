@@ -39,11 +39,40 @@ With the day, `stage.draw` is exactly `drawWorld`'s picture: a recording of four
 pictures is pinned by hash (`tests/render/scene-day.test.mjs`), for no scene, the day
 by name and any unknown id.
 
-Until the match options carry the scene (the host picks it for a shared pitch;
-practice, solo and watch on their own options), `?scene=night` or `?scene=neon`
-picks one on practice, solo and watch (`sceneFromQuery`; `Game.useLook` keeps it
-over the match's own). The share image of a pitch (`/og/`, `pitchCardImage` in
-`src/site/art.mjs`) is a drawing from above of its own and stays the day's.
+The share image of a pitch (`/og/`, `pitchCardImage` in `src/site/art.mjs`) is a
+drawing from above of its own and stays the day's for now.
+
+## Picking one: the Scene option
+
+Scene is a match option on engine 0.9, the way Computer level is: one row, Scene,
+with Day, Night and Neon (`SCENE_ROW` in `src/render/scenes.js`; the engine takes any
+id and lists none, so the labels are the web's). Day is the default and is what every
+match before it was. Each choice carries a small picture of its scene, and the pitch
+behind the card or lobby shows the pick while it is chosen (`Game.showScene`), skin
+and all.
+
+- **Play the computer**: the solo card's last row, kept with the card's options
+  (prefs `solo.scene`). The match starts with `scene` (`newMatch`), so its view, its
+  recording and a share of it carry it.
+- **Watch the computer**: the solo card's saved Scene.
+- **Practice**: MENU, Scene, kept as `practiceScene`. The engine keeps a practice's
+  scene from its start, so a change starts the practice again in it, on the same
+  surface and throwing the same (`Game.practiceScene`).
+- **A shared pitch**: the host's row in the lobby, written with `setOptions` into the
+  room's `settings.scene` and read with `optionsOf`; everyone in the lobby sees the
+  word and the skin, and the match is started with it (the engine's `matchOptions`).
+  The host's pick is kept for their next pitch (`pitchOptions.scene`). The row is
+  shown only when the next match's engine takes a scene (`takesScene`: `scene` is in
+  its `OPTION_DEFAULTS`, 0.9 on): a pitch that will play on 0.8 or 0.7 shows no row,
+  shows the day, and starts its match without one.
+- **`?scene=night`** (`neon`, `day`) picks one for practice, solo and watch over the
+  saved one (on the solo card it sets the row), for links and testing. It is never a
+  shared pitch's: there the host's choice is.
+
+End to end: a solo match's start names its scene, the renderer's share check
+(`backend/reels/check.mjs`) replays it unchanged into the sealed room's document and
+replay, and the reel of that replay is drawn in it (`tests/reel/scene.test.mjs`). A
+pitch's replay and embed play its match's views, which carry it.
 
 ## What a scene is made of
 
@@ -104,7 +133,7 @@ headless under a 4x CPU throttle (`build/scratch/timing.mjs`, not committed;
 | window               | day  | night before | night now    | neon         |
 | -------------------- | ---- | ------------ | ------------ | ------------ |
 | desktop 1280x768, 1x | 19.5 | 34.6 to 35.9 | 28.4 to 29.7 | 22.1 to 23.9 |
-| phone 844x390, 2x    | 20.5 | 36.6         | 34.1 to 34.6 |              |
+| phone 844x390, 2x    | 20.5 | 36.6         | 26.8 to 30.3 |              |
 
 Nearly all the night's extra is its sky, redrawn every frame while a throw's
 camera turns (with every hook but the sky drawn, the night is the day's cost
@@ -115,6 +144,19 @@ within a millisecond or two). Two changes keep its look:
 - its gradient is drawn as solid bands one colour level apart, which a slow
   canvas fills far faster than a gradient and the eye cannot tell apart.
 
-What is left is the stars and the milky haze's wide glows. Drawing the soft part
-of the sky at half resolution and stretching it was tried and dropped: on the
-phone the stretch cost more than it saved.
+(The phone's 34 ms first measured was on a busy machine; on a quiet one the same
+code is 27 to 30.)
+
+What is left is the milky haze's 28 wide glows (about 6 ms on the phone) and the
+moon's halo (2 to 3 ms); the stars and the twinklers are a millisecond each. Three
+ways to draw the same picture for less were tried and dropped, as each cost more
+than it saved on the phone:
+
+- the soft part of the sky (gradient, haze, halo) at half resolution, stretched;
+- the haze and the halo alone at half size, added on;
+- the soft sky drawn once and slid as the camera turns (a throw's camera turns about
+  2 degrees and zooms several percent a frame, so it was drawn again nearly every
+  frame).
+
+What is left would change the look: fewer haze glows, or no haze and halo while the
+camera turns fast.
