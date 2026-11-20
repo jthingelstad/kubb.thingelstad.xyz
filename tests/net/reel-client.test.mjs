@@ -11,6 +11,7 @@ import {
   reelFileName,
   reelFromPage,
   reelPath,
+  reelRequest,
   reelStart,
   reelStep,
   reelTune,
@@ -201,9 +202,11 @@ test("reel: the server could not start it: TRY AGAIN once, then not this time", 
   assert.equal(s.phase, "error");
   assert.equal(reelView(s).text, "The reel could not be made.");
   assert.equal(reelView(s).retry, true);
-  s = reelStep(s, press); // TRY AGAIN: asks for the reel again (the version is known)
-  assert.equal(s.phase, "asking");
+  s = reelStep(s, press); // TRY AGAIN: reads the kept replay afresh, then asks again
+  assert.equal(s.phase, "checking");
   assert.equal(s.retried, 1);
+  s = reelStep(s, kept());
+  assert.equal(s.phase, "asking");
   s = reelStep(s, error("failed"));
   assert.equal(s.phase, "failed");
   assert.equal(reelView(s).text, REEL_WORDS.notThisTime);
@@ -321,4 +324,80 @@ test("reel: no server is no connection", async () => {
     }),
     (e) => ["closed", "timeout"].includes(e.code),
   );
+});
+
+// A socket that notes the type of every message it sends.
+function counting(sent) {
+  return class extends NodeWs {
+    send(data, ...rest) {
+      sent.push(JSON.parse(data).t);
+      return super.send(data, ...rest);
+    }
+  };
+}
+
+// Make the requests the states call for, as the card does, until one is answered with
+// a render on its way or nothing is left to ask.
+async function drive(s, at, match) {
+  while (reelView(s).ask && !s.polled) {
+    const e = await reelRequest(s, at, match);
+    s = reelStep(s, e);
+  }
+  return s;
+}
+
+test("reel: the room keeps a newer match than the one on screen: 'moved', no reel asked", async () => {
+  const code = "staxhntq22";
+  await store.putReplay(code, {
+    v: 30,
+    t: Date.now(),
+    data: JSON.stringify({
+      v: 1,
+      n: 3,
+      hash: "h3",
+      engine: "0.7.1",
+      log: [],
+      snap: "{}",
+    }),
+    exp: Math.floor(Date.now() / 1000) + 86400,
+  });
+  const sent = [];
+  const before = started.length;
+  // the viewer's replay (and any hint of it) is match 2; the room has kept match 3
+  const s = await drive(
+    reelStep(reelStart(), press),
+    { url: server.url, code, WebSocket: counting(sent) },
+    { n: 2, hash: "h2" },
+  );
+  assert.equal(s.phase, "refused");
+  assert.equal(reelView(s).text, REEL_WORDS.why.moved);
+  assert.deepEqual(sent, ["replay"]);
+  assert.equal(started.length, before);
+});
+
+test("reel: a press reads the kept replay once, then asks for the reel once", async () => {
+  const code = "nrmxhtqp22";
+  await store.putReplay(code, {
+    v: 40,
+    t: Date.now(),
+    data: JSON.stringify({
+      v: 1,
+      n: 2,
+      hash: "h2",
+      engine: "0.7.1",
+      log: [],
+      snap: "{}",
+    }),
+    exp: Math.floor(Date.now() / 1000) + 86400,
+  });
+  const sent = [];
+  const s = await drive(
+    reelStep(reelStart(), press),
+    { url: server.url, code, WebSocket: counting(sent) },
+    MATCH,
+  );
+  assert.equal(s.phase, "asking");
+  assert.equal(s.polled, true);
+  assert.equal(s.v, 40);
+  assert.deepEqual(sent, ["replay", "reel"]);
 });

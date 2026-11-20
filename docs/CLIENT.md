@@ -716,8 +716,12 @@ tested without a browser.
   room's kept replay (`askKept`, a `replay` message, which starts nothing) and checks it
   is the match on the screen (`n` and `hash`): a just-ended match's `keep` may still be
   on its way, so it looks again up to `reelTune.keptTries` times, 2.5 s apart, and a
-  newer match kept since means this one's reel can no longer be asked for. Then
-  `askReel`, and the answer's `v` must be the kept replay's.
+  newer match kept since means this one's reel can no longer be asked for. It reads it
+  afresh on every press and every TRY AGAIN (`reelRequest`), never from a replay already
+  in hand: a viewer can sit in an old replay while a rematch is kept, and asking then
+  would start the newer match's render. Then `askReel`, and the answer's `v` must be the
+  kept replay's, which covers the short race between the two (no read-only `reel` ask
+  yet, docs/REEL.md open question 13).
 - **Making.** The card's title is "Highlight reel" in every state (the words are the
   table in docs/REEL.md "What a player sees", `REEL_WORDS`). While it renders, the state
   line MAKING YOUR REEL, a slow bar that never claims how far, and "About a
