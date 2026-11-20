@@ -32,6 +32,7 @@ import { MATCH_OPTIONS, useOlderEngine, useRoomEngine } from "./net/lobby.js";
 import { watchFreshness } from "./net/freshness.js";
 import { showUpdate } from "./ui/update.js";
 import { startEmbed, embedCode } from "./embed/embed.js";
+import { sceneFromQuery } from "./render/scenes.js";
 
 const config = readConfig();
 const ui = document.getElementById("ui");
@@ -144,6 +145,16 @@ async function boot() {
         : watching
           ? "watch"
           : "pitch";
+  // The night scene, a prototype (src/render/scenes.js): by the address only,
+  // and only where nobody else shares the pitch. In no menu; never saved, sent
+  // or recorded.
+  if (mode !== "pitch") {
+    const reduced =
+      typeof matchMedia === "function" &&
+      matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const look = sceneFromQuery(location.search, { reduced });
+    if (look) game.useLook(look);
+  }
   let pitch = null;
   // Feedback goes to the room server: none in this build, no SEND FEEDBACK.
   const report = roomsUrl()
