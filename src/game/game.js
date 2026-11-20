@@ -32,7 +32,6 @@
 // The computer against itself: the seat owns no side and runs the computer,
 // and `unattended` is set, so the match goes on in a hidden tab too.
 import {
-  drawWorld,
   drawDial,
   drawMinimap,
   drawBurst,
@@ -51,7 +50,7 @@ import {
   unprojectView,
   project,
 } from "./draw.js";
-import { Stardust } from "../render/stardust.js";
+import { Stage } from "../render/scenes.js";
 import {
   layoutFor,
   meterRoom,
@@ -162,9 +161,11 @@ export class Game {
     look = null,
   }) {
     this.engine = engine;
-    // the scene (src/render/scenes.js): null draws the day as always; the
-    // night prototype brings its stardust (src/render/stardust.js)
-    this.useLook(look);
+    // the match's scene (src/render/scenes.js), from its view's `scene`;
+    // a look given here (or by useLook) is kept over it
+    this.stage = new Stage({ skin: true });
+    this.pinnedLook = false;
+    if (look) this.useLook(look);
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.ui = ui;
@@ -398,7 +399,7 @@ export class Game {
         if (bs[i]?.anchor) b.anchor = bs[i].anchor;
       });
       p.last = this.engine.showAt(p.t);
-      this.fx?.clear();
+      this.stage.clear();
     } else {
       this.viewData = v;
       this.items = v.items || [];
@@ -657,7 +658,7 @@ export class Game {
   tick(dt, now) {
     if (!this.quiet) this.resizeIfNeeded();
     dt = this.frozen ? 0 : dt * this.timeScale;
-    if (this.fx && this.phase !== "play") this.fx.tick(dt);
+    if (this.phase !== "play") this.stage.tick(dt);
     if (this.phase === "aim") this.aimFrame(dt, now);
     else if (this.phase === "play") this.playFrame(dt, now);
     else this.drawStill();
@@ -922,7 +923,7 @@ export class Game {
       slow: false,
       last: null,
     };
-    this.fx?.watch(rec);
+    this.stage.watch(rec);
     this.phase = "play";
     this.planOff();
     this.slide = null;
@@ -941,7 +942,7 @@ export class Game {
     p.knocks.length = 0;
     for (const b of p.bursts) b.realAt = -1;
     p.skipped = true;
-    this.fx?.clear();
+    this.stage.clear();
   }
 
   playFrame(dt, now) {
@@ -950,7 +951,7 @@ export class Game {
     if (!p.done) {
       const s = this.engine.showAt(p.t);
       p.last = s;
-      if (this.fx && !this.quiet) this.fx.observe(s.items, p.t);
+      if (!this.quiet) this.stage.observe(s.items, p.t);
       p.slow = s.speed < 0.99;
       // the knocks: one take each, at each piece's first touch
       while (p.ki < p.knocks.length && p.knocks[p.ki].t <= p.t) {
@@ -977,7 +978,7 @@ export class Game {
     } else {
       p.hold += dt;
       p.slow = false;
-      this.fx?.tick(dt);
+      this.stage.tick(dt);
       const burstsLive = p.bursts.some(
         (b) => b.realAt > 0 && (now - b.realAt) / 1000 < burstLength(b.kind),
       );
@@ -1395,26 +1396,24 @@ export class Game {
     this.fit = worldFit(this.W, this.H, this.panX);
   }
 
+  // A look chosen here (the address switch, until the options carry it)
+  // is kept over the match's own scene.
   useLook(look) {
-    this.look = look && look.id !== "day" ? look : null;
-    // a scene brings its own effects (makeFx), or the stardust's numbers
-    this.fx = this.look?.makeFx
-      ? this.look.makeFx()
-      : this.look?.dust
-        ? new Stardust(this.look.dust)
-        : null;
+    this.pinnedLook = !!look;
+    this.stage.useLook(look);
   }
 
-  // The pitch through a camera in this game's scene: with none, exactly
+  // The pitch through a camera in the match's scene: the day is exactly
   // drawWorld's picture (tests/render/scene-day.test.mjs).
   world(camera, scene) {
-    if (!this.look) return drawWorld(this.ctx, this.view, camera, scene);
-    drawWorld(this.ctx, this.view, camera, {
-      ...scene,
-      look: this.look,
-      fx: this.fx,
-      time: performance.now() / 1000,
-    });
+    if (!this.pinnedLook) this.stage.use(this.viewData?.scene);
+    this.stage.draw(
+      this.ctx,
+      this.view,
+      camera,
+      scene,
+      performance.now() / 1000,
+    );
   }
 
   begin() {
