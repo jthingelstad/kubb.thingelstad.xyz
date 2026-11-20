@@ -4,6 +4,7 @@
 // the newest for them and runs START, a commit, `decide` and a rider on the match's own.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { Engine } from "../../src/engine/index.js";
 import { bundleLua, carriedEngines } from "../../tools/lua-bundle.mjs";
 import {
@@ -29,6 +30,9 @@ const [newest, older] = await Promise.all(
 useRoomEngine(newest);
 useOlderEngine(older);
 
+const APP_VERSION = JSON.parse(
+  readFileSync(new URL("../../package.json", import.meta.url)),
+).version;
 const doc = { v: 1, teams: { A: ["a"], B: ["b"] } };
 const both = { engine: "0.8+engines", engines: ["0.8", "0.7"] };
 const member = (id, me) => ({ id, connected: true, me });
@@ -42,6 +46,7 @@ test("this checkout carries 0.8 and 0.7", () => {
 });
 
 test("what a page carrying both says, and how a member is read", () => {
+  // what a page says of itself is its engines only: no app version
   assert.deepEqual(announce(["0.8", "0.7"]), both);
   assert.deepEqual(announce(["0.8", "0.7"], "0.7"), {
     engine: "0.7+engines",
@@ -120,6 +125,10 @@ test("START on 0.7 stamps 0.7; the match's commit, decide and rider run on 0.7",
     );
     const w = rider(1, 1, { type: "x" }, { engine: older.version });
     assert.equal(w.e, "0.7.4");
+    // the rider names the client and the engine, never the app's version: web and
+    // iPhone players are alike on the wire (src/site/release.js)
+    assert.equal(w.c, "web");
+    assert.ok(!JSON.stringify(w).includes(APP_VERSION));
     assert.deepEqual(asked, ["room.commitAction", "room.decide", "room.rider"]);
   } finally {
     older.call = call;

@@ -14,7 +14,7 @@
 // a throw report (older clients).
 //
 // What is sent (`r` in the message): the kind; the mode; `client: "web"`; `engine`, the
-// kubb-engine version; what was typed; the build (package version, commit, the hashed Lua bundle's
+// kubb-engine version; what was typed; the build (package version, its label "0.2.0 (0.8.1)", commit, the hashed Lua bundle's
 // name); the viewport
 // size; the browser's clock; the turn and phase; the last throw's action and result; the
 // pieces where they stand (the thrower's view frame). For a match: its options (read from
@@ -119,6 +119,9 @@ export function captureReport({
     at: now(),
     build: {
       version: config.version ?? null,
+      // the label the player sees, "0.2.0 (0.8.1)" (src/site/release.js); `engine`
+      // above names the engine the game was played on, which may be an older one
+      label: config.release?.text ?? null,
       commit: config.commit ?? null,
       lua: luaFor(config, engine.version),
     },

@@ -1,26 +1,55 @@
-// The release line and the freshness check (src/site/release.js,
+// The release label and the freshness check (src/site/release.js,
 // src/net/freshness.js): the deployed release is newer only when its web
 // commit differs, the check never reads a cache, waits between asks, and
 // calls onStale once.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isStale, makeRelease, releaseText } from "../../src/site/release.js";
+import {
+  alsoText,
+  isStale,
+  makeRelease,
+  releaseText,
+} from "../../src/site/release.js";
 import { watchFreshness } from "../../src/net/freshness.js";
 
 const A = "a2659b744210e4c5baa5b69c672e11ec87f9bfab";
 const B = "bc5199f0000000000000000000000000000000aa";
 
-test("the release line is the web's version · web commit · engine version", () => {
+test("the label: the app's version and the newest engine's, one engine", () => {
   assert.equal(
-    releaseText({ version: "0.1.0", web: A, engine: "0.2.0" }),
-    "0.1.0 · web a2659b7 · engine 0.2.0",
+    releaseText({ version: "0.2.0", web: A, engine: "0.8.1" }),
+    "0.2.0 (0.8.1)",
   );
-  assert.deepEqual(makeRelease({ version: "0.1.0", web: null, engine: null }), {
-    version: "0.1.0",
-    web: null,
-    engine: null,
-    text: "0.1.0 · web dev · engine dev",
+  assert.deepEqual(makeRelease({ version: "0.2.0", web: A, engine: "0.8.1" }), {
+    version: "0.2.0",
+    web: A,
+    engine: "0.8.1",
+    also: [],
+    text: "0.2.0 (0.8.1)",
+    detail: null,
   });
+  assert.equal(
+    makeRelease({ version: "0.2.0", web: null, engine: null }).text,
+    "0.2.0 (dev)",
+  );
+});
+
+test("the label with two engines still names only the newest; the detail the rest", () => {
+  const two = makeRelease({
+    version: "0.2.0",
+    web: A,
+    engine: "0.8.1",
+    also: ["0.7.4"],
+  });
+  assert.equal(two.text, "0.2.0 (0.8.1)");
+  assert.equal(two.detail, "Also plays 0.7.4");
+  assert.ok(!two.text.includes(A.slice(0, 7)), "never the commit");
+  assert.equal(alsoText(["0.7.4", "0.6.2"]), "Also plays 0.7.4 and 0.6.2");
+  assert.equal(
+    alsoText(["0.7.4", "0.6.2", "0.5.0"]),
+    "Also plays 0.7.4, 0.6.2 and 0.5.0",
+  );
+  assert.equal(alsoText([]), null);
 });
 
 test("stale only when the deployed web commit differs", () => {

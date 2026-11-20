@@ -71,6 +71,22 @@ address or home path in `dist/`, no account id in Markdown).
   Chromium); the PNGs are committed.
 - Prettier formats everything but `vendor/`, `dist/`, `build/` and the vendored copies.
 
+## The version
+
+`package.json`'s `version` is the web app's version. Every app shows its own version with
+the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
+the full version of the newest engine the site carries, `0.2.0 (0.8.1)`, at the foot of
+every reading page and of MENU, with "Also plays 0.7.4" under it in MENU while an older
+engine is carried (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
+deployed commit stays the exact identity (freshness, reports) and is never in the label.
+The app's version never goes on the room wire, the rider or a kept match, replay, embed,
+share or reel: those name only the engine a match was played on.
+
+Bump it by hand in the pull request that changes what a player gets: the minor for a
+feature or a new engine minor (`--keep` or `--drop`), the patch for a fix. A pull request
+that changes nothing a player sees or plays leaves it alone. Nothing enforces it per pull
+request.
+
 ## Hosting
 
 - `infra/site.json` (stack `kubb-xyz-site`): S3 bucket, CloudFront with the shared `edge`

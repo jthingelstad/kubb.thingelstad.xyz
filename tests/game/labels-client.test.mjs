@@ -1,7 +1,7 @@
 // The control surface's words in a real browser (the audit of 2026-11-19,
 // Jamie: "It is all a hangover from us starting on play date"): practice's
 // BATONS and KUBBS show which is in use, the rail counts kubbs in plain
-// words, and the menu's rows each show their value.
+// words, and the menu's rows each show their value, its foot the version label.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -116,6 +116,16 @@ browserTest("the menu's rows say what they set and show it", async () => {
     assert.equal(await page.evaluate(() => window.__kubb.sound.muted), true);
     await page.click("[data-test=mute] >> text=On");
     assert.equal(await page.evaluate(() => window.__kubb.sound.muted), false);
+    // at the foot, small: the version label, the newest engine in the parentheses, and
+    // the older engine the page also plays under it
+    assert.equal(
+      await page.textContent("[data-test=menu-version-label]"),
+      "0.2.0 (0.8.1)",
+    );
+    assert.equal(
+      await page.textContent("[data-test=menu-version-also]"),
+      "Also plays 0.7.4",
+    );
     assert.deepEqual(page.errors, []);
   } finally {
     await page.context().close();

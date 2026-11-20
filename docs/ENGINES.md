@@ -10,6 +10,10 @@ carries one engine; the site carries the newest and the older minors it still pl
 back. Today that is 0.8 (the newest, 0.8.1) and 0.7 (0.7.4): 0.8.0 changed short batons
 under 2 m, so a 0.7 match plays differently on 0.8.
 
+The version label a player sees names only the newest: `0.2.0 (0.8.1)`, with "Also plays
+0.7.4" where detail is shown (docs/CLIENT.md "Version and freshness"). A match names its
+own engine, never the app's version.
+
 ## The rule
 
 - One engine per major.minor. A patch replaces its minor's engine; a new minor is a new

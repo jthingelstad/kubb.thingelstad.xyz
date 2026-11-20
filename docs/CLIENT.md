@@ -977,8 +977,9 @@ played through the same action path.
 
 ## Version and freshness
 
-Two versions: the web game's own (`version` in `package.json`, 0.1.0) and the version of
-kubb-engine it vendors (`vendor/engine/engine.json`, read in Lua as `engineVersion`).
+Two versions: the web game's own (`version` in `package.json`, 0.2.0) and the version of
+each kubb-engine it vendors (`vendor/engine/engine.json`, and `vendor/engines/<mm>/` for
+the older ones it still plays; read in Lua as `engineVersion`).
 The game file's "Scored by" is "Throwing Wood web <web version>" (`setClient`); records,
 reports and the `with` rider carry the engine's version as `engine` / `e`.
 Room joins also announce `me.engine` (the room's engine, marked `+engines`) and
@@ -987,12 +988,26 @@ on the room's engine, and `room.mayPlay` gates team and CPU control of a running
 (`docs/ENGINES.md` "Playing together").
 The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.md "Engines".
 
-- **The release** (`src/site/release.js`): `{ version, web, engine, text }`, `text` as
-  `0.1.0 · web a2659b7 · engine 0.2.0`. The build (`tools/build.mjs`) reads the version
-  from `package.json`, the web commit from `GITHUB_SHA` in CI or `git rev-parse HEAD`,
-  and the engine's version from `vendor/engine/engine.json`; it puts the release in the
-  game pages' config (`config.release`) and writes it as `/version.json`.
-- **Shown** small at the foot of the reading pages (home, rules, 404) and of MENU.
+- **The label** (`src/site/release.js`): every app shows its own version with the Kubb
+  Engine's beside it, `<app version> (<engine version>)` (Jamie, 2026-11-20). On the web
+  that is `package.json`'s version and the full version of the newest engine the page
+  carries: `0.2.0 (0.8.1)`. Nothing but that engine's version is in the parentheses: an
+  older engine the page still plays is only in the detail, `Also plays 0.7.4`, and the
+  web commit never shows. The release is `{ version, web, engine, also, text, detail }`
+  (`text` the label, `detail` the older engines or null). The build (`tools/build.mjs`
+  `releaseOf`) reads the version from `package.json`, the web commit from `GITHUB_SHA` in
+  CI or `git rev-parse HEAD`, and the engines from the vendored set; it puts the release
+  in the game pages' config (`config.release`) and writes it as `/version.json`.
+- **Shown** small, in the shared type tokens: "Version 0.2.0 (0.8.1)" at the foot of
+  every reading page (beside the link to the engine page), and the label with "Also plays
+  0.7.4" under it at the foot of MENU in the game.
+- **Exact identity** is the web commit: freshness (below) compares it, and a feedback
+  report carries the label (`build.label`) beside `build.version`, `build.commit` and the
+  Lua bundle it played on.
+- **Never on the wire or in a match.** The room's `me`, the rider (`c: "web"`, `e`), the
+  room document, a kept replay, an embed, a share and a reel name only the engine a match
+  was played on, never the app's version, so a web player and an iPhone player look the
+  same there.
 - **Freshness** (`src/net/freshness.js`): the client fetches `/version.json` with
   `cache: "no-store"` when the page becomes visible again (at most once a minute) and
   every 10 minutes while it is visible. When the deployed web commit is not the one the

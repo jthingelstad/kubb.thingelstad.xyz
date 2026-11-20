@@ -82,7 +82,7 @@ export function describeReport(obj, file = "") {
   lines.push(`  Replay: ${state.join("; ") || "nothing replayable"}`);
   if (r.dropped) lines.push(`  Dropped to fit: ${r.dropped.join(", ")}`);
   lines.push(
-    `  Build: ${r.build?.version ?? "?"} ${String(r.build?.commit ?? "?").slice(0, 10)}, ${r.build?.lua ?? "?"}, ${typeof r.engine === "string" ? `engine ${r.engine}` : `core ${String(r.build?.core ?? "?").slice(0, 10)}`}; ${r.viewport?.w ?? "?"}x${r.viewport?.h ?? "?"}`,
+    `  Build: ${r.build?.label ?? r.build?.version ?? "?"} ${String(r.build?.commit ?? "?").slice(0, 10)}, ${r.build?.lua ?? "?"}, ${typeof r.engine === "string" ? `engine ${r.engine}` : `core ${String(r.build?.core ?? "?").slice(0, 10)}`}; ${r.viewport?.w ?? "?"}x${r.viewport?.h ?? "?"}`,
   );
   return lines;
 }

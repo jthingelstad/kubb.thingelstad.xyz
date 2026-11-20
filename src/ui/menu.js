@@ -1,7 +1,8 @@
 // The menu, from the button in the top corner: resign, sound, level, meter
 // and its side, how to throw, the score sheet (in a match), send feedback, the rules and home; on
 // the practice pitch also the surface; watching the computer, the view. At its
-// foot, small, the release this page is (src/site/release.js).
+// foot, small, the release label (src/site/release.js): "0.2.0 (0.8.1)", and
+// "Also plays 0.7.4" under it when the page carries an older engine.
 import { h, button, clear } from "./dom.js";
 
 const LEVELS = [
@@ -40,7 +41,7 @@ const SURFACES = [
 ];
 
 export class Menu {
-  // hooks: { game, sound, howto, home, resign?, surface?, sheet?, report?, view?, release?, mode }
+  // hooks: { game, sound, howto, home, resign?, surface?, sheet?, report?, view?, release?: { text, detail }, mode }
   // view: { get() -> "wide" | "thrower", set(v) }
   constructor(root, hooks) {
     this.hooks = hooks;
@@ -77,6 +78,9 @@ export class Menu {
         n.kind !== "over" &&
         game.localSide !== null &&
         this.hooks.resign;
+      // the release label, "0.2.0 (0.8.1)", and its detail ("Also plays 0.7.4")
+      const r = this.hooks.release;
+      const release = typeof r === "string" ? { text: r } : r?.text ? r : null;
       // DOM append writes a null as the text "null": leave the absent rows out
       const rows = [
         h("h2.display", "Menu"),
@@ -220,11 +224,18 @@ export class Menu {
             "data-default": true,
           }),
         ),
-        this.hooks.release
+        release
           ? h(
               "p.menu-version",
               { "data-test": "menu-version" },
-              this.hooks.release,
+              h("span", { "data-test": "menu-version-label" }, release.text),
+              release.detail
+                ? h(
+                    "span.menu-version__also",
+                    { "data-test": "menu-version-also" },
+                    release.detail,
+                  )
+                : null,
             )
           : null,
       ];

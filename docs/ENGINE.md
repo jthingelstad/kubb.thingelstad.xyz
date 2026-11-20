@@ -46,7 +46,7 @@ const config = readConfig(); // src/site/config.js
 const engine = await Engine.create({
   sources: config.luaUrl, // the newest; config.engines[mm].luaUrl for another
   wasmUrl: config.wasmUrl,
-  client: clientLabel(config.version), // "web 0.1.0", src/net/sync.js
+  client: clientLabel(config.version), // "web 0.2.0", src/net/sync.js
 });
 ```
 
@@ -102,7 +102,7 @@ crowded }`; `ends[i] = { which, pose, inBounds, obstructedBy, ok, why }` (`why`:
 - `{ kind: "punish", side, kubb, cursor {x, y}, bounds {xMin, xMax, yMin, yMax}, keepOut
 [{ kind, id, x, y, r }], others, n, of, team, local }`: a punishment kubb to place.
 - `{ kind: "over", winner, how, file { text, name }, text, short }`: the match is over;
-  `file` is the game file (match.file, `version` "web 0.1.0").
+  `file` is the game file (match.file, `version` "web 0.2.0").
 
 Every match need also carries `card` (informational: `{ kind: "settle" | "handoff" |
 "pass", ... }`, the Playdate's cards; nothing waits on them), `turn`, `throws`, `teams`,
