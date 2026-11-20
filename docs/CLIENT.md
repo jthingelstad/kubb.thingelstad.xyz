@@ -719,9 +719,11 @@ tested without a browser.
   newer match kept since means this one's reel can no longer be asked for. It reads it
   afresh on every press and every TRY AGAIN (`reelRequest`), never from a replay already
   in hand: a viewer can sit in an old replay while a rematch is kept, and asking then
-  would start the newer match's render. Then `askReel`, and the answer's `v` must be the
-  kept replay's, which covers the short race between the two (no read-only `reel` ask
-  yet, docs/REEL.md open question 13).
+  would start the newer match's render. Then `askReel`, which names that version (`v`)
+  on every request (the first ask, each poll, a card opened again, TRY AGAIN): a room
+  that keeps another answers `why: "moved"` and starts nothing (docs/ROOMS.md section
+  12). The answer's `v` is still checked against the kept one, for a rooms server from
+  before `v`.
 - **Making.** The card's title is "Highlight reel" in every state (the words are the
   table in docs/REEL.md "What a player sees", `REEL_WORDS`). While it renders, the state
   line MAKING YOUR REEL, a slow bar that never claims how far, and "About a
@@ -750,7 +752,7 @@ tested without a browser.
   match." `busy`: "Reels are busy today." `unavailable`, and any why this build does not
   know: "Reels cannot be made right now." `replay` (or no kept replay after the looks):
   "This match has no replay, so it cannot have a reel." `too-many`: "Too many reels
-  asked for at once. Try again later." A newer match kept: "This pitch has moved on to
+  asked for at once. Try again later." A newer match kept, or `moved` from the server: "This pitch has moved on to
   a newer match." None offers TRY AGAIN: asking again cannot change them.
 - **Failing.** A reel the server marked `failed` was tried twice there already and is
   final for that version: "The reel could not be made. Not this time.", no TRY AGAIN.

@@ -52,8 +52,8 @@ function harness({
       return true;
     },
   });
-  const ask = async (conn, room = ROOM, id = 1) => {
-    await rooms.message(conn, asciiJson({ t: "reel", id, room }));
+  const ask = async (conn, room = ROOM, id = 1, more = {}) => {
+    await rooms.message(conn, asciiJson({ t: "reel", id, room, ...more }));
     const got = inbox.get(conn) ?? [];
     inbox.set(conn, []);
     return got.at(-1);
@@ -201,6 +201,53 @@ test("reel: a connection may start three; asking how one stands is free", async 
   assert.equal((await h.ask("c2")).reel.state, "rendering");
   // a closed connection's count goes with it
   await h.rooms.disconnect("c1");
+});
+
+test("reel: a `v` that is the kept replay's behaves as without it", async () => {
+  const h = harness();
+  await h.keep(4);
+  const first = await h.ask("c1", ROOM, 1, { v: 4 });
+  assert.equal(first.v, 4);
+  assert.equal(first.reel.state, "rendering");
+  assert.deepEqual(h.started, [{ room: ROOM, v: 4, tag: "r1-0.7" }]);
+  const poll = await h.ask("c1", ROOM, 2, { v: 4 });
+  assert.equal(poll.reel.state, "rendering");
+  assert.equal(h.started.length, 1);
+});
+
+test("reel: a `v` the room no longer keeps is moved, and starts and counts nothing", async () => {
+  // one render a day and one a connection: a moved answer must use neither
+  const h = harness({
+    limits: { ...LIMITS, reelsPerDay: 1, reelsPerConn: 1 },
+  });
+  await h.keep(9);
+  for (const v of [4, 4, 12]) {
+    const a = await h.ask("c1", ROOM, 1, { v });
+    assert.deepEqual(
+      { t: a.t, id: a.id, room: a.room, v: a.v, reel: a.reel, why: a.why },
+      { t: "reel", id: 1, room: ROOM, v: 9, reel: null, why: "moved" },
+    );
+  }
+  assert.equal(h.started.length, 0);
+  assert.equal(await h.store.getReel(ROOM), null);
+  // the same connection may still start the one render of the day
+  const real = await h.ask("c1", ROOM, 1, { v: 9 });
+  assert.equal(real.reel.state, "rendering");
+  assert.equal(h.started.length, 1);
+});
+
+test("reel: without `v` a rematch's replay is rendered as before; a bad `v` is refused", async () => {
+  const h = harness();
+  await h.keep(9);
+  const a = await h.ask("c1");
+  assert.equal(a.v, 9);
+  assert.equal(a.reel.state, "rendering");
+  for (const v of [0, -1, 1.5, "4", null, true]) {
+    const bad = await h.ask("c2", ROOM, 1, { v });
+    assert.equal(bad.t, "error", JSON.stringify(v));
+    assert.equal(bad.code, "bad-message");
+  }
+  assert.equal(h.started.length, 1);
 });
 
 test("reel: a render that died without a word is started again once stale", async () => {
