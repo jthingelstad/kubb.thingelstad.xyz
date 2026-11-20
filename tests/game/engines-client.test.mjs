@@ -196,3 +196,33 @@ browserTest(
     await ctx.close();
   },
 );
+
+browserTest(
+  "SCORE SHEET pressed after WATCH REPLAY, while the engine loads, leaves the replay playing",
+  async () => {
+    const { page, ctx } = await open(`/p/${CODES.sealed}?${rq()}&nohowto=1`);
+    await page.waitForSelector("[data-test=winner]", { timeout: 30000 });
+    // both pressed before 0.6 has loaded: the replay starts first, and the sheet must
+    // not then set the engine it plays on to the match's last snapshot
+    await page.evaluate(() => {
+      window.__restores = 0;
+      window.__kubb.engines.onLoad((e, mm) => {
+        if (mm !== "0.6") return;
+        const restore = e.restore.bind(e);
+        e.restore = (...a) => (window.__restores++, restore(...a));
+      });
+      document.querySelector("[data-test=watch-replay]").click();
+      document.querySelector("[data-test=winner-sheet]").click();
+    });
+    await page.waitForSelector("[data-test=replay-bar]");
+    await page.waitForSelector("[data-test=sheet-text]");
+    const seen = await page.evaluate(() => ({
+      mode: window.__kubb.pitch.mode,
+      playing: window.__kubb.game.engine.version,
+      restores: window.__restores,
+    }));
+    assert.deepEqual(seen, { mode: "replay", playing: "0.6.9", restores: 0 });
+    assert.deepEqual(page.errors, []);
+    await ctx.close();
+  },
+);
