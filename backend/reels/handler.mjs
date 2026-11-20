@@ -6,30 +6,59 @@
 //
 //   TABLE         the rooms table: GetItem on the kept replay, UpdateItem on the reel item
 //   SITE_BUCKET   the site bucket: PutObject under reels/
-//   REEL_ENGINES  the engine major.minors this function renders ("0.7")
+//   REEL_ENGINES  the engine major.minors this function renders ("0.7", "0.8,0.7")
 //   FFMPEG        the encoder (/opt/bin/ffmpeg, from the function's layer)
 //
-// tools/reels-bundle.mjs packages this with the engine's Lua sources, the faces, the
-// knock takes, wasmoon and @napi-rs/canvas (its linux-arm64 binary) beside it.
+// tools/reels-bundle.mjs packages this with one Lua bundle per engine the site carries
+// (engines/<major.minor>.json: { engine, sources }), the faces, the knock takes,
+// wasmoon and @napi-rs/canvas (its linux-arm64 binary) beside it. A match is rendered
+// or checked on its own engine (docs/ENGINES.md); an engine's bundle is read the first
+// time a match of it comes, and kept.
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { S3Client } from "@aws-sdk/client-s3";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { reelStore, s3Uploader } from "./aws.mjs";
+import { carriedLookup } from "./carried.mjs";
 import { checkShare } from "./check.mjs";
 import { runReel } from "./job.mjs";
 import { renderReel } from "./render.mjs";
-import { parseEngines } from "./tag.mjs";
+import { majorMinor, parseEngines } from "./tag.mjs";
 
 const here = (name) => fileURLToPath(new URL(`./${name}`, import.meta.url));
 
-// The package's files: the engine and its version, the faces, the knock takes.
+// The engines in a package's engines/ folder: mm -> { engine, sources } | null, each
+// read the first time it is asked for.
+export function packageEngines(dir = here("engines")) {
+  const names = new Set(
+    fs
+      .readdirSync(dir)
+      .map((f) => /^(\d{1,4}\.\d{1,4})\.json$/.exec(f)?.[1])
+      .filter(Boolean),
+  );
+  const read = new Map();
+  const carried = (mm) => {
+    if (!names.has(mm)) return null;
+    if (!read.has(mm)) {
+      const lua = JSON.parse(fs.readFileSync(`${dir}/${mm}.json`, "utf8"));
+      read.set(
+        mm,
+        majorMinor(lua.engine) === mm
+          ? { engine: lua.engine, sources: lua.sources }
+          : null,
+      );
+    }
+    return read.get(mm);
+  };
+  carried.list = () => [...names];
+  return carried;
+}
+
+// The package's files: its engines, the faces, the knock takes.
 export function packageAssets() {
-  const lua = JSON.parse(fs.readFileSync(here("lua-sources.json"), "utf8"));
   return {
-    sources: lua.sources,
-    engine: lua.engine,
+    carried: packageEngines(),
     assets: {
       display: here("fonts/LondrinaSolid-Black.ttf"),
       label: here("fonts/inter-latin-wght-normal.woff2"),
@@ -40,14 +69,27 @@ export function packageAssets() {
 
 // A check, answered to the rooms function that waits for it. Logged: the step that
 // failed, the engine and the size, never a name.
-export async function checkHandler(event, { sources, engine, engines }) {
+export async function checkHandler(
+  event,
+  { carried, sources, engine, engines },
+) {
   const t0 = Date.now();
-  const out = await checkShare({ g: event.check, sources, engine, engines });
+  const out = await checkShare({
+    g: event.check,
+    carried,
+    sources,
+    engine,
+    engines,
+  });
   console.log(
     JSON.stringify({
       check: out.ok ? "ok" : out.why,
       step: out.ok ? null : out.step,
-      engine,
+      // the engine it was checked on, or null when it was none this function carries
+      engine:
+        carriedLookup({ carried, engine, sources })(
+          majorMinor(event.check?.engine),
+        )?.engine ?? null,
       played:
         typeof event.check?.engine === "string"
           ? event.check.engine.slice(0, 64)
@@ -65,16 +107,14 @@ export async function handler(event) {
   if (event && typeof event === "object" && "check" in event) {
     assets ??= packageAssets();
     return checkHandler(event, {
-      sources: assets.sources,
-      engine: assets.engine,
+      carried: assets.carried,
       engines: parseEngines(process.env.REEL_ENGINES),
     });
   }
   ready ??= (() => {
     assets ??= packageAssets();
-    const { sources, engine } = assets;
     return {
-      engine,
+      carried: assets.carried,
       store: reelStore({
         client: DynamoDBDocumentClient.from(new DynamoDBClient({})),
         table: process.env.TABLE,
@@ -83,7 +123,7 @@ export async function handler(event) {
         s3: new S3Client({}),
         bucket: process.env.SITE_BUCKET,
       }),
-      render: ({ replay, code, out }) =>
+      render: ({ replay, code, out, sources }) =>
         renderReel({
           replay,
           code,

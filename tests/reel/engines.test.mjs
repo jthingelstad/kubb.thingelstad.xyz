@@ -1,0 +1,325 @@
+// The highlight reel renderer and the share check on the match's own engine
+// (docs/ENGINES.md, docs/REEL.md "Engines"). The site carries one engine today, so a
+// second is made at test time: a vendor folder in a temporary directory synced from a
+// stand-in kubb-engine (tests/engine/engine-fixture.mjs), 0.7.4 as the newest and
+// 0.6.9 kept, the vendored sources with only the version changed. Both play alike;
+// what these pin is which engine each path runs, what the package carries, and that a
+// match of an engine not carried is refused as before.
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { test } from "node:test";
+import { asciiJson, createRooms } from "../../backend/rooms/core.mjs";
+import { memoryStore } from "../../backend/rooms/memory-store.mjs";
+import { carriedLookup } from "../../backend/reels/carried.mjs";
+import { checkShare } from "../../backend/reels/check.mjs";
+import { packageEngines } from "../../backend/reels/handler.mjs";
+import { pickHighlights } from "../../backend/reels/highlights.mjs";
+import { runReel } from "../../backend/reels/job.mjs";
+import { scanReplay } from "../../backend/reels/scan.mjs";
+import { bundleLua, carriedEngines } from "../../tools/lua-bundle.mjs";
+import {
+  bundleReels,
+  engineEntries,
+  reelEngines,
+} from "../../tools/reels-bundle.mjs";
+import { devCarried, devReelEngines } from "../../tools/reels-dev.mjs";
+import { replayEngine } from "../../tools/reel/render.mjs";
+import { playSolo, soloSetup } from "../../tools/reel/solo.mjs";
+import { sync } from "../../tools/vendor.mjs";
+import { makeEngineRepo, makeVendorRoot } from "../engine/engine-fixture.mjs";
+
+const repo = makeEngineRepo(["0.6.9", "0.7.4"]);
+const root = makeVendorRoot();
+sync({ root: root.dir, repo: repo.dir, tag: "v0.6.9" });
+sync({ root: root.dir, repo: repo.dir, tag: "v0.7.4", keep: true });
+const vendorDir = path.join(root.dir, "vendor");
+const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "kubb-reel-engines-"));
+test.after(() => {
+  repo.clean();
+  root.clean();
+  fs.rmSync(scratch, { recursive: true, force: true });
+});
+
+const carried = devCarried(vendorDir);
+const ROOM = "abcdefgh23";
+const T0 = 1_700_000_000_000;
+const replayOf = (engine) => ({
+  v: 1,
+  n: 1,
+  engine,
+  log: [{ a: { type: "throw", how: "baton" } }],
+  snap: "{}",
+});
+
+test("the package carries one bundle per engine, newest first, the same bytes every time", async () => {
+  assert.equal(reelEngines(vendorDir), "0.7,0.6");
+  assert.deepEqual(devReelEngines(vendorDir), ["0.7", "0.6"]);
+  // this checkout: the one engine, REEL_ENGINES "0.7" as before
+  assert.equal(reelEngines(), carriedEngines()[0].mm);
+  assert.deepEqual(
+    engineEntries().map((e) => e.name),
+    [`engines/${carriedEngines()[0].mm}.json`],
+  );
+
+  const two = engineEntries(vendorDir);
+  assert.deepEqual(
+    two.map((e) => e.name),
+    ["engines/0.7.json", "engines/0.6.json"],
+  );
+  const read = two.map((e) => JSON.parse(e.data));
+  assert.deepEqual(
+    read.map((x) => x.engine),
+    ["0.7.4", "0.6.9"],
+  );
+  assert.deepEqual(read[0].sources, bundleLua(path.join(vendorDir, "engine")));
+  const again = engineEntries(vendorDir);
+  two.forEach((e, i) => assert.ok(e.data.equals(again[i].data), e.name));
+
+  const binary = {
+    node: Buffer.from("not a real binary"),
+    pkg: Buffer.from('{"name":"@napi-rs/canvas-linux-arm64-gnu"}'),
+  };
+  const a = await bundleReels({ binary, vendorDir });
+  const b = await bundleReels({ binary, vendorDir });
+  assert.ok(a.zip.equals(b.zip));
+  assert.equal(a.key, b.key);
+  const text = a.zip.toString("latin1");
+  assert.ok(text.includes("engines/0.7.json"));
+  assert.ok(text.includes("engines/0.6.json"));
+  assert.ok(!text.includes("lua-sources.json"));
+});
+
+test("the function reads each engine of its package once, and only one it holds", () => {
+  const dir = path.join(scratch, "engines");
+  fs.mkdirSync(dir, { recursive: true });
+  for (const e of engineEntries(vendorDir))
+    fs.writeFileSync(path.join(scratch, e.name), e.data);
+  // a file that names another engine than its name is not carried
+  fs.writeFileSync(
+    path.join(dir, "0.5.json"),
+    JSON.stringify({ engine: "0.7.4", sources: {} }),
+  );
+  const lookup = packageEngines(dir);
+  assert.deepEqual(lookup.list().sort(), ["0.5", "0.6", "0.7"]);
+  assert.equal(lookup("0.6").engine, "0.6.9");
+  assert.equal(lookup("0.6"), lookup("0.6"));
+  assert.equal(lookup("0.7").engine, "0.7.4");
+  assert.equal(lookup("0.5"), null);
+  assert.equal(lookup("0.8"), null);
+});
+
+test("carriedLookup: a set, a function, or one engine as a set of one", () => {
+  const set = { 0.6: { engine: "0.6.9", sources: 1 } };
+  assert.equal(carriedLookup({ carried: set })("0.6").engine, "0.6.9");
+  assert.equal(carriedLookup({ carried: set })("toString"), null);
+  assert.equal(carriedLookup({ carried: () => undefined })("0.6"), null);
+  const one = carriedLookup({ engine: "0.7.4", sources: 2 });
+  assert.deepEqual(one("0.7"), { engine: "0.7.4", sources: 2 });
+  assert.equal(one("0.6"), null);
+  assert.equal(carriedLookup({})("0.7"), null);
+});
+
+async function reelRun({ replay, tag, engines = ["0.7", "0.6"] }) {
+  const store = memoryStore({ now: () => T0 });
+  const exp = T0 / 1000 + 3600;
+  await store.putReplay(ROOM, {
+    v: 4,
+    t: T0,
+    data: JSON.stringify(replay),
+    exp,
+  });
+  await store.putReel(
+    ROOM,
+    { v: 4, tag, job: `4-${tag}`, at: T0, exp },
+    { staleBefore: 0 },
+  );
+  let rendered = null;
+  const logs = [];
+  const out = await runReel({
+    input: { room: ROOM, v: 4, tag },
+    store,
+    carried,
+    engines,
+    upload: async () => {},
+    render: async ({ out: dir, engine, sources }) => {
+      rendered = { engine, sources };
+      const files = {};
+      for (const f of ["tall", "wide", "edit"]) {
+        files[f] = `${dir}/${f}`;
+        fs.writeFileSync(files[f], f);
+      }
+      return { files, edit: { seconds: 30 } };
+    },
+    now: () => T0 + 5,
+    log: (e) => logs.push(e),
+  });
+  return { out, rendered, logs };
+}
+
+test("a reel renders on the engine its match was played on, and only that one", async () => {
+  const older = await reelRun({ replay: replayOf("0.6.9"), tag: "r1-0.6" });
+  assert.equal(older.out.state, "done");
+  assert.equal(older.out.wide, `/reels/${ROOM}/4-r1-0.6/wide.mp4`);
+  assert.equal(older.rendered.engine, "0.6.9");
+  assert.equal(older.rendered.sources, carried("0.6").sources);
+  assert.ok(older.logs.every((e) => e.engine === "0.6.9"));
+
+  const newest = await reelRun({ replay: replayOf("0.7.4"), tag: "r1-0.7" });
+  assert.equal(newest.out.state, "done");
+  assert.equal(newest.rendered.engine, "0.7.4");
+  assert.equal(newest.rendered.sources, carried("0.7").sources);
+
+  for (const [replay, tag, engines] of [
+    [replayOf("0.5.0"), "r1-0.5", undefined], // not carried
+    [replayOf("0.6.9"), "r1-0.7", undefined], // the tag names another engine
+    [replayOf("0.7.4"), "r1-0.6", undefined],
+    [replayOf("0.6.9"), "r1-0.6", ["0.7"]], // carried, not in REEL_ENGINES
+    [replayOf(undefined), "r1-0.7", undefined],
+  ]) {
+    const r = await reelRun({ replay, tag, engines });
+    assert.deepEqual(r.out, { state: "failed", why: "engine" }, tag);
+    assert.equal(r.rendered, null);
+  }
+});
+
+test("a shared match is checked on the engine it names, and one not carried is refused", async () => {
+  const older = carried("0.6");
+  const played = await playSolo(soloSetup(2), older.sources);
+  const g = {
+    engine: "0.6.9",
+    start: played.start,
+    log: played.log,
+    end: { winner: played.end.winner, throws: played.end.throws },
+  };
+  const out = await checkShare({ g, carried, engines: ["0.7", "0.6"] });
+  assert.equal(out.ok, true);
+  assert.equal(out.engine, "0.6.9");
+  assert.equal(
+    JSON.parse(out.replay).engine.split(".").slice(0, 2).join("."),
+    "0.6",
+  );
+  // REEL_ENGINES without it, or an engine the package does not hold: as today
+  for (const [share, engines] of [
+    [g, ["0.7"]],
+    [{ ...g, engine: "0.5.2" }, ["0.7", "0.6", "0.5"]],
+    [{ ...g, engine: "junk" }, ["0.7", "0.6"]],
+  ])
+    assert.deepEqual(await checkShare({ g: share, carried, engines }), {
+      ok: false,
+      why: "engine",
+      step: "engine",
+    });
+});
+
+// The rooms function with the reel function's REEL_ENGINES: what it starts and asks.
+function roomsWith({ engines, store }) {
+  const started = [];
+  const checked = [];
+  const inbox = [];
+  const rooms = createRooms({
+    store,
+    now: () => T0,
+    reelEngines: engines,
+    startReel: async (job) => started.push(job),
+    checkShare: async (g) => {
+      checked.push(g.engine);
+      return { ok: false, why: "does-not-replay" };
+    },
+    async send(_conn, text) {
+      inbox.push(JSON.parse(text));
+      return true;
+    },
+  });
+  const say = async (msg) => {
+    await rooms.message("c1", asciiJson(msg));
+    return inbox.at(-1);
+  };
+  return { started, checked, say };
+}
+
+test("after the site moves to 0.8: a 0.7 match keeps its r1-0.7 reel, a 0.8 match gets r1-0.8", async () => {
+  const store = memoryStore({ now: () => T0 });
+  const exp = T0 / 1000 + 3600;
+  const keep = (code, engine) =>
+    store.putReplay(code, {
+      v: 2,
+      t: T0,
+      data: JSON.stringify(replayOf(engine)),
+      exp,
+    });
+  await keep("seventhm", "0.7.4");
+
+  // today: the 0.7 match's reel is asked for, rendered and done
+  const today = roomsWith({ engines: ["0.7"], store });
+  const first = await today.say({ t: "reel", id: 1, room: "seventhm" });
+  assert.equal(first.reel.tag, "r1-0.7");
+  assert.deepEqual(today.started, [{ room: "seventhm", v: 2, tag: "r1-0.7" }]);
+  await store.finishReel("seventhm", "2-r1-0.7", {
+    state: "done",
+    wide: "/reels/seventhm/2-r1-0.7/wide.mp4",
+    tall: "/reels/seventhm/2-r1-0.7/tall.mp4",
+    edit: "/reels/seventhm/2-r1-0.7/edit.json",
+    seconds: 30,
+    done: T0,
+  });
+
+  // the site carries 0.8 and keeps 0.7: the same reel, nothing rendered again
+  const later = roomsWith({ engines: ["0.8", "0.7"], store });
+  const again = await later.say({ t: "reel", id: 2, room: "seventhm" });
+  assert.equal(again.reel.state, "done");
+  assert.equal(again.reel.tag, "r1-0.7");
+  assert.equal(later.started.length, 0);
+
+  await keep("aughtmmm", "0.8.1");
+  const eighth = await later.say({ t: "reel", id: 3, room: "aughtmmm" });
+  assert.equal(eighth.reel.tag, "r1-0.8");
+  assert.deepEqual(later.started, [{ room: "aughtmmm", v: 2, tag: "r1-0.8" }]);
+
+  // a 0.7 share from an iPhone build still on 0.7 goes on to the check
+  const share = {
+    t: "share",
+    id: 4,
+    g: {
+      engine: "0.7.4",
+      start: "{}",
+      log: [],
+      end: { winner: "A", throws: 1 },
+    },
+  };
+  const asked = await later.say(share);
+  assert.deepEqual(later.checked, ["0.7.4"]);
+  assert.equal(asked.why, "does-not-replay");
+
+  // once 0.7 is dropped: refused before the check, as any engine not carried is
+  const dropped = roomsWith({ engines: ["0.8"], store });
+  assert.equal((await dropped.say({ ...share, id: 5 })).why, "engine");
+  assert.deepEqual(dropped.checked, []);
+  assert.equal(
+    (await dropped.say({ t: "reel", id: 6, room: "seventhm" })).why,
+    "engine",
+  );
+});
+
+test("the command line renders a replay on its own engine where the checkout carries it", () => {
+  assert.equal(replayEngine({ engine: "0.6.9" }, vendorDir).version, "0.6.9");
+  const other = replayEngine({ engine: "0.5.0" }, vendorDir);
+  assert.equal(other.version, "0.7.4");
+  assert.equal(other.own, false);
+});
+
+// One render test per carried engine: the kept fixture scanned and its highlights
+// picked on each (the encoder is not run here: CI has no ffmpeg).
+for (const { mm, dir } of carriedEngines())
+  test(`the renderer scans the kept replay on carried engine ${mm} and finds moments`, async () => {
+    const replay = JSON.parse(
+      fs.readFileSync(
+        new URL("../fixtures/replay-north-south.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    const scan = await scanReplay(replay, { sources: bundleLua(dir) });
+    assert.ok(scan.throws.length > 0);
+    assert.ok(pickHighlights(scan).moments.length > 0);
+  });

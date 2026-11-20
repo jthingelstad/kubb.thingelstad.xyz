@@ -40,9 +40,12 @@ import {
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 import fs from "node:fs/promises";
-import { engineVersion } from "./lua-bundle.mjs";
 import { bundlePages } from "./pages-bundle.mjs";
-import { bundleReels, ffmpegLayer } from "./reels-bundle.mjs";
+import {
+  bundleReels,
+  ffmpegLayer,
+  reelEngines as reelEnginesOf,
+} from "./reels-bundle.mjs";
 import { bundleRooms } from "./rooms-bundle.mjs";
 import { syncSiteTemplate } from "./site-template.mjs";
 
@@ -183,8 +186,10 @@ let pagesKey = config.pages?.codeKey || null;
 let reelKeys = config.reels
   ? { codeKey: config.reels.codeKey, layerKey: config.reels.layerKey }
   : null;
-// The engine the reel function carries: the vendored one, major.minor.
-const reelEngines = engineVersion().split(".").slice(0, 2).join(".");
+// The engines the reel function carries: every vendored one by major.minor, newest
+// first ("0.7", later "0.8,0.7"), the same set tools/reels-bundle.mjs packages
+// (docs/ENGINES.md). The rooms stack takes it from the site stack's ReelEngines output.
+const reelEngines = reelEnginesOf();
 if (selected.includes("site")) {
   // The pages function reads the rooms table: none until the rooms stack is there.
   const table = outputs(await stack(config.stacks.rooms)).TableName || "";

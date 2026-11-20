@@ -1,10 +1,11 @@
 // The renderer's check of a shared match against the computer (docs/REEL.md "Sharing a
 // match against the computer", docs/ROOMS.md section 13). The rooms function invokes the
 // reel function synchronously with { check: g } and waits; this plays the match through
-// the engine it carries and answers. It writes nothing: the rooms function keeps what
+// the engine it was played on, when the function carries that engine, and answers. It writes nothing: the rooms function keeps what
 // comes back.
 //
-//   checkShare({ g, sources, engine, engines }) ->
+//   checkShare({ g, carried, engines }) ->     carried: backend/reels/carried.mjs's set
+//   checkShare({ g, sources, engine, engines })  (one engine: a set of one) ->
 //     { ok: true, engine, document, replay, actions, throws }   document and replay are
 //                 ASCII JSON text, built by the engine (replayDocument, replayOf)
 //     { ok: false, why, step }   why: "engine", "does-not-replay" or "too-long"; step names
@@ -12,7 +13,9 @@
 //
 // What it holds the match to (the engine's docs/SESSION.md "What a server can prove"):
 //
-//   engine    the match's major.minor is the one this function carries
+//   engine    the match's major.minor (`g.engine`) is among `engines` (REEL_ENGINES) and
+//             one the package carries; it is checked on that engine, so an iPhone build
+//             still on an older minor shares on the engine it played
 //   start     a match's first snapshot, exactly what newMatch makes of its own options
 //             (checkStart); side A a person, side B the computer and named Computer; side
 //             A's team and player named 1 to 16 characters, not "You"
@@ -35,6 +38,7 @@ import { Engine } from "../../src/engine/index.js";
 import { replayOf, useRoomEngine } from "../../src/net/lobby.js";
 import { asciiJson } from "../rooms/core.mjs";
 import { majorMinor } from "./tag.mjs";
+import { carriedLookup } from "./carried.mjs";
 
 // As backend/rooms/core.mjs LIMITS: what the room keeps.
 export const SHARE_KEEP = Object.freeze({
@@ -77,17 +81,25 @@ function sidesOf(setup) {
   return null;
 }
 
-export async function checkShare({ g, sources, engine, engines = [] }) {
-  const carried = majorMinor(engine);
+export async function checkShare({
+  g,
+  carried,
+  sources,
+  engine,
+  engines = [],
+}) {
   const played = majorMinor(g?.engine);
-  if (!carried || played !== carried || !engines.includes(carried))
+  const own = played
+    ? carriedLookup({ carried, engine, sources })(played)
+    : null;
+  if (!own || majorMinor(own.engine) !== played || !engines.includes(played))
     return no("engine", "engine");
   if (typeof g.start !== "string" || !Array.isArray(g.log) || !g.end)
     return no("does-not-replay", "shape");
 
   let e = null;
   try {
-    e = await Engine.create({ sources });
+    e = await Engine.create({ sources: own.sources });
     useRoomEngine(e);
     const start = e.call("checkStart", { start: g.start });
     if (!start?.ok) return no("does-not-replay", "start");

@@ -431,8 +431,10 @@ under the stage throttle.
   1000 actions (`shareActions`, a cheap ceiling well past the engine's limit), `start`
   at most 16 KB; otherwise `{ code: null, why: "too-long" }` before anything is read;
 - `engine`: its major.minor is one the renderer carries (an environment value on the
-  rooms function, `REEL_ENGINES`, today `0.7`); otherwise `{ code: null, why:
-"engine" }`;
+  rooms function, `REEL_ENGINES`: every engine the site carries, today `0.7`);
+  otherwise `{ code: null, why: "engine" }`. The renderer checks the match on that
+  engine, so an iPhone build still on an older minor shares on the engine it played
+  for as long as the site carries it (below, "Engines");
 - a match shared before: the key `share#<sha256 of start and log>` names its code, and
   the same code is answered, free. A device that loses the answer and asks again gets
   one link. (**Built:** SHA-256, not FNV: a 32-bit collision would hand out another
@@ -610,17 +612,44 @@ At the costs below, the two caps bound a bad day at under a dollar and a half.
 ### The renderer
 
 `kubb-xyz-site-reels`, in the site stack beside the pages function. It carries one
-engine release for each major.minor it serves (`REEL_ENGINES`; about 2 MB each), and
-plays each match on the one it was played on: a pitch's `match.engine`, a shared
-match's `engine`.
+engine release for each major.minor it serves (`REEL_ENGINES`), and plays each match on
+the one it was played on: a pitch's `match.engine`, a shared match's `engine`.
 
-**Built: one engine.** The function carries this site's vendored engine (0.7.4) and
-nothing else, and renders a match only when the replay's `engine` has that major.minor;
-any other is answered `why: "engine"` by the rooms function and refused by the renderer
-too. `REEL_ENGINES` stays a list (one entry, `0.7`, set from the vendored engine by
-`tools/infra.mjs`), so carrying a second release later is a packaging change, not a
-protocol one. A match from before `match.engine` was written has no engine and gets no
-reel.
+#### Engines
+
+The renderer carries the engines the site carries (`docs/ENGINES.md`): the newest and
+every older minor kept with `vendor:sync --keep`. Today that is one, 0.7.4.
+
+- **The package.** `tools/reels-bundle.mjs` writes one Lua bundle per carried engine,
+  `engines/<major.minor>.json` (`{ engine, sources }`, from `carriedEngines()`), where
+  there was one `lua-sources.json`. The zip is the same bytes for the same vendored
+  engines, so its key, `reels/<sha256>.zip`, changes only when they do. Each engine adds
+  about 0.7 MB unzipped and 0.2 MB zipped.
+- **`REEL_ENGINES`** is the same set, by major.minor and newest first (`reelEngines()`
+  in `tools/reels-bundle.mjs`): `0.7` today, `0.8,0.7` once 0.8 is vendored with
+  `--keep`. `tools/infra.mjs` passes it to the site stack, and the rooms stack takes it
+  from the site stack's `ReelEngines` output, so the two always name what the deployed
+  package holds. Both templates already took a list.
+- **A render** (`backend/reels/job.mjs`) reads the replay's `engine`, and renders only
+  when its major.minor is the tag's, is in `REEL_ENGINES` and is one the package holds.
+  The handler reads that engine's bundle the first time a match of it comes
+  (`packageEngines` in `backend/reels/handler.mjs`). Anything else fails with
+  `why: "engine"`, as before.
+- **A share check** (`backend/reels/check.mjs`) plays the match on the engine its
+  `engine` names, under the same three conditions; otherwise `why: "engine"`. The rooms
+  function needs no change for this: it already refused a share or a reel by testing the
+  match's major.minor against the `REEL_ENGINES` list, so a list of two lets both
+  through.
+- **The tag** names the match's engine, never the newest: `r<look>-<major.minor>`. A 0.7
+  match has `r1-0.7` before and after the site moves to 0.8. Its reel item and files
+  keep their key: asking again answers the done reel, and nothing renders again. A 0.8
+  match gets `r1-0.8`. If 0.7 is later dropped, a new request for a 0.7 match is
+  answered `why: "engine"`. Its reel already made stays in the bucket until the
+  lifecycle rule expires it, and `/p/<code>` still links it: the pages function reads
+  the done reel item and never looks at the engine.
+- A match from before `match.engine` was written has no engine and gets no reel.
+
+`docs/REEL-RUNBOOK.md` "Adding or dropping an engine" has the deploy order.
 
 Built as a zip function: Node 24 (`nodejs24.x`), arm64, 3008 MB, 5 minutes, reserved
 concurrency 2, `@napi-rs/canvas` 1.1.1 with its Linux arm64 binary, and a layer with a
