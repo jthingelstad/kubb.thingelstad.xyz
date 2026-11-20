@@ -112,7 +112,8 @@ export class Pitch {
   // sheet: () => void, opens the score sheet (the winner card's SCORE SHEET)
   constructor(env) {
     Object.assign(this, env);
-    this.mode = "lobby"; // lobby | match | replay | gone
+    this.mode = "lobby"; // lobby | match | replay | gone | sealed
+    this.sealed = null; // a shared match's kept replay (showSealed)
     this.replay = null; // the replay player while one plays (src/replay/player.js)
     this.replayFrom = null; // the mode to go back to
     this.kept = null; // the match number this browser asked the room to keep
@@ -266,6 +267,7 @@ export class Pitch {
     this.mode = "gone";
     this.lobby?.hide();
     const code = err instanceof RoomError ? err.code : "error";
+    if (code === "sealed") return this.showSealed();
     const text = {
       full: "Sixteen people are on this pitch already, every one of them connected. Start a pitch of your own, or try again when someone leaves.",
       "bad-room":
@@ -292,6 +294,63 @@ export class Pitch {
         ["HOME", this.home],
       ],
       test: `join-${code}`,
+    });
+  }
+
+  // ---------- a shared match ----------
+
+  // A match against the computer shared from a winner card (docs/REEL.md, docs/ROOMS.md
+  // section 13) is a sealed room: it is watched, never joined. Its page shows the
+  // finished match from the room's kept replay, as a browser arriving after a pitch's
+  // end sees it: the result, WATCH REPLAY, the score sheet, EMBED and the reel. No
+  // lobby, seats or rematch. The room never moves on, so the replay read here is the
+  // one its reel is made from.
+  async showSealed() {
+    this.mode = "sealed";
+    if (this.shoutBar) this.shoutBar.hidden = true;
+    const r = await fetchReplay({
+      url: this.roomsUrl,
+      code: this.code,
+      check: isReplay,
+      ...(this.WebSocket ? { WebSocket: this.WebSocket } : {}),
+    });
+    if (!r) {
+      this.mode = "gone";
+      this.cards.notice({
+        kicker: `PITCH ${this.code}`,
+        title: "Could not show the match",
+        text: "This pitch is a shared match, and it could not be loaded just now. Try again in a moment.",
+        actions: [
+          ["TRY AGAIN", () => location.reload(), "go"],
+          ["HOME", this.home],
+        ],
+        test: "sealed-missing",
+      });
+      return;
+    }
+    this.sealed = r;
+    this.arrivedOver = r.n; // the page's og:video, if any, was written for this match
+    this.note("sealed", r.n);
+    this.game.whoActs = () => null;
+    this.cards.who = () => null;
+    this.game.onNeed = (need) => {
+      if (this.mode === "sealed" && need?.kind === "over")
+        this.sealedCard(need);
+    };
+    this.game.adopt(r.snap);
+  }
+
+  sealedCard(need) {
+    const r = this.sealed;
+    this.cards.winner(need, {
+      rematch: null,
+      sheet: this.sheet,
+      home: this.home,
+      replay: () => this.watch(r),
+      embed: () => this.showEmbed(),
+      reel: this.reelFor(r),
+      first: true,
+      teams: teamsLine(r.players),
     });
   }
 
@@ -875,7 +934,12 @@ export class Pitch {
   // played again here (src/replay/player.js), read only. The room stays joined; its
   // news waits until BACK TO THE PITCH.
   watch(data) {
-    if (this.mode !== "match" && this.mode !== "lobby") return;
+    if (
+      this.mode !== "match" &&
+      this.mode !== "lobby" &&
+      this.mode !== "sealed"
+    )
+      return;
     this.replayFrom = this.mode;
     this.mode = "replay";
     this.lobby?.hide();
@@ -930,6 +994,10 @@ export class Pitch {
     p.destroy();
     const from = this.replayFrom;
     this.mode = from;
+    if (from === "sealed") {
+      this.game.adopt(this.sealed.snap); // the winner card again (sealedCard)
+      return;
+    }
     const doc = this.room.doc;
     if (from === "match" && doc?.started && doc.match?.n === this.local.n) {
       this.shoutBar.hidden = false;
