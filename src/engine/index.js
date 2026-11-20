@@ -220,6 +220,15 @@ export class Engine {
   stepSide(step) {
     return this.call("stepSide", { step });
   }
+  // Since 0.9 (docs/SESSION.md "The controls"): a baton's tilt in degrees or a kubb's
+  // spin in taps, any value, clamped by the engine. An older engine has neither (its
+  // aim has no `controls`): Game.applySlide steps instead.
+  setTilt(deg) {
+    return this.call("setTilt", { deg });
+  }
+  setSpin(spin) {
+    return this.call("setSpin", { spin });
+  }
   freshPlan() {
     return this.call("freshPlan");
   }

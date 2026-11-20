@@ -80,7 +80,13 @@ import {
   tune as raiseTune,
 } from "./raise-touch.js";
 import { Hud } from "./hud.js";
-import { releaseAt, sideStepAt, sideStepOf } from "./plan-sliders.js";
+import {
+  controlOf,
+  releaseAt,
+  sideStepAt,
+  sideStepOf,
+  valueAt,
+} from "./plan-sliders.js";
 import { standSpan, groundAt } from "./stand-pad.js";
 import { prefs } from "./prefs.js";
 import { NudgeTrigger, timeline, swingOf, captionFor } from "./nudge.js";
@@ -263,7 +269,7 @@ export class Game {
 
     this.hud = new Hud(ui, {
       slide: (what, f, phase) => this.planSlide(what, f, phase),
-      step: (what, s) => this.planStep(what, s),
+      step: (what, s, fine) => this.planStep(what, s, fine),
       skip: () => this.skip(),
       stand: (fx, fy, phase) => this.standAt(fx, fy, phase),
       standKey: (dx, dy) => this.standStep(dx, dy),
@@ -790,12 +796,27 @@ export class Game {
     return dx || dy ? { dx: dx * tune.keyMove, dy: dy * tune.keyMove } : ZERO;
   }
 
-  planStep(what, step) {
+  // A step of ARC or TILT/SPIN (R/F, Q/E, PageUp/PageDown on a slider), or with
+  // `fine` a tick (an arrow key on a slider) where the engine has ticks (0.9 on,
+  // `aim.controls`); an older engine steps.
+  planStep(what, step, fine = false) {
     if (this.phase !== "aim" || !this.mayAct()) return;
     this.nudge.input();
-    const r =
-      what === "arc" ? this.engine.stepArc(step) : this.engine.stepSide(step);
+    const aim = this.out?.aim;
+    const kubb = aim?.projectile === "kubb";
+    const c = fine ? controlOf(aim?.controls, what, kubb) : null;
+    const r = c
+      ? this.setControl(what, kubb, (c.value ?? c.default) + step * c.tick)
+      : what === "arc"
+        ? this.engine.stepArc(step)
+        : this.engine.stepSide(step);
     if (r && r.aim) this.out = { ...this.out, aim: r.aim, camera: r.camera };
+  }
+
+  // A value for ARC, TILT or SPIN, any in range (engine 0.9 on; it clamps).
+  setControl(what, kubb, v) {
+    if (what === "arc") return this.engine.setArc(v);
+    return kubb ? this.engine.setSpin(v) : this.engine.setTilt(v);
   }
 
   // Is the side view (the engine's plan view) wanted this frame?
@@ -848,19 +869,23 @@ export class Game {
     return true;
   }
 
-  // The held slider's place, to the engine: ARC is setArc's release, a
-  // continuous value; TILT and SPIN have only steps (stepSide), so the
-  // nearest detent is reached by the steps between it and the plan's own.
+  // The held slider's place, to the engine. Engine 0.9 on gives each control's
+  // range (`aim.controls`) and takes any value in it: setArc, setTilt, setSpin.
+  // Before 0.9, ARC is setArc's release, a continuous value; TILT and SPIN have
+  // only steps (stepSide), so the nearest detent is reached by the steps between
+  // it and the plan's own.
   applySlide() {
     const sl = this.slide;
     if (!sl || !sl.dirty) return;
     sl.dirty = false;
     if (this.phase !== "aim" || !this.mayAct()) return;
     const aim = this.out?.aim;
+    const kubb = aim?.projectile === "kubb";
+    const c = controlOf(aim?.controls, sl.what, kubb);
     let r = null;
-    if (sl.what === "arc") r = this.engine.setArc(releaseAt(sl.f));
+    if (c) r = this.setControl(sl.what, kubb, valueAt(c, sl.f));
+    else if (sl.what === "arc") r = this.engine.setArc(releaseAt(sl.f));
     else {
-      const kubb = aim?.projectile === "kubb";
       const d = sideStepAt(sl.f, kubb) - sideStepOf(aim?.plan, kubb);
       if (d) r = this.engine.stepSide(d);
     }
