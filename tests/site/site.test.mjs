@@ -26,6 +26,11 @@ import {
   ref,
 } from "../../src/site/site.mjs";
 import { NEWSLETTER_PAGES, signup } from "../../src/site/newsletter.mjs";
+import {
+  CRAWL_BLOCKED,
+  PREVIEW_AGENTS,
+  robotsTxt,
+} from "../../src/site/robots.mjs";
 import { ROOM_CODE } from "../../backend/rooms/core.mjs";
 import { releaseOf } from "../../tools/build.mjs";
 import { carriedEngines } from "../../tools/lua-bundle.mjs";
@@ -663,4 +668,78 @@ test("the CSP lets in the Playdate games site for images and media, nothing more
   );
   // the embed shows none of it
   assert.ok(!embedSecurityPolicy().includes(PLAYDATE_SITE));
+});
+
+test("robots.txt: crawlers stay off per-match addresses, link previews do not", () => {
+  const txt = robotsTxt("https://throwingwood.com");
+  const groups = txt
+    .trim()
+    .split(/\n\n/)
+    .map((g) => g.split("\n"));
+  // the general group: exactly these paths disallowed
+  assert.deepEqual(groups[0], [
+    "User-agent: *",
+    "Disallow: /p/",
+    "Disallow: /e/",
+    "Disallow: /og/",
+    "Disallow: /reels/",
+    "Disallow: /pitch/",
+    "Disallow: /embed/",
+    "Allow: /",
+  ]);
+  // the preview fetchers: a complete group of their own, nothing disallowed
+  assert.deepEqual(groups[1], [
+    ...PREVIEW_AGENTS.map((a) => `User-agent: ${a}`),
+    "Allow: /",
+  ]);
+  for (const agent of [
+    "Twitterbot",
+    "facebookexternalhit",
+    "LinkedInBot",
+    "Slackbot-LinkExpanding",
+    "Discordbot",
+  ])
+    assert.ok(PREVIEW_AGENTS.includes(agent), agent);
+  assert.ok(
+    !PREVIEW_AGENTS.includes("Applebot"),
+    "Applebot is a search crawler",
+  );
+  assert.deepEqual(groups[2], [
+    "Sitemap: https://throwingwood.com/sitemap.xml",
+  ]);
+  assert.equal(groups.length, 3);
+  // no reading page (nor anything indexed) is caught by a Disallow prefix
+  const open = [
+    ...PAGES.filter((p) => !p.noindex).map((p) => p.path),
+    "/practice/",
+  ];
+  for (const path of [
+    "/",
+    "/web/",
+    "/ios/",
+    "/playdate/",
+    "/engine/",
+    "/love/",
+    "/rules/",
+    "/privacy/",
+    "/practice/",
+  ])
+    assert.ok(open.includes(path), path);
+  for (const path of open)
+    assert.ok(
+      !CRAWL_BLOCKED.some((blocked) => path.startsWith(blocked)),
+      `${path} is disallowed`,
+    );
+  // and every per-match address is
+  for (const path of [
+    "/p/abcd2345",
+    "/p/abcd2345?watch=1",
+    "/e/abcd2345",
+    "/og/abcd2345.png",
+    "/reels/abcd2345/wide.mp4",
+  ])
+    assert.ok(
+      CRAWL_BLOCKED.some((b) => path.startsWith(b)),
+      path,
+    );
 });

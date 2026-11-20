@@ -340,6 +340,14 @@ the match; a waiting pitch has none yet, so it is "A pitch waiting for players".
 of players, member ids, open-game listing or games bucket. Anything that fails gives the
 static title, description and share image, never an error page.
 
+`robots.txt` (`src/site/robots.mjs`; Jamie, 2026-11-20: "we should block robots from
+crawling the URL's for saved games and replays via robots.txt") disallows `/p/`, `/e/`,
+`/og/`, `/reels/`, `/pitch/` and `/embed/` for every crawler, and gives the link-preview
+fetchers (`PREVIEW_AGENTS`: Twitterbot, facebookexternalhit, LinkedInBot, Slackbot,
+Discordbot and the rest) a group of their own that allows all, so a pasted pitch link
+still shows its card. A crawler obeys only the most specific group naming it, so that
+group stands alone. The pages keep their `noindex` for the fetchers let in.
+
 ## Highlight reels
 
 A finished online pitch can have a highlight reel: a short video of its best throws,

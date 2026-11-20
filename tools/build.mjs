@@ -30,6 +30,7 @@ import { PAGES } from "../src/site/pages.mjs";
 import { makeRelease } from "../src/site/release.js";
 import { bundleFile, carriedEngines } from "./lua-bundle.mjs";
 import { associationKey } from "./delivery-plan.mjs";
+import { robotsTxt } from "../src/site/robots.mjs";
 import {
   DEV_ROOMS_URL,
   GAME_READY,
@@ -198,10 +199,7 @@ export async function buildSite({
       )
       .join("\n")}\n</urlset>\n`,
   );
-  await fs.writeFile(
-    "dist/robots.txt",
-    `User-agent: *\nAllow: /\n\nSitemap: ${ORIGIN}/sitemap.xml\n`,
-  );
+  await fs.writeFile("dist/robots.txt", robotsTxt(ORIGIN));
   await fs.writeFile(
     "dist/llms.txt",
     `# ${SITE_TITLE}
