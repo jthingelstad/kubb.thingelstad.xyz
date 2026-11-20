@@ -23,7 +23,6 @@ import {
   INK,
   WOOD,
   STAKE,
-  BATON_BAND,
   KING_MARK,
   AIM,
   TEAM,
@@ -70,9 +69,6 @@ export const tune = {
   // a team's mark: a painted ring round the foot of its kubbs
   teamFrom: 0.05,
   teamTo: 0.13,
-  // the baton's two bands (fractions of its length from each end)
-  batonBandAt: 0.1,
-  batonBand: 0.12,
   // marks in CSS px
   markWidth: 2.5,
   arcDash: [7, 6],
@@ -1362,8 +1358,9 @@ function drawKing(ctx, cam, kx, s, P, set) {
   }
 }
 
-// A baton: a cylinder 0.30 long and 0.044 across, pale wood with two bands,
-// the end that faces the camera showing its end grain.
+// A baton: a cylinder 0.30 long and 0.044 across, plain pale wood, the end
+// that faces the camera showing its end grain. Batons are always plain and
+// the same in every kubb set, with no bands (Jamie, 2026-11-20).
 function drawBaton(ctx, cam, kx, s) {
   const it = s.item;
   const a = s.axes[2];
@@ -1429,32 +1426,6 @@ function drawBaton(ctx, cam, kx, s) {
   cap(p1, r1, c1);
   cap(p2, r2, c2);
   ctx.fill();
-  // the bands, painted round the wood: each edge is the near half of the
-  // cross-section's ellipse, which bulges toward the end that faces away
-  // (like the rim of a can seen from above). With the ellipse rotated by
-  // `ang`, angles 0..PI run on the p1 side and PI..2PI on the p2 side.
-  ctx.fillStyle = BATON_BAND;
-  const a1 = Math.abs(c1),
-    a2 = Math.abs(c2);
-  const at = (t) => [
-    p1[0] + (p2[0] - p1[0]) * t,
-    p1[1] + (p2[1] - p1[1]) * t,
-    r1 + (r2 - r1) * t,
-    Math.max(0.01, a1 + (a2 - a1) * t),
-  ];
-  const s0 = c2 > c1 ? 0 : Math.PI;
-  for (const [t0, t1] of [
-    [tune.batonBandAt, tune.batonBandAt + tune.batonBand],
-    [1 - tune.batonBandAt - tune.batonBand, 1 - tune.batonBandAt],
-  ]) {
-    const A = at(t0),
-      B = at(t1);
-    ctx.beginPath();
-    ctx.ellipse(A[0], A[1], A[2], A[2] * A[3], ang, s0, s0 + Math.PI);
-    ctx.ellipse(B[0], B[1], B[2], B[2] * B[3], ang, s0 + Math.PI, s0, true);
-    ctx.closePath();
-    ctx.fill();
-  }
   // the side away from the light: which screen side is it?
   const ld = dot(L, a);
   const nx = L[0] - a[0] * ld,
