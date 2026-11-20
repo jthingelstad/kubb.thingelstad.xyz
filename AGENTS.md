@@ -327,16 +327,26 @@ the default and is never retired: Tyler strongly prefers it. The linear meter
 (`src/render/linear.js`) is the dial unrolled into a track at the screen's edge and feeds the
 engine the same arm degrees, so both are judged alike and it needs no engine release. Its
 room is the point (the straight trial of 2026-11-18 went because "it was too cramped and
-visually looked janky"): where a screen cannot give the track `minTravel` the clock is
-drawn instead. It is a quarter shorter than it was first built (a tester, 2026-11-19: "Make
-it 1/4 shorter", and Jamie agreed): 47% of a tall screen, 390 to 450 px, its foot where the
+visually looked janky"): where a screen cannot give the track `minTravel` (320 upright,
+`wideMinTravel` 260 on a wide screen) the clock is drawn instead. The choice holds when
+the phone turns (Jamie, 2026-11-19, of the iPhone app: "Bug: On iPhone if I turn on linear
+and then rotate it goes back to the circular swing."): on a wide screen the box has the
+whole safe height at its edge (10 px under the safe top to 7 px over the safe bottom, at
+most 450), MENU or the rail moves in beside it, 10 px off its body (`meterRoom`), the coach
+line hangs under its tab, the plan block never goes over the tab (`planAt`: the far edge,
+the minimap over the block or not drawn), and a finger grabs only the knob's channel, the
+rest of the body and the meter's half being throw zone. Keep these numbers the iPhone
+app's (`WideLayout`); a desktop window tall enough for the 450 px box is as before. It
+is a quarter shorter than it was first built (a tester, 2026-11-19: "Make it 1/4
+shorter", and Jamie agreed): 47% of a tall screen, 390 to 450 px, its foot where the
 thumb is. docs/CLIENT.md "The throw".
 
 The finger and the meter apart (Jamie, 2026-11-19: "if you can have the control and the
 touch be slightly distant from each other, that could make that better"): with the linear
 meter on the screen a drag in the throw zone (the lower 40% of the canvas, where there is
-nothing to aim at) strokes the knob as a grab of it does, and a tap there still aims; on
-touch a press outside the clock's ring, out to 2.1 radii, turns the arm as the ring does
+nothing to aim at; with a finger on a wide screen, the meter's half) strokes the knob as
+a grab of it does, and a tap there still aims; on touch a press outside the clock's
+ring, out to 2.1 radii, turns the arm as the ring does
 (where a tap there could aim, only a drag does, and a tap still aims),
 and on a touchscreen held upright the clock is 13% smaller and raised so a finger can go
 all the way round outside its rim. A press on the ring is exactly as before. MENU, Meter side
