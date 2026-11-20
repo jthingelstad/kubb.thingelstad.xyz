@@ -8,6 +8,8 @@
 //                                                        the pitch's highlight reel: how it
 //                                                        stands and, once done, its paths
 //   reels#<day>  count           { n, exp }               highlight reels started that UTC day
+//   share#<sha256>  share        { code, exp }            the code a shared match is kept under
+//   shares#<day> count           { n, exp }               shares checked that UTC day
 //   conn#<id>    conn            { room, member, exp }    which member a connection is
 //   conn#<id>    part#<msg>#<i>  { d, exp }               one part of a message being uploaded
 //   open         <made>#<code>   { room, made, players, seats, state, exp }
@@ -70,6 +72,27 @@ export function dynamoStore({ client, table, now = Date.now }) {
           ExpressionAttributeValues: fresh
             ? { ":now": seconds() }
             : { ":expected": expected },
+        }),
+      );
+      return true;
+    } catch (error) {
+      if (lost(error)) return false;
+      throw error;
+    }
+  }
+
+  // One more on a day's counter (`pk` "reels#<day>" or "shares#<day>"), unless `cap`
+  // are counted already.
+  async function countDay(pk, cap, exp) {
+    try {
+      await client.send(
+        new UpdateCommand({
+          TableName: table,
+          Key: { pk, sk: "count" },
+          UpdateExpression: "ADD #n :one SET #exp = :exp",
+          ConditionExpression: "attribute_not_exists(#n) OR #n < :cap",
+          ExpressionAttributeNames: { "#n": "n", "#exp": "exp" },
+          ExpressionAttributeValues: { ":one": 1, ":cap": cap, ":exp": exp },
         }),
       );
       return true;
@@ -261,16 +284,31 @@ export function dynamoStore({ client, table, now = Date.now }) {
     },
     // One more render today, unless `cap` have started. Days do not repeat, so a day's
     // counter only needs to outlive it (`exp`, a few days).
-    async countReel(day, cap, exp) {
+    countReel: (day, cap, exp) => countDay(`reels#${day}`, cap, exp),
+
+    // Sharing a match against the computer (docs/ROOMS.md section 13): the code a match
+    // was shared under, by the hash of its start and log.
+    async getShare(hash) {
+      const item = await get(`share#${hash}`, "share");
+      return item ? { code: item.code, exp: item.exp } : null;
+    },
+    async putShare(hash, { code, exp }, { stale = null } = {}) {
       try {
         await client.send(
-          new UpdateCommand({
+          new PutCommand({
             TableName: table,
-            Key: { pk: `reels#${day}`, sk: "count" },
-            UpdateExpression: "ADD #n :one SET #exp = :exp",
-            ConditionExpression: "attribute_not_exists(#n) OR #n < :cap",
-            ExpressionAttributeNames: { "#n": "n", "#exp": "exp" },
-            ExpressionAttributeValues: { ":one": 1, ":cap": cap, ":exp": exp },
+            Item: { pk: `share#${hash}`, sk: "share", code, exp },
+            ConditionExpression:
+              "attribute_not_exists(pk) OR #exp < :now" +
+              (stale ? " OR #code = :stale" : ""),
+            ExpressionAttributeNames: {
+              "#exp": "exp",
+              ...(stale ? { "#code": "code" } : {}),
+            },
+            ExpressionAttributeValues: {
+              ":now": seconds(),
+              ...(stale ? { ":stale": stale } : {}),
+            },
           }),
         );
         return true;
@@ -279,6 +317,22 @@ export function dynamoStore({ client, table, now = Date.now }) {
         throw error;
       }
     },
+    async dropShare(hash, code) {
+      try {
+        await client.send(
+          new DeleteCommand({
+            TableName: table,
+            Key: { pk: `share#${hash}`, sk: "share" },
+            ConditionExpression: "#code = :code",
+            ExpressionAttributeNames: { "#code": "code" },
+            ExpressionAttributeValues: { ":code": code },
+          }),
+        );
+      } catch (error) {
+        if (!lost(error)) throw error;
+      }
+    },
+    countShare: (day, cap, exp) => countDay(`shares#${day}`, cap, exp),
 
     async putConn(conn, who) {
       known.set(conn, who);

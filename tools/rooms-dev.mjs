@@ -22,7 +22,10 @@
 // Highlight reels (`reel`, docs/ROOMS.md section 12): run from the command line it
 // renders them here (tools/reels-dev.mjs) into build/reels-dev/, which `npm run dev`'s
 // preview serves at /reels/...; startRoomsServer({ reelRenderer, reelEngines }) takes
-// any renderer (none answers every `reel` unavailable).
+// any renderer (none answers every `reel` unavailable). Sharing a match against the
+// computer (`share`, docs/ROOMS.md section 13) is checked here by the reel function's own
+// check (tools/reels-dev.mjs devShareChecker); startRoomsServer({ shareChecker }) takes any
+// (none answers every `share` unavailable).
 
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
@@ -61,6 +64,7 @@ export async function startRoomsServer({
   recordGame = null,
   reelRenderer = null, // (store) -> startReel({ room, v, tag })
   reelEngines = [],
+  shareChecker = null, // (g) -> { ok, why?, document, replay }
   log = () => {},
 } = {}) {
   const sockets = new Map(); // conn -> ws
@@ -74,6 +78,7 @@ export async function startRoomsServer({
     recordGame,
     startReel: reelRenderer ? reelRenderer(store) : null,
     reelEngines,
+    checkShare: shareChecker,
     async send(conn, text) {
       const ws = sockets.get(conn);
       if (!ws || ws.readyState !== ws.OPEN) return false;
@@ -154,11 +159,13 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     console.log(new Date().toISOString(), "match kept", file);
     return key;
   };
-  const { devReelRenderer, devReelEngines } = await import("./reels-dev.mjs");
+  const { devReelRenderer, devReelEngines, devShareChecker } =
+    await import("./reels-dev.mjs");
   const server = await startRoomsServer({
     port,
     reelRenderer: devReelRenderer(),
     reelEngines: devReelEngines(),
+    shareChecker: devShareChecker(),
     report: fileReporter,
     recordGame: fileGameRecorder,
     log: (...a) => console.log(new Date().toISOString(), ...a),

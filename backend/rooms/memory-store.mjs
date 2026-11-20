@@ -12,6 +12,8 @@ export function memoryStore({ now = Date.now } = {}) {
   const replays = new Map(); // code -> { v, t, data, exp }
   const reels = new Map(); // code -> { v, tag, job, state, at, tries, ..., exp }
   const reelDays = new Map(); // day -> { n, exp }
+  const shares = new Map(); // hash -> { code, exp }
+  const shareDays = new Map(); // day -> { n, exp }
   const parts = new Map(); // "conn id" -> { exp, got: Map(i -> text) }
   const listings = new Map(); // "<made 13>#<code>" -> { room, made, players, seats, state, exp }
 
@@ -25,6 +27,8 @@ export function memoryStore({ now = Date.now } = {}) {
     replays,
     reels,
     reelDays,
+    shares,
+    shareDays,
     parts,
     listings,
 
@@ -110,6 +114,26 @@ export function memoryStore({ now = Date.now } = {}) {
       const had = live(reels.get(code));
       if (!had || had.job !== job) return false;
       Object.assign(had, structuredClone(fields));
+      return true;
+    },
+
+    // Sharing a match against the computer (core.mjs `share`).
+    async getShare(hash) {
+      return copy(live(shares.get(hash)));
+    },
+    async putShare(hash, { code, exp }, { stale = null } = {}) {
+      const had = live(shares.get(hash));
+      if (had && !(stale && had.code === stale)) return false;
+      shares.set(hash, { code, exp });
+      return true;
+    },
+    async dropShare(hash, code) {
+      if (shares.get(hash)?.code === code) shares.delete(hash);
+    },
+    async countShare(day, cap, exp) {
+      const had = live(shareDays.get(day));
+      if ((had?.n ?? 0) >= cap) return false;
+      shareDays.set(day, { n: (had?.n ?? 0) + 1, exp });
       return true;
     },
 

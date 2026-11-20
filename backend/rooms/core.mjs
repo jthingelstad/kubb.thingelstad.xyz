@@ -45,6 +45,21 @@
 // and one more adapter, `startReel({ room, v, tag })`, which asks the renderer (on AWS
 // an asynchronous Lambda invoke); without it reels are `unavailable`.
 //
+// Sharing a match against the computer (docs/ROOMS.md section 13) uses four more; a
+// store without them answers every `share` with `code: null, why: "unavailable"`:
+//   getShare(hash) -> { code, exp } | null        the code a match was shared under
+//   putShare(hash, { code, exp }, { stale }) -> bool   kept only when there is none for
+//                       this hash, it has expired, or it names `stale` (a code whose room
+//                       was never written)
+//   dropShare(hash, code)                         undoes putShare when the room could not
+//                       be written
+//   countShare(day, cap, exp) -> bool              one more check today, false at cap
+// and one more adapter, `checkShare(g) -> { ok, why?, document, replay }`, which asks the
+// renderer to play the match (on AWS a synchronous Lambda invoke the rooms function waits
+// for); it throws a ShareBusy when the renderer could not take it in time. Without it
+// sharing is `unavailable`. The sealed room it makes is written with putRoom, putDoc and
+// putReplay like any other.
+//
 // The open games list (docs/ROOMS.md section 9) uses three more store methods; a store
 // without them lists nothing:
 //   putListing(code, entry)  entry = { made, rev, listed, players?, seats?, state?, exp },
@@ -56,6 +71,7 @@
 // Invocations for one room run in parallel (one Lambda per message), so nothing here holds
 // state between calls except the cast rate buckets, which are only ever a best effort.
 
+import { createHash } from "node:crypto";
 import { REEL_TRIES, majorMinor, reelJob, reelTag } from "../reels/tag.mjs";
 
 export const LIMITS = Object.freeze({
@@ -91,7 +107,39 @@ export const LIMITS = Object.freeze({
   reelsPerDay: 200, // highlight reels rendered a day, all pitches together (UTC days)
   reelStaleMs: 25 * 60 * 1000, // a render "rendering" this long died without a word
   reelCountTtl: 3 * 24 * 3600, // seconds a day's render counter is kept
+  shareBytes: 256 * 1024, // a whole `share` message, as ASCII JSON (over it: too-long)
+  shareActions: 1000, // the actions a share may carry (over it: too-long; a ceiling, not the limit)
+  shareStartBytes: 16 * 1024, // a share's first snapshot
+  sharesPerConn: 2, // shares one connection may have checked (a repeat answer is free)
+  sharesPerDay: 200, // shares checked a day, all devices together (UTC days)
+  shareWaitMs: 20_000, // how long the rooms function waits for the renderer's check
 });
+
+// A shared match against the computer is a sealed room: nobody joins it, writes its
+// document or keeps another replay in it (docs/ROOMS.md section 13).
+const SEALED = "This pitch is a shared match: it can be watched, not played.";
+
+// The renderer could not take a share's check in time (busy with renders, or slow):
+// thrown by a checkShare adapter, answered `why: "busy"`.
+export class ShareBusy extends Error {
+  name = "ShareBusy";
+}
+
+// What a share is known by, so the same match shared again gets the same link: the
+// SHA-256 of its first snapshot and its log, as sent.
+export const shareHash = (g) =>
+  createHash("sha256")
+    .update(asciiJson([g.start, g.log]))
+    .digest("hex");
+
+// A fresh room code for a shared match: 10 of the room alphabet, as the client makes.
+const CODE_ALPHABET = "23456789abcdefghjkmnpqrstuvwxyz";
+export function newRoomCode(random = Math.random) {
+  let code = "";
+  for (let i = 0; i < 10; i++)
+    code += CODE_ALPHABET[Math.floor(random() * CODE_ALPHABET.length)];
+  return code;
+}
 
 // An open game's listing entry's sort key: when it was made (epoch ms, 13 digits), then
 // the room, so the newest sort last and one Query reads them newest first.
@@ -307,6 +355,52 @@ export function checkGame(msg, bytes, limits = LIMITS) {
   return g;
 }
 
+// A `share` message checked: { t: "share", id?, g: { client?, engine, start, log, end } }.
+// Returns { g } to check (`client` dropped: web and iPhone players are not told apart,
+// so it is checked and never kept), or { why } for a match too long to share. Throws a
+// RoomError for a bad shape. The rooms function knows no Kubb: what the match is, the
+// renderer checks.
+export function checkShareMessage(msg, bytes, limits = LIMITS) {
+  const id = msg.id ?? null;
+  const fail = (code, message) => {
+    throw new RoomError(code, message, { id });
+  };
+  const g = msg.g;
+  if (!isObject(g)) fail("bad-message", "`g` must be the match.");
+  checkTags(g, fail);
+  if (typeof g.engine !== "string")
+    fail("bad-message", "`engine` must name the engine that played it.");
+  if (typeof g.start !== "string" || !g.start)
+    fail("bad-message", "`start` must be the match's first snapshot.");
+  if (
+    !Array.isArray(g.log) ||
+    !g.log.every((e) => isObject(e) && isObject(e.a))
+  )
+    fail("bad-message", "`log` must be a list of { a: <action> }.");
+  const end = g.end;
+  if (
+    !isObject(end) ||
+    (end.winner !== "A" && end.winner !== "B") ||
+    !Number.isSafeInteger(end.throws) ||
+    end.throws < 0
+  )
+    fail("bad-message", "`end` must be { winner, throws }.");
+  if (
+    bytes > limits.shareBytes ||
+    g.log.length > limits.shareActions ||
+    g.start.length > limits.shareStartBytes
+  )
+    return { why: "too-long" };
+  return {
+    g: {
+      engine: g.engine,
+      start: g.start,
+      log: g.log,
+      end: { winner: end.winner, throws: end.throws },
+    },
+  };
+}
+
 // An `open` message's description of the game, checked; null turns the listing off.
 export function checkOpen(open, limits = LIMITS) {
   if (open === null || open === false) return null;
@@ -334,6 +428,7 @@ export function createRooms({
   recordGame = null,
   startReel = null,
   reelEngines = [],
+  checkShare = null,
   now = Date.now,
   limits = LIMITS,
 }) {
@@ -341,6 +436,7 @@ export function createRooms({
   const reported = new Map(); // conn -> reports kept (best effort, like the buckets)
   const recorded = new Map(); // conn -> one-browser matches kept (the same)
   const reelsStarted = new Map(); // conn -> highlight reels started (the same)
+  const sharesChecked = new Map(); // conn -> shares checked (the same)
   const listing = typeof store.putListing === "function";
 
   const expiry = (seconds) => Math.floor(now() / 1000) + seconds;
@@ -504,7 +600,9 @@ export function createRooms({
     const v = msg.v;
     if (!Number.isInteger(v) || v < 1)
       throw new RoomError("bad-message", "`v` must be a document version.");
-    member(await store.getRoom(who.room), who, conn);
+    const kept = await store.getRoom(who.room);
+    if (kept?.sealed) throw new RoomError("sealed", SEALED);
+    member(kept, who, conn);
     const stored = await store.getDoc(who.room);
     if (!stored || !stored.v || v > stored.v)
       throw new RoomError("bad-message", "There is no such version to keep.");
@@ -695,6 +793,132 @@ export function createRooms({
     });
   }
 
+  // ---------- sharing a match against the computer (docs/ROOMS.md section 13) ----------
+
+  const sharing = () =>
+    checkShare &&
+    reelEngines.length > 0 &&
+    ["getShare", "putShare", "dropShare", "countShare", "putReplay"].every(
+      (k) => typeof store[k] === "function",
+    );
+
+  // A match played on one device, sent once when the player asks, on any connection (no
+  // join). Cheap refusals first (shape, size, engine, caps); then the renderer plays it
+  // (checkShare, waited for); a match that passes is kept as a sealed room under a fresh
+  // code, a year, and the code is answered. The same match shared again gets that code.
+  async function share(conn, msg, bytes) {
+    const id = msg.id ?? null;
+    const answer = (code, why) =>
+      post(
+        conn,
+        asciiJson({
+          t: "shared",
+          id,
+          code,
+          v: code ? 1 : 0,
+          ...(why ? { why } : {}),
+        }),
+      );
+    const checked = checkShareMessage(msg, bytes, limits);
+    if (checked.why) return answer(null, checked.why);
+    const { g } = checked;
+    if (!sharing()) return answer(null, "unavailable");
+    const engine = majorMinor(g.engine);
+    if (!engine || !reelEngines.includes(engine)) return answer(null, "engine");
+
+    // shared before: the same code, free
+    const hash = shareHash(g);
+    let had = null;
+    try {
+      had = await store.getShare(hash);
+      if (had && !(await store.getRoom(had.code))?.sealed) had = { stale: had };
+    } catch (error) {
+      console.error("share read failed", error?.name, error?.message);
+      throw new RoomError("failed", "The share could not be read.", { id });
+    }
+    if (had?.code) return answer(had.code);
+
+    const count = sharesChecked.get(conn) ?? 0;
+    if (count >= limits.sharesPerConn)
+      throw new RoomError(
+        "too-many",
+        `A connection may share ${limits.sharesPerConn} matches.`,
+        { id },
+      );
+    const t = now();
+    const day = new Date(t).toISOString().slice(0, 10);
+    let counted;
+    try {
+      counted = await store.countShare(
+        day,
+        limits.sharesPerDay,
+        expiry(limits.reelCountTtl),
+      );
+    } catch (error) {
+      console.error("share count failed", error?.name, error?.message);
+      throw new RoomError("failed", "The share could not be counted.", { id });
+    }
+    if (!counted) return answer(null, "busy");
+    if (sharesChecked.size > 5000) sharesChecked.clear();
+    sharesChecked.set(conn, count + 1);
+
+    let out;
+    try {
+      out = await checkShare(g);
+    } catch (error) {
+      if (error instanceof ShareBusy) return answer(null, "busy");
+      console.error("share check failed", error?.name, error?.message);
+      throw new RoomError("failed", "The match could not be checked.", { id });
+    }
+    if (!out?.ok) {
+      const why = ["engine", "does-not-replay", "too-long"].includes(out?.why)
+        ? out.why
+        : "does-not-replay";
+      return answer(null, why);
+    }
+
+    // Kept: the code first (a device asking again at once gets one link), then the
+    // sealed room, its document and its replay, a year on.
+    const until = expiry(limits.keepTtl);
+    const code = newRoomCode();
+    try {
+      if (
+        !(await store.putShare(
+          hash,
+          { code, exp: until },
+          { stale: had?.stale?.code ?? null },
+        ))
+      ) {
+        const won = await store.getShare(hash);
+        if (won?.code) return answer(won.code);
+        throw new Error("share key lost and gone");
+      }
+      const room = {
+        host: null,
+        members: {},
+        sealed: true,
+        shared: t,
+        keep: { v: 1, until },
+        rev: 1,
+        exp: until,
+      };
+      if (!(await store.putRoom(code, room, 0))) {
+        await store.dropShare(hash, code).catch(() => {});
+        throw new Error("room code taken");
+      }
+      await store.putDoc(
+        code,
+        { v: 1, doc: out.document, by: null, sid: null, exp: until },
+        0,
+      );
+      await store.putReplay(code, { v: 1, t, data: out.replay, exp: until });
+    } catch (error) {
+      console.error("share write failed", error?.name, error?.message);
+      throw new RoomError("failed", "The share could not be kept.", { id });
+    }
+    return answer(code);
+  }
+
   async function list(conn, msg) {
     const t = now();
     let games = [];
@@ -783,6 +1007,7 @@ export function createRooms({
 
     const t = now();
     const { room, old, evicted, isNew } = await mutate(code, (room) => {
+      if (room?.sealed) throw new RoomError("sealed", SEALED);
       room ??= { rev: 0, host: member, members: {} };
       let m = room.members[member];
       let evicted = null;
@@ -929,6 +1154,7 @@ export function createRooms({
       );
     }
     const before = await store.getRoom(who.room);
+    if (before?.sealed) throw new RoomError("sealed", SEALED, { id });
     member(before, who, conn);
 
     const v = base + 1;
@@ -1145,6 +1371,7 @@ export function createRooms({
       if (msg.t === "list") return await list(conn, msg);
       if (msg.t === "replay") return await getReplay(conn, msg);
       if (msg.t === "reel") return await reel(conn, msg);
+      if (msg.t === "share") return await share(conn, msg, bytes);
       if (msg.t === "join") return await join(conn, msg);
       const who = await store.getConn(conn);
       if (!who) throw new RoomError("not-joined", "Join the room first.");
@@ -1218,6 +1445,7 @@ export function createRooms({
     reported.delete(conn);
     recorded.delete(conn);
     reelsStarted.delete(conn);
+    sharesChecked.delete(conn);
     if (who) await dropped(who.room, who.member, conn);
   }
 
