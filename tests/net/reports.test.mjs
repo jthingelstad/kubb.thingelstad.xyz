@@ -370,10 +370,11 @@ async function soloGame(n = 3, keys = {}) {
 }
 
 const CONFIG = {
-  version: "0.1.0",
+  version: "0.2.0",
   commit: "abc123",
   luaUrl: "/assets/lua-sources-0123456789ab.json",
-  engine: "0.2.0",
+  engine: "0.8.1",
+  release: { text: "0.2.0 (0.8.1)", detail: "Also plays 0.7.4" },
 };
 const WIN = { innerWidth: 1280, innerHeight: 768, devicePixelRatio: 2 };
 
@@ -398,7 +399,8 @@ test("the payload carries the match, the build, the viewport, and no person", as
   assert.match(r.engine, /^\d+\.\d+\.\d+$/);
   assert.equal(r.at, 42);
   assert.deepEqual(r.build, {
-    version: "0.1.0",
+    version: "0.2.0",
+    label: "0.2.0 (0.8.1)",
     commit: "abc123",
     lua: "lua-sources-0123456789ab.json",
   });

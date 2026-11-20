@@ -76,6 +76,18 @@ async function hashedAsset(from, name) {
   return `/${file}`;
 }
 
+// The release this build is (src/site/release.js): the label "0.2.0 (0.8.1)" is the
+// app's version and the newest carried engine's; the older ones are only in its detail
+// ("Also plays 0.7.4").
+export function releaseOf(version, web, carried) {
+  return makeRelease({
+    version,
+    web,
+    engine: carried[0]?.version ?? null,
+    also: carried.slice(1).map((e) => e.version),
+  });
+}
+
 // The page config's engines map (src/site/config.js): every carried engine's bundle
 // (build/lua-sources-<mm>.json) as a hashed asset, by major.minor, newest first. The
 // newest keeps the asset name it always had; an older one's name carries its minor.
@@ -153,7 +165,7 @@ export async function buildSite({
   const engine = carried[0].version;
   const engines = await configEngines(carried, hashedAsset);
   const newest = carried[0].mm;
-  const release = makeRelease({ version: pkg.version, web: commit, engine });
+  const release = releaseOf(pkg.version, commit, carried);
   const config = {
     version: pkg.version,
     commit,

@@ -182,8 +182,11 @@ async function boot() {
     report,
     // watching: WIDE VIEW or THROWER'S VIEW (startWatch sets it)
     view: null,
-    // the release line at the foot of the menu: "0.1.0 · web a2659b7 · engine 0.2.0"
-    release: config.release?.text ?? null,
+    // the release label at the foot of the menu, "0.2.0 (0.8.1)", and its detail
+    // ("Also plays 0.7.4") when the page carries an older engine
+    release: config.release?.text
+      ? { text: config.release.text, detail: config.release.detail ?? null }
+      : null,
   });
 
   // A new deploy while this tab is open: say so, never reload on our own. On a
