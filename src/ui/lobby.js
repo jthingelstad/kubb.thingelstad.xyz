@@ -1,5 +1,5 @@
-// The lobby on a pitch link (docs/MULTIPLAYER.md): your name and level, the
-// two teams with who is on them, who is connected and who is host, who is
+// The lobby on a pitch link (docs/MULTIPLAYER.md): your name, the level you throw
+// at (MENU's, never picked here), the two teams with who is on them, who is connected and who is host, who is
 // watching, the link to share, who can join (open or invite only), the host's
 // match options and START. Built
 // once; update(state) changes only what changed, so typing a name is never
@@ -8,13 +8,18 @@ import { h, button, clear } from "./dom.js";
 import {
   MATCH_OPTIONS,
   TEAM_MAX,
+  engineConstants,
   lobbyOf,
   optionLabel,
+  optionsOf,
   NAME_MAX,
-  LEVELS,
 } from "../net/lobby.js";
+import { roomEngine } from "../net/room-engine.js";
+import { levelLine } from "../game/throw-level.js";
 
-const LEVEL_LABELS = { beginner: "Beginner", club: "Club", pro: "Pro" };
+// "Computer level", as the iPhone app and the solo card say it (the engine's label
+// is "Computer")
+const ROW_LABEL = { computer: "Computer level" };
 const TEAM_LABEL = { A: "Team A", B: "Team B" };
 export const ACCESS = [
   ["invite", "Invite only"],
@@ -26,8 +31,8 @@ export const ACCESS_NOTE = {
 };
 
 export class Lobby {
-  // hooks: { name(text), level(v), team(side|null), option(key, v),
-  //          access(open), start(), share(), home() }
+  // hooks: { name(text), team(side|null), option(key, v), access(open),
+  //          start(), share(), home(), menu() }
   constructor(cards, game, hooks, { code, name, level }) {
     this.cards = cards;
     this.game = game;
@@ -60,11 +65,16 @@ export class Lobby {
       timer = setTimeout(sendName, 600);
     });
 
-    this.levelSeg = seg(
-      LEVELS.map((v) => [v, LEVEL_LABELS[v]]),
-      level,
-      (v) => hooks.level(v),
-      "lobby-level",
+    // the level you throw at is this device's, set in MENU (src/game/throw-level.js)
+    this.levelText = h("span.opt-value", levelLine(level));
+    this.levelRow = h(
+      "div.opt",
+      { "data-test": "lobby-level" },
+      h("span.opt-label", "Your level"),
+      this.levelText,
+      button("CHANGE IN MENU", () => hooks.menu?.(), "small", {
+        "data-test": "lobby-level-menu",
+      }),
     );
 
     this.teams = {};
@@ -129,7 +139,7 @@ export class Lobby {
       h("p.kicker", `PITCH ${code}  `, this.status),
       h("h2.display", "Pick a side"),
       h("label.opt", h("span.opt-label", "Your name"), this.nameInput),
-      h("div.opt", h("span.opt-label", "Your level"), this.levelSeg.el),
+      this.levelRow,
       h("div.teams", this.teams.A.el, this.teams.B.el),
       h("div.watch-row", this.watchList, this.sitOut),
       h("div.share-row", this.shareBtn, this.linkText, this.replayBtn),
@@ -180,7 +190,9 @@ export class Lobby {
     if (text) this.startBtn.disabled = true;
   }
 
-  // st: { you, host, members, doc, status, nameOf(id) }
+  // st: { you, host, members, doc, status, nameOf(id), engine }, engine the
+  // major.minor the next match runs on (null when none is carried by all: then the
+  // newest's options are shown)
   update(st) {
     const l = lobbyOf(st.doc);
     const byId = new Map(st.members.map((m) => [m.id, m]));
@@ -230,8 +242,14 @@ export class Lobby {
     });
     this.sitOut.hidden = !mySide;
 
-    // the options: the host's to set, everyone else's to read
-    const key = JSON.stringify([isHost, l.options, l.open]);
+    // the options: the host's to set, everyone else's to read. The rows are the
+    // next match's engine's (the computer's level since 0.9), the values the room's.
+    // An older engine still loading: the five every engine has (`options`), none of
+    // the newest's own, until it is in (the pitch draws the lobby again then).
+    const loaded = !st.engine || !!roomEngine(st.engine);
+    const mm = st.engine && loaded ? st.engine : undefined;
+    const options = optionsOf(st.doc);
+    const key = JSON.stringify([isHost, options, l.open, mm ?? null, loaded]);
     if (key !== this.optKey) {
       this.optKey = key;
       clear(this.optionsBox);
@@ -253,14 +271,24 @@ export class Lobby {
         h("p.access-note", ACCESS_NOTE[access]),
       );
       this.optionsBox.append(h("h3", "The match"));
-      for (const [k, label, choices] of MATCH_OPTIONS) {
+      const rows = mm
+        ? engineConstants(mm).MATCH_OPTIONS
+        : loaded
+          ? MATCH_OPTIONS
+          : MATCH_OPTIONS.filter(([k]) => k in l.options);
+      for (const [k, label, choices] of rows) {
         this.optionsBox.append(
           h(
             "div.opt",
-            h("span.opt-label", label),
+            { "data-test": `lobby-opt-${k}` },
+            h("span.opt-label", ROW_LABEL[k] ?? label),
             isHost
-              ? seg(choices, l.options[k], (v) => this.hooks.option(k, v), k).el
-              : h("span.opt-value", optionLabel(k, l.options[k])),
+              ? seg(choices, options[k], (v) => this.hooks.option(k, v), k).el
+              : h(
+                  "span.opt-value",
+                  choices.find(([v]) => v === options[k])?.[1] ??
+                    optionLabel(k, options[k]),
+                ),
           ),
         );
       }
@@ -290,8 +318,9 @@ export class Lobby {
             : "";
   }
 
+  // The device's throw level changed (in MENU).
   setLevel(v) {
-    this.levelSeg.set(v);
+    this.levelText.textContent = levelLine(v);
   }
 }
 

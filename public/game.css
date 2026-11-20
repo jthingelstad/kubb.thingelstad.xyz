@@ -840,9 +840,11 @@ body.game {
 #ui .card-layer {
   z-index: 4;
 }
-/* the report card stays above the winner card and the panels, which go on under it */
+/* the report card stays above the winner card and the panels, which go on under it;
+   the menu too, opened from a card's CHANGE IN MENU (the solo card, the lobby) */
 #ui .report-scrim,
 #ui .sheet-scrim,
+#ui .menu-scrim {
   z-index: 5;
 }
 .panel-host > *,

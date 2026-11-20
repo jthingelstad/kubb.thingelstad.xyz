@@ -4,6 +4,7 @@
 // foot, small, the release label (src/site/release.js): "0.2.0 (0.8.1)", and
 // "Also plays 0.7.4" under it when the page carries an older engine.
 import { h, button, clear } from "./dom.js";
+import { LEVEL_NOTE } from "../game/throw-level.js";
 
 const LEVELS = [
   ["beginner", "Beginner"],
@@ -84,13 +85,17 @@ export class Menu {
       // DOM append writes a null as the text "null": leave the absent rows out
       const rows = [
         h("h2.display", "Menu"),
+        // the level this device throws at, in practice, against the computer and
+        // on a shared pitch alike (src/game/throw-level.js): set here only
         h(
           "div.opt",
+          { "data-test": "menu-level" },
           h("span.opt-label", "Your level"),
           seg(LEVELS, game.level, (v) => {
             game.setLevel(v);
             render();
           }),
+          h("p.opt-note", LEVEL_NOTE),
         ),
         h(
           "div.opt",

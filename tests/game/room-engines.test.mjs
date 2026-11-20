@@ -1,5 +1,5 @@
 // A pitch on the room's engine (docs/ENGINES.md "Playing together") through the real
-// controller, the built site and the local room server: the page carries 0.8 and 0.7,
+// controller, the built site and the local room server: the page carries 0.9, 0.8 and 0.7,
 // announces the room's engine, starts on it, plays it, and says what blocks START when
 // the players share none. An older client is stood in for by a page that announces less
 // than it carries (`only`), or by one that writes a lone `engine` as an older tab does.
@@ -167,10 +167,49 @@ async function inStep(pages, ms = 20000) {
   throw new Error(`not in step: ${JSON.stringify(last)}`);
 }
 
+// Watch the other page's riders, then let whoever throws first throw once; both pages
+// end on the same hash. Returns the riders seen.
+async function oneThrowInStep(host, guest) {
+  const riders = [];
+  for (const p of [host, guest]) {
+    await p.exposeFunction("__rider", (w) => riders.push(w));
+    await p.evaluate(() =>
+      window.__kubb.pitch.room.on(
+        "doc",
+        (e) => !e.mine && e.with && window.__rider(e.with),
+      ),
+    );
+  }
+  // whoever throws first (the match's opening decides)
+  let first = null;
+  for (let i = 0; i < 300 && !first; i++) {
+    for (const p of [host, guest])
+      if (
+        await p.evaluate(
+          () =>
+            window.__kubb.game.need?.kind === "throw" &&
+            window.__kubb.game.mayAct(),
+        )
+      )
+        first = p;
+    if (!first) await host.waitForTimeout(100);
+  }
+  assert.ok(first, "someone throws");
+  await myThrow(first);
+  await throwOnce(first);
+  const st = await inStep([host, guest]);
+  assert.ok(st[0].docSeq >= 1);
+  assert.ok(riders.length >= 1, "the other page saw a rider");
+  return riders;
+}
+
+// An iPhone tester's build (TestFlight build 121): it carries 0.8 and 0.7.
+const IPHONE_08 = { engine: "0.8+engines", engines: ["0.8", "0.7"] };
+
 const close = (...pages) => Promise.all(pages.map((p) => p.context().close()));
 
 browserTest(
-  "two pages start on 0.8; a watcher that carries only 0.7 does not pull the room down",
+  "two pages start on 0.9; a watcher that carries only 0.7 does not pull the room down",
   async () => {
     const code = makeRoomCode();
     const host = await join(code, "Hanna");
@@ -187,26 +226,29 @@ browserTest(
       await waitFor(
         guest,
         () =>
-          window.__kubb.pitch.room.me.engine === "0.8+engines" &&
-          window.__kubb.pitch.room.me.engines.join() === "0.8,0.7",
+          window.__kubb.pitch.room.me.engine === "0.9+engines" &&
+          window.__kubb.pitch.room.me.engines.join() === "0.9,0.8,0.7",
       );
       await only(watcher, ["0.7"]);
       await sawMember(host, "0.7+engines");
-      assert.equal(await roomEngine(host), "0.8");
+      assert.equal(await roomEngine(host), "0.9");
       assert.equal(await host.isHidden("[data-test=lobby-engine]"), true);
+      // a 0.9 pitch: the host sets the computer's level
+      await host.waitForSelector("[data-test=lobby-opt-computer]");
       await host.click("[data-test=lobby-start]");
       await waitFor(guest, () => window.__kubb.pitch.mode === "match");
       const [h, g] = await Promise.all([pst(host), pst(guest)]);
-      assert.equal(h.matchEngine, "0.8");
+      assert.equal(h.matchEngine, "0.9");
       assert.deepEqual(
         [h.engine, g.engine, h.announced, g.announced],
-        ["0.8.1", "0.8.1", "0.8+engines", "0.8+engines"],
+        ["0.9.0", "0.9.0", "0.9+engines", "0.9+engines"],
       );
-      assert.equal(
-        await host.evaluate(() => window.__kubb.engines.loaded("0.7")),
-        null,
-        "nobody asked for 0.7: it never loaded",
-      );
+      for (const mm of ["0.8", "0.7"])
+        assert.equal(
+          await host.evaluate((m) => window.__kubb.engines.loaded(m), mm),
+          null,
+          `nobody asked for ${mm}: it never loaded`,
+        );
       for (const p of [host, guest, watcher]) assert.deepEqual(p.errors, []);
     } finally {
       await close(host, guest, watcher);
@@ -215,15 +257,15 @@ browserTest(
 );
 
 browserTest(
-  "START pressed before the room's older engine has loaded waits for it and starts on it",
+  "an iPhone that carries 0.8 and 0.7 moves the pitch to 0.8: START waits for 0.8 to load, both play it on 0.8.2",
   async () => {
     const code = makeRoomCode();
     const host = await join(code, "Hanna");
-    // the host's 0.7 bundle is held back until START has been pressed
+    // the host's 0.8 bundle is held back until START has been pressed
     let release;
     const held = new Promise((r) => (release = r));
     const lua = await host.evaluate(
-      () => window.__kubb.config.engines["0.7"].luaUrl,
+      () => window.__kubb.config.engines["0.8"].luaUrl,
     );
     await host.route(`**${lua}`, async (route) => {
       await held;
@@ -235,19 +277,28 @@ browserTest(
       await guest.click("[data-test=join-B]");
       await waitFor(
         guest,
-        () => window.__kubb.pitch.room.me.engines?.length === 2,
+        () => window.__kubb.pitch.room.me.engines?.length === 3,
       );
-      await freeze(guest, { engine: "0.7" });
-      await sawMember(host, "0.7");
+      // the guest stands in for the iPhone: what it says is what build 121 says
+      await freeze(guest, IPHONE_08);
+      await sawMember(host, "0.8+engines");
       await waitFor(
         host,
-        () => window.__kubb.pitch.room.me.engine === "0.7+engines",
+        () => window.__kubb.pitch.room.me.engine === "0.8+engines",
       );
-      assert.equal(await roomEngine(host), "0.7");
+      assert.equal(await roomEngine(host), "0.8");
+      // a 0.8 pitch has no Computer row: the room's engine has no such option
+      await host.waitForSelector("[data-test=lobby-opt-computer]", {
+        state: "detached",
+      });
       assert.equal(
-        await host.evaluate(() => window.__kubb.engines.loaded("0.7")),
+        await host.locator("[data-test=lobby-opt-surface]").count(),
+        1,
+      );
+      assert.equal(
+        await host.evaluate(() => window.__kubb.engines.loaded("0.8")),
         null,
-        "0.7 has not loaded on the host yet",
+        "0.8 has not loaded on the host yet",
       );
       await host.click("[data-test=lobby-start]");
       await host.waitForTimeout(200);
@@ -258,8 +309,11 @@ browserTest(
       release();
       await waitFor(guest, () => window.__kubb.pitch.mode === "match");
       const [h, g] = await Promise.all([pst(host), pst(guest)]);
-      assert.equal(h.matchEngine, "0.7");
-      assert.deepEqual([h.engine, g.engine], ["0.7.4", "0.7.4"]);
+      assert.equal(h.matchEngine, "0.8");
+      assert.deepEqual([h.engine, g.engine], ["0.8.2", "0.8.2"]);
+      // and it plays: a throw on 0.8, applied by the other page to the same hash
+      const riders = await oneThrowInStep(host, guest);
+      assert.equal(riders[0].e, "0.8.2");
       for (const p of [host, guest]) assert.deepEqual(p.errors, []);
     } finally {
       release();
@@ -269,7 +323,7 @@ browserTest(
 );
 
 browserTest(
-  "a player on 0.7 alone (an older tab) moves the pitch to 0.7: both play it on 0.7.4, the rider names it, and the lobby is back on 0.8 after",
+  "a player on 0.7 alone (an older tab) moves the pitch to 0.7: both play it on 0.7.4, the rider names it, and the lobby is back on 0.9 after",
   async () => {
     const code = makeRoomCode();
     const host = await join(code, "Hanna");
@@ -279,7 +333,7 @@ browserTest(
       await guest.click("[data-test=join-B]");
       await waitFor(
         guest,
-        () => window.__kubb.pitch.room.me.engines?.length === 2,
+        () => window.__kubb.pitch.room.me.engines?.length === 3,
       );
       // an older tab under the same member id: a lone engine over a stale list
       await freeze(guest, { engine: "0.7" });
@@ -298,36 +352,7 @@ browserTest(
       assert.deepEqual([h.engine, g.engine], ["0.7.4", "0.7.4"]);
 
       // a throw on 0.7, applied by the other page to the same hash
-      const riders = [];
-      for (const p of [host, guest]) {
-        await p.exposeFunction("__rider", (w) => riders.push(w));
-        await p.evaluate(() =>
-          window.__kubb.pitch.room.on(
-            "doc",
-            (e) => !e.mine && e.with && window.__rider(e.with),
-          ),
-        );
-      }
-      // whoever throws first (the match's opening decides)
-      let first = null;
-      for (let i = 0; i < 300 && !first; i++) {
-        for (const p of [host, guest])
-          if (
-            await p.evaluate(
-              () =>
-                window.__kubb.game.need?.kind === "throw" &&
-                window.__kubb.game.mayAct(),
-            )
-          )
-            first = p;
-        if (!first) await host.waitForTimeout(100);
-      }
-      assert.ok(first, "someone throws");
-      await myThrow(first);
-      await throwOnce(first);
-      const st = await inStep([host, guest]);
-      assert.ok(st[0].docSeq >= 1);
-      assert.ok(riders.length >= 1, "the other page saw a rider");
+      const riders = await oneThrowInStep(host, guest);
       assert.equal(riders[0].e, "0.7.4");
       assert.equal(riders[0].c, "web");
 
@@ -355,8 +380,8 @@ browserTest(
       await host.evaluate(() => window.__kubb.pitch.rematch());
       await waitFor(host, () => window.__kubb.pitch.mode === "lobby");
       await waitFor(guest, () => window.__kubb.pitch.mode === "lobby");
-      assert.equal((await pst(host)).engine, "0.8.1");
-      assert.equal((await pst(guest)).engine, "0.8.1");
+      assert.equal((await pst(host)).engine, "0.9.0");
+      assert.equal((await pst(guest)).engine, "0.9.0");
       assert.deepEqual(host.errors, []);
       assert.deepEqual(guest.errors, []);
     } finally {
@@ -383,7 +408,7 @@ browserTest(
       await host.waitForSelector("[data-test=lobby-engine]:not([hidden])");
       assert.equal(
         await host.textContent("[data-test=lobby-engine]"),
-        "Ola has an older version of Throwing Wood (0.3) than this pitch plays (0.8), so the match cannot start. Ola: reload the page or update the app.",
+        "Ola has an older version of Throwing Wood (0.3) than this pitch plays (0.9), so the match cannot start. Ola: reload the page or update the app.",
       );
       assert.equal(
         await host.evaluate(
@@ -404,10 +429,10 @@ browserTest(
       );
 
       // a newer app than the rest of the pitch
-      await only(guest, ["0.9"]);
-      await sawMember(host, "0.9+engines");
+      await only(guest, ["0.10"]);
+      await sawMember(host, "0.10+engines");
       await waitFor(host, () =>
-        /newer version of Throwing Wood \(0\.9\) than the rest of this pitch \(0\.8\)/.test(
+        /newer version of Throwing Wood \(0\.10\) than the rest of this pitch \(0\.9\)/.test(
           document.querySelector("[data-test=lobby-engine]").textContent,
         ),
       );
@@ -449,7 +474,7 @@ browserTest(
       await guest.click("[data-test=join-B]");
       await waitFor(
         guest,
-        () => window.__kubb.pitch.room.me.engines?.length === 2,
+        () => window.__kubb.pitch.room.me.engines?.length === 3,
       );
       await freeze(guest, { engine: "0.7" });
       await waitFor(
@@ -502,7 +527,7 @@ browserTest(
           match: {
             n: 1,
             seq: 0,
-            engine: "0.9",
+            engine: "0.10",
             players: { A: [{ id: pitch.you, name: "Hanna" }], B: [] },
             cpu: "B",
             snap: e.snapshot(),

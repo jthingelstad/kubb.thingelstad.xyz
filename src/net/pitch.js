@@ -18,6 +18,8 @@ import {
   backToLobby,
   cleanName,
   cleanOptions,
+  optionsOf,
+  LEVELS,
   sideOf,
   setAccess,
   openListing,
@@ -211,7 +213,8 @@ export class Pitch {
       game,
       {
         name: (t) => this.setName(t),
-        level: (v) => this.setLevel(v),
+        // the level you throw at is MENU's (src/game/throw-level.js)
+        menu: () => this.menu?.open(),
         team: (side) => this.pickTeam(side),
         option: (k, v) => this.setOption(k, v),
         access: (open) => this.setAccess(open),
@@ -222,6 +225,9 @@ export class Pitch {
       },
       { code: this.code, name, level: game.level },
     );
+
+    // a change of level in MENU: the lobby says it, the room hears it
+    this.stopLevel = game.onLevel((v) => this.levelChanged(v));
 
     this.buildHud();
     game.seat = this.seatFor({ sides: [], cpu: false });
@@ -260,7 +266,11 @@ export class Pitch {
     // the host's own options go in on a new pitch, and OPEN from the web game’s page
     // (/p/<code>?open=1) makes it an open game
     if (room.isHost() && room.v === 0) {
-      const o = cleanOptions(prefs.get("pitchOptions", {}));
+      const saved = prefs.get("pitchOptions", {});
+      const o = cleanOptions(saved);
+      // the computer's level (engine 0.9 on): cleanOptions knows only the five, and
+      // an engine before 0.9 ignores it
+      if (LEVELS.includes(saved?.computer)) o.computer = saved.computer;
       const open = new URLSearchParams(location.search).get("open") === "1";
       this.write((doc) => {
         const d = setOptions(doc, o) ?? lobbyOf(doc);
@@ -411,9 +421,12 @@ export class Pitch {
     this.room.setMe({ name });
   }
 
-  setLevel(v) {
-    this.game.setLevel(v);
-    this.room?.setMe({ level: v });
+  // The device's throw level changed (MENU). A match in play reads it from this
+  // browser's throws; the room's copy is for the next START, sent now in the lobby
+  // and again on the way back to it.
+  levelChanged(v) {
+    this.lobby?.setLevel(v);
+    if (this.mode === "lobby") this.room?.setMe({ level: v });
   }
 
   async pickTeam(side) {
@@ -504,6 +517,8 @@ export class Pitch {
       doc: r.doc,
       status: r.status,
       nameOf: (id) => this.nameOf(id),
+      // the next match's engine: its options are the rows (the computer's level on 0.9)
+      engine: this.roomEngine().engine,
     });
     this.lobbyEngine();
   }
@@ -582,7 +597,11 @@ export class Pitch {
       return;
     this.prefetching = mm;
     reg.loadEngine(mm).then(
-      () => (this.prefetching = null),
+      () => {
+        this.prefetching = null;
+        // the lobby's rows are the room engine's: drawn again now it is in
+        this.renderLobby();
+      },
       (err) => {
         this.prefetching = null;
         this.note("prefetch", mm, String(err?.message || err));
@@ -1106,7 +1125,7 @@ export class Pitch {
     this.cards.clearPanel();
     this.game.seat = this.seatFor({ sides: [], cpu: false });
     this.game.useEngine(this.newestEngine);
-    this.game.newPractice({ surface: lobbyOf(this.room.doc).options.surface });
+    this.game.newPractice({ surface: optionsOf(this.room.doc).surface });
     this.shoutBar.hidden = true;
     // the level may have changed from the menu during the match
     this.lobby.setLevel(this.game.level);

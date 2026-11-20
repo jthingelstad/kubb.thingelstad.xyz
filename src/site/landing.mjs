@@ -118,7 +118,7 @@ function landing({ tinylytics, config = {} }) {
       <p><a class="button" href="/web/">Start a pitch</a></p>
     </div>
     <figure class="split__shot">
-      ${img("lobby", "A pitch’s lobby. A player named Birch picks a level and a side, with room for six on each team.")}
+      ${img("lobby", "A pitch’s lobby. A player named Birch picks a side, with room for six on each team.")}
     </figure>
   </div>
 </section>
