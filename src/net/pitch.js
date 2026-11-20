@@ -854,7 +854,7 @@ export class Pitch {
       // a finished match on another site (src/embed/embed.js): with its replay only
       embed: data ? () => this.showEmbed() : null,
       // a highlight reel of it (docs/REEL.md): with its replay only
-      reel: data ? this.reelFor(m, data.kept != null ? data : null) : null,
+      reel: data ? this.reelFor(m) : null,
       first: arrived,
       teams: arrived ? teamsLine(m.players) : null,
     });
@@ -890,7 +890,7 @@ export class Pitch {
       menu: this.menu,
       close: () => this.endReplay(),
       embed: () => this.showEmbed(),
-      reel: this.reelFor(data, data.kept != null ? data : null),
+      reel: this.reelFor(data),
     });
     this.replay.start();
     this.note("replay", data.n);
@@ -902,16 +902,14 @@ export class Pitch {
   }
 
   // MAKE A HIGHLIGHT REEL: one Reel a finished match, shared by its winner card and
-  // its replay, so their buttons say the same. `m`: { n, hash } of the match; `kept`:
-  // the room's kept replay when in hand. The page's own word that a reel is done is
+  // its replay, so their buttons say the same. `m`: { n, hash } of the match. The
+  // replay in hand only decides that the button is shown: before asking, the card reads
+  // the room's kept replay afresh (src/net/reel.js). The page's own word that a reel is done is
   // given only to the match this browser found finished on arriving: the page was
   // written for that one, never for a match played after it loaded.
-  reelFor(m, kept = null) {
+  reelFor(m) {
     if (!this.roomsUrl || !m) return null;
-    if (this.reel && this.reel.match?.n === m.n) {
-      if (kept && this.reel.state.phase === "idle") this.reel.keptHint = kept;
-      return this.reel;
-    }
+    if (this.reel && this.reel.match?.n === m.n) return this.reel;
     this.reel?.destroy();
     this.reel = new Reel({
       root: this.ui,
@@ -919,7 +917,6 @@ export class Pitch {
       code: this.code,
       url: this.roomsUrl,
       match: { n: m.n, hash: m.hash ?? null },
-      kept,
       known: m.n === this.arrivedOver ? this.pageReel : null,
       ...(this.WebSocket ? { WebSocket: this.WebSocket } : {}),
     });

@@ -4,7 +4,7 @@
 // and the card it opens. The states and the words are src/net/reel.js; this file only
 // draws them and does the asking they call for.
 //
-//   const reel = new Reel({ root, game, code, url, match: { n, hash }, kept, known });
+//   const reel = new Reel({ root, game, code, url, match: { n, hash }, known });
 //   reel.button("small", { "data-test": "..." })   // as many as are shown; all follow
 //   reel.open()                                     // what the button does
 //   reel.destroy()
@@ -16,9 +16,8 @@
 import { h, button, clear } from "./dom.js";
 import { EMBED_ORIGIN } from "./embed.js";
 import {
-  askKept,
-  askReel,
   reelFileName,
+  reelRequest,
   reelStart,
   reelStep,
   reelTune,
@@ -47,20 +46,19 @@ const tallWindow = () => window.innerHeight > window.innerWidth;
 export class Reel {
   // root: the element cards go in; game: the Game (modal count), or null; code: the
   // pitch; url: the rooms server; match: { n, hash } of the match shown, to be sure the
-  // room's kept replay is this match; kept: that kept replay when already in hand
-  // (src/replay/fetch.js's answer); known: the page's own word that the reel is done
-  // (reelFromPage); WebSocket: for tests.
+  // room's kept replay is this match (read afresh before every ask that could start a
+  // render); known: the page's own word that the reel is done (reelFromPage);
+  // WebSocket: for tests.
   constructor({
     root,
     game = null,
     code,
     url,
     match = null,
-    kept = null,
     known = null,
     WebSocket = null,
   }) {
-    Object.assign(this, { root, game, code, url, match, keptHint: kept });
+    Object.assign(this, { root, game, code, url, match });
     this.ws = WebSocket ? { WebSocket } : {};
     this.state = reelStart(known);
     this.buttons = new Set();
@@ -137,38 +135,14 @@ export class Reel {
       this.busy = false;
       this.pump(this.view.ask !== what);
     };
-    const ask = what === "kept" ? this.askKept() : askReel(this.at());
-    ask.then(
-      (answer) => {
-        this.dispatch(
-          what === "kept"
-            ? { type: "kept", kept: answer, match: this.match }
-            : { type: "answer", answer },
-        );
-        done();
-      },
-      (error) => {
-        this.dispatch({ type: "error", code: error?.code });
-        done();
-      },
-    );
+    reelRequest(this.state, this.at(), this.match).then((event) => {
+      if (event) this.dispatch(event);
+      done();
+    });
   }
 
   at() {
     return { url: this.url, code: this.code, ...this.ws };
-  }
-
-  // The kept replay: the one in hand once, else asked for.
-  askKept() {
-    const hint = this.keptHint;
-    this.keptHint = null;
-    return hint
-      ? Promise.resolve({
-          kept: hint.kept,
-          n: hint.n ?? null,
-          hash: hint.hash ?? null,
-        })
-      : askKept(this.at());
   }
 
   // ---------- the card ----------

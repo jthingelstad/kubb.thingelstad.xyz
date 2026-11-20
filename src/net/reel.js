@@ -123,9 +123,10 @@ export function reelStep(s, e) {
       if (s.phase === "error") {
         if (s.why === "failed" && s.retried >= reelTune.retries)
           return { ...s, phase: "failed", why: "render" };
+        // TRY AGAIN reads the kept replay afresh too: the room may keep a newer match
         return {
           ...s,
-          phase: s.v == null ? "checking" : "asking",
+          phase: "checking",
           retried: s.why === "failed" ? s.retried + 1 : s.retried,
           keptTries: 0,
           offline: false,
@@ -287,6 +288,25 @@ export function askReel({ url, code, ...rest }) {
     re: "reel",
     ...rest,
   });
+}
+
+// The request a state calls for (reelView's `ask`), made, as the event its answer is:
+// "kept" reads the room's kept replay afresh every time, never a copy in hand, because
+// a viewer can sit in an old replay while a rematch is kept and asking for the reel of
+// a room that has moved on starts the newer match's render. `at`: { url, code,
+// WebSocket? }; `match`: { n, hash } of the match on the screen.
+export async function reelRequest(s, at, match) {
+  const what = reelView(s).ask;
+  try {
+    if (what === "kept")
+      return { type: "kept", kept: await askKept(at), match };
+    // A small race stays between that read and this ask (no read-only reel ask yet,
+    // docs/REEL.md open question 13): the answer's `v` is checked against the kept one.
+    if (what === "reel") return { type: "answer", answer: await askReel(at) };
+  } catch (error) {
+    return { type: "error", code: error?.code };
+  }
+  return null;
 }
 
 // Which match the room keeps, read without starting anything: one `replay` message
