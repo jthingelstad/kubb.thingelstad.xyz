@@ -124,13 +124,13 @@ browserTest(
         state: window.__kubb.embed.state,
         playing: window.__kubb.embed.game.engine.version,
         older: window.__kubb.engines.loaded("0.6")?.version ?? null,
-        newest: window.__kubb.engines.loaded("0.8")?.version ?? null,
+        newest: window.__kubb.engines.loaded("0.9")?.version ?? null,
       }));
       assert.deepEqual(seen, {
         state: "replay",
         playing: "0.6.9",
         older: "0.6.9",
-        newest: "0.8.1",
+        newest: "0.9.0",
       });
       assert.deepEqual(page.errors, []);
       await ctx.close();
@@ -142,7 +142,7 @@ browserTest(
         older: window.__kubb.engines.loaded("0.6"),
       }));
       // not carried: the newest plays it, and the older engine is never fetched
-      assert.deepEqual(seen, { playing: "0.8.1", older: null });
+      assert.deepEqual(seen, { playing: "0.9.0", older: null });
       assert.deepEqual(page.errors, []);
       await ctx.close();
     }
@@ -176,7 +176,7 @@ browserTest(
     }));
     assert.match(sheet.text, /\[Win "Team B"\]/);
     assert.equal(sheet.read, 1);
-    assert.equal(sheet.game, "0.8.1");
+    assert.equal(sheet.game, "0.9.0");
     await page.click("[data-test=sheet-back]");
 
     // WATCH REPLAY: the Game draws from 0.6 while it plays, and from the newest after
@@ -190,7 +190,7 @@ browserTest(
     await page.waitForSelector("[data-test=winner]", { timeout: 30000 });
     assert.equal(
       await page.evaluate(() => window.__kubb.game.engine.version),
-      "0.8.1",
+      "0.9.0",
     );
     assert.deepEqual(page.errors, []);
     await ctx.close();

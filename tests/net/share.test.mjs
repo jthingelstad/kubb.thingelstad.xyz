@@ -224,7 +224,7 @@ test("share: unavailable without a check, without engines, or without the store'
 
 test("share: another engine is refused before the check", async () => {
   const h = harness();
-  for (const engine of ["0.6.9", "0.9.0", "x"])
+  for (const engine of ["0.6.9", "0.10.0", "x"])
     assert.equal((await h.share("c1", { ...G, engine })).why, "engine");
   assert.equal(h.checked.length, 0);
 });

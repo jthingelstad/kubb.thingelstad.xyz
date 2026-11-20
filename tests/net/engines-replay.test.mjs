@@ -30,10 +30,10 @@ test.after(() => fs.rmSync(older, { recursive: true, force: true }));
 const twoEngines = () =>
   makeRegistry({
     engines: {
-      0.8: { version: "0.8.1", sources: bundleLua() },
+      0.9: { version: "0.9.0", sources: bundleLua() },
       0.6: { version: "0.6.9", sources: bundleLua(older) },
     },
-    newest: "0.8.1",
+    newest: "0.9.0",
     create: ({ sources }) => Engine.create({ sources }),
   });
 
@@ -68,8 +68,8 @@ test("the browser's registry: a carried engine for its matches, the newest for o
   const engines = twoEngines();
   assert.equal(engines.pick("0.6"), "0.6");
   assert.equal(engines.pick("0.6.2"), "0.6");
-  assert.equal(engines.pick("0.5"), "0.8");
-  assert.equal(engines.pick(null), "0.8");
+  assert.equal(engines.pick("0.5"), "0.9");
+  assert.equal(engines.pick(null), "0.9");
   const fallback = { version: "x" };
   assert.equal(engineFor(null, "0.6", fallback), fallback);
   // not loaded yet: a promise; loaded: at once
@@ -78,7 +78,7 @@ test("the browser's registry: a carried engine for its matches, the newest for o
   const e = await p;
   assert.equal(e.version, "0.6.9");
   assert.equal(engineFor(engines, "0.6"), e);
-  assert.equal((await engineFor(engines, "0.5")).version, "0.8.1");
+  assert.equal((await engineFor(engines, "0.5")).version, "0.9.0");
 });
 
 test("the tools' engines: each carried engine of a vendor folder, made once", async (t) => {
@@ -109,8 +109,8 @@ test("the tools' engines: each carried engine of a vendor folder, made once", as
     engineForMatch(engines, "0.7", { only: "0.5" }),
     /carries no engine 0\.5/,
   );
-  // this checkout's own vendor/: 0.8 and the 0.7 it keeps beside it
-  assert.deepEqual(checkoutEngines().carried(), ["0.8", "0.7"]);
+  // this checkout's own vendor/: 0.9 and the 0.8 and 0.7 it keeps beside it
+  assert.deepEqual(checkoutEngines().carried(), ["0.9", "0.8", "0.7"]);
 });
 
 test("the engine a record says played it", () => {
@@ -119,7 +119,7 @@ test("the engine a record says played it", () => {
   assert.equal(
     matchEngineOf({
       start: at({ seq: 0, engine: "0.6" }),
-      steps: [at({ seq: 1 }, { e: "0.8.1" })],
+      steps: [at({ seq: 1 }, { e: "0.9.0" })],
     }),
     "0.6",
   );
@@ -150,10 +150,10 @@ test("games:replay plays each match on its own engine, or the newest, or --engin
     new RegExp(`${old.actions.length} actions on 0\\.6\\.9`),
   );
   assert.doesNotMatch(lines[0], /played on engine/);
-  assert.match(lines[1], /actions on 0\.8\.1/);
+  assert.match(lines[1], /actions on 0\.9\.0/);
   assert.match(
     lines[1],
-    /played on engine 0\.5\.0, this checkout runs 0\.8\.1/,
+    /played on engine 0\.5\.0, this checkout runs 0\.9\.0/,
   );
 
   said.length = 0;
@@ -161,11 +161,11 @@ test("games:replay plays each match on its own engine, or the newest, or --engin
     matches: [],
     browser: [old],
     engines,
-    only: "0.8",
+    only: "0.9",
     log,
   });
-  assert.match(said[0], /through kubb-engine 0\.8\.1/);
-  assert.match(said[1], /actions on 0\.8\.1.*played on engine 0\.6\.9/);
+  assert.match(said[0], /through kubb-engine 0\.9\.0/);
+  assert.match(said[1], /actions on 0\.9\.0.*played on engine 0\.6\.9/);
 });
 
 test("a record names the engine that played and the bundle it came from", async () => {
@@ -174,9 +174,9 @@ test("a record names the engine that played and the bundle it came from", async 
   const config = {
     version: "0.1.0",
     luaUrl: "/assets/lua-sources-new.json",
-    engine: "0.8.1",
+    engine: "0.9.0",
     engines: {
-      0.8: { version: "0.8.1", luaUrl: "/assets/lua-sources-new.json" },
+      0.9: { version: "0.9.0", luaUrl: "/assets/lua-sources-new.json" },
       0.6: { version: "0.6.9", luaUrl: "/assets/lua-sources-0.6-old.json" },
     },
   };
@@ -194,9 +194,9 @@ test("a record names the engine that played and the bundle it came from", async 
   const rec = matchRecord({ game, mode: "solo", config, now: () => 0 });
   assert.equal(rec.engine, "0.6.9");
   assert.equal(rec.build.lua, "lua-sources-0.6-old.json");
-  assert.equal(luaFor(config, "0.8.1"), "lua-sources-new.json");
+  assert.equal(luaFor(config, "0.9.0"), "lua-sources-new.json");
   // a page with no engines map, or an engine it does not name: the newest's
   assert.equal(luaFor({ luaUrl: "/assets/x.json" }, "0.6.9"), "x.json");
   assert.equal(luaFor(config, "0.5.0"), "lua-sources-new.json");
-  assert.equal(luaFor({}, "0.8.1"), null);
+  assert.equal(luaFor({}, "0.9.0"), null);
 });
