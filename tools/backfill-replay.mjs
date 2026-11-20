@@ -53,6 +53,10 @@ export function replayFromMatch(match) {
     players: match.players,
     cpu: match.cpu ?? null,
   };
+  // the engine the match was played on, as a kept replay names it (the document's
+  // match.engine): without it WATCH REPLAY and embeds would play a match checked
+  // here on an older engine on the newest (docs/ENGINES.md)
+  if (typeof first.engine === "string") replay.engine = first.engine;
   return isReplay(replay) ? { replay, at } : { why: "not a replay" };
 }
 
