@@ -33,7 +33,8 @@ The game is kubb-engine (`jthingelstad/kubb-engine`, the sibling checkout
 `vendor/engine/` is one tagged release of it, byte for byte (`npm run vendor:sync -- --tag
 vX.Y.Z` reads the tag from the engine's git objects; `npm run vendor:check` holds every
 file and the bundle to the engine's `engine.json`; `vendor/engine.json` pins the tag and
-commit). Never edit it. It is pure Lua 5.4 and runs in the browser in WebAssembly
+commit). Never edit it. Older minors the site still plays back sit beside it in
+`vendor/engines/<major.minor>/` (`docs/ENGINES.md`). It is pure Lua 5.4 and runs in the browser in WebAssembly
 (wasmoon 1.16.0, MIT: the reference Lua 5.4 VM compiled to wasm, pinned exactly: it is
 the engine's reference platform). Measured 2026-11-15 under Node: whole physics matches,
 about 5 ms a throw.

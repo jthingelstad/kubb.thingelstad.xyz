@@ -16,8 +16,10 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
 - **`vendor/engine/` is never edited.** It is kubb-engine (`../kubb-engine`) at the tag
   in `vendor/engine.json`, byte for byte. Change how the game plays in kubb-engine,
   release a tag, then `npm run vendor:sync -- --tag vX.Y.Z` (`vendor:check` holds it to
-  the engine's manifest). Never write in the kubb-engine or playdate-kubb checkouts from
-  here. wasmoon stays pinned at exactly 1.16.0.
+  the engine's manifest). The same goes for each older minor the site still carries in
+  `vendor/engines/<major.minor>/` (`docs/ENGINES.md`): play is on the newest, a new
+  minor is vendored with `--keep` (carry the old one on) or `--drop`, never by
+  accident. Never write in the kubb-engine or playdate-kubb checkouts from here. wasmoon stays pinned at exactly 1.16.0.
 - **This repository is public.** Keep email addresses, device serials, home-directory
   paths and secrets out of files and commits. Write
   the AWS account as `<account>` in Markdown.
@@ -26,7 +28,8 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
   a few coarse calls a frame.
 - **Room rules are the engine's too.** `src/net/lobby.js`, `seats.js` and `sync.js`
   are thin wrappers over `room.*` (the engine's docs/ROOM.md), reading `.value` through
-  `src/net/room-engine.js`. Initialize with `useRoomEngine` before calling them, pass
+  `src/net/room-engine.js`. Initialize with `useRoomEngine` (the newest engine) before
+  calling them; a call that names a major.minor goes to that carried engine. Pass
   connected ids as an array, and keep seat/actor calls cached out of the render loop.
   Keep `aimKey` and socket pacing in JavaScript. `me.engine` announces major.minor;
   START passes members and writes `match.engine`; `mayPlay` gates team and CPU control.
@@ -48,7 +51,8 @@ address or home path in `dist/`, no account id in Markdown).
 
 - `npm run build` writes `dist/`: `public/`, the client bundled by esbuild from
   `src/main.js` into `dist/assets/` (hashed names, source maps), wasmoon's `glue.wasm` and
-  the Lua sources (`tools/lua-bundle.mjs` writes `build/lua-sources.json`) as hashed assets,
+  the Lua sources (`tools/lua-bundle.mjs` writes `build/lua-sources-<major.minor>.json`, one
+  per carried engine) as hashed assets,
   and the pages from `src/site/`. The game pages carry the client's settings as a JSON
   block, `<script type="application/json" id="kubb-config">`, read by
   `readConfig()` in `src/site/config.js` (its comment is the shape). No inline scripts: the

@@ -28,7 +28,7 @@ import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { PAGES } from "../src/site/pages.mjs";
 import { makeRelease } from "../src/site/release.js";
-import { engineVersion } from "./lua-bundle.mjs";
+import { bundleFile, carriedEngines } from "./lua-bundle.mjs";
 import { associationKey } from "./delivery-plan.mjs";
 import {
   DEV_ROOMS_URL,
@@ -76,6 +76,22 @@ async function hashedAsset(from, name) {
   return `/${file}`;
 }
 
+// The page config's engines map (src/site/config.js): every carried engine's bundle
+// (build/lua-sources-<mm>.json) as a hashed asset, by major.minor, newest first. The
+// newest keeps the asset name it always had; an older one's name carries its minor.
+export async function configEngines(carried, asset) {
+  const engines = {};
+  for (const [i, { mm, version }] of carried.entries())
+    engines[mm] = {
+      version,
+      luaUrl: await asset(
+        bundleFile("build", mm),
+        i === 0 ? "lua-sources" : `lua-sources-${mm}`,
+      ),
+    };
+  return engines;
+}
+
 export async function writeAssociation(root, team) {
   if (!team) return;
   if (!/^[A-Z0-9]{10}$/.test(team))
@@ -95,11 +111,12 @@ export async function buildSite({
 } = {}) {
   const pkg = JSON.parse(await fs.readFile("package.json", "utf8"));
 
-  // The engine's Lua sources (vendor/engine), one module map.
+  // Each carried engine's Lua sources (vendor/engine, vendor/engines/<mm>), one
+  // module map apiece.
   execFileSync(process.execPath, ["tools/lua-bundle.mjs"], {
     stdio: quiet ? "ignore" : "inherit",
   });
-  const luaFile = "build/lua-sources.json";
+  const carried = carriedEngines();
 
   await fs.rm("dist", { recursive: true, force: true });
   await fs.cp("public", "dist", { recursive: true });
@@ -133,15 +150,18 @@ export async function buildSite({
   if (!assets.main) throw new Error("esbuild wrote no client entry");
 
   const commit = process.env.GITHUB_SHA || git("rev-parse", "HEAD") || null;
-  const engine = engineVersion();
+  const engine = carried[0].version;
+  const engines = await configEngines(carried, hashedAsset);
+  const newest = carried[0].mm;
   const release = makeRelease({ version: pkg.version, web: commit, engine });
   const config = {
     version: pkg.version,
     commit,
     roomsUrl: await roomsUrl(production),
     wasmUrl: await hashedAsset("node_modules/wasmoon/dist/glue.wasm", "glue"),
-    luaUrl: await hashedAsset(luaFile, "lua-sources"),
+    luaUrl: engines[newest].luaUrl,
     engine,
+    engines,
     release,
     sounds: "/sounds/",
   };

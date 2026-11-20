@@ -19,12 +19,18 @@
 //
 // The snapshot is opaque text: never JSON.parse it and write it back (that
 // turns 3.0 into 3 and changes the hash). The calls carry it as a string.
-import { roomCall, setRoomEngine } from "./room-engine.js";
+import {
+  addRoomEngine,
+  roomCall,
+  roomEngineMinor,
+  setRoomEngine,
+} from "./room-engine.js";
 
 // Admission requires a named, matching major.minor. Patches can play together.
 export const LENIENT_ENGINES = false;
 
-// The engine's constants (room.constants), read once by useRoomEngine.
+// The newest engine's constants (room.constants), read once by useRoomEngine: the
+// engine the page plays on. engineConstants(mm) is any carried engine's.
 export let DOC_VERSION;
 export let TEAM_MAX;
 export let SEATS; // an open game's places, as the home page's list shows them
@@ -35,14 +41,26 @@ export let MATCH_OPTIONS; // [key, label, [[value, label], ...]], as on the solo
 export let LEVELS;
 export let LOG_BUDGET;
 export let REPLAY_VERSION;
-// This engine's major.minor ("0.3"): what a member sends as me.engine and what START
-// stamps as match.engine.
+// The newest engine's major.minor ("0.3"): what a member sends as me.engine and what
+// START stamps as match.engine.
 export let ENGINE;
 
-// Once, with the page's engine, before anything here is called.
+// Each engine's room.constants, by major.minor, read once apiece.
+const constants = new Map();
+export function engineConstants(mm = roomEngineMinor()) {
+  let k = constants.get(mm);
+  if (!k) {
+    k = roomCall("constants", {}, mm);
+    constants.set(mm, k);
+  }
+  return k;
+}
+
+// Once, with the page's newest engine, before anything here is called.
 export function useRoomEngine(engine) {
   setRoomEngine(engine);
-  const k = roomCall("constants");
+  constants.delete(roomEngineMinor());
+  const k = engineConstants();
   ({
     DOC_VERSION,
     TEAM_MAX,
@@ -57,6 +75,12 @@ export function useRoomEngine(engine) {
     ENGINE,
   } = k);
   return k;
+}
+
+// Another carried engine (src/engine/registry.js), once loaded; returns its
+// major.minor. Play stays on the newest.
+export function useOlderEngine(engine) {
+  return addRoomEngine(engine);
 }
 
 // A reducer's "nothing to write" comes back as null; room.update wants undefined.

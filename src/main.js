@@ -13,6 +13,7 @@
 import { swipeEnabled } from "../public/js/throw-mode.js";
 import { readConfig, pitchCode } from "./site/config.js";
 import { Engine } from "./engine/index.js";
+import { makeRegistry } from "./engine/registry.js";
 import { Game } from "./game/game.js";
 import { Sound } from "./game/sound.js";
 import { prefs } from "./game/prefs.js";
@@ -27,7 +28,7 @@ import { shareable } from "./net/share.js";
 import { openSheet } from "./ui/sheet.js";
 import { recordMatch } from "./net/record.js";
 import { clientLabel, LOCATION } from "./net/sync.js";
-import { useRoomEngine } from "./net/lobby.js";
+import { useOlderEngine, useRoomEngine } from "./net/lobby.js";
 import { watchFreshness } from "./net/freshness.js";
 import { showUpdate } from "./ui/update.js";
 import { startEmbed, embedCode } from "./embed/embed.js";
@@ -75,20 +76,32 @@ const home = () => {
   location.href = "/";
 };
 
-async function makeEngine() {
-  if (!config.luaUrl) throw new Error("this build has no Lua sources");
-  const [engine] = await Promise.all([
+// Every engine the site carries, each made the first time it is asked for
+// (docs/ENGINES.md). The page plays on the newest.
+const engines = makeRegistry({
+  engines: config.engines,
+  newest: config.engine,
+  create: ({ luaUrl }) =>
     Engine.create({
-      sources: config.luaUrl,
+      sources: luaUrl,
       wasmUrl: config.wasmUrl,
       client: clientLabel(config.version),
       location: LOCATION,
     }),
+});
+// the room's logic (a shared pitch's document, seats, staying in step) is the
+// engine's too: src/net/lobby.js, seats.js and sync.js call it, on the newest
+// unless a call names another
+engines.onLoad((engine, mm) =>
+  mm === engines.newest ? useRoomEngine(engine) : useOlderEngine(engine),
+);
+
+async function makeEngine() {
+  if (!engines.newest) throw new Error("this build has no Lua sources");
+  const [engine] = await Promise.all([
+    engines.loadEngine(engines.newest),
     document.fonts?.load('900 40px "Londrina Solid"').catch(() => null),
   ]);
-  // the room's logic (a shared pitch's document, seats, staying in step) is the
-  // engine's too: src/net/lobby.js, seats.js and sync.js call it
-  useRoomEngine(engine);
   return engine;
 }
 
@@ -109,7 +122,7 @@ async function bootEmbed() {
     },
   });
   loading.remove();
-  if (testing) window.__kubb = { config, embed: made };
+  if (testing) window.__kubb = { config, engines, embed: made };
   document.body.dataset.ready = "1";
 }
 
@@ -183,6 +196,7 @@ async function boot() {
   if (testing) {
     window.__kubb = {
       engine,
+      engines,
       game,
       sound,
       cards,

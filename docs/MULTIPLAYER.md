@@ -11,7 +11,7 @@ the client as built.
 | `src/net/lobby.js`                 | Wrappers over the engine's `room.*` document reducers (what `room.update(fn)` runs).             |
 | `src/net/seats.js`                 | Cached wrappers over the engine's seat and actor rules.                                          |
 | `src/net/sync.js`                  | Wrappers over the engine's sync decisions and rider; JavaScript keeps `aimKey`.                  |
-| `src/net/room-engine.js`           | The bridge: `engine.call("room.<name>", args).value`, initialized with the page's engine.        |
+| `src/net/room-engine.js`           | The bridge: `engine.call("room.<name>", args).value` on the newest engine or a named one.        |
 | `src/ui/lobby.js`                  | `Lobby`, the lobby card.                                                                         |
 | `tests/net/room-wrappers.test.mjs` | Bridge contracts and caches; the room rules are tested by kubb-engine's vectors.                 |
 | `tests/game/multiplayer.test.mjs`  | Playwright: real browsers against `tools/rooms-dev.mjs` (see Tests).                             |
@@ -108,8 +108,10 @@ engines before writing `match.engine`.
 Room reducers, seat decisions and sync decisions are kubb-engine v0.3.0's `room.*`
 calls over the same JSON bridge as the session (`kubbCall`). The engine's `docs/ROOM.md`
 is their API; its 8,851 recorded vector steps cover the rules. There is no second
-JavaScript implementation. `useRoomEngine` reads the engine's constants once during
-boot; tools that use these wrappers initialize it too.
+JavaScript implementation. `useRoomEngine` reads the newest engine's constants once
+during boot; tools that use these wrappers initialize it too. A page can carry older
+engines beside it (`docs/ENGINES.md`); their calls name the major.minor, and play is
+always on the newest.
 
 Every web build from PR #40 sends its engine’s major.minor in join presence.
 `LENIENT_ENGINES` is false. START checks the host and seated players. A tab
