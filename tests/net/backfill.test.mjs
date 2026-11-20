@@ -142,6 +142,19 @@ test("a hash the engine no longer reaches is the first that differs; a gap makes
 
 // docs/ENGINES.md: each match on the engine engineOf gives it (the match's own where
 // the checkout carries it); a second engine made from a fixture, playing alike.
+test("the replay names the engine the match was played on, when its records do", async () => {
+  const { out } = await records();
+  const [plain] = matchesOf(out);
+  assert.equal(replayFromMatch(plain).replay.engine, undefined);
+  // the same records as a room that named its engine at START wrote them
+  const named = JSON.parse(JSON.stringify(out));
+  for (const r of named) if (r.doc?.match) r.doc.match.engine = "0.6";
+  const [m] = matchesOf(named);
+  const { replay } = replayFromMatch(m);
+  assert.ok(isReplay(replay), "still a replay the player takes");
+  assert.equal(replay.engine, "0.6");
+});
+
 test("each match plays on the engine it is given, and says which", async (t) => {
   const { out } = await records();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kubb-older-engine-"));
