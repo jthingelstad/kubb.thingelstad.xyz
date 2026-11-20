@@ -296,8 +296,11 @@ sends the same `reel` and `share` messages.
   with contact sheets.
 - The rooms function answers `{ t: "reel", room }` from anyone and starts at most one
   render a kept replay (`room#<code> | reel`, a conditional put), invoking
-  `kubb-xyz-site-reels` asynchronously. It renders only a match whose `match.engine`
-  major.minor is one the function carries (`REEL_ENGINES`, the vendored engine's).
+  `kubb-xyz-site-reels` asynchronously. It renders a match, and checks a shared one,
+  only on the match's own engine: its major.minor must be one the function carries
+  (`REEL_ENGINES`: every engine the site carries, newest first, one Lua bundle each in
+  the package; `docs/REEL.md` "Engines"). Adding an engine is site stack, then rooms
+  (`docs/REEL-RUNBOOK.md` "Adding or dropping an engine").
 - Caps: 3 renders started a connection, 200 a UTC day for the whole site (a counter
   item), a render left `rendering` 25 minutes may be started again, keeping its tries:
   a job renders twice at most in all, Lambda's retry included; `failed` is final for

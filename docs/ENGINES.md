@@ -88,8 +88,15 @@ always has:
   (`engine.version`) and the bundle it was loaded from (`luaFor` in
   `src/site/config.js`). Play is on the newest, so today that is the newest.
 - **The share card** sends the match the Game played (`renameStart` on the Game's
-  engine, the newest); the server checks it against the engines its renderer
-  carries (`REEL_ENGINES`, `docs/REEL.md`).
+  engine, the newest). The server checks it on the engine it names.
+- **Highlight reels and the share check** (`backend/reels/`): the reel function's
+  package carries one Lua bundle per carried engine (`engines/<major.minor>.json`), and
+  `REEL_ENGINES` names them, newest first. A reel renders on the match's own engine and
+  is tagged with it (`r1-0.7`), so a reel made before a new minor keeps its key. A
+  shared match is checked on the engine it names, so an iPhone build on an older minor
+  can share while the site carries that minor. A match of an engine not carried is
+  refused, `why: "engine"`. `docs/REEL.md` "Engines"; deploying a new set is
+  `docs/REEL-RUNBOOK.md` "Adding or dropping an engine".
 - **The tools** (`tools/engines.mjs`): `games:replay` and `reports:replay` play each
   match or report on its own engine where the checkout carries it (`--engine <mm>` plays
   all on one: after a new minor, the throws it changes); `backfill-replay` plays each
@@ -97,4 +104,5 @@ always has:
   `tests/fixtures/replay-north-south-<mm>.json`.
 - **Tests**: every carried engine plays its own golden corpus and its own kept replay
   (`tests/engine/`). The two-engine paths are tested with a second engine made at test
-  time (`tests/net/engines-replay.test.mjs`, `tests/game/engines-client.test.mjs`).
+  time (`tests/net/engines-replay.test.mjs`, `tests/game/engines-client.test.mjs`,
+  `tests/reel/engines.test.mjs`).

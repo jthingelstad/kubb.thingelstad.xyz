@@ -7,14 +7,17 @@
 //
 // Writes <out>/<name>-tall.mp4, <name>-wide.mp4, <name>.edit.json (the edit list) and
 // <name>-<format>-sheet.png (one still per moment and the cards, cut from the MP4 by
-// ffmpeg). FFMPEG names the ffmpeg to use (the one on the PATH otherwise).
+// ffmpeg). FFMPEG names the ffmpeg to use (the one on the PATH otherwise). The replay
+// plays on its own engine where this checkout carries it, else on the newest (said
+// on the console), as the reel function never would (docs/ENGINES.md).
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
-import { bundleLua } from "../lua-bundle.mjs";
+import { bundleLua, carriedEngines } from "../lua-bundle.mjs";
+import { majorMinor } from "../../backend/reels/tag.mjs";
 import {
   renderReel as renderCore,
   sampleCode,
@@ -28,6 +31,13 @@ import { REEL_EMPTY } from "../../backend/reels/highlights.mjs";
 
 export { FORMATS, FPS, planFrames, sampleCode };
 
+// The checkout's engine a replay plays on: its own where carried, else the newest.
+export function replayEngine(replay, vendorDir) {
+  const carried = carriedEngines(vendorDir);
+  const own = carried.find((e) => e.mm === majorMinor(replay?.engine));
+  return { ...(own ?? carried[0]), own: !!own };
+}
+
 // The server's reel under <out>/<name>-*, with contact sheets beside it.
 export async function renderReel({
   replay,
@@ -35,11 +45,19 @@ export async function renderReel({
   out,
   name,
   formats = ["tall", "wide"],
-  sources = bundleLua(),
+  sources,
   log = console.log,
   peek = 0,
   capture = null,
 }) {
+  if (!sources) {
+    const e = replayEngine(replay);
+    if (!e.own)
+      log(
+        `${name}: played on engine ${replay?.engine ?? "(none named)"}, rendered on ${e.version}`,
+      );
+    sources = bundleLua(e.dir);
+  }
   const work = path.join(out, `.${name}`);
   const result = await renderCore({
     replay,

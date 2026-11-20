@@ -5,8 +5,9 @@
 //
 // The function's package: backend/reels/handler.mjs bundled by esbuild to one ESM file,
 // index.mjs (the AWS SDK left out: the runtime has it, as the rooms function's does),
-// and beside it package.json (type: module), the engine's Lua sources with its version
-// (lua-sources.json), the two faces, the nine knock takes, wasmoon (its JavaScript and
+// and beside it package.json (type: module), one Lua bundle per engine the site carries
+// with its version (engines/<major.minor>.json, { engine, sources }: tools/lua-bundle.mjs
+// carriedEngines, newest first; docs/ENGINES.md), the two faces, the nine knock takes, wasmoon (its JavaScript and
 // glue.wasm: it finds the wasm beside itself) and @napi-rs/canvas (its JavaScript from
 // node_modules and its Linux arm64 binary from npm, pinned in infra/reels-pins.json by
 // version and integrity). Named by a hash of its contents like the pages package:
@@ -26,7 +27,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import zlib from "node:zlib";
-import { bundleLua, engineVersion } from "./lua-bundle.mjs";
+import { bundleLua, carriedEngines } from "./lua-bundle.mjs";
 import { contentHash, zipFiles } from "./pages-bundle.mjs";
 
 export const REELS_ENTRY = "backend/reels/handler.mjs";
@@ -120,8 +121,27 @@ export async function canvasBinary() {
 
 const read = (p) => fs.readFileSync(path.join(root, p));
 
-// The function's package. `binary` is canvasBinary()'s (the tests pass a stand-in).
-export async function bundleReels({ binary } = {}) {
+// REEL_ENGINES for the package bundleReels makes: the carried major.minors, newest
+// first, "0.7" or "0.8,0.7" (tools/infra.mjs passes it to both stacks).
+export const reelEngines = (vendorDir) =>
+  carriedEngines(vendorDir)
+    .map((e) => e.mm)
+    .join(",");
+
+// The package's engines: engines/<mm>.json per carried engine, { engine, sources }.
+// The same bytes for the same vendored engines (bundleLua sorts its keys).
+export function engineEntries(vendorDir) {
+  return carriedEngines(vendorDir).map(({ mm, version, dir }) => ({
+    name: `engines/${mm}.json`,
+    data: Buffer.from(
+      JSON.stringify({ engine: version, sources: bundleLua(dir) }),
+    ),
+  }));
+}
+
+// The function's package. `binary` is canvasBinary()'s (the tests pass a stand-in);
+// `vendorDir` another vendor/ folder (the tests' two engines).
+export async function bundleReels({ binary, vendorDir } = {}) {
   binary ??= await canvasBinary();
   const result = await build({
     entryPoints: [path.join(root, REELS_ENTRY)],
@@ -147,12 +167,7 @@ export async function bundleReels({ binary } = {}) {
   const entries = [
     { name: "index.mjs", data: Buffer.from(result.outputFiles[0].contents) },
     { name: "package.json", data: Buffer.from('{"type":"module"}\n') },
-    {
-      name: "lua-sources.json",
-      data: Buffer.from(
-        JSON.stringify({ engine: engineVersion(), sources: bundleLua() }),
-      ),
-    },
+    ...engineEntries(vendorDir),
     {
       name: "fonts/LondrinaSolid-Black.ttf",
       data: read("backend/pages/LondrinaSolid-Black.ttf"),

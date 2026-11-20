@@ -164,7 +164,7 @@ test("the reel package is the same every time, named by its contents, with what 
   for (const name of [
     "index.mjs",
     "package.json",
-    "lua-sources.json",
+    "engines/0.7.json",
     "fonts/LondrinaSolid-Black.ttf",
     "fonts/inter-latin-wght-normal.woff2",
     "sounds/knock-1.wav",

@@ -71,7 +71,8 @@ throwingwood.com web stack". Run everything here as `cloud-engineer` in `us-east
 
 - `aws lambda get-function-configuration --function-name kubb-xyz-site-reels`:
   `arm64`, `nodejs24.x`, 3008 MB, 300 s, one layer, environment `TABLE`,
-  `SITE_BUCKET`, `REEL_ENGINES` (the vendored major.minor, `0.7` today) and `FFMPEG`.
+  `SITE_BUCKET`, `REEL_ENGINES` (every engine the site carries, newest first: `0.7`
+  today) and `FFMPEG`.
 - `aws lambda get-function-event-invoke-config --function-name kubb-xyz-site-reels`:
   one retry, 900 s.
 - `aws lambda get-function-concurrency --function-name kubb-xyz-site-reels`: 2.
@@ -165,6 +166,76 @@ it. Then, still reading only:
   to it), but the pitch page would show what was written. If that matters, the sealed
   rooms can be found by their `share#` items (a scan, read only) and deleted with their
   `room#<code>` items by hand: Jamie's call, since it takes down shared links.
+
+## Adding or dropping an engine
+
+The reel function carries one Lua bundle per engine the site carries, and
+`REEL_ENGINES` names them, newest first (`docs/REEL.md` "Engines", `docs/ENGINES.md`).
+Both come from `vendor/`: `tools/infra.mjs` packages the bundles and sets the site
+stack's `ReelEngines`, and the rooms stack takes `ReelEngines` from the site stack's
+output. Nothing is set by hand.
+
+**The rule: the rooms function never names an engine the renderer lacks.** A render it
+starts for such an engine fails with `why: "engine"`, and `failed` is final for that
+version and look. So the site stack goes first when an engine is added.
+
+### The change that brought engines to the renderer (one engine)
+
+With one engine carried, nothing changes but the package's layout (`engines/0.7.json`
+where `lua-sources.json` was):
+
+1. `npm run reels:bundle`: a new code key, the same layer key, about 13 MB zipped and
+   30 MB unzipped as before.
+2. `AWS_PROFILE=cloud-engineer npm run infra:plan -- site`: **Modify** `ReelsFunction`,
+   the code key only. `ReelEngines` stays `0.7`, and so does `REEL_ENGINES`. The
+   pitch pages code is the same, so there is no `PagesRevision`. The same
+   evaluated-again list as in "Deploy" step 2. Anything else is a stop.
+3. `AWS_PROFILE=cloud-engineer npm run infra:apply -- site`
+4. `AWS_PROFILE=cloud-engineer npm run infra:plan -- rooms`: no change. The rooms
+   bundle and `ReelEngines` are the same; a change here is a stop.
+5. Commit the rewritten `infra/deployment.json` (`reels.codeKey`) in a pull request.
+
+### Adding an engine (`vendor:sync -- --tag vX.Y.0 --keep`)
+
+1. Merge the pull request that vendors it. CI deploys the site, and play moves to the
+   new engine. Until step 4, a new-engine pitch asking for its reel is answered
+   `why: "engine"` and its share is refused the same way. Neither answer is stored, so
+   asking again later works. Matches of the older engine, the iPhone's among them, are
+   unaffected throughout.
+2. On `main`: `npm ci`, `npm run check`, then `npm run reels:bundle`. It prints a new
+   code key, the same layer key, and a function about 0.2 MB larger zipped and 0.7 MB
+   larger unzipped per engine.
+3. `AWS_PROFILE=cloud-engineer npm run infra:plan -- site`: **Modify** `ReelsFunction`
+   (the code key, and its environment `REEL_ENGINES`, for example `0.7` to `0.8,0.7`).
+   Also `PagesRevision` (REPLACEMENT) and `PagesEndpoint` if the pitch pages code
+   changed. The same evaluated-again list as in "Deploy" step 2. Anything added, an IAM
+   change, or another replacement is a stop.
+4. `AWS_PROFILE=cloud-engineer npm run infra:apply -- site`
+5. `AWS_PROFILE=cloud-engineer npm run infra:plan -- rooms`: **Modify** `RoomsFunction`
+   (environment `REEL_ENGINES` the same list, and new code only if its bundle changed),
+   with `RoomsIntegration` listed beside it as before. No change to `RoomsRole`.
+6. `AWS_PROFILE=cloud-engineer npm run infra:apply -- rooms`
+7. Commit the rewritten `infra/deployment.json` (`reels.engines`, `reels.codeKey`) in a
+   pull request.
+
+Check it, read only:
+
+- `aws lambda get-function-configuration` on `kubb-xyz-site-reels` and on
+  `kubb-xyz-rooms-rooms`: the same `REEL_ENGINES` on both, newest first.
+- The reel function's log: each line names the `engine` a render or check ran on, so
+  the first reel or share of each engine shows its version there
+  (`aws logs tail /aws/lambda/kubb-xyz-site-reels --since 15m`).
+
+### Dropping an engine (`node tools/vendor.mjs drop <mm>`, or `--drop`)
+
+The same steps, site then rooms, because the rooms stack reads the site stack's output.
+Run the two applies back to back. In the minutes between them, the rooms function still
+names the dropped engine. A reel requested then for one of its pitches is started and
+fails with `why: "engine"`, final. A share of it is refused, as it is after.
+
+After both, a pitch of the dropped engine asking for a reel is answered
+`why: "engine"`. A reel already made for it stays in `reels/` until the lifecycle rule
+expires it, and its `/p/<code>` keeps the `og:video`.
 
 ## Costs (estimates)
 

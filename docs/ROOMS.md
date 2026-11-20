@@ -899,7 +899,9 @@ The rooms function, which knows no Kubb, refuses on cheap signals first:
 1. the shape (`bad-message`), then the size: the whole message over 256 KB, `log` over
    1000 actions, or `start` over 16 KB is `too-long`;
 2. no renderer or store support: `unavailable`;
-3. `engine`'s major.minor not among the renderer's (`REEL_ENGINES`): `engine`;
+3. `engine`'s major.minor not among the renderer's (`REEL_ENGINES`, every engine the
+   site carries): `engine`. The renderer checks the match on that engine
+   (`docs/ENGINES.md`);
 4. shared before: the stored code (13.2), if its room is sealed and its document and
    replay are there; an incomplete share is never answered, and is replaced;
 5. the connection's 2 checks: `too-many`; the day's 200 checks (UTC days, a conditional

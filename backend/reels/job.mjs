@@ -9,17 +9,21 @@
 //           finishReel(code, job, fields) -> bool        sets the reel item's outcome,
 //                       only while it still carries `job`
 //   upload(key, file, contentType)                       one file to the site bucket
-//   render({ replay, code, out }) -> { files: { tall, wide, edit }, edit }
+//   render({ replay, code, out, engine, sources }) -> { files: { tall, wide, edit }, edit }
+//                       engine and sources: the carried engine the match was played on
 //
 // A match with nothing to show (no throw, or no moment picked) is failed with why
 // "empty" at once and never retried. Each attempt adds one to the item's `tries`, which
 // a stale takeover keeps, and an attempt past REEL_TRIES fails without rendering: a job
 // renders at most twice, Lambda's own retry included.
 //
-// It renders only a match played on the engine it carries: the tag names the engine's
-// major.minor, the replay says what it was played on, and both must be `engine`'s and
-// among `engines` (REEL_ENGINES). It logs the step, the engine and the outcome, never a
-// name: the replay's team and player names stay in the reel and the edit list.
+// It renders a match only on the engine it was played on (docs/ENGINES.md): the tag
+// names the engine's major.minor, the replay says what it was played on, and the two
+// must agree, be among `engines` (REEL_ENGINES) and be one the package carries
+// (`carried`, backend/reels/carried.mjs; `engine` alone is a set of one). A match of
+// any other engine fails with why "engine". It logs the step, the engine and the
+// outcome, never a name: the replay's team and player names stay in the reel and the
+// edit list.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -32,7 +36,7 @@ import {
   reelPaths,
   tagEngine,
 } from "./tag.mjs";
-
+import { carriedLookup } from "./carried.mjs";
 import { REEL_EMPTY } from "./highlights.mjs";
 
 const ROOM_CODE = /^[2-9a-hjkmnp-z]{8,24}$/; // as backend/rooms/core.mjs
@@ -54,16 +58,20 @@ export async function runReel({
   store,
   upload,
   render,
-  engine, // the engine version this renderer carries, "0.7.1"
+  carried, // the engines this renderer carries: { "0.7": { engine, sources } } or mm -> that
+  engine, // or one engine version, "0.7.1" (a set of one, sources from `render`)
+  sources,
   engines, // REEL_ENGINES, parsed: ["0.7"]
   tmp = os.tmpdir(),
   now = Date.now,
   log = (entry) => console.log(JSON.stringify(entry)),
 }) {
   const { room, v, tag } = input ?? {};
-  const carried = majorMinor(engine);
+  const lookup = carriedLookup({ carried, engine, sources });
+  // the engine the tag names, when this renderer carries it
+  const own = REEL_TAG.test(tag ?? "") ? lookup(tagEngine(tag)) : null;
   const say = (step, extra = {}) =>
-    log({ reel: room, v, tag, engine, step, ...extra });
+    log({ reel: room, v, tag, engine: own?.engine ?? null, step, ...extra });
   if (
     typeof room !== "string" ||
     !ROOM_CODE.test(room) ||
@@ -98,10 +106,10 @@ export async function runReel({
     const replay = JSON.parse(kept.data);
     const played = majorMinor(replay?.engine);
     if (
-      !carried ||
-      tagEngine(tag) !== carried ||
-      played !== carried ||
-      !engines.includes(carried)
+      !own ||
+      majorMinor(own.engine) !== played ||
+      tagEngine(tag) !== played ||
+      !engines.includes(played)
     )
       return await fail("engine");
     // a match with no throw (resigned before the first) has nothing to show
@@ -109,7 +117,13 @@ export async function runReel({
 
     say("render", { tries: tried.tries });
     out = fs.mkdtempSync(path.join(tmp, "reel-"));
-    const result = await render({ replay, code: room, out });
+    const result = await render({
+      replay,
+      code: room,
+      out,
+      engine: own.engine,
+      sources: own.sources,
+    });
     const keys = reelKeys(room, v, tag);
     for (const f of ["tall", "wide", "edit"])
       await upload(keys[f], result.files[f], REEL_TYPES[f]);
