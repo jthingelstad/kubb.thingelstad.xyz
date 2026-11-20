@@ -22,6 +22,12 @@ export const PRODUCTION_CONNECT = [
 export const FRAME_NEVER = "'none'";
 export const FRAME_ANYONE = "*";
 
+// The /playdate/ page shows the Playdate game's reel, its poster and a few
+// screens straight from the Playdate games site, where they are kept (the
+// one copy; Jamie, 2026-11-20: "reference the same file on that page"). That
+// one origin, for images and media only.
+export const PLAYDATE_SITE = "https://playdate.thingelstad.xyz";
+
 export function contentSecurityPolicy(
   connect = PRODUCTION_CONNECT,
   { frameAncestors = FRAME_NEVER } = {},
@@ -30,10 +36,10 @@ export function contentSecurityPolicy(
     "default-src 'self'",
     "script-src 'self' 'wasm-unsafe-eval' https://tinylytics.app",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://avatars.micro.blog https://tinylytics.app",
+    `img-src 'self' data: blob: https://avatars.micro.blog https://tinylytics.app ${PLAYDATE_SITE}`,
     "font-src 'self'",
     `connect-src ${connect.join(" ")}`,
-    "media-src 'self' data: blob:",
+    `media-src 'self' data: blob: ${PLAYDATE_SITE}`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
