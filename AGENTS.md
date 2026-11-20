@@ -334,8 +334,8 @@ and then rotate it goes back to the circular swing."): on a wide screen the box 
 whole safe height at its edge (10 px under the safe top to 7 px over the safe bottom, at
 most 450), MENU or the rail moves in beside it, 10 px off its body (`meterRoom`), the coach
 line hangs under its tab, the plan block never goes over the tab (`planAt`: the far edge,
-the minimap over the block or not drawn; where nothing fits, small near-square
-windows, the clock), and a finger grabs only the knob's channel, the
+the minimap over the block or not drawn; where nothing fits, or the header row's
+plates would meet, `headerPlates`, the clock: windows under about 580 px), and a finger grabs only the knob's channel, the
 rest of the body and the meter's half being throw zone. Keep these numbers the iPhone
 app's (`WideLayout`); a desktop window tall enough for the 450 px box is as before. It
 is a quarter shorter than it was first built (a tester, 2026-11-19: "Make it 1/4

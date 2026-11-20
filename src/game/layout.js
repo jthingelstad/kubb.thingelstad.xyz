@@ -104,13 +104,24 @@ export const tune = {
   // a minimap stacked over the plan block (a narrow wide canvas beside the
   // linear meter) keeps this many px under the header row, or is not drawn
   stackedMapGap: 10,
-  // the header row's plates in CSS px, for meterFits: MENU's width (63
-  // measured), the rail's widest (game.css max-width: 44vw) and the least
-  // it may be squeezed to beside a left-edge meter (the practice rail is
-  // about 124), and the px kept between the rail and MENU
+  // the header row's plates in CSS px (headerPlates), measured in the
+  // browser (tests/game/client.test.mjs holds the page to them): MENU (63)
+  // and SKIP (59) at plateEdge from the right, under one another; the
+  // tray's right edge at trayRight, practice's BATONS | KUBBS and RESET
+  // (222) or the watch view's THROWER'S VIEW (90); the rail at plateEdge
+  // from the left, practice's at most railPracticeW (124 measured, room for
+  // "TARGET 10.0 M"), its counts' widest while watching ("10 FIELD KUBBS
+  // ·  5 BASE KUBBS", 237: nowrap; the teams are North and South) and a
+  // match's up to game.css max-width 44vw, never under the counts' widest;
+  // headerGap px kept between the rail and the right corner's row
+  plateEdge: 12,
   menuW: 64,
+  skipW: 60,
+  trayRight: 100,
+  trayW: { practice: 222, watch: 90 },
+  railPracticeW: 140,
   railMaxW: 0.44,
-  railMinW: 124,
+  railCountsW: 237,
   headerGap: 8,
 };
 
@@ -228,20 +239,52 @@ export function meterRoom(L) {
   return room;
 }
 
-// Does a wide canvas's linear meter leave the header row room once MENU
-// or the rail has moved in beside it (meterRoom)? MENU must stay right of
-// the rail's widest, and a rail squeezed by a left-edge meter keeps
-// railMinW. Where it does not the clock is drawn instead.
-function headerFits(L) {
-  const r = L.meterRoom;
+// The header row's two plates as the page places them, with meterRoom's
+// shift: `rail` (top left, its widest) and `row` (top right: MENU with SKIP
+// under it, and the tray to their left in practice or while watching).
+// `header` is what the page's header holds: "practice", "watch" or null (a
+// match). In CSS px.
+export function headerPlates(L, header = null) {
+  const t = tune;
   const s = L.safe;
-  const railEnd = s.left + 12 + L.W * tune.railMaxW;
-  if (r.right > 0)
-    return (
-      L.W - s.right - 12 - r.right - tune.menuW >= railEnd + tune.headerGap
-    );
-  if (r.left > 0) return L.W * tune.railMaxW - r.left >= tune.railMinW;
-  return true;
+  const r = L.meterRoom || { left: 0, right: 0 };
+  // practice's rail has one count; watching's teams are North and South;
+  // a match's names are the players' own, so its rail may reach its widest
+  const railW =
+    header === "practice"
+      ? t.railPracticeW
+      : header === "watch"
+        ? t.railCountsW
+        : Math.max(L.W * t.railMaxW, t.railCountsW);
+  const reach = t.trayW[header]
+    ? t.trayRight + t.trayW[header]
+    : t.plateEdge + Math.max(t.menuW, t.skipW);
+  const top = s.top + 10;
+  return {
+    rail: {
+      x: s.left + t.plateEdge + r.left,
+      y: top,
+      width: railW,
+      height: t.railBox - 10,
+    },
+    row: {
+      x: L.W - s.right - r.right - reach,
+      y: top,
+      width: reach - t.plateEdge,
+      height: t.railH,
+    },
+  };
+}
+
+// Does a wide canvas's linear meter leave the header row room once its top
+// corner's plates have moved in beside it (meterRoom)? The rail at its
+// widest must end headerGap short of the right corner's row. Where it does
+// not the clock is drawn instead.
+function headerFits(L, header) {
+  const r = L.meterRoom;
+  if (!r.left && !r.right) return true;
+  const { rail, row } = headerPlates(L, header);
+  return rail.x + rail.width + tune.headerGap <= row.x;
 }
 
 // The screen's regions in CSS px. safe = { top, right, bottom, left }.
@@ -252,7 +295,8 @@ function headerFits(L) {
 // lower left on a wide canvas (the minimap takes the other bottom corner);
 // a tall canvas's clock is centred either way. opts.coarse: the screen is
 // a touchscreen, so a tall canvas's clock leaves room for a finger to go
-// round outside its rim (the layout's `track`).
+// round outside its rim (the layout's `track`). opts.header: what the
+// page's header row holds, "practice", "watch" or null (headerPlates).
 // The layout's `side` is where the plan buttons go: "left" or "right" of
 // the meter, or "both" (split either side of the throwing line). On a wide
 // canvas `plan` is the block's rect and `planEdge` the screen edge it is
@@ -264,7 +308,7 @@ export function layoutFor(
   safe = {},
   swipe = false,
   meter = "clock",
-  { side: edge = "right", coarse = false } = {},
+  { side: edge = "right", coarse = false, header = null } = {},
 ) {
   const s = { top: 0, right: 0, bottom: 0, left: 0, ...safe };
   const m = tune.margin;
@@ -365,7 +409,7 @@ export function layoutFor(
       track: false,
     };
     L.meterRoom = meterRoom(L);
-    if (headerFits(L)) return L;
+    if (headerFits(L, header)) return L;
   }
   const plansY = dial.y; // keep the side buttons in reach, beside the downstroke
   const plan = planAt(W, s, tall, coarse, side, dial, plansY, minimap);

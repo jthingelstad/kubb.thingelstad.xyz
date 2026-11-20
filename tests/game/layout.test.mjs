@@ -10,6 +10,7 @@ import {
   panFor,
   isTall,
   meterRoom,
+  headerPlates,
   linearFirst,
   inLinearZone,
   tune,
@@ -343,74 +344,72 @@ test("beside the linear meter the plan block never goes over the prompt tab", ()
   );
 });
 
-// Codex on web PR #71: a canvas where no placement keeps the plan block off
-// the tab must draw the clock, never a linear meter with a known collision.
+// Codex on web PR #71: a canvas where no placement keeps the plan block, the
+// tab and every header plate apart must draw the clock, never a linear meter
+// with a known collision. Each header row: a match (MENU, SKIP), practice
+// (its tray) and watching (the view tray).
 test("wherever the linear meter is drawn, nothing it brings overlaps", () => {
   const SAFES = [
     {},
     { left: 47, right: 47, bottom: 21 },
     { top: 24, bottom: 20 },
   ];
-  let linear = 0;
-  let clock = 0;
-  for (const safe of SAFES) {
-    const s = { top: 0, right: 0, bottom: 0, left: 0, ...safe };
-    for (let W = 360; W <= 1400; W += 20) {
-      for (let H = 300; H <= 900; H += 20) {
-        for (const side of ["right", "left"]) {
-          for (const coarse of [false, true]) {
-            const tag = `${JSON.stringify(safe)} ${W}x${H} ${side} ${coarse ? "touch" : "mouse"}`;
-            const L = layoutFor(W, H, safe, false, "linear", { side, coarse });
-            if (L.meter !== "linear") {
-              // the clock is the whole clock layout, nothing left of the meter
-              clock++;
-              assert.deepEqual(
-                L,
-                layoutFor(W, H, safe, false, "clock", { side, coarse }),
-                tag,
-              );
-              continue;
-            }
-            linear++;
-            assert.deepEqual(L.meterRoom, meterRoom(L), tag);
-            const g = linearGeometry(L.dial, L.meterSide);
-            const r = L.meterRoom;
-            const rects = {
-              meter: L.dial,
-              tab: tabRect(g),
-              plan: L.plan,
-              minimap: L.minimap,
-            };
-            if (!L.tall) {
-              // MENU's plate and the rail's widest, where meterRoom put them
-              rects.menu = {
-                x: W - s.right - 12 - r.right - tune.menuW,
-                y: s.top + 10,
-                width: tune.menuW,
-                height: tune.railH,
+  const count = {};
+  for (const header of [null, "practice", "watch"]) {
+    const n = (count[header] = { linear: 0, clock: 0 });
+    for (const safe of SAFES) {
+      const s = { top: 0, right: 0, bottom: 0, left: 0, ...safe };
+      for (let W = 360; W <= 1400; W += 20) {
+        for (let H = 300; H <= 900; H += 20) {
+          for (const side of ["right", "left"]) {
+            for (const coarse of [false, true]) {
+              const tag = `${header} ${JSON.stringify(safe)} ${W}x${H} ${side} ${coarse ? "touch" : "mouse"}`;
+              const opts = { side, coarse, header };
+              const L = layoutFor(W, H, safe, false, "linear", opts);
+              if (L.meter !== "linear") {
+                // the whole clock layout, nothing left of the meter
+                n.clock++;
+                assert.deepEqual(
+                  L,
+                  layoutFor(W, H, safe, false, "clock", opts),
+                  tag,
+                );
+                continue;
+              }
+              n.linear++;
+              assert.deepEqual(L.meterRoom, meterRoom(L), tag);
+              const rects = {
+                meter: L.dial,
+                tab: tabRect(linearGeometry(L.dial, L.meterSide)),
+                plan: L.plan,
+                minimap: L.minimap,
               };
-              rects.rail = {
-                x: s.left + 12 + r.left,
-                y: s.top + 10,
-                width: W * tune.railMaxW - r.left + tune.headerGap,
-                height: tune.railBox - 10,
-              };
-              if (r.left)
-                assert.ok(W * tune.railMaxW - r.left >= tune.railMinW, tag);
-            }
-            const names = Object.keys(rects).filter((k) => rects[k]);
-            for (const [i, a] of names.entries()) {
-              const q = rects[a];
-              assert.ok(
-                q.x >= s.left - 1e-9 &&
-                  q.y >= s.top - 1e-9 &&
-                  q.x + q.width <= W - s.right + 1e-9 &&
-                  q.y + q.height <= H - s.bottom + 1e-9,
-                `${tag}: ${a} inside the safe canvas`,
-              );
-              for (const b of names.slice(i + 1)) {
-                if (a === "meter" && b === "tab") continue; // the tab is the meter's
-                assert.ok(!overlaps(q, rects[b]), `${tag}: ${a} and ${b}`);
+              if (!L.tall) {
+                // the rail at its widest (with the gap kept after it) and the
+                // right corner's row, where meterRoom put them
+                const { rail, row } = headerPlates(L, header);
+                rects.rail = { ...rail, width: rail.width + tune.headerGap };
+                rects.row = row;
+              }
+              const names = Object.keys(rects).filter((k) => rects[k]);
+              for (const [i, a] of names.entries()) {
+                const q = rects[a];
+                assert.ok(
+                  q.x >= s.left - 1e-9 &&
+                    q.y >= s.top - 1e-9 &&
+                    q.x + q.width <= W - s.right + 1e-9 &&
+                    q.y + q.height <= H - s.bottom + 1e-9,
+                  `${tag}: ${a} inside the safe canvas`,
+                );
+                for (const b of names.slice(i + 1)) {
+                  if (a === "meter" && b === "tab") continue; // the meter's own
+                  // the rail and the row meet on a narrow window whatever the
+                  // meter (practice's tray, as with the clock): only a meter
+                  // that moves them in is held to keeping them apart
+                  const moved = L.meterRoom.left || L.meterRoom.right;
+                  if (a === "rail" && b === "row" && !moved) continue;
+                  assert.ok(!overlaps(q, rects[b]), `${tag}: ${a} and ${b}`);
+                }
               }
             }
           }
@@ -418,14 +417,22 @@ test("wherever the linear meter is drawn, nothing it brings overlaps", () => {
       }
     }
   }
-  // most of the sweep keeps the linear meter; small near-square windows
-  // (under about 560 px wide) give way to the clock
-  assert.ok(linear > 14000 && clock > 0, `${linear} linear, ${clock} clock`);
-  // the size Codex found: a touchscreen 400 x 350 draws the clock
-  assert.equal(
-    layoutFor(400, 350, {}, false, "linear", { coarse: true }).meter,
-    "clock",
-  );
+  // most of the sweep keeps the linear meter; small windows give way
+  for (const [h, n] of Object.entries(count))
+    assert.ok(n.linear > 13000 && n.clock > 0, `${h}: ${JSON.stringify(n)}`);
+  const meterAt = (W, H, header, side = "right", safe = {}) =>
+    layoutFor(W, H, safe, false, "linear", { side, coarse: true, header })
+      .meter;
+  // the size Codex found first: a touchscreen 400 x 350 draws the clock
+  assert.equal(meterAt(400, 350, null), "clock");
+  // and second: practice's tray at 480 x 350 would cover the rail
+  assert.equal(meterAt(480, 350, "practice"), "clock");
+  assert.equal(meterAt(480, 350, null), "linear");
+  // every phone on its side keeps it, in every mode
+  for (const [W, H, safe] of SIDEWAYS)
+    for (const header of [null, "practice", "watch"])
+      for (const side of ["right", "left"])
+        assert.equal(meterAt(W, H, header, side, safe), "linear", `${W}x${H}`);
 });
 
 test("a finger on a wide canvas: the knob's channel grabs, the body and the meter's half are throw zone", () => {

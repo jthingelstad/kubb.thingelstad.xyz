@@ -122,7 +122,7 @@ body.game {
   color: var(--ink);
   top: calc(var(--safe-top) + 10px);
   left: calc(var(--safe-left) + 12px + var(--meter-l));
-  max-width: calc(44vw - var(--meter-l));
+  max-width: 44vw;
   padding: 5px 12px 6px;
   border: 3px solid var(--ink);
   border-radius: 6px;
@@ -1028,6 +1028,14 @@ body.game {
   font-size: 13px;
   font-weight: 700;
 }
+/* beside a wide screen's linear meter (Game.placeRoom): it wraps rather
+   than reach the rail's widest (44vw) */
+.meter-room .update-note {
+  max-width: min(
+    420px,
+    calc(56vw - 32px - var(--meter-r) - var(--safe-left) - var(--safe-right))
+  );
+}
 
 /* the feedback card (src/ui/report.js) */
 .report {
@@ -1487,7 +1495,7 @@ body.game {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  max-width: calc(100% - 24px);
+  max-width: calc(100% - 24px - var(--meter-l) - var(--meter-r));
 }
 .shout-opts {
   display: flex;
