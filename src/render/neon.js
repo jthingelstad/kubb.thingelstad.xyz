@@ -1,4 +1,4 @@
-// The neon scene (a prototype, ?scene=neon only; src/render/scenes.js): a
+// The neon scene (src/render/scenes.js, docs/SCENES.md): a
 // black world on a floor of light. A grid runs to the horizon, the pitch is
 // brighter lines on it, and the pieces are dark solids edged in light: each
 // side in its own colour, the king in his, the stakes and batons white. A
