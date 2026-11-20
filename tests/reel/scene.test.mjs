@@ -75,6 +75,10 @@ test("a day match's reel is the day; a scene this copy does not draw is the day"
   const { out } = await shared("dusk");
   assert.equal(out.ok, true, JSON.stringify(out));
   const replay = JSON.parse(out.replay);
-  assert.equal(replay.setup.scene, "dusk", "kept as sent: the engine takes any id");
+  assert.equal(
+    replay.setup.scene,
+    "dusk",
+    "kept as sent: the engine takes any id",
+  );
   assert.equal(await reelScene(replay), "day");
 });
