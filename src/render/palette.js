@@ -218,7 +218,7 @@ export function setOf(name) {
 }
 
 // ---------- the night scene (src/render/night.js) ----------
-// A prototype behind ?scene=night only. Moonlight is cool and dim; the lines,
+// docs/SCENES.md. Moonlight is cool and dim; the lines,
 // the stakes and the glowing set give their own light; the stardust is warm.
 export const NIGHT = {
   sky: { top: "#02040b", mid: "#081127", low: "#16264a" },
@@ -368,7 +368,7 @@ NIGHT.skin = {
   },
 };
 
-// The neon (a prototype, ?scene=neon; src/render/neon.js): a black world on
+// The neon (src/render/neon.js, docs/SCENES.md): a black world on
 // a grid of light. The pieces are dark solids edged in light: each side in
 // its own colour (the team colours, brightened), the king in his own, the
 // stakes and batons white. A piece that lies is dimmed. The grid's colour
