@@ -20,6 +20,7 @@
 // the practice pitch, a match against the computer and watching the
 // computer. It is in no menu, never saved, sent or recorded.
 import { makeNight } from "./night.js";
+import { useSkin } from "./palette.js";
 
 export const DAY = { id: "day" };
 
@@ -33,4 +34,22 @@ export function sceneOf(id, opts = {}) {
 export function sceneFromQuery(search, opts = {}) {
   const want = new URLSearchParams(search || "").get("scene");
   return want === "night" ? sceneOf("night", opts) : null;
+}
+
+// The controls take the scene's skin (look.skin): the canvas HUD's colours
+// (palette.js useSkin) and the page's CSS tokens, set on the root element so
+// every token built on another resolves with it. No skin: the day's.
+const skinned = new Set();
+export function skinPage(look, root = globalThis.document?.documentElement) {
+  const skin = look?.skin || null;
+  useSkin(skin);
+  if (!root?.style) return;
+  for (const k of skinned) root.style.removeProperty(k);
+  skinned.clear();
+  for (const [k, v] of Object.entries(skin?.css || {})) {
+    root.style.setProperty(k, v);
+    skinned.add(k);
+  }
+  if (skin) root.dataset.scene = look.id;
+  else delete root.dataset.scene;
 }

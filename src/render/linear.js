@@ -15,7 +15,7 @@
 // is beside it, not above, because the track's length is the meter's room.
 //
 // st is the dial's state (render/dial.js).
-import { INK, PAPER, HUD, FONT } from "./palette.js";
+import { UI, HUD, FONT } from "./palette.js";
 import { ghostKnob, overFrom, tune as dialTune } from "./dial.js";
 
 export const tune = {
@@ -272,7 +272,7 @@ function target(ctx, g, c, a0, a1, fill, deep, lw) {
   band(ctx, g, c.lane, a0, a1);
   ctx.fillStyle = deep;
   ctx.fill();
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = UI.ink;
   across(ctx, g, c, a0, lw);
   across(ctx, g, c, a1, lw);
 }
@@ -280,7 +280,7 @@ function target(ctx, g, c, a0, a1, fill, deep, lw) {
 // The live peak: a solid dot in the lane.
 function laneDot(ctx, g, c, a, r, lw) {
   const y = armY(g, Math.max(-tune.range, Math.min(tune.range, a)));
-  ctx.fillStyle = PAPER;
+  ctx.fillStyle = UI.paper;
   ctx.beginPath();
   ctx.arc(c.laneC, y, r + lw, 0, Math.PI * 2);
   ctx.fill();
@@ -303,18 +303,18 @@ function tab(ctx, g, c, y, h, text, inverted) {
   const r = h * 0.22;
   const radii = c.dir < 0 ? [r, 0, 0, r] : [0, r, r, 0];
   const sh = g.sh * 0.8;
-  ctx.fillStyle = INK;
+  ctx.fillStyle = UI.drop;
   ctx.beginPath();
   ctx.roundRect(left + sh, y - h / 2 + sh, Math.abs(x1 - x0), h, radii);
   ctx.fill();
-  ctx.fillStyle = inverted ? INK : HUD.prompt;
-  ctx.strokeStyle = INK;
+  ctx.fillStyle = inverted ? UI.ink : HUD.prompt;
+  ctx.strokeStyle = UI.ink;
   ctx.lineWidth = Math.max(1.5, h * 0.1);
   ctx.beginPath();
   ctx.roundRect(left, y - h / 2, Math.abs(x1 - x0), h, radii);
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = inverted ? PAPER : HUD.promptInk;
+  ctx.fillStyle = inverted ? UI.paper : HUD.promptInk;
   ctx.fillText(text, (x0 + x1) / 2 + (c.dir * g.fr) / 4, y + h * 0.05);
 }
 
@@ -332,7 +332,7 @@ export function drawLinear(ctx, rect, st, side = "right") {
   ctx.lineCap = "round";
 
   // the body: hard shadow, ink frame
-  ctx.fillStyle = INK;
+  ctx.fillStyle = UI.ink;
   ctx.beginPath();
   ctx.roundRect(
     g.left + g.sh,
@@ -377,7 +377,7 @@ export function drawLinear(ctx, rect, st, side = "right") {
     band(ctx, g, c.lane, -R, -over);
     ctx.fillStyle = HUD.over;
     ctx.fill();
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = UI.ink;
     across(ctx, g, c, -over, lw);
   }
   // the targets: power behind the knob's home, release ahead of it
@@ -406,7 +406,7 @@ export function drawLinear(ctx, rect, st, side = "right") {
     const pr = Math.min((c.lane[1] - c.lane[0]) * 0.28, (y1 - y0) * 0.28);
     // a wooden peg: the knob's end grain, small
     ctx.fillStyle = HUD.knob;
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = UI.ink;
     ctx.lineWidth = lw;
     ctx.beginPath();
     ctx.arc(c.laneC, py, pr, 0, Math.PI * 2);
@@ -417,13 +417,13 @@ export function drawLinear(ctx, rect, st, side = "right") {
     ctx.arc(c.laneC, py, Math.max(0.8, pr * 0.3), 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = UI.ink;
   across(ctx, g, c, R, lw * 1.6);
   across(ctx, g, c, -R, lw * 1.6);
 
   // the lane's edge and the hours: ticked in from the lane to the slot, the
   // quarters (3, 9 and the 6 below) right across the face
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = UI.ink;
   ctx.lineWidth = lw;
   ctx.beginPath();
   ctx.moveTo(c.div, top);
@@ -444,18 +444,18 @@ export function drawLinear(ctx, rect, st, side = "right") {
 
   // the slot the knob runs in, stop to stop: an ink groove
   const sw = slotW;
-  ctx.fillStyle = INK;
+  ctx.fillStyle = UI.ink;
   ctx.beginPath();
   ctx.roundRect(c.kc - sw / 2, g.yF - sw / 2, sw, g.yB - g.yF + sw, sw / 2);
   ctx.fill();
 
   // home: the line a throw is flung through and the six's index in the lane
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = UI.ink;
   across(ctx, g, c, 0, lw * 2.4);
   const ix = (c.lane[1] - c.lane[0]) * 0.42;
   const iTip = c.div;
   const iBase = c.div - inward * ix;
-  ctx.fillStyle = INK;
+  ctx.fillStyle = UI.ink;
   ctx.beginPath();
   ctx.moveTo(iTip, g.y0);
   ctx.lineTo(iBase, g.y0 - ix * 0.85);
@@ -514,12 +514,12 @@ export function drawLinear(ctx, rect, st, side = "right") {
   ctx.restore(); // the body's clip
 
   // the knob: a little baton end, wood with an ink rim and end-grain rings
-  ctx.fillStyle = INK;
+  ctx.fillStyle = UI.ink;
   ctx.beginPath();
   ctx.arc(c.kc + kr * 0.18, ky + kr * 0.18, kr, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = st.grabbed ? HUD.knobGrab : HUD.knob;
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = UI.ink;
   ctx.lineWidth = lw * 1.8;
   ctx.beginPath();
   ctx.arc(c.kc, ky, kr, 0, Math.PI * 2);

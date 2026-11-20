@@ -177,6 +177,27 @@ export const BURST = {
   chip: ["#ecd2a0", "#b88a4f", "#f6e4bf", INK],
 };
 
+// The controls' skin: what the HUD draws with (the meters, the minimap, the
+// nudge, the bursts) besides HUD's and BURST's own colours. ink: lines and
+// type; paper: faces; drop: the hard shadow under a plate. A scene that
+// skins the controls (src/render/scenes.js, `skin`) changes these, HUD,
+// BURST and AIM through useSkin, and the page's CSS tokens through its css;
+// the day's are these, as they always were.
+export const UI = { ink: INK, paper: PAPER, drop: INK };
+BURST.ink = INK;
+const DAY_SKIN = {
+  ui: { ...UI },
+  hud: { ...HUD },
+  burst: { ...BURST },
+  aim: { ...AIM },
+};
+export function useSkin(skin = null) {
+  Object.assign(UI, DAY_SKIN.ui, skin?.ui);
+  Object.assign(HUD, DAY_SKIN.hud, skin?.hud);
+  Object.assign(BURST, DAY_SKIN.burst, skin?.burst);
+  Object.assign(AIM, DAY_SKIN.aim, skin?.aim);
+}
+
 // Type. Londrina Solid Black is the display face (bursts, prompts, numbers);
 // Inter is the label face. Never italic.
 export const FONT = {
@@ -291,4 +312,52 @@ export const NIGHT = {
   // the stardust: warm white and gold, with a little cool
   dust: ["#fff3cf", "#ffd56a", "#ffe9a8", "#bfefff"],
   kingDust: ["#ffe17a", "#fff2c0", "#ffb938", "#ffffff"],
+};
+
+// The night's controls (useSkin, and the page's CSS tokens): dark faces,
+// moonlit type and lines; the meter's bands keep their day colours, which
+// read on the dark face as on the light one.
+NIGHT.skin = {
+  ui: { ink: "#dbe9ff", paper: "#0d1424", drop: "rgba(0, 0, 0, 0.55)" },
+  hud: {
+    face: "#0d1424",
+    faceShade: "#152038",
+    frame: "#dbe9ff",
+    ring: "#1a2540",
+    tick: "#dbe9ff",
+    dead: "#2c3754",
+    hand: "#b9d3ff",
+    knob: "#e3edff",
+    knobGrab: "#ffffff",
+    glow: "rgba(150, 205, 255, 0.5)",
+    peak: "#dbe9ff",
+    prompt: "#0d1424",
+    promptInk: "#dbe9ff",
+    mapGrass: "#284a3b",
+    mapLine: "#e6f8ff",
+    wind: "#dbe9ff",
+    mapGround: {
+      grass: { rough: "#1a3329", pitch: "#284a3b", line: "#e6f8ff" },
+      sand: { rough: "#554c3e", pitch: "#6e6452", line: "#fff3dc" },
+      snow: { rough: "#61779c", pitch: "#9fb4d3", line: "#1f5fd0" },
+    },
+  },
+  burst: { flash: "#d9f6ff" },
+  aim: { track: "rgba(200, 225, 255, 0.2)" },
+  css: {
+    "--ink": "#dbe9ff",
+    "--paper": "#0d1424",
+    "--wood": "#1c2a45",
+    "--muted": "#a9bcdc",
+    "--stand-run": "#24452f",
+    "--stand-zone": "#17263a",
+    "--field": "#0a101d",
+    "--stem": "#8fb4e8",
+    "--knob-face": "#c9dcff",
+    "--held": "#1a2742",
+    "--shadow-sm":
+      "0 0 0 1px rgba(219, 233, 255, 0.18), 0 0 12px rgba(110, 180, 255, 0.35)",
+    "--shadow":
+      "0 0 0 1px rgba(219, 233, 255, 0.18), 0 0 16px rgba(110, 180, 255, 0.35)",
+  },
 };

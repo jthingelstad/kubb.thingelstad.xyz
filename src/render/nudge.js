@@ -13,7 +13,7 @@
 //           zoneFrom: the throw zone's top, of the canvas height,
 //           ceiling: on a wide canvas, the y the fingertip's flick stays under,
 //           caption: the plate's words, for its width }
-import { INK, PAPER, HUD, FONT } from "./palette.js";
+import { UI, HUD, FONT } from "./palette.js";
 import { dialGeometry, armPoint, tune as dialTune } from "./dial.js";
 import { linearGeometry, armY, tune as linearTune } from "./linear.js";
 
@@ -141,7 +141,7 @@ export function drawNudge(ctx, L, f, opts) {
 // ---------- the ghost knob ----------
 
 function ghostKnob(ctx, x, y, kr, lw) {
-  ctx.fillStyle = PAPER;
+  ctx.fillStyle = UI.paper;
   ctx.globalAlpha *= tune.ghostFill;
   ctx.beginPath();
   ctx.arc(x, y, kr, 0, Math.PI * 2);
@@ -149,7 +149,7 @@ function ghostKnob(ctx, x, y, kr, lw) {
   ctx.globalAlpha /= tune.ghostFill;
   ctx.save();
   ctx.globalAlpha *= tune.ghostLine;
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = UI.ink;
   ctx.lineWidth = lw;
   ctx.setLineDash(tune.dash);
   ctx.beginPath();
@@ -158,7 +158,7 @@ function ghostKnob(ctx, x, y, kr, lw) {
   ctx.setLineDash([]);
   ctx.beginPath();
   ctx.arc(x, y, kr * 0.16, 0, Math.PI * 2);
-  ctx.fillStyle = INK;
+  ctx.fillStyle = UI.ink;
   ctx.fill();
   ctx.restore();
 }
@@ -166,7 +166,7 @@ function ghostKnob(ctx, x, y, kr, lw) {
 function ghostArm(ctx, x0, y0, x1, y1, lw) {
   ctx.save();
   ctx.globalAlpha *= tune.ghostLine;
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = UI.ink;
   ctx.lineWidth = lw;
   ctx.setLineDash(tune.dash);
   ctx.beginPath();
@@ -205,12 +205,12 @@ function fingertip(ctx, p, f, finger) {
   if (f.ring && f.ring.a > 0) {
     ctx.save();
     ctx.globalAlpha *= f.ring.a;
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = UI.ink;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.arc(p.x, p.y, R * f.ring.k, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.strokeStyle = PAPER;
+    ctx.strokeStyle = UI.paper;
     ctx.lineWidth = 1.2;
     ctx.stroke();
     ctx.restore();
@@ -220,19 +220,19 @@ function fingertip(ctx, p, f, finger) {
   if (finger === "mouse") return pointer(ctx, x, y, sh);
   ctx.save();
   ctx.globalAlpha *= 0.35;
-  ctx.fillStyle = INK;
+  ctx.fillStyle = UI.drop;
   ctx.beginPath();
   ctx.arc(x + sh, y + sh, R, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
   ctx.save();
   ctx.globalAlpha *= tune.fingerFill;
-  ctx.fillStyle = PAPER;
+  ctx.fillStyle = UI.paper;
   ctx.beginPath();
   ctx.arc(x, y, R, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = UI.ink;
   ctx.lineWidth = 2.5;
   ctx.beginPath();
   ctx.arc(x, y, R, 0, Math.PI * 2);
@@ -265,14 +265,14 @@ function pointer(ctx, x, y, sh) {
   };
   ctx.save();
   ctx.globalAlpha *= 0.35;
-  ctx.fillStyle = INK;
+  ctx.fillStyle = UI.ink;
   path(sh * 0.4, sh * 0.4);
   ctx.fill();
   ctx.restore();
   path(0, 0);
-  ctx.fillStyle = PAPER;
+  ctx.fillStyle = UI.paper;
   ctx.fill();
-  ctx.strokeStyle = INK;
+  ctx.strokeStyle = UI.ink;
   ctx.lineWidth = 1.8;
   ctx.stroke();
 }

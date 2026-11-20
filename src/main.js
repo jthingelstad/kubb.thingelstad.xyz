@@ -32,7 +32,7 @@ import { MATCH_OPTIONS, useOlderEngine, useRoomEngine } from "./net/lobby.js";
 import { watchFreshness } from "./net/freshness.js";
 import { showUpdate } from "./ui/update.js";
 import { startEmbed, embedCode } from "./embed/embed.js";
-import { sceneFromQuery } from "./render/scenes.js";
+import { sceneFromQuery, skinPage } from "./render/scenes.js";
 
 const config = readConfig();
 const ui = document.getElementById("ui");
@@ -153,7 +153,10 @@ async function boot() {
       typeof matchMedia === "function" &&
       matchMedia("(prefers-reduced-motion: reduce)").matches;
     const look = sceneFromQuery(location.search, { reduced });
-    if (look) game.useLook(look);
+    if (look) {
+      game.useLook(look);
+      skinPage(look);
+    }
   }
   let pitch = null;
   // Feedback goes to the room server: none in this build, no SEND FEEDBACK.

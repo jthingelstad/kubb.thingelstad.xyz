@@ -20,6 +20,16 @@
   --power: #ff7a3d;
   --release: #33b6e8;
   --shadow-sm: 3px 3px 0 var(--ink);
+  /* the rest of the controls' colours; a scene's skin may set them all
+     (src/render/scenes.js skinPage), the day's are these */
+  --muted: #5b4a2c;
+  --stand-run: #b7c79a;
+  --stand-zone: #e9f0d6;
+  --field: #ffffff;
+  --stem: #7a5530;
+  --knob-face: #f2e2c0;
+  --held: #fffbea;
+  --on-accent: #16130f; /* type on marigold: dark in every scene */
 }
 
 body.game {
@@ -84,6 +94,7 @@ body.game {
 }
 .btn.go {
   background: var(--marigold);
+  color: var(--on-accent);
 }
 .btn.big {
   min-height: 60px;
@@ -146,7 +157,7 @@ body.game {
   white-space: nowrap;
 }
 .rail-counts {
-  color: #5b4a2c;
+  color: var(--muted);
 }
 
 .center {
@@ -219,6 +230,7 @@ body.game {
   border: 3px solid var(--ink);
   border-radius: 6px;
   background: var(--marigold);
+  color: var(--on-accent);
   font-family: var(--display);
   font-weight: 900;
   font-size: 22px;
@@ -317,7 +329,7 @@ body.game {
   position: absolute;
   inset: 6px 8px;
   border-radius: 2px;
-  background: #b7c79a;
+  background: var(--stand-run);
   pointer-events: none;
 }
 .stand-zone,
@@ -332,7 +344,7 @@ body.game {
   right: 0;
   top: calc(var(--limit) * 100%);
   bottom: 0;
-  background: #e9f0d6;
+  background: var(--stand-zone);
 }
 .stand-line {
   left: -2px;
@@ -361,7 +373,7 @@ body.game {
   box-sizing: border-box;
   border: 2.5px solid var(--ink);
   border-radius: 50%;
-  background: #ffffff;
+  background: var(--field);
 }
 .stand-mark::after {
   content: "";
@@ -554,7 +566,7 @@ body.game {
   border-radius: 3px;
 }
 .slider-stem {
-  background: #7a5530;
+  background: var(--stem);
   border-radius: 2px;
 }
 .slider-tick {
@@ -574,7 +586,7 @@ body.game {
   box-sizing: border-box;
   border: 2.5px solid var(--ink);
   border-radius: 50%;
-  background: #f2e2c0;
+  background: var(--knob-face);
   box-shadow: 2px 2px 0 var(--ink);
 }
 .slider-knob::before,
@@ -585,18 +597,18 @@ body.game {
 }
 .slider-knob::before {
   inset: 4px;
-  border: 1.5px solid #7a5530;
+  border: 1.5px solid var(--stem);
 }
 .slider-knob::after {
   inset: 8.5px;
-  background: #7a5530;
+  background: var(--stem);
 }
 .slider.held .slider-knob {
-  background: #ffffff;
+  background: var(--field);
   transform: scale(1.08);
 }
 .slider.held {
-  background: #fffbea;
+  background: var(--held);
 }
 
 /* ARC, vertical: the run from a little above the foot to a little below
@@ -898,7 +910,7 @@ body.game {
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #5b4a2c;
+  color: var(--muted);
 }
 .row {
   display: flex;
@@ -976,7 +988,7 @@ body.game {
   padding: 6px 10px;
   border: 3px solid var(--ink);
   border-radius: 6px;
-  background: #fff;
+  background: var(--field);
   font: 700 17px var(--jt-font-body);
   color: var(--ink);
   user-select: text;
@@ -1019,7 +1031,7 @@ body.game {
   margin: 12px 0 0;
   font-size: var(--jt-size-meta);
   font-weight: 600;
-  color: #5b4a2c;
+  color: var(--muted);
   text-align: center;
   user-select: text;
   -webkit-user-select: text;
@@ -1178,7 +1190,7 @@ body.game {
   padding: 8px 10px;
   border: 3px solid var(--ink);
   border-radius: 6px;
-  background: #fff;
+  background: var(--field);
   font: 500 16px/1.4 var(--jt-font-body);
   color: var(--ink);
   resize: vertical;
@@ -1218,7 +1230,7 @@ body.game {
   padding: 8px 10px;
   border: 3px solid var(--ink);
   border-radius: 6px;
-  background: #fff;
+  background: var(--field);
   font: 500 13px/1.45 var(--jt-font-mono);
   color: var(--ink);
   white-space: pre-wrap;
@@ -1326,7 +1338,7 @@ body.game {
   padding: 8px 10px 10px;
   border: 3px solid var(--ink);
   border-radius: 6px;
-  background: #fff;
+  background: var(--field);
 }
 .card .team-head {
   margin: -8px -10px 2px;
@@ -1402,7 +1414,7 @@ body.game {
 }
 .card .team-empty {
   margin: 0;
-  color: #5b4a2c;
+  color: var(--muted);
   font-size: 14px;
 }
 .team .btn {
@@ -1481,12 +1493,14 @@ body.game {
 }
 .card .whose.mine {
   background: var(--marigold);
+  color: var(--on-accent);
 }
 .status.theirs {
   background: var(--paper);
 }
 .status.mine {
   background: var(--marigold);
+  color: var(--on-accent);
 }
 
 .net {
@@ -1704,7 +1718,7 @@ body.embed .replay-controls {
   padding: 8px 10px;
   border: 3px solid var(--ink);
   border-radius: 6px;
-  background: #fff;
+  background: var(--field);
   font: 500 13px/1.45 var(--jt-font-mono);
   resize: none;
   user-select: text;
@@ -1736,13 +1750,14 @@ body.embed .replay-controls {
   overflow: hidden;
   border: 3px solid var(--ink);
   border-radius: 6px;
-  background: #fff;
+  background: var(--field);
 }
 .reel-bar > span {
   position: absolute;
   inset: 0 auto 0 0;
   width: 34%;
   background: var(--marigold);
+  color: var(--on-accent);
   border-right: 3px solid var(--ink);
   animation: reel-bar 4.5s ease-in-out infinite alternate;
 }

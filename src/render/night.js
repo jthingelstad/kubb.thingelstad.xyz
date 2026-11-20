@@ -177,6 +177,8 @@ function visible(n) {
 const MOON = dirOf(tune.moonAz, tune.moonEl);
 
 function skyBody(ctx, cam, kx, B, scene, part) {
+  if (part === TWINKLE)
+    return twinklers(ctx, cam, kx, B, stars(), scene.time || 0, part);
   const S = NIGHT.sky;
   // the gradient: deep overhead, a little lighter down at the rim
   // (a direction a little under the horizon, so the sky is the same wherever
@@ -205,7 +207,6 @@ function skyBody(ctx, cam, kx, B, scene, part) {
 
   const st = stars();
   const t = scene.time || 0;
-  if (part === TWINKLE) return twinklers(ctx, cam, kx, B, st, t, part);
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   // the milky band's haze, a row of faint glows along it
@@ -833,6 +834,7 @@ export function makeNight({ reduced = false } = {}) {
     ly = tune.lightY;
   return {
     id: "night",
+    skin: NIGHT.skin,
     reduced,
     set: "glow",
     groundOf: (surface) => GROUNDS[surface] || GROUNDS.grass,

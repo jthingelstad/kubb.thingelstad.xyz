@@ -12,7 +12,7 @@
 //   baton       { x, y }: the baton in flight, or null
 //   land        { x, y }: where the last throw landed, or null
 //   surface     'grass' | 'sand' | 'snow'
-import { INK, PAPER, TEAM, AIM, HUD, FONT, groundOf } from "./palette.js";
+import { UI, TEAM, AIM, HUD, FONT, groundOf } from "./palette.js";
 
 export const tune = {
   pad: 0.06, // of the plaque's width: paper round the pitch
@@ -43,7 +43,8 @@ export function toMap(g, x, y) {
 
 export function drawMinimap(ctx, rect, st) {
   const g = minimapGeometry(rect, !!(st.wind && st.wind.text));
-  const G = groundOf(st.surface);
+  const G =
+    HUD.mapGround?.[st.surface] || HUD.mapGround?.grass || groundOf(st.surface);
   const { s, pad } = g;
   const lw = Math.max(1, s * 0.12);
   ctx.save();
@@ -55,8 +56,9 @@ export function drawMinimap(ctx, rect, st) {
     fy = g.y - pad - tune.frame,
     fw = g.w + 2 * (pad + tune.frame),
     fh = g.h + 2 * (pad + tune.frame);
-  ctx.fillStyle = INK;
+  ctx.fillStyle = UI.drop;
   ctx.fillRect(fx + tune.shadow, fy + tune.shadow, fw, fh);
+  ctx.fillStyle = UI.ink;
   ctx.fillRect(fx, fy, fw, fh);
   ctx.fillStyle = G.rough;
   ctx.fillRect(
@@ -91,7 +93,7 @@ export function drawMinimap(ctx, rect, st) {
   if (st.marker) {
     const [mx, my] = toMap(g, st.marker.x, st.marker.y);
     ctx.fillStyle = "rgba(255, 246, 200, 0.35)";
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = UI.ink;
     ctx.lineWidth = lw;
     ctx.beginPath();
     ctx.arc(mx, my, Math.max(3, st.marker.r * s), 0, Math.PI * 2);
@@ -106,20 +108,20 @@ export function drawMinimap(ctx, rect, st) {
     const y = Math.min(7.85, Math.max(0.15, p.y));
     const [x, yy] = toMap(g, Math.min(2.6, Math.max(-2.6, p.x)), y);
     if (p.kind === "baton") {
-      ctx.fillStyle = INK;
+      ctx.fillStyle = UI.ink;
       ctx.fillRect(x - s * 0.15, yy - s * 0.04, s * 0.3, Math.max(1, s * 0.08));
       continue;
     }
     const king = p.kind === "king";
     const r = Math.max(king ? 3 : 2.2, s * (king ? 0.17 : 0.12));
     const fill = king
-      ? PAPER
+      ? UI.paper
       : p.team && TEAM[p.team]
         ? TEAM[p.team].fill
-        : PAPER;
+        : UI.paper;
     // a thin edge, so the team's colour still shows on a small plaque
     ctx.lineWidth = Math.max(1, Math.min(lw, r * 0.4));
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = UI.ink;
     if (p.toppled) {
       ctx.fillStyle = "rgba(23, 20, 15, 0.25)";
       ctx.fillRect(x - r * 1.4, yy - r * 0.7, r * 2.8, r * 1.4);
@@ -130,7 +132,7 @@ export function drawMinimap(ctx, rect, st) {
       ctx.strokeRect(x - r, yy - r, 2 * r, 2 * r);
       if (king) {
         // a crown's points on top
-        ctx.fillStyle = INK;
+        ctx.fillStyle = UI.ink;
         ctx.beginPath();
         ctx.moveTo(x - r, yy - r);
         ctx.lineTo(x - r, yy - r * 1.9);
@@ -161,7 +163,7 @@ export function drawMinimap(ctx, rect, st) {
         fh - 2 * tune.frame,
       );
       ctx.clip();
-      ctx.strokeStyle = INK;
+      ctx.strokeStyle = UI.ink;
       ctx.lineWidth = lw * 2.4;
       ctx.beginPath();
       ctx.moveTo(px, py);
@@ -175,7 +177,7 @@ export function drawMinimap(ctx, rect, st) {
     const a = s * 0.22;
     const ty = Math.min(py, fy + fh - tune.frame - a * 1.6);
     ctx.fillStyle = AIM.thrower;
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = UI.ink;
     ctx.lineWidth = lw;
     ctx.beginPath();
     ctx.moveTo(px, ty - a);
@@ -188,7 +190,7 @@ export function drawMinimap(ctx, rect, st) {
   if (st.land) {
     const [lx, ly] = toMap(g, st.land.x, st.land.y);
     const c = s * 0.16;
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = UI.ink;
     ctx.lineWidth = lw * 1.4;
     ctx.beginPath();
     ctx.moveTo(lx - c, ly - c);
@@ -203,7 +205,7 @@ export function drawMinimap(ctx, rect, st) {
       Math.min(2.6, Math.max(-2.6, st.baton.x)),
       Math.min(8.1, Math.max(-0.1, st.baton.y)),
     );
-    ctx.fillStyle = INK;
+    ctx.fillStyle = UI.ink;
     ctx.beginPath();
     ctx.arc(bx, by, s * 0.13, 0, Math.PI * 2);
     ctx.fill();
@@ -229,7 +231,7 @@ export function drawMinimap(ctx, rect, st) {
         ctx.moveTo(qx, qy);
         ctx.lineTo(hx - ux * hl * 0.6, hy - uy * hl * 0.6);
       };
-      ctx.strokeStyle = INK;
+      ctx.strokeStyle = UI.ink;
       ctx.lineWidth = lw * 2.6;
       path();
       ctx.stroke();
@@ -238,7 +240,7 @@ export function drawMinimap(ctx, rect, st) {
       path();
       ctx.stroke();
       ctx.fillStyle = HUD.wind;
-      ctx.strokeStyle = INK;
+      ctx.strokeStyle = UI.ink;
       ctx.lineWidth = lw;
       ctx.beginPath();
       ctx.moveTo(hx + ux * hl * 0.3, hy + uy * hl * 0.3);
@@ -259,9 +261,9 @@ export function drawMinimap(ctx, rect, st) {
       );
       const x = fx + fw / 2 - w / 2,
         y = fy - h - h * 0.25;
-      ctx.fillStyle = INK;
+      ctx.fillStyle = UI.ink;
       ctx.fillRect(x, y, w, h);
-      ctx.fillStyle = PAPER;
+      ctx.fillStyle = UI.paper;
       ctx.fillText(st.wind.text, x + w / 2, y + h / 2 + 0.5);
     }
   }
