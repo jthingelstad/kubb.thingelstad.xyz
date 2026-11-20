@@ -84,7 +84,8 @@ set's emblems from 34, the king's ring and diamond from 40, bevelled edges from 
 has thin inner edges and a bold silhouette (1 to 3.4 px by size). A team's kubbs carry a ring
 of the team colour at the foot. The king has two V cuts in each side making the crown's points,
 an ink collar, and in a painted set its crown painted and the set's emblem. A baton is a
-cylinder with two bands, its end grain on the end you can see.
+plain wood cylinder, its end grain on the end you can see: no bands, and the same in every
+set, which paints only kubbs and the king (Jamie, 2026-11-20).
 
 **Depth order.** Pieces are sorted by centre depth, then every pair whose screen boxes overlap is
 ordered by `frontOf`: the separating axis that parts the two boxes most (for pieces in contact,
@@ -143,7 +144,7 @@ All in `palette.js`; the rest of the client takes its colours from there too.
 | Lines                                    | white `#ffffff`; on snow blue `#4f86c6`, since white vanishes there                                  |
 | Wood (birch)                             | top `#f6e4bf`, lit side `#ecd2a0`, shade `#b88a4f`, end `#e2bf86`, grain `#c79d63`                   |
 | Stakes                                   | `#c9a06a` / `#8a6234`, older and darker than the pieces                                              |
-| Baton bands, king's marks                | `#6b4a2b`, `#2a2118`                                                                                 |
+| King's marks                             | `#2a2118`                                                                                            |
 | Dial                                     | power target `#ff7a3d`, release target `#33b6e8`, overpowered `#e5484d`, dead slice `#c9bfa9` dotted |
 | Bursts                                   | star ink with a `#ffd23f` inside, the word white, the flash `#fff6c8`                                |
 

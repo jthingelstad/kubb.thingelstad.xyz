@@ -66,16 +66,14 @@ export function king(x, ground, h = 130) {
 </g>`;
 }
 
-// A baton in flight: white with two ink bands, turned by angle (degrees).
+// A baton in flight: plain, no bands, turned by angle (degrees). Batons are
+// always plain (Jamie, 2026-11-20).
 export function baton(cx, cy, len = 150, angle = -30) {
   const t = len * 0.15;
   const sw = Math.max(2, len * 0.03);
-  const band = len * 0.08;
   return `<g transform="translate(${r(cx)} ${r(cy)}) rotate(${angle})">
 <rect x="${r(-len / 2 + t * 0.4)}" y="${r(-t / 2 + t * 0.4)}" width="${r(len)}" height="${r(t)}" rx="${r(t / 2)}" fill="${C.ink}"/>
 <rect x="${r(-len / 2)}" y="${r(-t / 2)}" width="${r(len)}" height="${r(t)}" rx="${r(t / 2)}" fill="${C.baton}" stroke="${C.ink}" stroke-width="${r(sw)}"/>
-<rect x="${r(-len * 0.3)}" y="${r(-t / 2)}" width="${r(band)}" height="${r(t)}" fill="${C.ink}"/>
-<rect x="${r(len * 0.3 - band)}" y="${r(-t / 2)}" width="${r(band)}" height="${r(t)}" fill="${C.ink}"/>
 </g>`;
 }
 

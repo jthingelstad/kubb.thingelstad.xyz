@@ -66,9 +66,6 @@ export const WOOD = {
 // The stakes: darker, older wood.
 export const STAKE = { light: "#c9a06a", shade: "#8a6234", end: "#b38550" };
 
-// A baton's two bands.
-export const BATON_BAND = "#6b4a2b";
-
 // The painted kubb sets (playdate-kubb AGENTS.md "Kubb sets"): only the head
 // of a kubb and the king's crown are painted; the bodies stay bare wood.
 // Each band is { from, to, paint } as fractions of the kubb's length from its
