@@ -474,14 +474,14 @@ test("the version label: package.json's version and the newest engine's, never t
   const sha = "a2659b744210e4c5baa5b69c672e11ec87f9bfab";
   const release = releaseOf(pkg.version, sha, carried);
   assert.equal(release.text, `${pkg.version} (${carried[0].version})`);
-  // this checkout: 0.6.0 on 0.9.0, also playing 0.8.2 and 0.7.4
-  assert.equal(release.text, "0.6.0 (0.9.0)");
+  // this checkout: 0.7.0 on 0.9.0, also playing 0.8.2 and 0.7.4
+  assert.equal(release.text, "0.7.0 (0.9.0)");
   assert.equal(release.detail, "Also plays 0.8.2 and 0.7.4");
   assert.equal(release.web, sha, "the commit stays the exact identity");
   // one engine carried: no detail
   assert.equal(releaseOf("0.2.0", sha, carried.slice(0, 1)).detail, null);
   const foot = footer(release.text);
-  assert.match(foot, /data-release>Version 0\.6\.0 \(0\.9\.0\)<\/p>/);
+  assert.match(foot, /data-release>Version 0\.7\.0 \(0\.9\.0\)<\/p>/);
   assert.ok(!foot.includes(sha.slice(0, 7)));
 });
 
@@ -491,7 +491,7 @@ test("the landing site: / is the game, /web/ the web game, each nav page a page"
   for (const p of ["/", "/web/", "/rules/", "/privacy/"])
     assert.ok(paths.includes(p), p);
   // the footer: the nav, then Rules and Privacy, the current page marked
-  const foot = footer("0.6.0 (0.9.0)", "/love/");
+  const foot = footer("0.7.0 (0.9.0)", "/love/");
   for (const href of [...NAV.map((n) => n.href), "/rules/", "/privacy/"])
     assert.ok(foot.includes(`href="${href}"`), href);
   assert.match(foot, /href="\/love\/" aria-current="page"/);
