@@ -643,10 +643,13 @@ every older minor kept with `vendor:sync --keep`. Today that is one, 0.7.4.
 - **The tag** names the match's engine, never the newest: `r<look>-<major.minor>`. A 0.7
   match has `r1-0.7` before and after the site moves to 0.8. Its reel item and files
   keep their key: asking again answers the done reel, and nothing renders again. A 0.8
-  match gets `r1-0.8`. If 0.7 is later dropped, a new request for a 0.7 match is
-  answered `why: "engine"`. Its reel already made stays in the bucket until the
-  lifecycle rule expires it, and `/p/<code>` still links it: the pages function reads
-  the done reel item and never looks at the engine.
+  match gets `r1-0.8`. If 0.7 is later dropped, a reel already made for a 0.7 match
+  is still answered `done`: the rooms function looks for the done item under the
+  match's own tag before it checks the engine, so the app keeps showing it, and
+  `/p/<code>` still links it (the pages function never looks at the engine). It stays
+  until the lifecycle rule expires it. A 0.7 match with no reel made, or one whose
+  render never finished, is answered `why: "engine"`, and nothing is started. A 0.7
+  share is refused.
 - A match from before `match.engine` was written has no engine and gets no reel.
 
 `docs/REEL-RUNBOOK.md` "Adding or dropping an engine" has the deploy order.

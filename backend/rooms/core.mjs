@@ -717,14 +717,20 @@ export function createRooms({
     } catch {
       engine = null;
     }
-    // A match from another engine is never rendered on this one: its throws could go
-    // differently from what was played.
-    if (!engine || !reelEngines.includes(engine))
-      return answer({ v: kept.v, reel: null, why: "engine" });
+    if (!engine) return answer({ v: kept.v, reel: null, why: "engine" });
+    // The tag names the match's own engine, carried or not.
     const tag = reelTag(engine);
     const job = reelJob(kept.v, tag);
     const t = now();
     const staleBefore = t - limits.reelStaleMs;
+    // A reel already made is answered even once its engine is no longer carried
+    // (docs/REEL.md "Engines"): it is files in the bucket, and nothing renders.
+    if (item && item.job === job && item.state === "done")
+      return answer({ v: kept.v, reel: reelView(item, staleBefore) });
+    // A match from another engine is never rendered on one it was not played on: its
+    // throws could go differently from what was played.
+    if (!reelEngines.includes(engine))
+      return answer({ v: kept.v, reel: null, why: "engine" });
     // A render "rendering" long past its start died without a word (Lambda stopped,
     // the invoke was lost): the next request may start it again, unless it was tried
     // as often as it may be (then it is shown as failed).
