@@ -215,6 +215,60 @@ browserTest(
 );
 
 browserTest(
+  "START pressed before the room's older engine has loaded waits for it and starts on it",
+  async () => {
+    const code = makeRoomCode();
+    const host = await join(code, "Hanna");
+    // the host's 0.7 bundle is held back until START has been pressed
+    let release;
+    const held = new Promise((r) => (release = r));
+    const lua = await host.evaluate(
+      () => window.__kubb.config.engines["0.7"].luaUrl,
+    );
+    await host.route(`**${lua}`, async (route) => {
+      await held;
+      await route.continue();
+    });
+    const guest = await join(code, "Ola");
+    try {
+      await host.click("[data-test=join-A]");
+      await guest.click("[data-test=join-B]");
+      await waitFor(
+        guest,
+        () => window.__kubb.pitch.room.me.engines?.length === 2,
+      );
+      await freeze(guest, { engine: "0.7" });
+      await sawMember(host, "0.7");
+      await waitFor(
+        host,
+        () => window.__kubb.pitch.room.me.engine === "0.7+engines",
+      );
+      assert.equal(await roomEngine(host), "0.7");
+      assert.equal(
+        await host.evaluate(() => window.__kubb.engines.loaded("0.7")),
+        null,
+        "0.7 has not loaded on the host yet",
+      );
+      await host.click("[data-test=lobby-start]");
+      await host.waitForTimeout(200);
+      assert.equal(
+        await host.evaluate(() => window.__kubb.pitch.mode),
+        "lobby",
+      );
+      release();
+      await waitFor(guest, () => window.__kubb.pitch.mode === "match");
+      const [h, g] = await Promise.all([pst(host), pst(guest)]);
+      assert.equal(h.matchEngine, "0.7");
+      assert.deepEqual([h.engine, g.engine], ["0.7.4", "0.7.4"]);
+      for (const p of [host, guest]) assert.deepEqual(p.errors, []);
+    } finally {
+      release();
+      await close(host, guest);
+    }
+  },
+);
+
+browserTest(
   "a player on 0.7 alone (an older tab) moves the pitch to 0.7: both play it on 0.7.4, the rider names it, and the lobby is back on 0.8 after",
   async () => {
     const code = makeRoomCode();
