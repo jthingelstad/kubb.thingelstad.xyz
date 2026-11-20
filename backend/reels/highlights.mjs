@@ -1,5 +1,5 @@
 // The highlights of one match: which throws make the reel, in what order, with what
-// caption and for how long. Pure: it takes the facts tools/reel/scan.mjs reads from the
+// caption and for how long. Pure: it takes the facts backend/reels/scan.mjs reads from the
 // engine's recordings (the result, the timeline's touches and bursts, the pieces
 // standing before and after) and knows no engine, canvas or file. Its numbers are all
 // in `tune`; tests/reel/highlights.test.mjs pins its choices.
@@ -8,7 +8,7 @@
 //   edit.moments: [{ i, kind, score, caption, shots, seconds, ... }] in match order,
 //   the end of the match last; edit.seconds the reel's length with its cards.
 //
-// A moment's shots say which reel camera (tools/reel/cameras.mjs) films which part of
+// A moment's shots say which reel camera (backend/reels/cameras.mjs) films which part of
 // the throw's recording and at what rate: rate 1 is the throw's own time, 0.3 a third
 // of it (slow motion: more simulated frames per second of the reel, never fewer).
 
