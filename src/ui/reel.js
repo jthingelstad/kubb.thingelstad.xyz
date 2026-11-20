@@ -7,6 +7,7 @@
 //   const reel = new Reel({ root, game, code, url, match: { n, hash }, known });
 //   reel.button("small", { "data-test": "..." })   // as many as are shown; all follow
 //   reel.open()                                     // what the button does
+//   reel.start()                                    // ask for it, card closed
 //   reel.destroy()
 //
 // It takes a pitch code and nothing else of the page, so a match against the computer can
@@ -47,8 +48,9 @@ export class Reel {
   // root: the element cards go in; game: the Game (modal count), or null; code: the
   // pitch; url: the rooms server; match: { n, hash } of the match shown, to be sure the
   // room's kept replay is this match (read afresh before every ask that could start a
-  // render); known: the page's own word that the reel is done (reelFromPage);
-  // WebSocket: for tests.
+  // render); known: the page's own word that the reel is done (reelFromPage); link:
+  // show the pitch's link and COPY LINK in every state (a match just shared, whose link
+  // is new); WebSocket: for tests.
   constructor({
     root,
     game = null,
@@ -56,9 +58,10 @@ export class Reel {
     url,
     match = null,
     known = null,
+    link = false,
     WebSocket = null,
   }) {
-    Object.assign(this, { root, game, code, url, match });
+    Object.assign(this, { root, game, code, url, match, link });
     this.ws = WebSocket ? { WebSocket } : {};
     this.state = reelStart(known);
     this.buttons = new Set();
@@ -106,6 +109,13 @@ export class Reel {
     this.dispatch({ type: "press" });
     if (!this.card) this.show();
     this.draw();
+    this.pump(true);
+  }
+
+  // Ask for the reel without showing the card: a match shared while its share card was
+  // closed (SHARE AND MAKE THE REEL was the press). The button says how it goes.
+  start() {
+    this.dispatch({ type: "press" });
     this.pump(true);
   }
 
@@ -217,6 +227,15 @@ export class Reel {
       );
     if (v.text)
       body.append(h("p.reel-text", { "data-test": "reel-text" }, v.text));
+    if (this.link)
+      body.append(
+        h(
+          "p.reel-text.reel-link",
+          { "data-test": "reel-link" },
+          "The link: ",
+          h("span.reel-url", this.pageLink()),
+        ),
+      );
     this.video = null;
     const status = h("p.sheet-status", {
       role: "status",
@@ -227,6 +246,7 @@ export class Reel {
       body.append(this.videoEl(v.video));
       actions.push(...this.doneActions(v.video, status));
     }
+    if (this.link && !v.video) actions.push(this.copyButton(status));
     if (v.retry)
       actions.push(
         button("TRY AGAIN", () => this.open(), "go", {
@@ -277,7 +297,6 @@ export class Reel {
 
   doneActions(files, status) {
     const say = (text) => (status.textContent = text);
-    const link = `${EMBED_ORIGIN}/p/${this.code}`;
     const download = (format) =>
       h(
         `a.btn${format === "tall" ? ".go" : ""}`,
@@ -317,21 +336,28 @@ export class Reel {
         ),
       );
     }
-    out.push(
-      button(
-        "COPY LINK",
-        async () => {
-          try {
-            await navigator.clipboard.writeText(link);
-            say("Copied the link.");
-          } catch {
-            say(`Could not copy. The link is ${link}`);
-          }
-        },
-        "",
-        { "data-test": "reel-copy" },
-      ),
-    );
+    out.push(this.copyButton(status));
     return out;
+  }
+
+  pageLink() {
+    return `${EMBED_ORIGIN}/p/${this.code}`;
+  }
+
+  copyButton(status) {
+    const link = this.pageLink();
+    return button(
+      "COPY LINK",
+      async () => {
+        try {
+          await navigator.clipboard.writeText(link);
+          status.textContent = "Copied the link.";
+        } catch {
+          status.textContent = `Could not copy. The link is ${link}`;
+        }
+      },
+      "",
+      { "data-test": "reel-copy" },
+    );
   }
 }

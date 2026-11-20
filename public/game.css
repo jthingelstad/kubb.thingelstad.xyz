@@ -1757,6 +1757,34 @@ body.embed .replay-controls {
   height: min(58vh, 640px);
   aspect-ratio: 9 / 16;
 }
+/* the link of a match just shared, and the share card (src/ui/share.js) */
+.reel-url {
+  font-family: var(--jt-font-mono);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.share-name {
+  grid-template-columns: 1fr;
+}
+.share-name .name {
+  width: 100%;
+}
+.share-name + .reel-text {
+  margin-top: 10px;
+}
+.share-name .name::placeholder {
+  color: rgba(0, 0, 0, 0.45);
+}
+.share-when {
+  font-size: 13px;
+}
+.share-say {
+  min-height: 1.45em;
+  margin: 4px 0 0;
+  font-weight: 800;
+}
 
 /* ---------- a tall screen (a phone held upright) ---------- */
 

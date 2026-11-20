@@ -22,6 +22,8 @@ import { showHowto, shouldShowHowto } from "./ui/howto.js";
 import { h, button } from "./ui/dom.js";
 import { startPitch } from "./net/pitch.js";
 import { openReport } from "./ui/report.js";
+import { Share } from "./ui/share.js";
+import { shareable } from "./net/share.js";
 import { openSheet } from "./ui/sheet.js";
 import { recordMatch } from "./net/record.js";
 import { clientLabel, LOCATION } from "./net/sync.js";
@@ -283,11 +285,17 @@ function startPractice(game, cards) {
 function startSolo(game, cards, { sheet, record }) {
   game.seat = { sides: ["A"], cpu: true };
   game.localSide = "A";
+  // MAKE A HIGHLIGHT REEL on the winner card: the match is shared (with the name typed
+  // on the share card) only when that card's SHARE is pressed (src/ui/share.js). Not
+  // while watching the computer against itself (docs/REEL.md), nor in practice.
+  let share = null;
   const options = () =>
     cards.options((o) => play(o), {
       home,
     });
   const play = (o) => {
+    share?.destroy();
+    share = null;
     game.setLevel(o.level);
     const now = new Date();
     game.newMatch({
@@ -319,10 +327,17 @@ function startSolo(game, cards, { sheet, record }) {
     cards.tick(game);
     if (need.kind === "over") {
       record();
+      share?.destroy();
+      share =
+        roomsUrl() && shareable({ trail: game.trail, need })
+          ? new Share({ root: ui, game, url: roomsUrl() })
+          : null;
+      if (testing && window.__kubb) window.__kubb.share = share;
       cards.winner(need, {
         rematch: () => options(),
         sheet,
         home,
+        reel: share,
       });
     }
   };
