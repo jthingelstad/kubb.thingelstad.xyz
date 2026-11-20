@@ -189,7 +189,10 @@ room: the browser sends each once when it ends (`src/net/record.js`, Jamie 2026-
 "watch mode should record ... All games recorded"), kept under
 `games/browser/<yyyy-mm-dd>/`. The names players typed are in them: records are pulled to
 `build/games/` (never in git) and never published. The web game's page (`/web/`) says what is recorded.
-Practice is not recorded.
+Practice is not recorded. The reading pages say only that matches are recorded to make the
+game better, on purpose (Jamie, 2026-11-20: "privacy page can just say that matches are
+recorded to improve the the game. we don't need to record iPhone against computer."): the
+iPhone app records no match against the computer unless the player shares it.
 
 - `npm run games:pull` (as `cloud-engineer`) fetches new records; `--room <code>`,
   `--since <date>`.
