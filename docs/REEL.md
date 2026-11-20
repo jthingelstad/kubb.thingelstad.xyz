@@ -281,10 +281,34 @@ pitch, and its link shows the replay as the end card's WATCH THE WHOLE MATCH pro
   reel too.
 - **Watching the computer** (`?watch=1`, nobody played): no button. See the open
   questions.
-- **It failed.** "The reel could not be made. TRY AGAIN" (one retry, then "Not this
-  time"). A match against the computer that the server will not take says "This match
-  could not be shared." and stays on the device. Nothing is shown to people who did not
-  ask.
+- **It failed.** "The reel could not be made." with TRY AGAIN when asking again can
+  start it (one retry, then "Not this time"; the words below). A match against the
+  computer that the server will not take says "This match could not be shared." and
+  stays on the device. Nothing is shown to people who did not ask.
+
+### The words (the contract for the web and the iPhone)
+
+Both clients show exactly these words; a change here is a change to both
+(`REEL_WORDS` in `src/net/reel.js`). No em dashes, nothing names a device.
+
+| Where                                                     | Words                                                                                                                         |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Card title, every state                                   | Highlight reel                                                                                                                |
+| State line while it renders                               | MAKING YOUR REEL, the slow bar, then "About a minute. You can keep watching."                                                 |
+| Button                                                    | MAKE A HIGHLIGHT REEL, MAKING YOUR REEL, WATCH THE REEL                                                                       |
+| Card buttons                                              | SHARE, COPY LINK, DOWNLOAD TALL, DOWNLOAD WIDE, TRY AGAIN, BACK                                                               |
+| `engine`                                                  | This match was played on another version of the game, so it cannot have a reel.                                               |
+| `empty`                                                   | There are no highlights to show in this match.                                                                                |
+| `busy`                                                    | Reels are busy today.                                                                                                         |
+| `unavailable`, and any why the build does not know        | Reels cannot be made right now.                                                                                               |
+| `too-many`                                                | Too many reels asked for at once. Try again later.                                                                            |
+| `replay`                                                  | This match has no replay, so it cannot have a reel.                                                                           |
+| `moved` (a newer match kept)                              | This pitch has moved on to a newer match.                                                                                     |
+| The reel is `failed` on the server (final)                | The reel could not be made. Not this time. (no TRY AGAIN)                                                                     |
+| The request could not start a render (the error `failed`) | The reel could not be made. (TRY AGAIN once, then the final words above)                                                      |
+| No connection                                             | No connection. (TRY AGAIN as often as pressed; while it renders, added under the wait text and asking goes on)                |
+| Copied                                                    | Copied the link.                                                                                                              |
+| Copy, share or fetch failed                               | Could not copy. The link is ... / Could not share. DOWNLOAD TALL saves it. / Could not get the video. DOWNLOAD TALL saves it. |
 
 ## The server
 
@@ -726,8 +750,9 @@ ever has to draw something only the browser can.
 
 ## Privacy
 
-A reel shows the **team names only**, never players' names, member ids or anything
-typed in the lobby. It is made from the kept replay, never from the private games
+A reel shows the **team names only**, never member ids or anything else typed in the
+lobby. A side's name is what its players typed: for a player alone on a side, the name
+they typed. It is made from the kept replay, never from the private games
 bucket or the records.
 
 A match against the computer is different in one way: its side's name is what the
@@ -747,8 +772,8 @@ began, to the minute, as every setup does, and it is kept and served with the re
   for a year like the replay. A match against the computer is shared only if you choose
   to share it, under the name you give it then."
 - **Privacy page**: "Highlight reels are videos made on our server from a match's kept
-  replay when someone asks. They show the team names, never a player's name, member id
-  or anything typed in the lobby. They are stored with the site and anyone with the link can watch or download them. They
+  replay when someone asks. They show the team names, which for a player alone on a side is
+  the name they typed, and never a member id or anything else typed in the lobby. They are stored with the site and anyone with the link can watch or download them. They
   are deleted a year after the match. A match you played against the computer is sent
   to us only when you press SHARE AND MAKE THE REEL: then its replay, with the name you
   gave on that card, is kept for a year under its own link, like any pitch. A video
@@ -859,3 +884,7 @@ for any release; 7 to 9 cannot. 10 is a convenience: the prototype works without
     clearing it before sharing would need an engine call that renames the time as
     `renameStart` renames a side. **Recommend: leave it**; a pitch's own match carries
     the same.
+15. **A read-only ask.** Today the first `reel` request starts a render, so a page can
+    know a reel is done on load only from its `og:video` tag, which the edge may cache
+    for 5 minutes. A `reel` request flagged read-only, answering the state and never
+    starting a render, would let the web and the iPhone show WATCH THE REEL on load.

@@ -12,7 +12,7 @@
 //   s = reelStep(s, { type: "kept", kept, match }); // the kept replay is this match?
 //   s = reelStep(s, { type: "answer", answer });  // what { t: "reel" } said
 //   s = reelStep(s, { type: "error", code });     // what went wrong asking
-//   reelView(s)  // { label, title, text, bar, video, retry, poll, ask }
+//   reelView(s)  // { label, title, line, text, bar, video, retry, ask }
 //
 // Asking is starting: the first `reel` request for a kept replay starts its render
 // (backend/rooms/core.mjs `reel`). So the page never sends one on load. It knows a reel
@@ -27,26 +27,25 @@ export const reelTune = {
   retries: 1, // TRY AGAIN after a failure that asking again can mend
 };
 
-// The words of the card, the same on the web and the iPhone (docs/REEL.md).
+// The words of the card, the same on the web and the iPhone (docs/REEL.md "What a player
+// sees" is the contract).
 export const REEL_WORDS = Object.freeze({
   make: "MAKE A HIGHLIGHT REEL",
   making: "MAKING YOUR REEL",
   watch: "WATCH THE REEL",
-  makingTitle: "Making your reel",
-  doneTitle: "Highlight reel",
-  noneTitle: "No reel",
+  title: "Highlight reel", // the card's title in every state
   wait: "About a minute. You can keep watching.",
   failed: "The reel could not be made.",
   notThisTime: "The reel could not be made. Not this time.",
   offline: "No connection.",
   why: {
     engine:
-      "This match was played on an older version of the game and cannot have a reel.",
+      "This match was played on another version of the game, so it cannot have a reel.",
     empty: "There are no highlights to show in this match.",
     busy: "Reels are busy today.",
-    unavailable: "Reels cannot be made here.",
-    replay: "This match has no kept replay, so it cannot have a reel.",
-    "too-many": "Too many reels asked for from here. Try again later.",
+    unavailable: "Reels cannot be made right now.",
+    replay: "This match has no replay, so it cannot have a reel.",
+    "too-many": "Too many reels asked for at once. Try again later.",
     moved: "This pitch has moved on to a newer match.",
   },
 });
@@ -240,7 +239,8 @@ export function reelView(s) {
         : working
           ? W.making
           : W.make,
-    title: W.noneTitle,
+    title: W.title,
+    line: "", // the state line under the title: MAKING YOUR REEL while it renders
     text: "",
     bar: false,
     video: null,
@@ -249,19 +249,17 @@ export function reelView(s) {
     ask: working ? (s.phase === "checking" ? "kept" : "reel") : null,
   };
   // the page said it is done: only the kept replay to check, nothing is made
-  if (s.phase === "checking" && s.known)
-    return { ...view, title: W.doneTitle, bar: true };
+  if (s.phase === "checking" && s.known) return { ...view, bar: true };
   if (working)
     return {
       ...view,
-      title: W.makingTitle,
+      line: W.making,
       text: s.offline ? `${W.wait} ${W.offline}` : W.wait,
       bar: true,
     };
   if (s.phase === "done")
     return {
       ...view,
-      title: W.doneTitle,
       video: { tall: s.tall, wide: s.wide },
     };
   if (s.phase === "refused")

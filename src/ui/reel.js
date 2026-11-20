@@ -220,20 +220,22 @@ export class Reel {
     if (!c) return;
     const s = this.state;
     const v = this.view;
-    const key = `${s.phase}|${s.why}|${s.offline}|${v.title}`;
+    const key = `${s.phase}|${s.why}|${s.offline}|${v.line}`;
     if (key === this.drawn) return;
     this.drawn = key;
     const body = clear(c.body);
     body.dataset.reel = s.phase;
     body.classList.toggle("reel-done", !!v.video);
     body.append(h("p.kicker", `PITCH ${this.code}`), h("h2.display", v.title));
+    if (v.line)
+      body.append(h("p.reel-line", { "data-test": "reel-line" }, v.line));
     if (v.bar)
       body.append(
         h(
           "div.reel-bar",
           {
             role: "progressbar",
-            "aria-label": v.title,
+            "aria-label": v.line || v.title,
             "data-test": "reel-bar",
           },
           h("span"),

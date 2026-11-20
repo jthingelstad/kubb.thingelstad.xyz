@@ -718,7 +718,9 @@ tested without a browser.
   on its way, so it looks again up to `reelTune.keptTries` times, 2.5 s apart, and a
   newer match kept since means this one's reel can no longer be asked for. Then
   `askReel`, and the answer's `v` must be the kept replay's.
-- **Making.** "Making your reel", a slow bar that never claims how far, and "About a
+- **Making.** The card's title is "Highlight reel" in every state (the words are the
+  table in docs/REEL.md "What a player sees", `REEL_WORDS`). While it renders, the state
+  line MAKING YOUR REEL, a slow bar that never claims how far, and "About a
   minute. You can keep watching." The card closes with BACK, Escape or a press outside
   it. It asks again every 5 s (`reelTune.pollMs`) while it is open and the page is shown,
   and stops when either is not; opened again, or the page shown again, it asks at once.
@@ -739,13 +741,13 @@ tested without a browser.
   room's newest match asks the server as MAKE does. The page is cached up to 5 minutes
   at the edge, and the static fallback has no tag, so a reel done since shows MAKE A
   HIGHLIGHT REEL, whose press finds it done without rendering again.
-- **When there is none.** `engine`: "This match was played on an older version of the
-  game and cannot have a reel." `empty`: "There are no highlights to show in this
-  match." `busy`: "Reels are busy today." `unavailable`: "Reels cannot be made here."
-  `replay` (or no kept replay after the looks): "This match has no kept replay, so it
-  cannot have a reel." `too-many`: "Too many reels asked for from here. Try again
-  later." A newer match kept: "This pitch has moved on to a newer match." None offers
-  TRY AGAIN: asking again cannot change them.
+- **When there is none.** `engine`: "This match was played on another version of the
+  game, so it cannot have a reel." `empty`: "There are no highlights to show in this
+  match." `busy`: "Reels are busy today." `unavailable`, and any why this build does not
+  know: "Reels cannot be made right now." `replay` (or no kept replay after the looks):
+  "This match has no replay, so it cannot have a reel." `too-many`: "Too many reels
+  asked for at once. Try again later." A newer match kept: "This pitch has moved on to
+  a newer match." None offers TRY AGAIN: asking again cannot change them.
 - **Failing.** A reel the server marked `failed` was tried twice there already and is
   final for that version: "The reel could not be made. Not this time.", no TRY AGAIN.
   When the server could not read, write or start it (the error `failed`), the item is
