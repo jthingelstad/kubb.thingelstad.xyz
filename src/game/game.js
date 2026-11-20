@@ -89,6 +89,7 @@ import {
 } from "./plan-sliders.js";
 import { standSpan, groundAt } from "./stand-pad.js";
 import { prefs } from "./prefs.js";
+import { loadThrowLevel } from "./throw-level.js";
 import { NudgeTrigger, timeline, swingOf, captionFor } from "./nudge.js";
 import { coachFor, slowVerdict } from "./coach.js";
 import {
@@ -209,7 +210,10 @@ export class Game {
     this.shownCards = new Set();
     this.listeners = [];
     this.panX = 200;
-    this.level = prefs.get("level", "club");
+    // the device's throw level, set in MENU (src/game/throw-level.js); watchers
+    // (the lobby, a shared pitch's presence) hear a change through onLevel
+    this.level = loadThrowLevel(prefs);
+    this.levelWatch = new Set();
     // the throw's meter, this device's: the clock or the linear one (MENU)
     this.meter = prefs.get("meter", "clock") === "linear" ? "linear" : "clock";
     // and the screen edge it sits at (MENU, Side), for either hand
@@ -1148,12 +1152,20 @@ export class Game {
   }
 
   setLevel(level) {
+    const changed = level !== this.level;
     this.level = level;
     prefs.set("level", level);
     if (this.phase === "aim" && this.mayAct()) {
       const r = this.engine.setLevel(level);
       if (r && r.aim) this.out = { ...this.out, aim: r.aim, camera: r.camera };
     }
+    if (changed) for (const f of this.levelWatch) f(level);
+  }
+
+  // f(level) on every change of the throw level; returns the way to stop.
+  onLevel(f) {
+    this.levelWatch.add(f);
+    return () => this.levelWatch.delete(f);
   }
 
   // The throw's meter: "clock" (the dial) or "linear" (the straight track).

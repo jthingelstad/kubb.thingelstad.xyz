@@ -103,6 +103,23 @@ export function cleanName(name) {
 }
 
 export const lobbyOf = (doc) => roomCall("lobbyOf", { doc });
+
+// Every match option the room holds, defaults filled in: the five in `options` and,
+// since engine 0.9, the computer's level and the scene from the document's top-level
+// `settings`. An engine before 0.9 has no optionsOf: its lobbyOf's options are all it
+// knows. Asked once per engine, then remembered.
+const noOptionsOf = new Set();
+export function optionsOf(doc, mm = roomEngineMinor()) {
+  if (!noOptionsOf.has(mm)) {
+    try {
+      return roomCall("optionsOf", { doc }, mm);
+    } catch (e) {
+      if (!/unknown call/.test(String(e?.message ?? e))) throw e;
+      noOptionsOf.add(mm);
+    }
+  }
+  return roomCall("lobbyOf", { doc }, mm).options;
+}
 export const sideOf = (doc, id) => roomCall("sideOf", { doc, id });
 export const joinTeam = (doc, id, side) => write("joinTeam", { doc, id, side });
 export const setOptions = (doc, options) =>

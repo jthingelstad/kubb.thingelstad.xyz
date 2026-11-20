@@ -7,6 +7,7 @@
 // browser that only watches gets a WATCH button and the card closes itself.
 import { h, button, clear } from "./dom.js";
 import { prefs } from "../game/prefs.js";
+import { levelLine, soloOptions } from "../game/throw-level.js";
 import { drawMinimap } from "../render/minimap.js";
 import { teamOf } from "../game/scenes.js";
 
@@ -188,8 +189,11 @@ export class Cards {
 
   // ---------- the solo options ----------
 
-  options(onStart, { home }) {
-    const saved = { ...SOLO_DEFAULTS, ...prefs.get("solo", {}) };
+  // level: the device's throw level, shown, not picked (MENU sets it: menu() opens
+  // it over this card, onLevel(f) hears a change); the Computer level row is the
+  // computer's, a match option
+  options(onStart, { home, level = null, menu = null, onLevel = null }) {
+    const saved = soloSaved();
     const name = h("input.name", {
       type: "text",
       maxlength: 16,
@@ -202,8 +206,28 @@ export class Cards {
     const rows = OPTION_ROWS.map(([key, label, choices]) => {
       const seg = segmented(key, choices, saved[key]);
       groups[key] = seg;
-      return h("div.opt", h("span.opt-label", label), seg.el);
+      return h(
+        "div.opt",
+        { "data-test": `solo-opt-${key}` },
+        h("span.opt-label", label),
+        seg.el,
+      );
     });
+    const levelText = h("span.opt-value", levelLine(level));
+    const stopLevel = onLevel?.((v) => (levelText.textContent = levelLine(v)));
+    const levelRow = level
+      ? h(
+          "div.opt",
+          { "data-test": "solo-level" },
+          h("span.opt-label", "Your level"),
+          levelText,
+          menu
+            ? button("CHANGE IN MENU", () => menu(), "small", {
+                "data-test": "solo-level-menu",
+              })
+            : null,
+        )
+      : null;
     const start = () => {
       const o = { name: name.value.trim().slice(0, 16) || "You" };
       for (const k of Object.keys(groups)) o[k] = groups[k].value();
@@ -216,6 +240,7 @@ export class Cards {
       { "data-test": "options" },
       h("h2.display", "Play the computer"),
       h("label.opt", h("span.opt-label", "Your name"), name),
+      levelRow,
       rows,
       h(
         "div.row.start-row",
@@ -229,7 +254,7 @@ export class Cards {
     name.addEventListener("keydown", (e) => {
       if (e.key === "Enter") start();
     });
-    const close = this.show(el);
+    const close = this.show(el, null, { onClose: () => stopLevel?.() });
     return close;
   }
 
@@ -295,9 +320,16 @@ export const tune = {
   watchCardMs: 2500, // a card for a turn this browser only watches
 };
 
+// The solo card's options as last saved (prefs "solo"), the computer's level moved
+// across from the card's older Level row (src/game/throw-level.js).
+export const soloSaved = () => ({
+  ...SOLO_DEFAULTS,
+  ...soloOptions(prefs.get("solo", {})),
+});
+
 export const SOLO_DEFAULTS = {
   name: "You",
-  level: "club",
+  computer: "club",
   surface: "grass",
   opening: "2-4-6",
   raising: "hand",
@@ -307,8 +339,8 @@ export const SOLO_DEFAULTS = {
 
 const OPTION_ROWS = [
   [
-    "level",
-    "Level",
+    "computer",
+    "Computer level",
     [
       ["beginner", "Beginner"],
       ["club", "Club"],

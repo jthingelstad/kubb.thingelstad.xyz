@@ -17,7 +17,7 @@ import { makeRegistry } from "./engine/registry.js";
 import { Game } from "./game/game.js";
 import { Sound } from "./game/sound.js";
 import { prefs } from "./game/prefs.js";
-import { Cards, SOLO_DEFAULTS } from "./ui/cards.js";
+import { Cards, soloSaved } from "./ui/cards.js";
 import { Menu } from "./ui/menu.js";
 import { showHowto, shouldShowHowto } from "./ui/howto.js";
 import { h, button } from "./ui/dom.js";
@@ -28,7 +28,7 @@ import { shareable } from "./net/share.js";
 import { openSheet } from "./ui/sheet.js";
 import { recordMatch } from "./net/record.js";
 import { clientLabel, LOCATION } from "./net/sync.js";
-import { useOlderEngine, useRoomEngine } from "./net/lobby.js";
+import { MATCH_OPTIONS, useOlderEngine, useRoomEngine } from "./net/lobby.js";
 import { watchFreshness } from "./net/freshness.js";
 import { showUpdate } from "./ui/update.js";
 import { startEmbed, embedCode } from "./embed/embed.js";
@@ -229,7 +229,7 @@ async function boot() {
         if (testing) window.__kubb.recorded.push(sent);
       },
     };
-    if (mode === "solo") startSolo(game, cards, env);
+    if (mode === "solo") startSolo(game, cards, { ...env, menu });
     else startWatch(game, cards, { ...env, menu });
   } else {
     pitch = startPitch({
@@ -303,7 +303,12 @@ function startPractice(game, cards) {
 
 // ---------- a match against the computer ----------
 
-function startSolo(game, cards, { sheet, record }) {
+// The computer's level is a match option since engine 0.9 (`computer`, recorded in
+// the match's setup); the computer's player entry names it too, which is how an
+// older engine is told.
+const takesComputer = () => MATCH_OPTIONS.some(([k]) => k === "computer");
+
+function startSolo(game, cards, { sheet, record, menu }) {
   game.seat = { sides: ["A"], cpu: true };
   game.localSide = "A";
   // MAKE A HIGHLIGHT REEL on the winner card: the match is shared (with the name typed
@@ -313,22 +318,26 @@ function startSolo(game, cards, { sheet, record }) {
   const options = () =>
     cards.options((o) => play(o), {
       home,
+      // the level you throw at is this device's (MENU), not the card's
+      level: game.level,
+      onLevel: (f) => game.onLevel(f),
+      menu: () => menu.open(),
     });
   const play = (o) => {
     share?.destroy();
     share = null;
-    game.setLevel(o.level);
     const now = new Date();
     game.newMatch({
       seed: Math.floor(Math.random() * 2 ** 31),
       teams: {
-        A: { name: o.name, players: [{ name: o.name, level: o.level }] },
+        A: { name: o.name, players: [{ name: o.name, level: game.level }] },
         B: {
           name: "Computer",
-          players: [{ name: "Computer", level: o.level }],
+          players: [{ name: "Computer", level: o.computer }],
         },
       },
       cpu: "B",
+      ...(takesComputer() ? { computer: o.computer } : {}),
       first: "A",
       opening: o.opening,
       raising: o.raising,
@@ -402,9 +411,9 @@ function startWatch(game, cards, { sheet, record, menu }) {
     clearTimeout(timer);
     timer = null;
     cards.close();
-    const o = { ...SOLO_DEFAULTS, ...prefs.get("solo", {}) };
+    const o = soloSaved();
     const now = new Date();
-    const team = (name) => ({ name, players: [{ name, level: o.level }] });
+    const team = (name) => ({ name, players: [{ name, level: o.computer }] });
     game.newMatch({
       seed: Math.floor(Math.random() * 2 ** 31),
       teams: { A: team("North"), B: team("South") },
