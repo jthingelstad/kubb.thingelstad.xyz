@@ -280,10 +280,10 @@ export function reelView(s) {
 // One `reel` message on a socket of its own (src/net/ask.js), no join. Resolves the
 // answer { t: "reel", room, v, reel, why? }; rejects an AskError whose code is the
 // server's (too-many, failed, bad-room) or timeout, closed, unavailable.
-export function askReel({ url, code, ...rest }) {
+export function askReel({ url, code, v, ...rest }) {
   return ask({
     url,
-    message: { t: "reel", id: 1, room: code },
+    message: { t: "reel", id: 1, room: code, ...(v != null ? { v } : {}) },
     done: "reel",
     re: "reel",
     ...rest,
@@ -300,9 +300,11 @@ export async function reelRequest(s, at, match) {
   try {
     if (what === "kept")
       return { type: "kept", kept: await askKept(at), match };
-    // A small race stays between that read and this ask (no read-only reel ask yet,
-    // docs/REEL.md open question 13): the answer's `v` is checked against the kept one.
-    if (what === "reel") return { type: "answer", answer: await askReel(at) };
+    // Every reel ask names the kept version it means (s.v), so a room that has moved on
+    // answers `why: "moved"` and starts nothing; the answer's `v` is still checked, for
+    // a rooms server from before `v`.
+    if (what === "reel")
+      return { type: "answer", answer: await askReel({ ...at, v: s.v }) };
   } catch (error) {
     return { type: "error", code: error?.code };
   }

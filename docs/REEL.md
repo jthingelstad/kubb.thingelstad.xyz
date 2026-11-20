@@ -303,7 +303,7 @@ Both clients show exactly these words; a change here is a change to both
 | `unavailable`, and any why the build does not know        | Reels cannot be made right now.                                                                                               |
 | `too-many`                                                | Too many reels asked for at once. Try again later.                                                                            |
 | `replay`                                                  | This match has no replay, so it cannot have a reel.                                                                           |
-| `moved` (a newer match kept)                              | This pitch has moved on to a newer match.                                                                                     |
+| `moved` (a newer match kept, or the server's why)         | This pitch has moved on to a newer match.                                                                                     |
 | The reel is `failed` on the server (final)                | The reel could not be made. Not this time. (no TRY AGAIN)                                                                     |
 | The request could not start a render (the error `failed`) | The reel could not be made. (TRY AGAIN once, then the final words above)                                                      |
 | No connection                                             | No connection. (TRY AGAIN as often as pressed; while it renders, added under the wait text and asking goes on)                |
@@ -530,6 +530,11 @@ the link shown and COPY LINK already working. A match already shared skips the c
   one stands is free, so a device can poll. The fourth start is the error `too-many`.
 - When the invoke itself fails, the item is taken back and the request is answered the
   error `failed`.
+- A request may name the kept version it means (`v`). When the room keeps another, it
+  is answered `{ v: <kept>, reel: null, why: "moved" }` before step 3: nothing is
+  started or counted. The browser sends `v` with every request (the first ask, each
+  poll, a card opened again, TRY AGAIN), so a card left on an old match never starts a
+  rematch's render; without `v` the server answers as before.
 
 Limits, beside the existing ones (the stage throttle, `gamesPerConn` and
 `reportsPerConn`):
@@ -888,3 +893,5 @@ for any release; 7 to 9 cannot. 10 is a convenience: the prototype works without
     know a reel is done on load only from its `og:video` tag, which the edge may cache
     for 5 minutes. A `reel` request flagged read-only, answering the state and never
     starting a render, would let the web and the iPhone show WATCH THE REEL on load.
+    Its other use, never rendering a match the asker did not mean, is built: a request
+    naming `v` gets `why: "moved"` when the room keeps another (above).

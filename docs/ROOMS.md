@@ -730,14 +730,21 @@ A finished pitch's highlight reel: a video of its best throws, tall (1080x1920) 
 `docs/REEL-RUNBOOK.md`). Built for online pitches, and for a match against the computer
 once it is shared (section 13): its sealed pitch has a kept replay of version 1.
 
-- **Asking.** `{ t: "reel", id, room }` on any connection, joined or not, by anyone with
-  the link (a reel shows nothing the replay does not). The answer is always
+- **Asking.** `{ t: "reel", id, room, v? }` on any connection, joined or not, by anyone
+  with the link (a reel shows nothing the replay does not). `v`, optional, is the kept
+  replay version the asker means; when given it must be a positive integer (else
+  `bad-message`). Without it the server answers for whatever the room keeps. The answer is always
   `{ t: "reel", id, room, v, reel, why? }`: `v` is the kept replay's version (0 when
   none), and `reel` is `null` or `{ state, tag, at }` with, once `done`, `tall`, `wide`
   and `edit` (site paths, `/reels/<code>/<v>-<tag>/...`) and `seconds`.
   - `reel: null`, `why: "unavailable"`: this server has no renderer (a rooms stack
     without the reel function, or a store without reel items).
   - `why: "replay"`: the pitch has no kept replay.
+  - `why: "moved"`: the asker's `v` is not the version the room keeps now (a rematch
+    was kept since); the answer's `v` is the one it keeps. Nothing is started and
+    nothing is counted against a connection's or the day's renders. The browser sends
+    `v` with every `reel` request, so a card left open over an old match never starts
+    the newer one's render.
   - `why: "engine"`: the match was played on an engine the renderer does not carry, or
     names none (a match from before `match.engine`). Its throws could go differently on
     another engine, so it is never rendered.

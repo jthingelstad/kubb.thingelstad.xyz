@@ -677,12 +677,19 @@ export function createRooms({
   // A finished pitch's highlight reel, by its code, on any connection (no join: anyone
   // with the link, as for a replay). The first request for a kept replay's version
   // asks the renderer; every later one is told how it stands. The room server still
-  // knows no Kubb: of the replay it reads only the engine's version, a tag.
+  // knows no Kubb: of the replay it reads only the engine's version, a tag. `v`, when
+  // given, is the kept replay version the asker means: if the room keeps another, the
+  // answer is `why: "moved"` and nothing is started or counted.
   async function reel(conn, msg) {
     const id = msg.id ?? null;
     const code = msg.room;
     if (typeof code !== "string" || !ROOM_CODE.test(code))
       throw new RoomError("bad-room", "That is not a room code.", { id });
+    const meant = msg.v;
+    if (meant !== undefined && (!Number.isInteger(meant) || meant < 1))
+      throw new RoomError("bad-message", "`v` must be a kept replay version.", {
+        id,
+      });
     const answer = (fields) =>
       post(conn, asciiJson({ t: "reel", id, room: code, ...fields }));
     if (
@@ -700,6 +707,9 @@ export function createRooms({
       throw new RoomError("failed", "The reel could not be read.", { id });
     }
     if (!kept) return answer({ v: 0, reel: null, why: "replay" });
+    // the asker means another match than the room keeps now: start nothing
+    if (meant !== undefined && meant !== kept.v)
+      return answer({ v: kept.v, reel: null, why: "moved" });
     let engine = null;
     try {
       const tagged = JSON.parse(kept.data)?.engine;

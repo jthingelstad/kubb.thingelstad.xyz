@@ -326,10 +326,11 @@ test("reel: no server is no connection", async () => {
   );
 });
 
-// A socket that notes the type of every message it sends.
-function counting(sent) {
+// A socket that notes the type of every message it sends (and the messages, in `all`).
+function counting(sent, all = []) {
   return class extends NodeWs {
     send(data, ...rest) {
+      all.push(JSON.parse(data));
       sent.push(JSON.parse(data).t);
       return super.send(data, ...rest);
     }
@@ -400,4 +401,44 @@ test("reel: a press reads the kept replay once, then asks for the reel once", as
   assert.equal(s.polled, true);
   assert.equal(s.v, 40);
   assert.deepEqual(sent, ["replay", "reel"]);
+});
+
+test("reel: a card reopened while asking, after a rematch was kept, names its version and starts nothing", async () => {
+  const code = "rpnxhtqm22";
+  const keep = (v, n) =>
+    store.putReplay(code, {
+      v,
+      t: Date.now(),
+      data: JSON.stringify({
+        v: 1,
+        n,
+        hash: `h${n}`,
+        engine: "0.7.1",
+        log: [],
+        snap: "{}",
+      }),
+      exp: Math.floor(Date.now() / 1000) + 86400,
+    });
+  await keep(50, 2);
+  const at = { url: server.url, code, WebSocket: NodeWs };
+  let s = await drive(reelStep(reelStart(), press), at, MATCH);
+  assert.equal(s.phase, "asking");
+  assert.equal(s.v, 50);
+  const before = started.length;
+  // the card is closed; the players finish a rematch and it is kept
+  await keep(60, 3);
+  // reopened: the state is still asking, so it polls the reel at once
+  s = reelStep(s, press);
+  assert.equal(reelView(s).ask, "reel");
+  const sent = [];
+  const all = [];
+  s = reelStep(
+    s,
+    await reelRequest(s, { ...at, WebSocket: counting(sent, all) }, MATCH),
+  );
+  assert.deepEqual(sent, ["reel"]);
+  assert.equal(all[0].v, 50);
+  assert.equal(s.phase, "refused");
+  assert.equal(reelView(s).text, "This pitch has moved on to a newer match.");
+  assert.equal(started.length, before);
 });
