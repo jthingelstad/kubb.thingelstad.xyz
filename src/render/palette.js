@@ -359,6 +359,8 @@ NIGHT.skin = {
     "--stem": "#8fb4e8",
     "--knob-face": "#c9dcff",
     "--held": "#1a2742",
+    "--accent": "#9cc8ff",
+    "--on-accent": "#0d1424",
     "--shadow-sm":
       "0 0 0 1px rgba(219, 233, 255, 0.18), 0 0 12px rgba(110, 180, 255, 0.35)",
     "--shadow":
@@ -483,6 +485,8 @@ NEON.skin = {
     "--stem": "#5ff0ff",
     "--knob-face": "#c8fdff",
     "--held": "#062430",
+    "--accent": "#5ff0ff",
+    "--on-accent": "#02050a",
     "--shadow-sm":
       "0 0 0 1px rgba(95, 240, 255, 0.55), 0 0 10px rgba(43, 228, 255, 0.45)",
     "--shadow":
