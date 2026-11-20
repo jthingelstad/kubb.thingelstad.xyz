@@ -191,3 +191,104 @@ export function groundOf(surface) {
 export function setOf(name) {
   return SETS[name] || null;
 }
+
+// ---------- the night scene (src/render/night.js) ----------
+// A prototype behind ?scene=night only. Moonlight is cool and dim; the lines,
+// the stakes and the glowing set give their own light; the stardust is warm.
+export const NIGHT = {
+  sky: { top: "#02040b", mid: "#081127", low: "#16264a" },
+  star: ["#ffffff", "#fff1d2", "#d6e4ff", "#c9d8ff"],
+  milky: "#9fb4ff",
+  moon: {
+    face: "#f6f3e4",
+    limb: "#ddd6bd",
+    mare: "#cfc7ad",
+    halo: "#c9d8ff",
+  },
+  // the grounds by moonlight: edge is the clearing's dark rim, rim the
+  // silhouette against the sky, glow the lines' bloom, line their core
+  grounds: {
+    grass: {
+      pitch: "#284a3b",
+      stripe: "#2e5242",
+      rough: "#1a3329",
+      speck: "#10241b",
+      edge: "#0b1813",
+      rim: "#04090a",
+      sky: "#02040b",
+      line: "#e6f8ff",
+      glow: "#6fcfff",
+    },
+    sand: {
+      pitch: "#6e6452",
+      stripe: "#776c59",
+      rough: "#554c3e",
+      speck: "#3e372d",
+      edge: "#29241d",
+      rim: "#0a0907",
+      sky: "#02040b",
+      line: "#fff3dc",
+      glow: "#ffc86b",
+    },
+    snow: {
+      pitch: "#b9cbe4",
+      stripe: "#c5d6ec",
+      rough: "#9fb4d3",
+      speck: "#8399bd",
+      edge: "#61779c",
+      rim: "#0b1222",
+      sky: "#02040b",
+      line: "#1f7bff",
+      glow: "#3f9dff",
+    },
+  },
+  // the glowing set: kubbs pale aqua, the king gold (a look only: the same
+  // pieces, sizes and weights as every set)
+  glow: {
+    top: "#f4fffc",
+    light: "#c8f8ec",
+    shade: "#82d3c2",
+    end: "#ddfcf4",
+    endShade: "#6fbfae",
+    grain: "#a9ebdc",
+    grainShade: "#66b5a5",
+    ring: "#a4e7d8",
+    bevel: "#ffffff",
+    halo: "#5ff0d2",
+  },
+  glowKing: {
+    top: "#fff8dc",
+    light: "#ffe8a6",
+    shade: "#e1b45c",
+    end: "#fff1c4",
+    endShade: "#cb9c48",
+    grain: "#f1cf80",
+    grainShade: "#ba8b3c",
+    ring: "#eec872",
+    bevel: "#ffffff",
+    halo: "#ffcf5c",
+    mark: "#6e4512",
+  },
+  stake: {
+    top: "#eafaff",
+    light: "#c4ecff",
+    shade: "#86bddf",
+    end: "#dcf5ff",
+    endShade: "#86bddf",
+    halo: "#7fd4ff",
+  },
+  // plain wood by moonlight, for the batons (never painted)
+  wood: {
+    light: "#d6c7a4",
+    shade: "rgba(10, 14, 30, 0.36)",
+    end: "#c3b08b",
+    ring: "#9a8868",
+    rim: "#f4f2e8",
+  },
+  ink: "#060a13",
+  shadow: "rgba(1, 3, 10, 0.5)",
+  vignette: "rgba(1, 2, 8, 0.55)",
+  // the stardust: warm white and gold, with a little cool
+  dust: ["#fff3cf", "#ffd56a", "#ffe9a8", "#bfefff"],
+  kingDust: ["#ffe17a", "#fff2c0", "#ffb938", "#ffffff"],
+};

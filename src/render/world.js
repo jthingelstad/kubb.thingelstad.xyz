@@ -111,6 +111,32 @@ const L = (() => {
   return [lx / n, ly / n, lz / n];
 })();
 
+// The day's light and paint, as a scene (src/render/scenes.js) gives its own:
+// where the light comes from (shadows fall along shadowX, shadowY per metre of
+// height; L is the unit vector toward the light; awayBelow and topAbove the
+// tones' thresholds), and the paint of the bare wood, the stakes, the ink and
+// the king's marks.
+export const DAYLIGHT = {
+  shadowX: tune.shadowX,
+  shadowY: tune.shadowY,
+  L,
+  awayBelow: tune.awayBelow,
+  topAbove: tune.topAbove,
+  shadowFill: INK,
+};
+export const DAY_PAINT = {
+  wood: WOOD,
+  stake: {
+    top: STAKE.end,
+    light: STAKE.light,
+    shade: STAKE.shade,
+    end: STAKE.end,
+    endShade: STAKE.shade,
+  },
+  ink: INK,
+  kingMark: KING_MARK,
+};
+
 // Faces of a box: corner indices (bit 0: +x, bit 1: +y, bit 2: +z), the
 // first two at the local -z end for the sides (a, b; c above b, d above a),
 // then the axis and sign of the outward normal.
@@ -253,12 +279,12 @@ export function solid(item, cam) {
   };
 }
 
-function shadowOutline(s) {
+function shadowOutline(s, lt = DAYLIGHT) {
   const pts = [];
   for (let k = 0; k < 8; k++) {
     let z = s.W[3 * k + 2];
     if (!(z > 0)) z = 0;
-    pts.push(s.W[3 * k] + tune.shadowX * z, s.W[3 * k + 1] + tune.shadowY * z);
+    pts.push(s.W[3 * k] + lt.shadowX * z, s.W[3 * k + 1] + lt.shadowY * z);
   }
   const h = hull(pts);
   return { xs: h.map((i) => pts[2 * i]), ys: h.map((i) => pts[2 * i + 1]) };
@@ -400,7 +426,9 @@ function fillGround(ctx, cam, xs, ys, color) {
   ctx.fill();
 }
 
-function drawGround(ctx, cam, B, scene, G, kx) {
+// A scene's hooks (src/render/scenes.js) are called with (ctx, cam, kx, B,
+// G, scene) where kx is the frame's scale and G the scene's ground paint.
+function drawGround(ctx, cam, B, scene, G, kx, lk = null) {
   // the sky, then everything below the far edge is rough
   ctx.fillStyle = G.sky;
   ctx.fillRect(
@@ -409,9 +437,15 @@ function drawGround(ctx, cam, B, scene, G, kx) {
     B.right - B.left + 4,
     B.bottom - B.top + 4,
   );
+  if (lk?.sky) lk.sky(ctx, cam, kx, B, G, scene);
   const hl = Math.hypot(cam.fx, cam.fy);
   let filled = false;
-  if (hl > 0.05) {
+  // a scene whose ground ends round the pitch (a clearing) draws it itself
+  const clear = lk?.clearing || null;
+  if (clear) {
+    lk.rough(ctx, cam, kx, B, G, scene);
+    filled = true;
+  } else if (hl > 0.05) {
     const hx = cam.fx / hl,
       hy = cam.fy / hl;
     const far = tune.roughFar,
@@ -482,6 +516,8 @@ function drawGround(ctx, cam, B, scene, G, kx) {
     const x = pts[i],
       y = pts[i + 1],
       r = pts[i + 2];
+    if (clear && (x < clear.x0 || x > clear.x1 || y < clear.y0 || y > clear.y1))
+      continue;
     const d = (x - cam.px) * cam.fx + (y - cam.py) * cam.fy - cam.pz * cam.fz;
     if (d < 0.3 || d > 30) continue;
     const p = project(cam, x, y, 0);
@@ -518,21 +554,19 @@ function drawGround(ctx, cam, B, scene, G, kx) {
     const x0 = -2.5 + i;
     fillGround(ctx, cam, [x0, x0 + 1, x0 + 1, x0], [0, 0, 8, 8], G.stripe);
   }
+  if (lk?.lightGround) lk.lightGround(ctx, cam, kx, B, G, scene);
 
   // the lines: true width on the ground, never under lineMinPx
-  const w = tune.lineWidth / 2;
-  ctx.fillStyle = G.line;
-  ctx.strokeStyle = G.line;
-  ctx.lineWidth = tune.lineMinPx;
-  ctx.lineCap = "butt";
-  const quads = [];
+  const segs = lineSegments(scene);
+  if (lk?.lines) lk.lines(ctx, cam, kx, segs, G, paintLines);
+  else paintLines(ctx, cam, segs, G.line);
+}
+
+// The field lines as segments on the ground: the sidelines, the baselines,
+// the dashed centre line and the advantage line when there is one.
+export function lineSegments(scene) {
   const segs = [];
-  const line = (x0, y0, x1, y1) => {
-    // an axis-aligned line from (x0, y0) to (x1, y1), w either side
-    if (y0 === y1) quads.push([x0 - w, y0 - w, x1 + w, y0 + w]);
-    else quads.push([x0 - w, y0 - w, x0 + w, y1 + w]);
-    segs.push([x0, y0, x1, y1]);
-  };
+  const line = (x0, y0, x1, y1) => segs.push([x0, y0, x1, y1]);
   line(-2.5, 0, -2.5, 8);
   line(2.5, 0, 2.5, 8);
   line(-2.5, 0, 2.5, 0);
@@ -544,9 +578,31 @@ function drawGround(ctx, cam, B, scene, G, kx) {
   dashed(4, tune.dash, tune.dashGap);
   if (scene.advantageY != null)
     dashed(scene.advantageY, tune.advDash, tune.advDash);
+  return segs;
+}
+
+// The lines in one colour, `width` metres across on the ground (the day's
+// tune.lineWidth by default), never under `minPx` frame px.
+function paintLines(
+  ctx,
+  cam,
+  segs,
+  color,
+  width = tune.lineWidth,
+  minPx = tune.lineMinPx,
+) {
+  const w = width / 2;
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = minPx;
+  ctx.lineCap = "butt";
   ctx.beginPath();
-  for (const [x0, y0, x1, y1] of quads) {
-    const p = groundQuad(cam, x0, y0, x1, y1);
+  for (const [x0, y0, x1, y1] of segs) {
+    // an axis-aligned line from (x0, y0) to (x1, y1), w either side
+    const p =
+      y0 === y1
+        ? groundQuad(cam, x0 - w, y0 - w, x1 + w, y0 + w)
+        : groundQuad(cam, x0 - w, y0 - w, x0 + w, y1 + w);
     if (p.length >= 6) polyPath(ctx, p);
   }
   ctx.fill();
@@ -813,11 +869,11 @@ function drawArc(ctx, cam, kx, arc) {
 
 // ---------- pieces ----------
 
-function toneOf(n, end) {
-  const lit = dot(n, L);
-  if (lit <= tune.awayBelow) return end ? "endShade" : "shade";
+function toneOf(n, end, lt = DAYLIGHT) {
+  const lit = dot(n, lt.L);
+  if (lit <= lt.awayBelow) return end ? "endShade" : "shade";
   if (end) return "end";
-  return lit >= tune.topAbove ? "top" : "light";
+  return lit >= lt.topAbove ? "top" : "light";
 }
 
 // A point on a side face: s across from a to b, u up from the foot (a, b)
@@ -1011,21 +1067,17 @@ function sizes(s, cam, kx) {
   return { tall, ow: ow / kx };
 }
 
-function drawBox(ctx, cam, kx, s, P, set) {
+function drawBox(ctx, cam, kx, s, P, set, paint = DAY_PAINT, lt = DAYLIGHT) {
   const { S } = P;
   const item = s.item;
   const stake = item.kind === "stake";
   const { tall, ow } = sizes(s, cam, kx);
   const seed = hashStr(item.id || "x");
-  const pal = stake
-    ? {
-        top: STAKE.end,
-        light: STAKE.light,
-        shade: STAKE.shade,
-        end: STAKE.end,
-        endShade: STAKE.shade,
-      }
-    : WOOD;
+  // a set may be a whole body's paint (the night's glowing set) or bands
+  const WOOD = set?.wood || paint.wood;
+  const INK = paint.ink;
+  const bands = set?.bands || null;
+  const pal = stake ? paint.stake : WOOD;
   const faces = [];
   for (let fi = 0; fi < 6; fi++) {
     const f = faceInfo(s, cam, fi);
@@ -1033,7 +1085,7 @@ function drawBox(ctx, cam, kx, s, P, set) {
   }
   ctx.lineJoin = "round";
   for (const f of faces) {
-    const tone = toneOf(f.n, f.end);
+    const tone = toneOf(f.n, f.end, lt);
     const dark = tone === "shade" || tone === "endShade";
     const F = f.F;
     ctx.fillStyle = pal[tone];
@@ -1063,8 +1115,8 @@ function drawBox(ctx, cam, kx, s, P, set) {
         bandPath(ctx, S, F, tune.teamFrom, tune.teamTo);
         ctx.fill();
       }
-      if (set) {
-        for (const b of set.bands) {
+      if (bands) {
+        for (const b of bands) {
           ctx.fillStyle = dark ? shaded(b.paint) : b.paint;
           bandPath(ctx, S, F, b.from, b.to);
           ctx.fill();
@@ -1075,7 +1127,7 @@ function drawBox(ctx, cam, kx, s, P, set) {
     } else {
       // an end: the head (+z) is painted in a set; rings when near
       const head = F[5] > 0;
-      if (set && head) {
+      if (bands && head) {
         ctx.fillStyle = dark ? shaded(set.bands[0].paint) : set.bands[0].paint;
         ctx.beginPath();
         polyPath(ctx, [
@@ -1148,8 +1200,11 @@ function drawBox(ctx, cam, kx, s, P, set) {
 
 // The king: a straight body and a head whose top is a crown of points (two
 // V cuts in each side), an ink collar, and near, a ring and a diamond.
-function drawKing(ctx, cam, kx, s, P, set) {
+function drawKing(ctx, cam, kx, s, P, set, paint = DAY_PAINT, lt = DAYLIGHT) {
   const { S } = P;
+  const WOOD = set?.kingWood || set?.wood || paint.wood;
+  const INK = paint.ink;
+  const KING_MARK = set?.kingMark || paint.kingMark;
   const { tall, ow } = sizes(s, cam, kx);
   const W = s.W;
   // rings of points up the four vertical edges (bottom corners 0..3)
@@ -1204,7 +1259,7 @@ function drawKing(ctx, cam, kx, s, P, set) {
       (cam.py - s.c[1]) * up[1] +
       (cam.pz - s.c[2]) * up[2] >
     0;
-  const crown = set ? set.crown : null;
+  const crown = set?.crown || null;
   if (above) {
     // through the cuts: the far sides' inner walls, then the crown's floor
     for (let fi = 0; fi < 4; fi++) {
@@ -1232,7 +1287,7 @@ function drawKing(ctx, cam, kx, s, P, set) {
     const f = faceInfo(s, cam, 4);
     if (f.vis) {
       const F = f.F;
-      ctx.fillStyle = WOOD[toneOf(f.n, true)];
+      ctx.fillStyle = WOOD[toneOf(f.n, true, lt)];
       path([corner(F[0]), corner(F[1]), corner(F[2]), corner(F[3])]);
       ctx.fill();
       ctx.strokeStyle = INK;
@@ -1246,7 +1301,7 @@ function drawKing(ctx, cam, kx, s, P, set) {
     const F = f.F;
     const a = F[0],
       b = F[1];
-    const tone = toneOf(f.n, false);
+    const tone = toneOf(f.n, false, lt);
     const dark = tone === "shade";
     const outline = sideOutline(a, b);
     ctx.fillStyle = WOOD[tone];
@@ -1502,19 +1557,40 @@ function drawBaton(ctx, cam, kx, s) {
 
 // ---------- the picture ----------
 
+function softShadows(ctx, k, lt) {
+  const t = ctx.getTransform?.();
+  if (!t) return false;
+  const dev = Math.hypot(t.a, t.b); // device px per frame px
+  const off = 2000; // frame px
+  ctx.save();
+  ctx.translate(-off, 0);
+  ctx.fillStyle = "#000";
+  ctx.shadowColor = lt.shadowFill;
+  ctx.shadowBlur = (lt.shadowBlur * dev) / k;
+  ctx.shadowOffsetX = off * dev;
+  ctx.shadowOffsetY = 0;
+  return true;
+}
+
+// scene.look: a scene (src/render/scenes.js) other than the day, whose data
+// and hooks change the sky, the ground's light, the lines, the pieces' paint
+// and what is drawn over them; none (or the day) draws the day exactly.
 export function drawWorld(ctx, view, camera, scene) {
   const { width, height } = view;
   const dpr = view.dpr || 1;
   const fit = viewFit(view);
   const { k, ox, oy } = fit;
   const B = frameBounds(width, height, fit);
-  const G = groundOf(scene.surface);
-  const set = setOf(scene.set);
+  const lk = scene.look && scene.look.id !== "day" ? scene.look : null;
+  const G = lk ? lk.groundOf(scene.surface) : groundOf(scene.surface);
+  const set = lk ? lk.setOf(scene.set) : setOf(scene.set);
+  const lt = lk ? lk.light : DAYLIGHT;
+  const paint = lk ? lk.paint : DAY_PAINT;
   const cam = camera;
   ctx.save();
   ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * ox, dpr * oy);
 
-  drawGround(ctx, cam, B, scene, G, k);
+  drawGround(ctx, cam, B, scene, G, k, lk);
 
   // the pieces' solids, stakes from the scene or the pitch's six
   const items = scene.items || [];
@@ -1530,15 +1606,19 @@ export function drawWorld(ctx, view, camera, scene) {
 
   // every shadow, one fill, over the marks (the Playdate casts none for
   // the stakes)
-  ctx.fillStyle = INK;
+  // (a scene's soft shadows: the path drawn far off the canvas, its blurred
+  // canvas shadow cast back onto it)
+  const soft = lt.shadowBlur ? softShadows(ctx, k, lt) : false;
+  if (!soft) ctx.fillStyle = lt.shadowFill;
   ctx.beginPath();
   for (const s of solids) {
     if (s.item.kind === "stake") continue;
-    const o = shadowOutline(s);
+    const o = shadowOutline(s, lt);
     const p = projectPoly(cam, o.xs, o.ys, null, o.xs.length);
     if (p.length >= 6) polyPath(ctx, p);
   }
   ctx.fill("nonzero");
+  if (soft) ctx.restore();
 
   // the pieces in depth order
   const shown = [],
@@ -1559,14 +1639,28 @@ export function drawWorld(ctx, view, camera, scene) {
     projs.push(P);
     boxes.push([b[0] - 2, b[1] - 2, b[2] + 2, b[3] + 2]);
   }
+  if (lk?.beforePieces) lk.beforePieces(ctx, cam, k, shown, projs, set);
   const order = depthOrder(shown, cam, boxes);
+  const drawBat = lk?.baton || drawBaton;
   for (const i of order) {
     const s = shown[i];
     const kind = s.item.kind;
-    if (kind === "baton") drawBaton(ctx, cam, k, s);
-    else if (kind === "king") drawKing(ctx, cam, k, s, projs[i], set);
-    else drawBox(ctx, cam, k, s, projs[i], kind === "kubb" ? set : null);
+    if (kind === "baton") drawBat(ctx, cam, k, s);
+    else if (kind === "king")
+      drawKing(ctx, cam, k, s, projs[i], set, paint, lt);
+    else
+      drawBox(
+        ctx,
+        cam,
+        k,
+        s,
+        projs[i],
+        kind === "kubb" ? set : null,
+        paint,
+        lt,
+      );
   }
+  if (lk?.afterPieces) lk.afterPieces(ctx, cam, k, B, scene);
 
   if (scene.arc) drawArc(ctx, cam, k, scene.arc);
   ctx.restore();
