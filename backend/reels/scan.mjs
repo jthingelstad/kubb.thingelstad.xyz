@@ -7,7 +7,9 @@
 //   const { throws, end } = await scanReplay(replay, { sources })
 //
 // The wide view is on (engine.setWide), so every recording is in the world frame:
-// Team A's baseline at y = 0, Team B's at y = 8, whoever throws.
+// Team A's baseline at y = 0, Team B's at y = 8, whoever throws. Since kubb-engine
+// v0.7.2 that includes the result's landing and rest spots and the timeline's first
+// contact and first hit (session/wide.lua): the scan turns nothing itself.
 import { Engine } from "../../src/engine/index.js";
 import { useRoomEngine } from "../../src/net/lobby.js";
 
@@ -113,10 +115,6 @@ export async function scanReplay(replay, opts = {}) {
     const setup = was?.setup || {};
     const side = setup.side || was?.side;
     const first = engine.showAt(0).items.find((it) => it.id === pid);
-    // the result's landing and first hit stay in the thrower's frame (the wide
-    // view un-turns the pieces and the bursts, not these): Team B's are turned
-    const turn = (p) =>
-      p && side === "B" && p.x != null ? { ...p, x: -p.x, y: 8 - p.y } : p;
     const fact = {
       i,
       turn: r.replay.turn,
@@ -134,7 +132,7 @@ export async function scanReplay(replay, opts = {}) {
       hit: res.hit ?? null,
       distance: res.distance ?? null,
       from: first ? { x: first.x, y: first.y } : null,
-      land: turn({ x: res.landX ?? null, y: res.landY ?? null }),
+      land: { x: res.landX ?? null, y: res.landY ?? null },
       touches: (tl.touches || [])
         .filter((t) => t.id !== pid)
         .map((t) => ({ id: t.id, kind: t.kind, t: t.t })),
@@ -144,12 +142,12 @@ export async function scanReplay(replay, opts = {}) {
         start: b.start,
         anchor: b.anchor,
       })),
-      firstHit: turn(tl.firstHit ?? null),
+      firstHit: tl.firstHit ?? null,
       // a kubb thrown in: which kubb, when it first touched the ground, where it came
       // to rest, and whether it went out a second time (a punishment kubb)
       kubb: r.action.how === "drill" ? (pid ?? null) : null,
       landT: tl.firstContact?.t ?? rec.landing?.T ?? null,
-      rest: res.restX != null ? turn({ x: res.restX, y: res.restY }) : null,
+      rest: res.restX != null ? { x: res.restX, y: res.restY } : null,
       outTwice: /^out twice/i.test(res.ruling?.text || ""),
       slow: tl.slow ?? null,
       duration: rec.duration,
