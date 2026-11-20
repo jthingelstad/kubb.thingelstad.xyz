@@ -98,7 +98,8 @@ export const tune = {
   // linear.js wideMinTravel. Where it comes up into the header row, the plates
   // at that top corner (MENU and the practice tray at the right, the rail and
   // the shouts at the left) move in beside it, meterGap off its body
-  // (`meterRoom`). The iPhone app's WideLayout keeps the same numbers.
+  // (`meterRoom`). The iPhone app's WideLayout keeps the same numbers, all
+  // but the track's floor (the web's is lower: linear.js wideMinTravel).
   linearTopWide: 10,
   meterGap: 10,
   // a minimap stacked over the plan block (a narrow wide canvas beside the

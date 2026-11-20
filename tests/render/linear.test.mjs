@@ -131,5 +131,7 @@ test("the prompt tab hangs toward the centre at home, clear of the body", () => 
   // the wide floor is under the upright one: a phone on its side has no
   // taller track to give
   assert.ok(tune.wideMinTravel < tune.minTravel);
-  assert.equal(tune.wideMinTravel, 260);
+  // and lower than the iPhone app's 260 by Jamie's word (2026-11-20), with
+  // 20 px under a 6.1-inch iPhone's Safari with its bars showing (230)
+  assert.equal(tune.wideMinTravel, 210);
 });
