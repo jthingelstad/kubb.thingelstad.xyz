@@ -758,9 +758,11 @@ began, to the minute, as every setup does, and it is kept and served with the re
 These are requests for kubb-engine. The prototype works around each but the person's
 throw bounds, which it cannot.
 
-1. **World-frame facts in the wide view.** `setWide` un-turns Team B's pieces and burst
-   anchors, but not `result.landX`/`landY` or `timeline.firstHit`. The reel turns them
-   itself, `(x, y) -> (-x, 8 - y)` in `scan.mjs`.
+1. **World-frame facts in the wide view.** Done in kubb-engine v0.7.2: `setWide` now
+   un-turns Team B's `result.landX`/`landY` and `restX`/`restY`, the landing, and
+   `timeline.firstContact` and `firstHit`, as it did the pieces and burst anchors. The
+   reel turned them itself before; `scan.mjs` now turns nothing (an engine before 0.7.2
+   needs that flip back).
 2. **Structured rulings.** The reel reads plain English ("base kubb down", "2 field
    kubbs down", "king down: South wins") to find base hits, field hits and an early
    king. A `ruling.code` (`base`, `field`, `kingWin`, `kingEarly`, `miss`, `in`, `out`)
@@ -791,8 +793,8 @@ throw bounds, which it cannot.
    other to the pages function and the pitch page, built by the engine since the rooms
    function knows no Kubb.
 
-10. **Drill facts.** `result.restX`/`restY` are in the thrower's frame in the wide view,
-    like the landing, and the reel turns them. The round's ruling ("out twice:
+10. **Drill facts.** `result.restX`/`restY` are in the world frame in the wide view since
+    v0.7.2 (request 1). The round's ruling ("out twice:
     punishment kubb") arrives on the throw that ends the round, not on the punished
     kubb's: the reel finds that kubb from the engine's `punish` need when a person
     places it, and otherwise (the computer places it with no action in the log) as the
