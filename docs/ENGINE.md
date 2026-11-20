@@ -12,7 +12,8 @@ The session's own reference is the engine's `docs/SESSION.md` (its calls, determ
 tunables, tests) and `docs/VERSIONING.md` (what a version number promises). This file
 is the web's side: how the site loads the engine and the `Engine` wrapper's calls. A
 change to how the game plays is made in kubb-engine, released as a tag and vendored
-here (`npm run vendor:sync -- --tag vX.Y.Z`).
+here (`npm run vendor:sync -- --tag vX.Y.Z`). The site can carry older minors beside
+the newest, each its own `Engine`: `docs/ENGINES.md`.
 
 Everything returned to JavaScript is in **the thrower's view frame** (`core/frame`): the
 thrower stands at y = 0 on their own baseline, looking up the pitch toward +y (the far
@@ -21,14 +22,16 @@ match the frame is the throwing side's (the defending side's for raising and pun
 
 ## Files
 
-| Path                       | What                                                                                                                                   |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `vendor/engine/`           | kubb-engine at the tag in `vendor/engine.json`: `core/`, `session/`, `tune/`, `version.lua`, its `engine.json` manifest, `golden/`.    |
-| `tools/vendor.mjs`         | `vendor:sync` reads a tag from the engine checkout's git objects; `vendor:check` holds every file and the bundle to the manifest.      |
-| `tools/lua-bundle.mjs`     | Writes `build/lua-sources.json`: `{ "core/world": "<source>", "session/api": "<source>", ... }`, keys sorted: the engine's own bundle. |
-| `src/engine/index.js`      | `Engine`: wasmoon, the `import` shim, typed wrappers over `kubbCall`. Browser and Node; no DOM.                                        |
-| `tests/engine/`            | The bundle is the engine's, the start-up calls, the engine's golden corpus hash for hash under this wasmoon, and the kept fixtures.    |
-| `tools/replay-fixture.mjs` | Writes `tests/fixtures/replay-north-south.json` again after an engine change that moves hashes.                                        |
+| Path                       | What                                                                                                                                |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `vendor/engine/`           | kubb-engine at the tag in `vendor/engine.json`: `core/`, `session/`, `tune/`, `version.lua`, its `engine.json` manifest, `golden/`. |
+| `vendor/engines/<mm>/`     | Each older minor the site still carries, laid out the same, pinned under `older` in `vendor/engine.json` (`docs/ENGINES.md`).       |
+| `tools/vendor.mjs`         | `vendor:sync` reads a tag from the engine checkout's git objects; `vendor:check` holds every file and the bundle to the manifest.   |
+| `tools/lua-bundle.mjs`     | Writes `build/lua-sources-<mm>.json` per carried engine: `{ "core/world": "<source>", ... }`, keys sorted: the engine's own bundle. |
+| `src/engine/index.js`      | `Engine`: wasmoon, the `import` shim, typed wrappers over `kubbCall`. Browser and Node; no DOM.                                     |
+| `src/engine/registry.js`   | The carried engines by major.minor: `loadEngine(mm)` makes each once, from the config's `engines` map.                              |
+| `tests/engine/`            | The bundle is the engine's, the start-up calls, the engine's golden corpus hash for hash under this wasmoon, and the kept fixtures. |
+| `tools/replay-fixture.mjs` | Writes `tests/fixtures/replay-north-south.json` again after an engine change that moves hashes.                                     |
 
 Lua modules use the Playdate's `import "core/x"` convention and the `tw.*` namespace; in
 wasmoon the shim in `src/engine/index.js` loads them from the sources map. `BOOT`
@@ -41,7 +44,7 @@ resultJson`.
 import { Engine } from "../engine/index.js";
 const config = readConfig(); // src/site/config.js
 const engine = await Engine.create({
-  sources: config.luaUrl,
+  sources: config.luaUrl, // the newest; config.engines[mm].luaUrl for another
   wasmUrl: config.wasmUrl,
   client: clientLabel(config.version), // "web 0.1.0", src/net/sync.js
 });
