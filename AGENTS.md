@@ -92,7 +92,7 @@ address or home path in `dist/`, no account id in Markdown).
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `0.3.0 (0.8.1)`, at the foot of
+the full version of the newest engine the site carries, `0.4.0 (0.8.1)`, at the foot of
 every reading page and of MENU, with "Also plays 0.7.4" under it in MENU while an older
 engine is carried (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
