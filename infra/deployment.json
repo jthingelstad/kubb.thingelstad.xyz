@@ -38,8 +38,8 @@
   },
   "reels": {
     "functionArn": "arn:aws:lambda:us-east-1:999153317627:function:kubb-xyz-site-reels",
-    "engines": "0.8,0.7",
-    "codeKey": "reels/dded5cbefb635124316ab20dfd344e42d09f7dea1e024225f308468d3b921721.zip",
+    "engines": "0.9,0.8,0.7",
+    "codeKey": "reels/7752e6472ed2a4e3945a86c33a26cfead6fc446ad1f23f9e297df34d65de2e7e.zip",
     "layerKey": "reels/ffmpeg-f4149bb2b0784e30e99bdda85471c9b5930d3402014e934a5098b41d0f7201b1.zip"
   }
 }
