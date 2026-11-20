@@ -138,7 +138,8 @@ PNG per format. Both formats are H.264 High, yuv420p, 30 fps, AAC sound and fast
   - a title card: KUBB: THROWING WOOD, HIGHLIGHTS and the team plates;
   - a caption per moment in plain words, with a TURN kicker;
   - STANDING, the kubbs left in each half;
-  - an end card: the winner, how, and `throwingwood.com/p/<code>`.
+  - an end card: the winner, how, and `throwingwood.com/p/<code>` with its QR code
+    (below).
 
   In the tall frame all text stays inside 14% to 80% of the height and left of 84% of
   the width, clear of the platforms' buttons.
@@ -146,6 +147,46 @@ PNG per format. Both formats are H.264 High, yuv420p, 30 fps, AAC sound and fast
 - `audio.mjs` mixes the sound offline in plain JavaScript: the game's nine recorded
   knock takes at each touch (seeded, with the same rate spread as the game) and its
   C-G-C triangle chord for the king. It is a 16-bit WAV, muxed to AAC.
+
+### The end card
+
+The last 3.6 s of every reel (`endSeconds`; it fades in over its first 0.6 s, so it
+stands whole for 3 s), drawn by `endCard` in `overlay.mjs`: KUBB: THROWING WOOD, the
+winner and WINS, how it was won, WATCH THE WHOLE MATCH and the address
+`throwingwood.com/p/<code>`, and beside it a QR code of the same link as a viewer would
+type it, `https://throwingwood.com/p/<code>` (the owner, 2026-11-20: "the final frame
+shows a URL… we should add a QR code there… it may be easier for folks").
+
+- **The encoder** is `backend/reels/qr.mjs`, written here (byte mode, versions 1 to
+  10, all four levels, the standard's mask penalty): one short text needs no
+  dependency. `tests/reel/qr.test.mjs` decodes what it makes with jsQR (a dev
+  dependency only), for every level, mask and version, and the end card itself in both
+  formats for a 10-character code and a 24-character one, the longest the rooms take.
+- **Level M** (15% of the codewords can be lost). A link is version 3 (29 modules) for
+  the browser's 10-character codes and version 4 (33) for 24 characters; Q would take
+  one version more each, smaller modules in the same plate. Recompression and a phone
+  aimed at a screen blur every module alike rather than tearing a corner off, which
+  larger modules help more than more redundancy.
+- **The plate**: ink modules (`INK`) on a paper plate (`PAPER`, contrast about 18 to
+  1), never inverted, no logo, a quiet zone of four modules inside the plate's ink edge,
+  every module a whole number of pixels: as many as fit about 410 px across in the tall
+  frame (11 px a module for version 3, 10 for version 4) and 460 px in the wide frame
+  (12 and 11). Tall: the card sits 50 px higher and the code stands between how it was
+  won and WATCH THE WHOLE MATCH, centred. Wide: the words are centred in the room left
+  of the code, which stands at the right edge of the safe area, its foot level with the
+  address plate's. A name or an address too long for its room is set smaller (in the
+  tall frame the address may use the frame's width less its margins).
+- **Measured** on the kept replay fixture rendered both ways and its last frame cut from
+  each MP4 by ffmpeg: it decodes at full size, and after a downscale to 540 and to 360
+  px wide saved as JPEG at quality 50, for both code lengths.
+- **A code never costs a reel.** `endCardCode` in `render.mjs` returns null when the
+  symbol cannot be made, and `drawEndCard` draws the frame again without it when it
+  cannot be drawn; either way the card is the one without a code, with the address.
+- **Already-made reels keep the card they were made with.** The code did not raise
+  `REEL_LOOK` (`tag.mjs`), so a reel's key is the same `r1-<major.minor>` and nothing
+  renders again: a reel made before the code has none, one made after has it. Raising
+  `REEL_LOOK` would make every older pitch's next `reel` request (MAKE A HIGHLIGHT REEL
+  pressed again) render it anew under `r2-`, one at a time and counted against the caps.
 
 ### Measured (an Apple-silicon Mac, other work running)
 
