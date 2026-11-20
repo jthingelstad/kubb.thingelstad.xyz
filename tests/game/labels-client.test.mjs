@@ -104,6 +104,7 @@ browserTest("the menu's rows say what they set and show it", async () => {
       "Meter",
       "Meter side",
       "Surface",
+      "Scene",
       "Sound",
     ]);
     const sound = () =>
