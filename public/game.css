@@ -1022,6 +1022,32 @@ body.game {
   outline: 3px solid var(--ink);
   outline-offset: 2px;
 }
+/* The Scene row: each choice carries a small picture of its scene, sky over
+   ground, so the row shows what it picks (src/render/scenes.js SCENE_ROW).
+   The words carry the choice; the swatch is only a hint. */
+.seg[data-key="scene"] .seg-btn::before {
+  content: "";
+  display: inline-block;
+  width: 0.95em;
+  height: 0.95em;
+  margin-right: 0.45em;
+  vertical-align: -0.12em;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px currentColor;
+}
+.seg[data-key="scene"] .seg-btn[data-value="day"]::before {
+  background: linear-gradient(#d8ecf2 50%, #5fa43c 50%);
+}
+.seg[data-key="scene"] .seg-btn[data-value="night"]::before {
+  background:
+    radial-gradient(circle at 68% 28%, #f2f4ff 0 9%, transparent 11%),
+    linear-gradient(#0d1424 50%, #284a3b 50%);
+}
+.seg[data-key="scene"] .seg-btn[data-value="neon"]::before {
+  background:
+    linear-gradient(#5ff0ff, #5ff0ff) 50% 50% / 100% 1.5px no-repeat,
+    linear-gradient(#02050a 50%, #0a2a33 50%);
+}
 
 .menu .menu-list {
   display: grid;
