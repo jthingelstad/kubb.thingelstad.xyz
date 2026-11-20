@@ -48,6 +48,7 @@ A failure to start shows a plain error card with RELOAD and HOME. The HOW TO THR
 | `src/ui/sheet.js`                             | The score sheet card (below).                                                                                                                                                    |
 | `src/net/record.js`, `src/net/ask.js`         | What a solo or watch match's record carries and how it is sent; `ask`, the one-message socket reports and records share.                                                         |
 | `src/replay/player.js`, `src/replay/fetch.js` | The replay player (`ReplayPlayer`, `startReplay`) and `fetchReplay`, a pitch's kept replay by its code (below).                                                                  |
+| `src/ui/reel.js`, `src/net/reel.js`           | MAKE A HIGHLIGHT REEL: the button and its card (DOM), and the card's states, words and requests (pure, `tests/net/reel-client.test.mjs`); "Highlight reels", below.              |
 | `src/ui/howto.js`                             | The HOW TO THROW overlay.                                                                                                                                                        |
 | `src/ui/dom.js`                               | `h()` and `button()`.                                                                                                                                                            |
 | `public/game.css`                             | The game pages' styles, linked by `src/site/pages.mjs` after the site's.                                                                                                         |
@@ -694,6 +695,63 @@ kept replay and shows "No match here" when there is none.
 - The page fills its frame, at least 300×188.
 - **The snippet.** EMBED on the winner card and the replay bar opens it with COPY
   (`src/ui/embed.js`, `embedSnippet(code)`).
+
+## Highlight reels
+
+A finished pitch's highlight reel, made on the server (docs/REEL.md, docs/ROOMS.md
+section 12). The card is `Reel` in `src/ui/reel.js`; what it shows and asks is a pure
+reducer in `src/net/reel.js` (`reelStart`, `reelStep`, `reelView`), so every answer is
+tested without a browser.
+
+- **Where.** MAKE A HIGHLIGHT REEL beside EMBED on the winner card of a shared pitch
+  and on the replay bar and the replay's end card, only when the match has a replay
+  (`Pitch.reelFor`). Not on the embed, not when watching the computer, not in practice
+  or a match against the computer: that needs sharing (docs/REEL.md), and the card
+  already takes nothing but a pitch code for it. One `Reel` a finished match, so the
+  winner card and the replay say the same.
+- **The button follows the reel.** MAKE A HIGHLIGHT REEL, MAKING YOUR REEL while it is
+  asked for or renders, WATCH THE REEL once it is done. Pressing it opens the card.
+- **Asking is starting.** The first `reel` request for a kept replay starts its render,
+  so the page never sends one before the button is pressed. First the card reads the
+  room's kept replay (`askKept`, a `replay` message, which starts nothing) and checks it
+  is the match on the screen (`n` and `hash`): a just-ended match's `keep` may still be
+  on its way, so it looks again up to `reelTune.keptTries` times, 2.5 s apart, and a
+  newer match kept since means this one's reel can no longer be asked for. Then
+  `askReel`, and the answer's `v` must be the kept replay's.
+- **Making.** "Making your reel", a slow bar that never claims how far, and "About a
+  minute. You can keep watching." The card closes with BACK, Escape or a press outside
+  it. It asks again every 5 s (`reelTune.pollMs`) while it is open and the page is shown,
+  and stops when either is not; opened again, or the page shown again, it asks at once.
+  Each request is one message on a socket of its own (`src/net/ask.js`); asking how a
+  reel stands is free on the server. A lost poll while it renders adds "No connection."
+  and the next one is tried.
+- **Done.** The video muted, looping, `playsinline`: the tall file when the window is
+  taller than wide, else the wide, swapped on a resize. DOWNLOAD TALL and DOWNLOAD WIDE
+  are links with `download` (`throwing-wood-<code>-tall.mp4`, `-wide.mp4`); SHARE where
+  `navigator.canShare({ files })` takes a video hands over the tall file (fetched when
+  the card opens, so the share sheet opens on the press); COPY LINK copies
+  `https://throwingwood.com/p/<code>`.
+- **On load.** The pages function writes `og:video` (the wide file) into `/p/<code>`
+  when the reel is done beside this match's kept replay (`backend/pages/pitch.mjs`).
+  `reelFromPage` reads it, and only for the match the browser found finished on
+  arriving: the page was written for that one. WATCH THE REEL then reads the kept
+  replay and shows the video when its version is the tag's; a page older than the
+  room's newest match asks the server as MAKE does. The page is cached up to 5 minutes
+  at the edge, and the static fallback has no tag, so a reel done since shows MAKE A
+  HIGHLIGHT REEL, whose press finds it done without rendering again.
+- **When there is none.** `engine`: "This match was played on an older version of the
+  game and cannot have a reel." `empty`: "There are no highlights to show in this
+  match." `busy`: "Reels are busy today." `unavailable`: "Reels cannot be made here."
+  `replay` (or no kept replay after the looks): "This match has no kept replay, so it
+  cannot have a reel." `too-many`: "Too many reels asked for from here. Try again
+  later." A newer match kept: "This pitch has moved on to a newer match." None offers
+  TRY AGAIN: asking again cannot change them.
+- **Failing.** A reel the server marked `failed` was tried twice there already and is
+  final for that version: "The reel could not be made. Not this time.", no TRY AGAIN.
+  When the server could not read, write or start it (the error `failed`), the item is
+  taken back, so asking again really starts again: "The reel could not be made." with
+  TRY AGAIN, once; a second such failure is "Not this time". No connection: "No
+  connection." with TRY AGAIN, as often as pressed (nothing was started).
 
 ## Score sheet
 

@@ -11,10 +11,11 @@ share with friends.").
 
 This is the design for the real feature. **Built (2026-11-19): the server side for
 finished online pitches** ("The server" below says what was built and where it changed
-from the design; deploying it is `docs/REEL-RUNBOOK.md`). **Built (2026-11-19): the
-server side of sharing a match against the computer** (`share`, the renderer's check,
-sealed rooms; the protocol is `docs/ROOMS.md` section 13). Not built yet: the buttons and
-cards in the browser, the home and privacy page wording, and the iPhone. The renderer's
+from the design; deploying it is `docs/REEL-RUNBOOK.md`), and the browser's buttons, cards
+and home and privacy wording for them (docs/CLIENT.md "Highlight reels"). **Built
+(2026-11-19): the server side of sharing a match against the computer** (`share`, the
+renderer's check, sealed rooms; the protocol is `docs/ROOMS.md` section 13). Not built
+yet: the share card and its wording in the browser, and the iPhone. The renderer's
 code is `backend/reels/` (moved there from the prototype in `tools/reel/`); the
 prototype's commands below still render reels on a laptop with that same code.
 
