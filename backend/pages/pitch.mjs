@@ -65,8 +65,16 @@ export const sameMatch = (r, m) =>
 //   { state: "waiting", v }
 //   { state: "playing", v, teams: { A, B }, turn, pieces }
 //   { state: "over", v, teams, turn, winner: "A" | "B" | null, how, replay, pieces,
-//     match: { n, hash } }
-export function pitchState({ doc = null, replay = null, kept } = {}) {
+//     match: { n, hash }, reel: { wide } | null }
+//
+// reel: the kept replay's finished highlight reel ({ wide: site path }), or null;
+// shown only beside a replay (docs/REEL.md, docs/ROOMS.md section 12).
+export function pitchState({
+  doc = null,
+  replay = null,
+  kept,
+  reel = null,
+} = {}) {
   const d = doc ? parse(doc.doc) : null;
   const v = finite(doc?.v) ? doc.v : 0;
   if (d && typeof d === "object") {
@@ -79,10 +87,12 @@ export function pitchState({ doc = null, replay = null, kept } = {}) {
         ...shown,
         state: "over",
         v,
-        replay:
+        ...withReel(
           kept === undefined
             ? hasReplay(m)
             : typeof kept === "string" && sameMatch(parse(kept), m),
+          reel,
+        ),
         match: { n: m.n ?? null, hash: m.hash ?? null },
       };
     return { ...shown, state: "playing", v };
@@ -95,11 +105,36 @@ export function pitchState({ doc = null, replay = null, kept } = {}) {
         ...shown,
         state: "over",
         v: 0,
-        replay: true,
+        ...withReel(true, reel),
         match: { n: r.n ?? null, hash: r.hash ?? null },
       };
   }
   return { state: "none" };
+}
+
+const withReel = (replay, reel) => ({
+  replay,
+  reel:
+    replay && reel && typeof reel.wide === "string"
+      ? { wide: reel.wide }
+      : null,
+});
+
+// A reel's wide file, as the reel function writes it (backend/reels/tag.mjs reelPaths).
+const REEL_WIDE =
+  /^\/reels\/([2-9a-hjkmnp-z]{8,24})\/[0-9]{1,9}-r[0-9]{1,4}-[0-9]{1,4}\.[0-9]{1,4}\/wide\.mp4$/;
+
+// The kept replay's highlight reel, when it is done and is this replay's (the same
+// document version): { wide } or null. Anything that fails is no reel.
+async function readReel(item, code, keptV) {
+  try {
+    const r = await item(`room#${code}`, "reel", ["v", "state", "wide", "exp"]);
+    if (!r || r.state !== "done" || r.v !== keptV) return null;
+    const m = REEL_WIDE.exec(r.wide ?? "");
+    return m && m[1] === code ? { wide: r.wide } : null;
+  } catch {
+    return null;
+  }
 }
 
 // What pitchState needs of one room, through item(pk, sk, fields), a GetItem
@@ -113,11 +148,24 @@ export async function readRoom(item, code) {
   if (doc) {
     const stored = { v: doc.v, doc: doc.doc };
     if (pitchState({ doc: stored }).state !== "over") return { doc: stored };
-    const kept = await item(pk, "replay", ["z", "exp"]);
-    return { doc: stored, kept: kept ? unzip(kept.z) : null };
+    const kept = await item(pk, "replay", ["v", "z", "exp"]);
+    if (!kept) return { doc: stored, kept: null };
+    const text = unzip(kept.z);
+    // the reel only beside this match's own replay (one more GetItem)
+    const own = pitchState({ doc: stored, kept: text }).replay;
+    return {
+      doc: stored,
+      kept: text,
+      reel: own ? await readReel(item, code, kept.v) : null,
+    };
   }
-  const kept = await item(pk, "replay", ["z", "exp"]);
-  return { doc: null, replay: kept ? unzip(kept.z) : null };
+  const kept = await item(pk, "replay", ["v", "z", "exp"]);
+  if (!kept) return { doc: null, replay: null };
+  return {
+    doc: null,
+    replay: unzip(kept.z),
+    reel: await readReel(item, code, kept.v),
+  };
 }
 
 function fromSnap(snapText, setup) {
@@ -248,7 +296,7 @@ export function previewOf(s) {
     : `Over after ${turns(s.turn)}.`;
   return {
     title: `${vs} · ${SITE_NAME}`,
-    description: `Final: ${result}${s.replay ? " Watch the replay." : ""}`,
+    description: `Final: ${result}${s.replay ? " Watch the replay." : ""}${s.reel ? " Watch the highlights." : ""}`,
     line: won ? `${won} won · ${turns(s.turn)}` : `Over · ${turns(s.turn)}`,
     teams: s.teams,
     alt: `${vs}, final: ${result} The pitch from above as the match ended`,
@@ -325,6 +373,24 @@ export function injectPreview(html, { code, s, path, embed = false }) {
       /<meta property="og:image" /,
       (tag) => `<meta property="og:url" content="${ORIGIN}${path}">\n${tag}`,
     );
+    // A finished reel: the wide MP4 for services that play a video in the card. The
+    // image stays for those that do not. The embed is a player already: no video.
+    if (!embed && s.reel?.wide) {
+      const video = `${ORIGIN}${s.reel.wide}`;
+      const tags = [
+        ["og:video", video],
+        ["og:video:secure_url", video],
+        ["og:video:type", "video/mp4"],
+        ["og:video:width", "1920"],
+        ["og:video:height", "1080"],
+      ]
+        .map(([k, v]) => `<meta property="${k}" content="${esc(v)}">`)
+        .join("\n");
+      out = out.replace(
+        metaRe("property", "og:image:alt"),
+        (tag) => `${tag}\n${tags}`,
+      );
+    }
   }
   if (embed)
     out = out.replace(

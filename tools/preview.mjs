@@ -54,9 +54,12 @@ const EMBED_CSP = embedSecurityPolicy(CONNECT);
 
 // page(html, { uri, url }): a test's stand-in for the pages function, which
 // writes a pitch's preview and state into /p/ and /e/ (backend/pages).
+// /reels/... (highlight reels) come from `reels`, where the local room server renders
+// them (tools/reels-dev.mjs), as CloudFront serves the bucket's reels/.
 export async function startPreview({
   port = 4322,
   root = "dist",
+  reels = "build/reels-dev",
   page = null,
 } = {}) {
   const handler = await loadViewerRequest();
@@ -73,7 +76,8 @@ export async function startPreview({
       return;
     }
     const key = path.normalize(result.uri).replace(/^[/\\]+/, "");
-    const file = path.join(root, key);
+    const from = key.startsWith(`reels${path.sep}`) ? reels : root;
+    const file = path.join(from, key);
     const headers = {
       "content-security-policy": embed ? EMBED_CSP : CSP,
       "x-content-type-options": "nosniff",
@@ -81,7 +85,7 @@ export async function startPreview({
       ...(embed ? {} : { "x-frame-options": "DENY" }),
     };
     try {
-      if (!file.startsWith(`${root}${path.sep}`))
+      if (!file.startsWith(`${from}${path.sep}`))
         throw new Error("outside dist");
       let body = await fs.readFile(file);
       if (page && key.endsWith(".html"))
@@ -94,7 +98,9 @@ export async function startPreview({
         );
       res.writeHead(200, {
         ...headers,
-        "content-type": contentType(key) || "application/octet-stream",
+        "content-type":
+          (key.endsWith(".mp4") ? "video/mp4" : contentType(key)) ||
+          "application/octet-stream",
         "cache-control": cacheControl(key),
       });
       res.end(body);

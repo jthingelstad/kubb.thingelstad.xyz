@@ -264,6 +264,44 @@ the match; a waiting pitch has none yet, so it is "A pitch waiting for players".
 of players, member ids, open-game listing or games bucket. Anything that fails gives the
 static title, description and share image, never an error page.
 
+## Highlight reels
+
+A finished online pitch can have a highlight reel: a short video of its best throws,
+tall (1080x1920) and wide (1920x1080), made on the server from the kept replay with this
+engine. Jamie, 2026-11-19: "Approved: build the highlight reel feature as designed in
+docs/REEL.md, including its AWS resources in the throwingwood.com web stack". The design
+is `docs/REEL.md`, the protocol `docs/ROOMS.md` section 12, deploying, checking and
+rolling back `docs/REEL-RUNBOOK.md`. Not built yet: sharing a match against the computer,
+sealed rooms, the renderer's check, the browser's button and player, the home and privacy
+wording, and the iPhone.
+
+- `backend/reels/`: the renderer (`render.mjs` over `scan`, `highlights`, `cameras`,
+  `overlay`, `audio`), the job (`job.mjs`: try, read the replay, refuse another engine,
+  render, upload, mark done), its AWS adapters (`aws.mjs`) and the Lambda entry
+  (`handler.mjs`). `tools/reel/render.mjs` is the same renderer from the command line,
+  with contact sheets.
+- The rooms function answers `{ t: "reel", room }` from anyone and starts at most one
+  render a kept replay (`room#<code> | reel`, a conditional put), invoking
+  `kubb-xyz-site-reels` asynchronously. It renders only a match whose `match.engine`
+  major.minor is one the function carries (`REEL_ENGINES`, the vendored engine's).
+- Caps: 3 renders started a connection, 200 a UTC day for the whole site (a counter
+  item), a render left `rendering` 25 minutes may be started again, twice in all;
+  `failed` is final for that version. The function runs two at a time.
+- The site stack holds the function (`infra/site.json`, Node 24, arm64, 3008 MB, 5
+  minutes, one retry) and its ffmpeg layer, both packaged by `tools/reels-bundle.mjs`
+  (`npm run reels:bundle`) from `infra/reels-pins.json`: a static ffmpeg 7.0.2 (GPL v3,
+  its licence in the layer) and `@napi-rs/canvas`'s Linux arm64 binary, each checked
+  against its pinned digest. `"reelRenderer": true` in `infra/deployment.json` turns it
+  on; `infra:apply -- site`, then `-- rooms`. Its role reads only the replay's
+  attributes and updates only the reel item's, and puts only under `reels/` in the
+  site bucket. `tools/deploy.mjs` never writes there; a lifecycle rule expires it after
+  366 days.
+- `/p/<code>` gains `og:video` (the wide MP4) and "Watch the highlights." when its
+  reel is done (`backend/pages/pitch.mjs`).
+- `npm run dev` renders reels in the local room server's process with the ffmpeg on the
+  PATH into `build/reels-dev/` (`tools/reels-dev.mjs`); `npm run preview` serves them at
+  `/reels/...`.
+
 ## Score sheet
 
 MENU, SCORE SHEET (any match, not practice) and SCORE SHEET on the winner card show the
