@@ -48,6 +48,19 @@ export function webpSize(buf) {
 
 const PUBLIC = new URL("../../public/", import.meta.url);
 
+// The engine's golden corpus, as vendored: /engine/ counts it, never a number
+// typed by hand (it said 505 after 0.9.0 made it 523).
+const GOLDEN = JSON.parse(
+  fs.readFileSync(
+    new URL("../../vendor/engine/golden/hashes.json", import.meta.url),
+    "utf8",
+  ),
+).matches;
+export const GOLDEN_COUNT = {
+  matches: GOLDEN.length,
+  hashes: GOLDEN.reduce((n, m) => n + m.actions.length, 0),
+};
+
 // <img> for public/landing/<name>.webp, its size read from the file.
 // eager: the hero's picture, loaded at once; every other one waits.
 export function img(name, alt, { eager = false, cls = "shot" } = {}) {
@@ -440,7 +453,7 @@ function engine({ tinylytics, config = {} }) {
   <h2 class="display" id="hashes">Phone and browser agree</h2>
   <p>A browser and an iPhone can share a pitch. Each works out every throw by itself. Then each turns the whole game into a short code, called a hash. If the two ever disagreed, the codes would not match.</p>
   <p>They match. The web uses WebAssembly, which does math the same way in every browser. The iPhone uses the same math code, built to round numbers the same way.</p>
-  <p>We keep 505 hashes from 13 test matches. Every change to the engine must match them all.</p>
+  <p>We keep ${GOLDEN_COUNT.hashes} hashes from ${GOLDEN_COUNT.matches} test matches. Every change to the engine must match them all.</p>
   <p>We also played three full matches between a browser and an iPhone, on grass, sand and snow. Every throw matched. The Playdate does its math its own way, so it plays alone.</p>
 </section>
 <section class="frame prose" aria-labelledby="versions">

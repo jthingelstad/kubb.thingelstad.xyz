@@ -37,6 +37,7 @@ import { carriedEngines } from "../../tools/lua-bundle.mjs";
 import { NAV, footer } from "../../src/site/layout.mjs";
 import {
   LOVE,
+  GOLDEN_COUNT,
   PLAYDATE_BUILD,
   iosJoin,
   playdateBuildVersion,
@@ -742,4 +743,10 @@ test("robots.txt: crawlers stay off per-match addresses, link previews do not", 
       CRAWL_BLOCKED.some((b) => path.startsWith(b)),
       path,
     );
+});
+
+test("/engine/ counts the golden corpus the site vendors", () => {
+  const html = PAGES.find((p) => p.path === "/engine/").render({});
+  assert.deepEqual(GOLDEN_COUNT, { matches: 13, hashes: 523 });
+  assert.match(html, /We keep 523 hashes from 13 test matches\./);
 });
