@@ -1,10 +1,11 @@
 // The menu, from the button in the top corner: resign, sound, level, meter
 // and its side, how to throw, the score sheet (in a match), send feedback, the rules and home; on
-// the practice pitch also the surface; watching the computer, the view. At its
+// the practice pitch also the surface and the scene; watching the computer, the view. At its
 // foot, small, the release label (src/site/release.js): "0.2.0 (0.8.1)", and
 // "Also plays 0.7.4" under it when the page carries an older engine.
 import { h, button, clear } from "./dom.js";
 import { LEVEL_NOTE } from "../game/throw-level.js";
+import { SCENE_ROW, sceneId } from "../render/scenes.js";
 
 const LEVELS = [
   ["beginner", "Beginner"],
@@ -42,7 +43,7 @@ const SURFACES = [
 ];
 
 export class Menu {
-  // hooks: { game, sound, howto, home, resign?, surface?, sheet?, report?, view?, release?: { text, detail }, mode }
+  // hooks: { game, sound, howto, home, resign?, surface?, scene?, sheet?, report?, view?, release?: { text, detail }, mode }
   // view: { get() -> "wide" | "thrower", set(v) }
   constructor(root, hooks) {
     this.hooks = hooks;
@@ -162,6 +163,17 @@ export class Menu {
               h("span.opt-label", "Surface"),
               seg(SURFACES, game.viewData?.surface || "grass", (v) => {
                 this.hooks.surface(v);
+                render();
+              }),
+            )
+          : null,
+        game.mode === "practice" && this.hooks.scene
+          ? h(
+              "div.opt",
+              { "data-test": "menu-scene" },
+              h("span.opt-label", SCENE_ROW[1]),
+              seg(SCENE_ROW[2], sceneId(game.viewData?.scene), (v) => {
+                this.hooks.scene(v);
                 render();
               }),
             )

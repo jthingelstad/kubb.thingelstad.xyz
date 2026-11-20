@@ -189,14 +189,18 @@ test("the day scene named is the same picture as no scene", () => {
   assert.equal(drawAll({ look: null }), drawAll({}));
 });
 
-test("the address switch: ?scene=night or ?scene=neon, nothing else", () => {
-  assert.equal(sceneFromQuery("?scene=night")?.id, "night");
-  assert.equal(sceneFromQuery("?scene=neon")?.id, "neon");
+test("the address switch: ?scene=night, neon or day, nothing else", () => {
+  assert.equal(sceneFromQuery("?scene=night"), "night");
+  assert.equal(sceneFromQuery("?scene=neon"), "neon");
   assert.equal(sceneFromQuery("?scene=NEON"), null);
   assert.equal(sceneFromQuery("?scene=neon2"), null);
-  assert.equal(sceneFromQuery("?nohowto=1&scene=night")?.id, "night");
+  assert.equal(sceneFromQuery("?nohowto=1&scene=night"), "night");
   assert.equal(sceneFromQuery(""), null);
-  assert.equal(sceneFromQuery("?scene=day"), null);
+  assert.equal(
+    sceneFromQuery("?scene=day"),
+    "day",
+    "the day, over a saved scene",
+  );
   assert.equal(sceneFromQuery("?scene=NIGHT"), null);
   assert.equal(sceneFromQuery("?scene=park"), null);
   assert.equal(sceneFromQuery("?scene="), null);

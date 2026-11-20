@@ -10,6 +10,7 @@ import { prefs } from "../game/prefs.js";
 import { levelLine, soloOptions } from "../game/throw-level.js";
 import { drawMinimap } from "../render/minimap.js";
 import { teamOf } from "../game/scenes.js";
+import { SCENE_ROW, sceneId } from "../render/scenes.js";
 
 export class Cards {
   constructor(root) {
@@ -191,9 +192,23 @@ export class Cards {
 
   // level: the device's throw level, shown, not picked (MENU sets it: menu() opens
   // it over this card, onLevel(f) hears a change); the Computer level row is the
-  // computer's, a match option
-  options(onStart, { home, level = null, menu = null, onLevel = null }) {
+  // computer's, a match option. scene: the Scene row's value when the address
+  // names one (?scene=), else the saved one; onScene(id) hears it picked, so the
+  // pitch behind the card can show it.
+  options(
+    onStart,
+    {
+      home,
+      level = null,
+      menu = null,
+      onLevel = null,
+      scene = null,
+      onScene = null,
+    },
+  ) {
     const saved = soloSaved();
+    if (scene) saved.scene = sceneId(scene);
+    onScene?.(saved.scene);
     const name = h("input.name", {
       type: "text",
       maxlength: 16,
@@ -204,7 +219,12 @@ export class Cards {
     });
     const groups = {};
     const rows = OPTION_ROWS.map(([key, label, choices]) => {
-      const seg = segmented(key, choices, saved[key]);
+      const seg = segmented(
+        key,
+        choices,
+        saved[key],
+        key === "scene" ? onScene : null,
+      );
       groups[key] = seg;
       return h(
         "div.opt",
@@ -322,10 +342,11 @@ export const tune = {
 
 // The solo card's options as last saved (prefs "solo"), the computer's level moved
 // across from the card's older Level row (src/game/throw-level.js).
-export const soloSaved = () => ({
-  ...SOLO_DEFAULTS,
-  ...soloOptions(prefs.get("solo", {})),
-});
+export const soloSaved = () => {
+  const o = { ...SOLO_DEFAULTS, ...soloOptions(prefs.get("solo", {})) };
+  o.scene = sceneId(o.scene); // one this copy does not draw: the day
+  return o;
+};
 
 export const SOLO_DEFAULTS = {
   name: "You",
@@ -335,6 +356,7 @@ export const SOLO_DEFAULTS = {
   raising: "hand",
   wind: "off",
   set: "classic",
+  scene: "day",
 };
 
 const OPTION_ROWS = [
@@ -392,9 +414,12 @@ const OPTION_ROWS = [
       ["wisconsin", "Wisconsin"],
     ],
   ],
+  // the look only: the pitch behind the card shows it when picked
+  SCENE_ROW,
 ];
 
-function segmented(key, choices, value) {
+// onPick(v): a value picked (the Scene row's preview)
+function segmented(key, choices, value, onPick = null) {
   let current = choices.some(([v]) => v === value) ? value : choices[0][0];
   const btns = choices.map(([v, label]) =>
     h(
@@ -408,6 +433,7 @@ function segmented(key, choices, value) {
           current = v;
           for (const b of btns)
             b.setAttribute("aria-checked", String(b.dataset.value === v));
+          onPick?.(v);
         },
       },
       label,

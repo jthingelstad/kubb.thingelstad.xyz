@@ -53,6 +53,7 @@ import { Reel } from "../ui/reel.js";
 import { reelFromPage } from "./reel.js";
 import { majorMinor, withEngineFor } from "../engine/registry.js";
 import { openSheet } from "../ui/sheet.js";
+import { SCENE_ROW } from "../render/scenes.js";
 
 export const tune = {
   tickMs: 200, // the controller's clock: aim casts (5 a second), drain, host check
@@ -271,6 +272,8 @@ export class Pitch {
       // the computer's level (engine 0.9 on): cleanOptions knows only the five, and
       // an engine before 0.9 ignores it
       if (LEVELS.includes(saved?.computer)) o.computer = saved.computer;
+      // and the scene the host last picked (a look only, the same way)
+      if (SCENE_ROW[2].some(([v]) => v === saved?.scene)) o.scene = saved.scene;
       const open = new URLSearchParams(location.search).get("open") === "1";
       this.write((doc) => {
         const d = setOptions(doc, o) ?? lobbyOf(doc);
