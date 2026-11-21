@@ -918,7 +918,9 @@ and the card's states are a pure reducer in `src/net/share.js` (`shareStart`,
   REPLAY, EMBED, MAKE A HIGHLIGHT REEL and SCORE SHEET, no lobby, seats or rematch. BACK
   TO THE PITCH from the replay puts the finished match back. The room never moves on,
   so its reel is this match's. `/e/<code>` needs nothing new: the embed reads only the
-  replay.
+  replay. An observer's link (`?observe=1`) to a code with no live pitch gets the same
+  view for any kept match (`Pitch.nothingToWatch`), with JOIN THIS PITCH when the match
+  is not sealed (docs/OBSERVER.md).
 
 ## Score sheet
 

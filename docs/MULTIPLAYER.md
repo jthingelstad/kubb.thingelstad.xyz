@@ -299,7 +299,11 @@ A throw taken for an absent teammate says YOUR THROW FOR <NAME>.
   or the host (the server never makes one host), never write the document and cannot
   cast, so they have no SHOUT; between matches they see their own card, not the lobby.
   Listed under Watching like anyone on neither team. An observer arriving at a pitch with
-  no player connected leaves at once. docs/OBSERVER.md.
+  no player connected, or refused `no-pitch` (the pitch server keeps no pitch for the
+  code), leaves at once and looks at the api's answer for the code (asked beside the
+  join): a kept match, shared (sealed) or a finished pitch's since wiped, is shown as a
+  finished match (the result, WATCH REPLAY; JOIN THIS PITCH too when not sealed); only a
+  code with nothing kept says "No game here". docs/OBSERVER.md.
 - **Someone leaves**: their throws fall to a connected teammate, else the host.
 - **The host goes**: the server hands the host on after 15 s (above). The new host runs
   the computer from then on and gets REMATCH.
@@ -320,7 +324,8 @@ A throw taken for an absent teammate says YOUR THROW FOR <NAME>.
   lead, if the api kept one. After a rematch the lobby offers WATCH THE LAST MATCH until
   the next one ends. A match in play is never offered. A pitch left empty for 48 hours
   is wiped on the pitch server while the api keeps its replay a year: whoever opens the
-  link after that gets a new lobby that offers WATCH THE LAST MATCH.
+  link after that gets a new lobby that offers WATCH THE LAST MATCH; an observer's link
+  shows that match itself (Observers, above).
 - **Watching a replay** (`Pitch.watch`): the pitch stays joined but news waits while the
   replay plays (`ReplayPlayer`, docs/CLIENT.md "Replays"); BACK TO THE PITCH returns to
   where it was and catches up with the pitch. The replay is read only: its seat may never

@@ -142,6 +142,7 @@ export class Pitch {
     this.engineFailed = null; // a match's engine that did not load
     this.mode = "lobby"; // lobby | match | replay | gone | sealed
     this.sealed = null; // a shared match's kept replay (showSealed)
+    this.sealedJoin = false; // showSealed for an observer at a wiped pitch: JOIN THIS PITCH
     this.replay = null; // the replay player while one plays (src/replay/player.js)
     this.replayFrom = null; // the mode to go back to
     this.arrivedOver = null; // the match number this browser first saw finished
@@ -327,12 +328,13 @@ export class Pitch {
         return this.showSealed();
       }
       // a finished pitch left empty for 48 hours is wiped while the api keeps its
-      // replay a year: the lobby still offers that match (lookForReplay)
-      this.keptBefore = !!kept;
+      // replay a year: the lobby still offers that match (lookForReplay). The api
+      // answers every well formed code, `replay: null` when it keeps none.
+      this.keptBefore = !!kept?.replay;
       const players = room.members.filter(
         (m) => m.connected && m.role !== "observer",
       );
-      if (this.observe && players.length === 0) return this.noGame();
+      if (this.observe && players.length === 0) return this.nothingToWatch();
     }
     this.ready = true;
     // the host's own options go in on a new pitch, and OPEN from the web game's page
@@ -371,8 +373,27 @@ export class Pitch {
     this.lobby?.setReplay(!!r);
   }
 
-  // An observer found an empty pitch: it leaves, so the pitch keeps no member, and says
-  // so.
+  // An observer found no game on the pitch: no player connected, or the join refused
+  // `no-pitch` (the pitch server keeps no pitch for the code: never used, or wiped after
+  // 48 empty hours). Before it says so, it asks what the api keeps for the code (the
+  // answer asked beside the join): a kept match, sealed (a shared match) or not (a
+  // finished pitch since wiped), is shown as a finished match (showSealed); only a code
+  // with nothing kept is "No game here".
+  async nothingToWatch() {
+    this.mode = "lobby";
+    clearInterval(this.timer);
+    clearInterval(this.aimTimer);
+    const kept = await this.sealedAsk;
+    if (this.mode !== "lobby") return;
+    if (!kept?.replay) return this.noGame();
+    this.note(kept.sealed ? "sealed-code" : "kept-code");
+    this.room?.leave();
+    this.lobby?.hide();
+    return this.showSealed({ join: !kept.sealed });
+  }
+
+  // An observer found an empty pitch with nothing kept: it leaves, so the pitch keeps
+  // no member, and says so.
   noGame() {
     clearInterval(this.timer);
     clearInterval(this.aimTimer);
@@ -408,11 +429,9 @@ export class Pitch {
     this.lobby?.hide();
     let code = err instanceof PitchError ? err.code : "error";
     if (code === "bad-pitch" || code === "bad-member") code = "bad-room";
-    // an observer refused for a pitch with nobody on it
-    if (code === "no-pitch" && this.observe) {
-      this.mode = "lobby";
-      return this.noGame();
-    }
+    // an observer refused for a pitch with nobody on it: a kept match may still be
+    // there to watch
+    if (code === "no-pitch" && this.observe) return this.nothingToWatch();
     const text = {
       full: "This pitch has as many people on it as it takes, every one of them connected. Start a pitch of your own, or try again when someone leaves.",
       "bad-room":
@@ -451,14 +470,24 @@ export class Pitch {
   // match from the api's kept replay, as a browser arriving after a pitch's end sees it:
   // the result, WATCH REPLAY, the score sheet, EMBED and the reel. No lobby, seats or
   // rematch. It never moves on, so the replay read here is the one its reel is made from.
-  async showSealed() {
+  // join: an observer at a finished pitch the pitch server has since wiped (not sealed,
+  // nobody on it; nothingToWatch) sees its kept match the same way, with JOIN THIS PITCH
+  // (the lobby, where a new match can start) in place of a rematch.
+  async showSealed({ join = false } = {}) {
     this.mode = "sealed";
+    this.sealedJoin = join;
     if (this.shoutBar) this.shoutBar.hidden = true;
     const r = await fetchReplay({
       ...this.apiOpts(),
       code: this.code,
       check: isReplay,
     });
+    if (this.mode !== "sealed") return;
+    // a kept match that will not play here: an observer hears there is no game
+    if (!r && join) {
+      this.mode = "lobby";
+      return this.noGame();
+    }
     if (!r) {
       this.mode = "gone";
       this.cards.notice({
@@ -488,7 +517,8 @@ export class Pitch {
   sealedCard(need) {
     const r = this.sealed;
     this.cards.winner(need, {
-      rematch: null,
+      rematch: this.sealedJoin ? () => this.joinPitch() : null,
+      again: "JOIN THIS PITCH",
       sheet: this.sheet ? () => this.openSheet() : null,
       home: this.home,
       replay: () => this.watch(r),
