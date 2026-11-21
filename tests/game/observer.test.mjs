@@ -429,6 +429,38 @@ browserTest(
 );
 
 browserTest(
+  "a host who opens WATCH on their own pitch in another tab stays the host in the first",
+  async () => {
+    const code = makeRoomCode();
+    const host = await join(code, "Hanna");
+    await host.waitForSelector("[data-test=lobby]");
+    await host.click("[data-test=join-A]");
+    await waitFor(host, () => window.__kubb.pitch.state().side === "A");
+    const before = await pst(host);
+    // the same browser (one localStorage, so one player id), a second tab
+    const obs = await host.context().newPage();
+    obs.errors = [];
+    obs.on("pageerror", (e) => obs.errors.push(e.message));
+    await obs.goto(`${env.base}/p/${code}?nohowto=1&observe=1&${roomsQ()}`);
+    await obs.waitForSelector("[data-test=watch-card]", { timeout: 30000 });
+    await waitFor(obs, () => window.__kubb.pitch.state().members === 2);
+    const o = await pst(obs);
+    assert.notEqual(o.you, before.you, "a member of its own");
+    assert.equal(o.host, before.you, "the playing tab is still the host");
+    assert.equal(o.side, null);
+    // the playing tab was not taken over: still connected, the host, on its side
+    await waitFor(host, () => window.__kubb.pitch.state().members === 2);
+    const h = await pst(host);
+    assert.equal(h.status, "open");
+    assert.equal(h.host, before.you);
+    assert.equal(h.side, "A");
+    assert.deepEqual(obs.errors, []);
+    assert.deepEqual(host.errors, []);
+    await host.context().close();
+  },
+);
+
+browserTest(
   "an observer at an empty pitch hears there is no game, and leaves",
   async () => {
     const code = makeRoomCode();

@@ -31,6 +31,10 @@ An observer:
 - gets in step at once, mid-match or not: the room's document carries the match's
   snapshot, and it adopts it (the same late join every member has), then plays each
   action as it comes;
+- is a member of its own: its member id is kept for the tab (`observerId`,
+  sessionStorage), never the browser's player id. A host or player who opens WATCH on
+  their own pitch in another tab stays the host or player in the first, and the watching
+  tab is one more watcher;
 - may never act: its seat has no side and no computer, `mayAct` is always false, and it
   commits nothing to the document; the pages hold `onAction` shut too;
 - never writes the room's options on arrival, even on a new room;
@@ -114,6 +118,9 @@ On while a watcher sees the wide view and no card is over the pitch.
   (at once, then 20 s doubling to 5 minutes; again from the first when a host is
   connected or a member never seen before connects). Keep the member id across the
   rejoin. No room server change is needed: `leave` then `join` puts a member last.
+- An observer's member id is its own, never the device's player id (the web keeps it for
+  the tab). A host who leaves their pitch and taps WATCH on it must come back as a new
+  watcher, not as the host: an observer holding the host's place stalls the pitch.
 - Same view: start at the engine's wide camera untouched; orbit with the limits above;
   lens unchanged; RESET VIEW eases 0.45 s, or at once with Reduce Motion. The gestures
   map one to one: one finger turns, two fingers pinch, twist and slide.

@@ -5,7 +5,7 @@
 // done elsewhere, adopt takes the room's snapshot when this browser is out of
 // step. The rules of who acts, the document's reducers and the in-step decision are
 // the engine's (vendor/engine/room/), through src/net/seats.js, lobby.js and sync.js.
-import { connect, memberId, RoomError } from "./room.js";
+import { connect, memberId, observerId, RoomError } from "./room.js";
 import {
   lobbyOf,
   joinTeam,
@@ -211,7 +211,8 @@ export class Pitch {
       this.room = connect({
         url: this.roomsUrl,
         room: this.code,
-        member: memberId(),
+        // an observer is a member of its own, never this browser's player
+        member: this.observe ? observerId() : memberId(),
         // engine and engines: what this page carries, the newest until it knows the
         // room (the engine's docs/ROOM.md "Speaking down"; Pitch.speak)
         me: { name, level: game.level, ...this.announcement(null) },
