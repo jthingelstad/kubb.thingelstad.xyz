@@ -327,8 +327,9 @@ which happens only after it has been idle longer than any of their windows.
   told, so carry out the effects.
 - `step(state, event) -> { state, effects }`, with `event` one of
   `{ type: "frame", conn, text, now }` (`webSocketMessage`),
-  `{ type: "close", conn, now }` (`webSocketClose` and `webSocketError`) and
-  `{ type: "tick", now }` (`alarm`). It changes `state` in place.
+  `{ type: "close", conn, now }` (`webSocketClose` and `webSocketError`),
+  `{ type: "tick", now }` (`alarm`) and `{ type: "pushed", k, now }` (the AWS function
+  confirmed push `k`). It changes `state` in place.
 - `createPitch`, `resolveOptions`, `LIMITS`, `OPTIONS`, `thinAllow`, `matchView`,
   `listingEntry`, `keptReplay`, `utf8Length`, `PITCH_CODE`, `MEMBER_ID`, `ACT_ID`.
 
@@ -340,16 +341,16 @@ which happens only after it has been idle longer than any of their windows.
 Carry them out in the order given, synchronously where the platform allows (SQLite in a
 Durable Object is synchronous), and serialize each `send` frame once.
 
-| `kind`    | Fields                                                     | The object does                                                                |
-| --------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `send`    | `to: [conn], frame`                                        | `JSON.stringify(frame)` once, send it to each socket (ignore one that is gone) |
-| `close`   | `conn, code, reason`                                       | close that socket                                                              |
-| `attach`  | `conn, member, role`                                       | `serializeAttachment({ conn, member, role })` (`member: null` after a leave)   |
-| `persist` | any of `pitch, doc, members, match, head, acts, clearActs` | one transaction (below)                                                        |
-| `push`    | `topic, body`                                              | send to the AWS function, signed (topics below); retry, never block the pitch  |
-| `listing` | `pitch, entry \| null`                                     | tell the `LobbyDO`: list `entry`, or take the pitch off                        |
-| `alarm`   | `at \| null`                                               | `setAlarm(at)`, or `deleteAlarm()`                                             |
-| `wipe`    | none                                                       | `deleteAll()`: the pitch is new again                                          |
+| `kind`    | Fields                                                                    | The object does                                                                |
+| --------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `send`    | `to: [conn], frame`                                                       | `JSON.stringify(frame)` once, send it to each socket (ignore one that is gone) |
+| `close`   | `conn, code, reason`                                                      | close that socket                                                              |
+| `attach`  | `conn, member, role`                                                      | `serializeAttachment({ conn, member, role })` (`member: null` after a leave)   |
+| `persist` | any of `pitch, doc, members, match, head, acts, clearActs, outbox, unbox` | one transaction (below)                                                        |
+| `push`    | `k, made, topic, body`                                                    | send to the AWS function, signed (topics below); retry, never block the pitch  |
+| `listing` | `pitch, entry \| null`                                                    | tell the `LobbyDO`: list `entry`, or take the pitch off                        |
+| `alarm`   | `at \| null`                                                              | `setAlarm(at)`, or `deleteAlarm()`                                             |
+| `wipe`    | none                                                                      | `deleteAll()`: the pitch is new again                                          |
 
 With `commitOrder: "relay-first"` (the default) the `persist` comes after the frames;
 with `write-first` before them. `push`, `listing` and `alarm` always come last.
@@ -368,6 +369,8 @@ log:
 | `head`      | `{ n, seq, h, snap, over }`                                          | each start and action |
 | `acts`      | a list of `{ n, seq, id, m, a, h, s, ts, over, c? }` to append       | each action           |
 | `clearActs` | `true`: drop every stored action before appending                    | each start            |
+| `outbox`    | a list of `{ k, topic, body }` to append: pushes not yet confirmed   | each start and action |
+| `unbox`     | a list of `k` to delete from the outbox                              | each `pushed` event   |
 
 ### Pushes
 
@@ -376,6 +379,15 @@ log:
 | `start` | `{ pitch, n, m, ts, v, doc, meta, h0, snap }`              | each start             |
 | `act`   | `{ pitch, n, id, seq, m, a, h, s, ts, over, c?, snap }`    | each stored action     |
 | `keep`  | `{ pitch, n, at, started, meta, h0, log: [{ a, h, ts }] }` | the action with `over` |
+
+Every push goes through the outbox: it is in the same `persist` as the change it
+reports, and stays there until the object sends `{ type: "pushed", k }` once the AWS
+function has taken it. On waking, `rebuildPitch` sends every pending push again, so a
+restart between the write and the push loses nothing. The function must take a push
+idempotently by `(pitch, made, k)` (`made` is on every `push` effect: a code wiped and
+used again starts its keys over). Keys: `start:<n>`, `act:<n>:<seq>`, `keep:<n>`. The
+object retries an unconfirmed push itself, with backoff; while any push is pending the
+pitch is never wiped.
 
 `start` and `act` are the recorded game (every match is recorded). `keep` is the kept
 replay, built by the pitch from its own log (no client uploads it): `{ ...meta, h0, log }`

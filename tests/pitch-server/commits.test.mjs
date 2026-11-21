@@ -235,6 +235,18 @@ test("a resent action is acked again with its stored place, not stored twice", (
   assert.equal(h.store.acts.length, 2);
 });
 
+test("an old match's retry is refused, even when its id was used again", () => {
+  const h = playing();
+  h.send("a", act(1, { over: true }));
+  h.send("a", { t: "set", base: 1, doc: { started: false } });
+  h.send("a", start(2, 2));
+  h.send("a", act(1, { n: 2 })); // act-1 again, in match 2
+  h.take("a");
+  h.send("b", act(1)); // a late retry of match 1's act-1
+  const r = h.take("b").at(-1);
+  assert.deepEqual([r.t, r.why, r.n], ["refused", "match", 1]);
+});
+
 test("two players acting at once: one is stored, the other refused, same log", () => {
   const h = playing();
   // both act on seq 1; A's arrives first
