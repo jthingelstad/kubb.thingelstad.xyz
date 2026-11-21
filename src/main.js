@@ -6,6 +6,7 @@
 //   /settings/         the device's settings, from the web game's page
 //   /p/<code>?solo=1   a match against the computer on this pitch
 //   /p/<code>?watch=1  the computer against itself, match after match
+//   /p/<code>?observe=1  a shared pitch watched without a seat (docs/OBSERVER.md)
 //   /p/<code>          a shared pitch: the lobby, then a match with friends
 //                      on the link (src/net/pitch.js, docs/MULTIPLAYER.md),
 //                      driving the same Game through its seam
@@ -23,7 +24,8 @@ import { Menu } from "./ui/menu.js";
 import { openSettingsPage } from "./ui/settings.js";
 import { showHowto, shouldShowHowto } from "./ui/howto.js";
 import { h, button } from "./ui/dom.js";
-import { startPitch } from "./net/pitch.js";
+import { startPitch, tune as pitchTune } from "./net/pitch.js";
+import { WatchView } from "./ui/watch-view.js";
 import { openReport } from "./ui/report.js";
 import { Share } from "./ui/share.js";
 import { shareable } from "./net/share.js";
@@ -46,6 +48,8 @@ const ui = document.getElementById("ui");
 const canvas = document.getElementById("pitch");
 const params = new URLSearchParams(location.search);
 const watching = params.get("watch") === "1";
+// /p/<code>?observe=1: watch a shared pitch without taking a seat (docs/OBSERVER.md)
+const observing = params.get("observe") === "1";
 const testing =
   params.get("test") === "1" ||
   location.hostname === "127.0.0.1" ||
@@ -239,6 +243,8 @@ async function boot() {
       config,
       pitch: null,
       watchTune,
+      // a shared pitch's timings (the host's absence, an observer's step back)
+      pitchTune,
       report,
       sheet,
       freshness,
@@ -271,12 +277,14 @@ async function boot() {
       sheet: () => openSheet(ui, { game }),
       menu,
       engines,
+      observe: observing,
     });
     if (testing) window.__kubb.pitch = pitch;
   }
   game.start();
   document.body.dataset.ready = "1";
-  if (shouldShowHowto() && !params.has("nohowto") && !watching) howto();
+  if (shouldShowHowto() && !params.has("nohowto") && !watching && !observing)
+    howto();
 }
 
 // ---------- practice ----------
@@ -501,47 +509,10 @@ function startWatch(game, cards, { sheet, record, menu, asked }) {
   play();
 }
 
-// The view while watching (Jamie, 2026-11-16: "It'd be fun to actually do
-// more with the camera on the web version because we could zoom out. We have
-// a lot more screen. We could see a lot more."): the wide view, the whole
-// pitch from the sideline (the default), or the thrower's view, the cameras
-// a match is played with. A button by the menu, MENU's View, and the V key;
-// remembered as the "watchView" pref. The button names the view it switches
-// to, as DRILL / BATONS does on the practice pitch. A window too small for
-// the wide view (a phone held upright) shows the thrower's view whatever is
-// chosen, and the button is hidden there (MENU's View still says what is
-// chosen, for when the window grows).
-export const VIEWS = { wide: "WIDE VIEW", thrower: "THROWER'S VIEW" };
-
+// The view while watching: the wide view (the default) or the thrower's, and the
+// free camera in the wide view (src/ui/watch-view.js, docs/OBSERVER.md).
 function watchView(game, menu) {
-  const chosen = () =>
-    prefs.get("watchView", "wide") === "thrower" ? "thrower" : "wide";
-  const choose = (v) => {
-    prefs.set("watchView", v);
-    game.setWide(v === "wide");
-  };
-  const toggle = () => choose(chosen() === "wide" ? "thrower" : "wide");
-  const btn = button(VIEWS.thrower, toggle, "small", {
-    "data-test": "view",
-    title: "Switch the view (V)",
-  });
-  const tray = h("div.tray.view-tray", btn);
-  ui.append(tray);
-  game.setHeader("watch");
-  game.onWide = () => {
-    const label = game.wide ? VIEWS.thrower : VIEWS.wide;
-    if (btn.textContent !== label) btn.textContent = label;
-    tray.hidden = chosen() === "wide" && !game.wide;
-  };
-  menu.hooks.view = { get: chosen, set: choose };
-  window.addEventListener("keydown", (e) => {
-    if (e.code !== "KeyV" || e.repeat || game.modal) return;
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.target instanceof HTMLInputElement) return;
-    e.preventDefault();
-    toggle();
-  });
-  game.setWide(chosen() === "wide");
+  new WatchView({ game, ui, menu }).on();
 }
 
 // ---------- a shared pitch ----------

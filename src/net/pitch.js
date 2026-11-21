@@ -44,6 +44,8 @@ import {
 } from "./seats.js";
 import { decide, rider, aimKey } from "./sync.js";
 import { Lobby } from "../ui/lobby.js";
+import { WatchCard } from "../ui/watching.js";
+import { WatchView } from "../ui/watch-view.js";
 import { prefs } from "../game/prefs.js";
 import { h, button } from "../ui/dom.js";
 import { ReplayPlayer } from "../replay/player.js";
@@ -64,6 +66,9 @@ export const tune = {
   stuckMs: 8000, // still not connected after this: say so
   watchNoteMs: 7000,
   openEveryMs: 5 * 60 * 1000, // an open pitch's host says so again this often (listing TTL 15 min)
+  // an observer first in line for host steps back (rejoins, last in line) at most
+  // this often, so a player can take over (docs/OBSERVER.md)
+  stepBackMs: 20000,
 };
 
 export const SHOUTS = ["NICE!", "OOH!", "TOK!", "UNLUCKY"];
@@ -125,7 +130,9 @@ export function startPitch(env) {
 
 export class Pitch {
   // env: { game, cards, ui, config, code, home, roomsUrl, sheet?, menu?, engines?,
-  //        WebSocket? }
+  //        observe?, WebSocket? }
+  // observe: /p/<code>?observe=1, an observer (docs/OBSERVER.md): joins to watch,
+  //   never takes a side, the computer or the host, and never writes the document
   // sheet: () => void, opens the score sheet of the Game's engine
   // engines: the page's carried engines (src/engine/registry.js); a finished match is
   //   looked back at (its replay, its score sheet) with its own when carried
@@ -156,6 +163,9 @@ export class Pitch {
     this.hostGoneAt = null;
     this.lastClaim = 0;
     this.watchNoteUntil = 0;
+    this.observe = !!env.observe;
+    this.lastStepBack = 0;
+    this.view = null; // the watcher's view (src/ui/watch-view.js), made when first needed
     this.log = []; // what happened, for the test hook and debugging
   }
 
@@ -210,23 +220,34 @@ export class Pitch {
     }
     const room = this.room;
 
-    this.lobby = new Lobby(
-      cards,
-      game,
-      {
-        name: (t) => this.setName(t),
-        // the level you throw at is MENU's (src/game/throw-level.js)
-        menu: () => this.menu?.open(),
-        team: (side) => this.pickTeam(side),
-        option: (k, v) => this.setOption(k, v),
-        access: (open) => this.setAccess(open),
-        start: () => this.start(),
-        share: () => this.share(),
-        replay: () => this.lastReplay && this.watch(this.lastReplay),
-        home: this.home,
-      },
-      { code: this.code, name, level: game.level },
-    );
+    this.lobby = this.observe
+      ? new WatchCard(
+          cards,
+          game,
+          {
+            replay: () => this.lastReplay && this.watch(this.lastReplay),
+            join: () => this.joinPitch(),
+            home: this.home,
+          },
+          { code: this.code },
+        )
+      : new Lobby(
+          cards,
+          game,
+          {
+            name: (t) => this.setName(t),
+            // the level you throw at is MENU's (src/game/throw-level.js)
+            menu: () => this.menu?.open(),
+            team: (side) => this.pickTeam(side),
+            option: (k, v) => this.setOption(k, v),
+            access: (open) => this.setAccess(open),
+            start: () => this.start(),
+            share: () => this.share(),
+            replay: () => this.lastReplay && this.watch(this.lastReplay),
+            home: this.home,
+          },
+          { code: this.code, name, level: game.level },
+        );
 
     // a change of level in MENU: the lobby says it, the room hears it
     this.stopLevel = game.onLevel((v) => this.levelChanged(v));
@@ -267,9 +288,11 @@ export class Pitch {
     const room = this.room;
     if (this.lobby.note.textContent.startsWith("Still trying"))
       this.lobby.say("");
+    // an observer that made the room (nobody was here): there is nothing to watch
+    if (this.observe && room.isHost() && room.v === 0) return this.noGame();
     // the host's own options go in on a new pitch, and OPEN from the web game’s page
     // (/p/<code>?open=1) makes it an open game
-    if (room.isHost() && room.v === 0) {
+    if (!this.observe && room.isHost() && room.v === 0) {
       const saved = prefs.get("pitchOptions", {});
       const o = cleanOptions(saved);
       // the computer's level (engine 0.9 on): cleanOptions knows only the five, and
@@ -301,6 +324,33 @@ export class Pitch {
     });
     this.lastReplay = r;
     this.lobby?.setReplay(!!r);
+  }
+
+  // An observer found an empty pitch (its join made the room): it leaves, so the room
+  // keeps no member, and says so.
+  noGame() {
+    clearInterval(this.timer);
+    this.mode = "gone";
+    this.note("no-game");
+    this.room.leave();
+    this.lobby?.hide();
+    this.cards.notice({
+      kicker: `PITCH ${this.code}`,
+      title: "No game here",
+      text: "Nobody is playing on this pitch. Open games are listed on the web game’s page.",
+      actions: [
+        ["JOIN THIS PITCH", () => this.joinPitch(), "go"],
+        ["HOME", this.home],
+      ],
+      test: "no-game",
+    });
+  }
+
+  // JOIN THIS PITCH (an observer): the same link without ?observe=1, the lobby.
+  joinPitch() {
+    const u = new URL(location.href);
+    u.searchParams.delete("observe");
+    location.href = u.toString();
   }
 
   joinFailed(err) {
@@ -870,7 +920,9 @@ export class Pitch {
 
   // This browser's control: none while its engine may not play this match (mayPlay).
   controlHere() {
-    return this.refused ? NO_CONTROL : controlFor(this.ctx(), this.you);
+    return this.refused || this.observe
+      ? NO_CONTROL
+      : controlFor(this.ctx(), this.you);
   }
 
   seatFor(control) {
@@ -880,6 +932,7 @@ export class Pitch {
       mayAct: (need) =>
         this.mode === "match" &&
         !this.refused &&
+        !this.observe &&
         mayAct(need, this.ctx(), this.you),
     };
   }
@@ -890,7 +943,8 @@ export class Pitch {
     const game = this.game;
     if (this.mode !== "match" || game.phase === "play") return;
     const c = this.controlHere();
-    game.localSide = this.refused ? null : playingSide(this.ctx(), this.you);
+    game.localSide = this.sideHere();
+    this.syncView();
     if (!sameControl(c, this.control)) {
       const gotCpu = c.cpu && !this.control?.cpu;
       this.control = c;
@@ -914,7 +968,8 @@ export class Pitch {
   // An action taken here: commit the snapshot after it, the action riding
   // along for the others to watch.
   onAction(action, snap, hash) {
-    if (this.mode !== "match" || this.refused || snap == null) return;
+    if (this.mode !== "match" || this.refused || this.observe || snap == null)
+      return;
     const n = this.local.n;
     const seq = this.local.seq + 1;
     this.local.seq = seq;
@@ -1075,9 +1130,8 @@ export class Pitch {
     );
     this.control = this.controlHere();
     this.game.seat = this.seatFor(this.control);
-    this.game.localSide = this.refused
-      ? null
-      : playingSide(this.ctx(), this.you);
+    this.game.localSide = this.sideHere();
+    this.syncView();
     this.game.adopt(m.snap);
     // a match that had ended before replays has no `over`: the engine says so, after
     // the winner card went up, so it goes up again as an arrival's (with any replay
@@ -1116,7 +1170,7 @@ export class Pitch {
   }
 
   afterEnter() {
-    this.shoutBar.hidden = false;
+    this.shoutBar.hidden = this.observe;
     this.lastAim = "";
   }
 
@@ -1141,6 +1195,7 @@ export class Pitch {
     this.game.useEngine(this.newestEngine);
     this.game.newPractice({ surface: optionsOf(this.room.doc).surface });
     this.shoutBar.hidden = true;
+    this.syncView();
     // the level may have changed from the menu during the match
     this.lobby.setLevel(this.game.level);
     this.room.setMe({ level: this.game.level });
@@ -1245,6 +1300,7 @@ export class Pitch {
     this.cards.close();
     this.cards.clearPanel?.();
     this.shoutBar.hidden = true;
+    this.syncView();
     this.replay = new ReplayPlayer({
       game: this.game,
       root: this.ui,
@@ -1337,7 +1393,8 @@ export class Pitch {
     }
     const doc = this.room.doc;
     if (from === "match" && doc?.started && doc.match?.n === this.local.n) {
-      this.shoutBar.hidden = false;
+      this.shoutBar.hidden = this.observe;
+      this.syncView();
       this.adoptMatch(doc.match);
       return;
     }
@@ -1484,10 +1541,46 @@ export class Pitch {
     this.hostGoneAt ??= now;
     if (host && now - this.hostGoneAt < tune.hostGoneMs) return;
     if (nextHost(room.members, room.host) !== room.you) return;
+    if (this.observe) return this.stepBack(now);
     if (now - this.lastClaim < tune.claimEveryMs) return;
     this.lastClaim = now;
     this.note("claim");
     room.claimHost();
+  }
+
+  // An observer never hosts (the host runs the computer and opens the game), so when it
+  // is first in line it leaves and joins again, last in line, and the next member
+  // claims as before. Only when someone else is here to take over; at most every
+  // tune.stepBackMs. A race (two step at once, or a claim meanwhile) is harmless: the
+  // room server decides who is first, and this is asked again on the next tick.
+  stepBack(now = Date.now()) {
+    const room = this.room;
+    if (!room.members.some((m) => m.connected && m.id !== room.you)) return;
+    if (now - this.lastStepBack < tune.stepBackMs) return;
+    this.lastStepBack = now;
+    this.note("step-back");
+    room.rejoin();
+  }
+
+  // The side this browser plays in the match: none for an observer or a refused engine.
+  sideHere() {
+    return this.refused || this.observe
+      ? null
+      : playingSide(this.ctx(), this.you);
+  }
+
+  // Anyone with no side in the match watches it with the watcher's view: the wide view
+  // and the free camera (src/ui/watch-view.js, docs/OBSERVER.md). Players keep theirs.
+  syncView() {
+    const on = this.mode === "match" && !this.game.localSide;
+    if (!on && !this.view) return;
+    this.view ??= new WatchView({
+      game: this.game,
+      ui: this.ui,
+      menu: this.menu,
+    });
+    if (on) this.view.on();
+    else this.view.off();
   }
 
   // ---------- the HUD: connection, shouts ----------
@@ -1543,8 +1636,9 @@ export class Pitch {
     if (this.mode === "match") {
       if (s === "reconnecting" || s === "connecting") text = "RECONNECTING";
       else if (Date.now() < this.watchNoteUntil)
-        text =
-          "THE MATCH IS UNDER WAY: YOU ARE WATCHING. PICK A SIDE FOR THE NEXT ONE.";
+        text = this.observe
+          ? "YOU ARE WATCHING THIS MATCH."
+          : "THE MATCH IS UNDER WAY: YOU ARE WATCHING. PICK A SIDE FOR THE NEXT ONE.";
     }
     if (this.net.textContent !== text) {
       this.net.textContent = text;
@@ -1585,6 +1679,11 @@ export class Pitch {
       engine: g.engine?.version ?? null,
       matchEngine: this.room?.doc?.match?.engine ?? null,
       announced: this.room?.me?.engine ?? null,
+      // the watcher's view (docs/OBSERVER.md)
+      observe: this.observe,
+      observing: g.observing,
+      wide: g.viewName,
+      camMoved: g.freeCam?.moved ?? false,
     };
   }
 }
