@@ -371,6 +371,8 @@ reads, prints or moves its value.
    pitches stack's `ApiUrl` output followed by `push` (the output ends in `/`, so
    `https://<id>.lambda-url.us-east-1.on.aws/push`), in a pull request, and deploy
    again. The outbox then drains: every push it held is sent.
+   Done for the dev Worker on 2026-11-21 (`dev-3`), with a synthetic match's pushes,
+   objects, `state` and `replay` items and served replay all checked.
 4. To rotate: "Rotate secret immediately" is not set up (no rotation function); instead
    put a new value in the console ("Edit"), then repeat step 2. Pushes signed with the
    old value fail with 401 until the Worker has the new one and are retried, so nothing

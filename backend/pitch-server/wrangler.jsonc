@@ -1,6 +1,7 @@
 {
   // The pitch server, for `wrangler dev` and the Workers test pool only. Deploys use
-  // `cf deploy`, which reads cloudflare.config.ts and not this file: keep the two alike.
+  // `cf deploy`, which reads cloudflare.config.ts and not this file: keep the two alike,
+  // but leave PUSH_URL out here, so a local server never pushes to AWS.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "throwingwood-pitches-dev",
   "main": "src/worker.mjs",
