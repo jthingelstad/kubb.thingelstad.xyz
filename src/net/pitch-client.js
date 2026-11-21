@@ -38,9 +38,11 @@ export const pitchTune = {
   retryMs: 1000, // ... then this, doubled each time ...
   retryMaxMs: 10000, // ... up to this, each with a quarter of jitter either way
   answerMs: 10000, // a lobby write with no answer by then: connect again to find out
-  // A long backlog of our own actions after a drop goes in turns: the server takes a
-  // burst of 60 messages a connection, then 30 a second (PROTOCOL.md section 9)
-  actWindow: 20, // sent and not answered at once, at most ...
+  // Our own actions go one at a time: each waits for the answer to the one before, so
+  // none is sent on top of a predecessor the pitch may refuse (someone else committed
+  // that seq first). A long backlog after a drop also stays under the server's burst of
+  // 60 messages a connection, then 30 a second (PROTOCOL.md section 9).
+  actWindow: 1, // sent and not answered at once, at most ...
   actBurst: 20, // ... and sent at once after a quiet spell, at most ...
   actRate: 15, // ... then this many a second
   rateRetryMs: 1000, // told "too many messages": what is out unanswered goes again
@@ -779,8 +781,9 @@ export class PitchClient {
   }
 
   // Our pending actions not yet sent on this connection go, in order, while fewer than
-  // actWindow are out unanswered and at most actRate a second after a burst of
-  // actBurst; each answer lets the next go. One action a throw never waits.
+  // actWindow (one) is out unanswered and at most actRate a second after a burst of
+  // actBurst; each answer lets the next go. A throw's one action never waits; play
+  // here goes on either way.
   flushActs() {
     if (!this.joined) return;
     const T = this.tune;

@@ -272,6 +272,44 @@ test("pitch client: a long backlog after a drop goes a window at a time, all of 
   closeAll();
 });
 
+test("pitch client: an offline backlog is never sent on top of a refused action", async () => {
+  const code = makePitchCode();
+  const f = flakyWs();
+  const a = join(code, "hanna", { WebSocket: f.WebSocket });
+  await a.ready;
+  const b = join(code, "gus");
+  await b.ready;
+  const refused = [];
+  const oks = [];
+  a.on("refused", (e) => refused.push(e.seq));
+  a.on("ok", (e) => oks.push(e.seq));
+  await a.start({
+    doc: { started: true },
+    n: 1,
+    h: "h0",
+    snap: "s0",
+    meta: {},
+  });
+  // hanna's network goes; she plays 1 and 2 here while gus commits his own 1
+  f.ctl.down = true;
+  a.ws.close();
+  await until(() => !a.joined, 2000, "dropped");
+  a.act(act(1));
+  a.act(act(2));
+  b.act(act(1, { a: { type: "throw", by: "gus" }, h: "g1", snap: "gsnap-1" }));
+  await until(() => b.pending.length === 0, 2000, "gus committed");
+  f.ctl.down = false;
+  await until(() => refused.length === 1, 3000, "refused");
+  await new Promise((r) => setTimeout(r, 200));
+  assert.deepEqual(refused, [1]);
+  assert.deepEqual(oks, [], "her 2 was never sent on top of the refused 1");
+  assert.equal(a.pending.length, 0);
+  const m = server.pitch(code).match ?? server.pitch(code).head;
+  assert.equal(m.seq, 1);
+  assert.equal(m.h, "g1");
+  closeAll();
+});
+
 test("pitch client: the same action sent twice on one connection is answered dup", async () => {
   const code = makePitchCode();
   const a = join(code, "hanna");
