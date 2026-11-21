@@ -3,8 +3,10 @@
 The wire protocol of a live pitch, as built in `core.mjs` beside this file. The web and
 iPhone clients are written from it. The design and the reasons are
 [`docs/PITCH-SERVER.md`](../../docs/PITCH-SERVER.md); where the two differ, this file is
-what the server does. Nothing live uses it yet: the rooms server (`docs/ROOMS.md`) is
-still the live one until the cutover.
+what the server does. The Cloudflare Worker and Durable Objects that serve it are
+`src/` beside this file (deploying and operating them: [`README.md`](README.md)); a dev
+Worker runs it, but no client uses it yet: the rooms server (`docs/ROOMS.md`) is still
+the live one until the cutover.
 
 The pitch knows no Kubb. It keeps who is on the pitch, the host, one lobby document,
 the current match's head and its action log, and relays casts. It never runs the
@@ -18,6 +20,12 @@ owner's call, section 11 of the spec). A code is 8 to 24 of
 text frame, with a type `t`. There is no splitting into parts: a frame may be as large
 as the limits below (the iPhone's `maximumMessageSize` of 32 KB must be raised; a join
 with the full state is larger).
+
+The upgrade is refused before it reaches the pitch with HTTP 426 (not a WebSocket
+upgrade), 400 (no code, or not a code) or 403 (an `Origin` header that is not one of the
+site's origins). A request with no `Origin` at all, as the iPhone app's
+`URLSessionWebSocketTask` sends it, is let through: the Origin check keeps other web
+pages out, not other programs.
 
 A literal text frame `ping` (not JSON) is answered `pong` by the runtime without waking
 the pitch: use it as the keep-alive. `{ "t": "ping" }` is answered by the pitch with
@@ -201,6 +209,31 @@ until it slows. Never persisted. Players only.
 take it off. The host only. `seats` 1 to 12; `state` `waiting`, `playing` or `over`.
 Not answered. The pitch counts the players and watchers itself and lists the game while
 it is open, not `over`, someone is on it, a seat is free and a player could get in.
+
+The list itself is plain HTTPS, not the socket: `GET https://<host>/open` answers
+
+```json
+{
+  "now": 1795280938959,
+  "games": [
+    {
+      "pitch": "k7mpq2rstw",
+      "made": 1795280000000,
+      "age": 938959,
+      "players": 3,
+      "watchers": 1,
+      "seats": 12,
+      "state": "waiting"
+    }
+  ]
+}
+```
+
+the newest 20 games made in the last 24 hours, newest first: counts, state and age (ms
+since the pitch was made), never names or member ids. CORS lets the site's origins read
+it; it may be up to 5 s old (`cache-control: public, max-age=5`). A listing the pitch
+has not refreshed for 15 minutes drops off by itself, so a pitch that dies unseen leaves
+the list within 15 minutes. Poll it every 30 s or so while the list is on screen.
 
 ### resync
 
@@ -397,3 +430,27 @@ pitch is never wiped.
 replay, built by the pitch from its own log (no client uploads it): `{ ...meta, h0, log }`
 is the engine's replay when `meta` carries the match's `setup` and `engine`. It has no
 member ids.
+
+### On the wire to AWS
+
+`src/push.mjs` and `src/pitch-do.mjs`. Each push is one `POST` to `PUSH_URL`:
+
+| Header              | Value                                                         |
+| ------------------- | ------------------------------------------------------------- |
+| `content-type`      | `application/json`                                            |
+| `x-pitch-signature` | `sha256=<hex HMAC-SHA256 of the raw body, keyed PUSH_SECRET>` |
+| `idempotency-key`   | `<pitch>:<made>:<k>`, e.g. `k7mpq2rstw:1795280000000:act:1:4` |
+
+The body is the envelope `{ "v": 1, pitch, made, k, topic, sent, body }`: `topic` and
+`body` as in the table above, `sent` the object's clock when this attempt was made (it
+changes between retries; the key does not). Verify the signature over the exact bytes
+received, before parsing, with a constant-time compare.
+
+Any 2xx means taken, a duplicate included: answer 200 to a key already stored. Anything
+else (a 4xx too), a network error or no answer within 10 s is retried: after 1 s, then
+doubling to at most 5 minutes, each wait up to 20% shorter at random, for as long as the
+pitch lives. A retry is woken by the object's alarm, so a sleeping pitch still retries;
+pending pushes are kept in its SQLite outbox and survive restarts and deploys. With no
+`PUSH_URL` or `PUSH_SECRET` set the object pushes nothing and the outbox keeps growing,
+and such a pitch is never idle-wiped (the core's rule). Pushes are not ordered across
+keys: a retried `start` can arrive after the first `act`.
