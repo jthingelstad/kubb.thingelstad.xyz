@@ -128,9 +128,11 @@ test("the rooms stack is back to what is deployed: no api in it", () => {
   assert.doesNotMatch(text, /ApiCodeKey|ApiFunction|PushSecret|HasApi/);
 });
 
-test("off by default; the site and delivery stacks take the pitches stack's names", async () => {
+test("on since 2026-11-21; the site and delivery stacks take the pitches stack's names", async () => {
   const deployment = await json("infra/deployment.json");
-  assert.equal(deployment.pitchesStack, false);
+  assert.equal(deployment.pitchesStack, true);
+  assert.equal(deployment.pitches.functionName, "throwing-wood-api");
+  assert.match(deployment.pitches.codeKey, /^api\/[0-9a-f]{64}\.zip$/);
   assert.equal(deployment.stacks.pitches, "throwing-wood-pitches");
   assert.equal(deployment.stackTagOverrides.pitches.Project, "throwing-wood");
   assert.ok(!("pitchApi" in deployment));
