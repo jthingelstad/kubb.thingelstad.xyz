@@ -291,26 +291,29 @@ Each step is its own pull request.
 6. Cutover, then delete the whole old rooms stack (section 12, "What cutover deletes").
    Deleting old stored games is the owner's own named step here.
 
-## 11. Open: the owner's calls
+## 11. The owner's calls
 
-- Which address the apps connect to:
-  - keep `wss://throwingwood.com/ws` with CloudFront forwarding to the Worker (untested),
-  - or the workers.dev name,
-  - or move the whole zone to Cloudflare.
-- Turnstile on create and join. It has no native iPhone path.
-- Whether a dead code answers "no such pitch" instead of opening an empty one (the
-  core's `unknownPitch`: `open`, today's behaviour, by default; `refuse` needs
-  `create: true` on the join that makes a pitch). An observer never opens one either way.
+Decided on 2026-11-21:
+
+- The apps connect to the workers.dev name,
+  `wss://throwingwood-pitches.throwingwood.workers.dev`.
+- No Turnstile.
+- A dead code opens an empty pitch (the core's `unknownPitch` stays `open`). An observer
+  never opens one.
+- The hand-off while watching is a banner, not the modal card, and online pacing stays
+  as it is (0.8 s rest, 0.7 s per auto-raise). The winner card does not wait on `ok`.
+
+Still open:
+
 - The cap on observers: 20 or 100 (the core's `limits.observers`, 20 by default).
 - Deploys only in quiet hours, or a "reconnecting" state the apps show.
 - A line on the privacy page that names Cloudflare.
 - A CI token for deploys.
-- The hand-off card and online pacing (0.8 s rest, 0.7 s per auto-raise).
 - How long an unconfirmed push is retried. Today: for as long as the pitch lives, at
   most every 5 minutes, and a pitch with pending pushes is never wiped.
 - Rate limits beyond each connection's own (section 9 of the protocol) and the 5 s cache
   on `/open`: per address at the Worker, if abuse ever shows.
-- The Worker's name for production (`throwingwood-pitches`?) and whether dev stays.
+- Whether the dev Worker stays.
 
 ## 12. Step 3: turning it on
 

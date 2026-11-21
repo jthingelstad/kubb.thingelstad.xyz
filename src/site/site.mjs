@@ -18,9 +18,9 @@ export const TINYLYTICS_SCRIPT = "https://tinylytics.app/js/script.js";
 export const TINYLYTICS_SITE = "gXy1ayRzgXUVfn_G3nvb";
 
 // The pitch server (backend/pitch-server, docs/PITCH-SERVER.md): live play on a link.
-// Its production address is still the owner's call (docs/PITCH-SERVER.md section 11),
-// so it is this one value: the deploy build gives it to the page and the CSP allows it
-// (src/site/csp.mjs). The Worker's workers.dev name until a hostname is chosen.
+// Its production address is the Worker's workers.dev name (the owner, 2026-11-21;
+// docs/PITCH-SERVER.md section 11), kept as this one value: the deploy build gives it
+// to the page and the CSP allows it (src/site/csp.mjs).
 export const PITCH_URL = "wss://throwingwood-pitches.throwingwood.workers.dev";
 // Every other build (local, preview, CI) talks to the dev Worker; `npm run dev` runs
 // the server on this machine instead (tools/dev.mjs sets KUBB_PITCH_URL to it).
