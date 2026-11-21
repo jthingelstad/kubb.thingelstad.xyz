@@ -418,6 +418,14 @@ browserTest(
     const s = await pst(obs);
     assert.equal(s.side, null);
     assert.equal(s.observing, false, "no match: no free camera");
+    // a name changed in MENU reaches the room: both Watching lines show it
+    await obs.evaluate(() => window.__kubb.game.setPlayerName("Opal"));
+    for (const p of [obs, host])
+      await waitFor(p, () =>
+        document
+          .querySelector("[data-test=watchers]")
+          ?.textContent.includes("Opal"),
+      );
     // JOIN THIS PITCH: the same link, as a member who may pick a side
     await obs.click("[data-test=watch-join]");
     await obs.waitForSelector("[data-test=lobby]", { timeout: 30000 });
