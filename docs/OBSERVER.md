@@ -56,9 +56,14 @@ An observer:
   watching, WATCH THE LAST MATCH when there is one, JOIN THIS PITCH (the same link
   without `?observe=1`, the lobby) and HOME. No name box, no team buttons, no options, no
   START;
-- at a pitch with no player connected hears "No game here" and leaves at once, so the
-  pitch keeps no member. Where the server refuses observers at an unknown pitch
-  (`unknownPitch: "refuse"`) the join's `no-pitch` gives the same card.
+- at a pitch with no player connected, or refused `no-pitch` (the pitch server always
+  refuses an observer at a pitch nobody has used, a wiped one included), leaves at once,
+  so the pitch keeps no member, and looks at what the api keeps for the code
+  (`Pitch.nothingToWatch`). A kept match is shown as a finished one, as a browser
+  arriving after a pitch's end sees it: the result, WATCH REPLAY, EMBED, the reel and
+  SCORE SHEET. A shared match (sealed) offers nothing more; a finished pitch the pitch
+  server has since wiped adds JOIN THIS PITCH. Only a code with nothing kept hears "No
+  game here".
 
 ## The free camera
 

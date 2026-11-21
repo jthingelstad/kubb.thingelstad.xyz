@@ -23,6 +23,10 @@ if (!available)
   );
 const browserTest = available ? test : test.skip;
 
+const REPLAY = JSON.parse(
+  fs.readFileSync("tests/fixtures/replay-north-south.json", "utf8"),
+);
+
 let env, rooms;
 before(async () => {
   if (!available) return;
@@ -474,6 +478,68 @@ browserTest(
     await obs.context().close();
   },
 );
+
+// A kept match on a code the pitch server keeps no pitch for, as the api's store holds
+// it (backend/api/memory-store.mjs): a finished pitch's, as its pushes leave it, since
+// wiped from the pitch server; or a shared match's, as `share` keeps it (sealed).
+async function keepMatch(code, { sealed = false } = {}) {
+  const store = rooms.api.store;
+  const exp = Math.floor(Date.now() / 1000) + 3600;
+  const { snap, hash, n } = REPLAY;
+  const { snap: _, ...rest } = REPLAY;
+  const data = JSON.stringify(rest);
+  if (sealed)
+    await store.keepShare(`fixture-${code}`, code, {
+      state: {
+        made: 9,
+        n,
+        seq: REPLAY.log.length,
+        over: true,
+        snap,
+        hash,
+        sealed: true,
+        rev: 1,
+        exp,
+      },
+      replay: { made: 9, n, v: 9, data, snap, hash, exp },
+    });
+  else {
+    await store.putFinal(code, { made: 1, n, snap, exp });
+    await store.putKept(code, { made: 1, n, v: 9, data, hash, exp });
+  }
+  assert.equal((await store.getReplay(code))?.sealed === true, sealed);
+}
+
+for (const sealed of [true, false])
+  browserTest(
+    `an observer at a code with no live pitch and a kept ${sealed ? "shared" : "finished"} match watches that match`,
+    async () => {
+      const code = makePitchCode();
+      await keepMatch(code, { sealed });
+      const obs = await open(
+        `${env.base}/p/${code}?nohowto=1&observe=1&${roomsQ()}`,
+        "desktop",
+        "Olive",
+      );
+      // the finished match, as a browser arriving after a pitch's end sees it
+      await obs.waitForSelector("[data-test=winner] [data-test=watch-replay]", {
+        timeout: 30000,
+      });
+      assert.equal(await obs.$("[data-test=no-game]"), null);
+      assert.equal((await pst(obs)).mode, "sealed");
+      // a shared match is never joined; a wiped pitch's lobby can start a new match
+      const join = await obs.$("[data-test=winner] [data-test=rematch]");
+      if (sealed) assert.equal(join, null);
+      else assert.equal((await join.textContent()).trim(), "JOIN THIS PITCH");
+      await obs.click("[data-test=watch-replay]");
+      await waitFor(obs, () => window.__kubb.pitch.state().mode === "replay");
+      // the pitch server keeps no member and no document for it
+      const p = rooms.pitch(code);
+      assert.ok(!p || (p.members.size === 0 && p.doc.value === null));
+      assert.deepEqual(obs.errors, []);
+      await obs.context().close();
+    },
+  );
 
 browserTest(
   "watching the computer: the free camera, and back to the wide view",
