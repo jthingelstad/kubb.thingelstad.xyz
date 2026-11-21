@@ -3,8 +3,9 @@
 // (<url>/push). The logic is core.mjs; this file is the adapters.
 //
 // Environment:
-//   TABLE            the rooms table (stack kubb-xyz-rooms)
-//   GAMES_BUCKET     the private games bucket: recorded pushes, one-device matches, reports
+//   TABLE            the pitches table (stack throwing-wood-pitches)
+//   GAMES_BUCKET     the pitches stack's private games bucket: recorded pushes,
+//                    one-device matches, reports
 //   ALLOWED_ORIGINS  comma separated; an origin without a port allows any port
 //   PUSH_SECRET_ARN  the Secrets Manager secret the pushes are signed with: read at run
 //                    time by the function's role, kept in memory, never logged

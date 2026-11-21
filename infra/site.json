@@ -25,11 +25,11 @@
       "AllowedPattern": "^$|^pages/[0-9a-f]{64}\\.zip$",
       "Description": "The pitch pages function's package in the code bucket (tools/pages-bundle.mjs). Empty leaves the function out: /p/, /e/ and /og/ are the static pages."
     },
-    "RoomsTable": {
+    "PitchTable": {
       "Type": "String",
       "Default": "",
       "AllowedPattern": "^$|^[A-Za-z0-9_.-]+$",
-      "Description": "The rooms table (stack kubb-xyz-rooms), which the pages function reads. Empty leaves the function out."
+      "Description": "The table the pages and reel functions read: the pitches table (stack throwing-wood-pitches output TableName) once pitchesStack is on, the rooms table (stack kubb-xyz-rooms) before. Empty leaves both functions out."
     },
     "ReelsCodeKey": {
       "Type": "String",
@@ -53,7 +53,7 @@
       "Type": "String",
       "Default": "",
       "AllowedPattern": "^$|^[a-z0-9]+\\.lambda-url\\.[a-z0-9-]+\\.on\\.aws$",
-      "Description": "The api function URL's host (stack kubb-xyz-rooms output ApiUrl). Empty: no /api/* route."
+      "Description": "The api function URL's host (stack throwing-wood-pitches output ApiUrl). Empty: no /api/* route."
     }
   },
   "Conditions": {
@@ -63,7 +63,7 @@
     "HasPages": {
       "Fn::And": [
         { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "PagesCodeKey" }, ""] }] },
-        { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "RoomsTable" }, ""] }] }
+        { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "PitchTable" }, ""] }] }
       ]
     },
     "HasReels": {
@@ -71,7 +71,7 @@
         { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "ReelsCodeKey" }, ""] }] },
         { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "ReelsLayerKey" }, ""] }] },
         { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "ReelEngines" }, ""] }] },
-        { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "RoomsTable" }, ""] }] }
+        { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "PitchTable" }, ""] }] }
       ]
     },
     "HasApi": { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "ApiDomain" }, ""] }] }
@@ -787,7 +787,7 @@
       "Type": "AWS::IAM::Role",
       "Condition": "HasPages",
       "Properties": {
-        "Description": "Pitch pages function: reads a room's document and kept replay, writes its own logs",
+        "Description": "Pitch pages function: reads a pitch's state, kept replay and reel, writes its own logs",
         "AssumeRolePolicyDocument": {
           "Version": "2012-10-17",
           "Statement": [
@@ -805,11 +805,16 @@
               "Version": "2012-10-17",
               "Statement": [
                 {
-                  "Sid": "ReadRooms",
+                  "Sid": "ReadPitches",
                   "Effect": "Allow",
                   "Action": "dynamodb:GetItem",
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RoomsTable}"
+                    "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${PitchTable}"
+                  },
+                  "Condition": {
+                    "ForAllValues:StringLike": {
+                      "dynamodb:LeadingKeys": ["pitch#*"]
+                    }
                   }
                 },
                 {
@@ -855,7 +860,7 @@
           "TimeoutSeconds": 15,
           "MaxConcurrencyPerEnvironment": 8,
           "EnvironmentVariables": {
-            "TABLE": { "Ref": "RoomsTable" },
+            "TABLE": { "Ref": "PitchTable" },
             "SITE": "https://throwingwood.com"
           },
           "TelemetryConfig": {
@@ -994,7 +999,7 @@
                   "Effect": "Allow",
                   "Action": "dynamodb:GetItem",
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RoomsTable}"
+                    "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${PitchTable}"
                   },
                   "Condition": {
                     "ForAllValues:StringLike": {
@@ -1013,7 +1018,7 @@
                   "Effect": "Allow",
                   "Action": "dynamodb:UpdateItem",
                   "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RoomsTable}"
+                    "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${PitchTable}"
                   },
                   "Condition": {
                     "ForAllValues:StringLike": {
@@ -1093,7 +1098,7 @@
         "LoggingConfig": { "LogGroup": { "Ref": "ReelsLogs" } },
         "Environment": {
           "Variables": {
-            "TABLE": { "Ref": "RoomsTable" },
+            "TABLE": { "Ref": "PitchTable" },
             "SITE_BUCKET": { "Ref": "SiteBucket" },
             "REEL_ENGINES": { "Ref": "ReelEngines" },
             "FFMPEG": "/opt/bin/ffmpeg"
@@ -1165,7 +1170,7 @@
       "Value": {
         "Fn::If": ["HasReels", { "Fn::GetAtt": ["ReelsFunction", "Arn"] }, ""]
       },
-      "Description": "The highlight reel function the rooms function invokes; empty while it is off"
+      "Description": "The highlight reel function the api function (and the rooms function until it goes) invokes; empty while it is off"
     },
     "ReelEngines": {
       "Value": { "Fn::If": ["HasReels", { "Ref": "ReelEngines" }, ""] },

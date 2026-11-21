@@ -4,7 +4,7 @@
 // docs/ROOMS.md sections 12 and 13). The work is job.mjs and check.mjs; this file is the
 // adapters and the package's own files. A check reads and writes nothing: it answers.
 //
-//   TABLE         the rooms table: GetItem on the kept replay, UpdateItem on the reel item
+//   TABLE         the pitches table: GetItem on the kept replay, UpdateItem on the reel item
 //   SITE_BUCKET   the site bucket: PutObject under reels/
 //   REEL_ENGINES  the engine major.minors this function renders ("0.7", "0.8,0.7")
 //   FFMPEG        the encoder (/opt/bin/ffmpeg, from the function's layer)

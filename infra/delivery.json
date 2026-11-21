@@ -31,7 +31,7 @@
       "Type": "String",
       "Default": "",
       "AllowedPattern": "^$|^[A-Za-z0-9_-]+$",
-      "Description": "The api Lambda function (stack kubb-xyz-rooms output ApiFunctionName). Empty: the role cannot touch it."
+      "Description": "The api Lambda function throwing-wood-api (stack throwing-wood-pitches output ApiFunctionName). Empty: the role cannot touch it."
     }
   },
   "Conditions": {

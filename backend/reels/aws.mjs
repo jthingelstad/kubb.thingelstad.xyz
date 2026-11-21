@@ -1,4 +1,4 @@
-// The reel function's adapters on AWS: the reel item and the kept replay in the rooms
+// The reel function's adapters on AWS: the reel item and the kept replay in the pitches
 // table (the api function's pitch#<code> items, backend/api/dynamo-store.mjs), the
 // finished files in the site bucket. Each call asks for exactly what the
 // function's role allows (infra/site.json, ReelsRole): GetItem on the replay with the

@@ -1,5 +1,5 @@
 // Publish dist/ to the site bucket, refresh CloudFront, check the live bytes,
-// and bring the rooms function's code (and the api function's, once it runs) up to date.
+// and bring the rooms function's code (and throwing-wood-api's, once it runs) up to date.
 //
 //   KUBB_PRODUCTION=true npm run build && npm run deploy
 //
@@ -219,13 +219,15 @@ if (config.rooms?.functionName) {
   }
 }
 
-// The api function's code, the same way, when the rooms stack runs it ("pitchApi").
+// The api function's code (throwing-wood-api), the same way, once the pitches stack
+// runs it ("pitchesStack").
 let api = "not deployed";
-if (config.api?.functionName) {
+const apiFunction = config.pitchesStack ? config.pitches?.functionName : null;
+if (apiFunction) {
   const lambda = new LambdaClient(settings);
   const bundle = await bundleApi();
   const live = await lambda.send(
-    new GetFunctionCommand({ FunctionName: config.api.functionName }),
+    new GetFunctionCommand({ FunctionName: apiFunction }),
   );
   if (live.Configuration.CodeSha256 === bundle.codeSha256) api = "unchanged";
   else {
@@ -240,14 +242,14 @@ if (config.api?.functionName) {
     );
     await lambda.send(
       new UpdateFunctionCodeCommand({
-        FunctionName: config.api.functionName,
+        FunctionName: apiFunction,
         S3Bucket: config.codeBucket,
         S3Key: bundle.key,
       }),
     );
     await waitUntilFunctionUpdatedV2(
       { client: lambda, maxWaitTime: 300 },
-      { FunctionName: config.api.functionName },
+      { FunctionName: apiFunction },
     );
     api = `updated to ${bundle.key}`;
   }
