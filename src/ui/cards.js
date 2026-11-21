@@ -235,6 +235,8 @@ export class Cards {
     const stopName = onName?.((v) => {
       current = v;
       you.setName(v);
+      // a name set in MENU over this card is the box's too: START takes the box's
+      if (name) name.value = v;
     });
     const groups = {};
     const rows = OPTION_ROWS.map(([key, label, choices]) => {

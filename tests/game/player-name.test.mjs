@@ -29,6 +29,19 @@ test("a device with only the solo card's name keeps it, stored once", () => {
   const p = store({ solo: { name: "Aspen", wind: "light" } });
   assert.equal(loadName(p), "Aspen");
   assert.equal(p.m.get("name"), "Aspen");
+  // read once: the card's other saved options stay, its name goes
+  assert.deepEqual(p.m.get("solo"), { wind: "light" });
+});
+
+test("a name cleared in Settings stays cleared: the solo card's does not come back", () => {
+  const p = store({ solo: { name: "Aspen", wind: "light" } });
+  assert.equal(loadName(p), "Aspen");
+  assert.equal(saveName(p, ""), "");
+  assert.equal(loadName(p), "");
+  // cleared before the old name was ever read
+  const never = store({ solo: { name: "Aspen" } });
+  saveName(never, "");
+  assert.equal(loadName(never), "");
 });
 
 test("the solo card's placeholder is no name: the card asks once", () => {
