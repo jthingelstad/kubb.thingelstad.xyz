@@ -1,5 +1,8 @@
 # Rooms: the multiplayer room service
 
+This is the live server. Its planned replacement is `docs/PITCH-SERVER.md` (live pitches
+on Cloudflare Durable Objects); until its cutover, everything below holds.
+
 A pitch is a link (`/p/<code>`). Everyone who opens it joins the same **room**. The room
 server knows no Kubb. It keeps:
 
