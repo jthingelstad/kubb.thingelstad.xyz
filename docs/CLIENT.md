@@ -19,6 +19,10 @@ the engine's.
 | `/p/<code>`         | A shared pitch: the lobby (your name and the level you throw at, Team A or B or watching, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md.                                                                                                          |
 | `/e/<code>`         | The embed: a kept replay alone, for a frame on another site ("The embed", below).                                                                                                                                                                                                                   |
 
+`/p/<code>?observe=1` is a shared pitch watched without a seat (WATCH on the open games
+list): in step at once, mid-match or not, it never acts or hosts and has its own card
+between matches. docs/OBSERVER.md.
+
 A failure to start shows a plain error card with RELOAD and HOME. HOME, on every card, is
 the web game's page, `/web/` (`/` is the landing page for the whole game). The HOW TO THROW overlay
 (four steps, an animated dial) shows on the first visit and from the menu; `?nohowto` skips it.
@@ -42,6 +46,10 @@ the web game's page, `/web/` (`/` is the landing page for the whole game). The H
 | `src/game/draw.js`                            | The renderer's functions the game uses, in one place.                                                                                                                            |
 | `src/ui/cards.js`                             | `Cards`: the engine's hand-off, pass and settle cards (naming who acts on a shared pitch), the winner, solo options, a plain notice, and the raise and punishment panels.        |
 | `src/ui/lobby.js`                             | `Lobby`: the shared pitch's lobby card.                                                                                                                                          |
+| `src/ui/watching.js`                          | `WatchCard`: an observer's card between matches, in place of the lobby (docs/OBSERVER.md).                                                                                       |
+| `src/ui/watch-view.js`                        | `WatchView` (WIDE VIEW or THROWER'S VIEW, MENU's View, V) and `CamBar` (the hint, RESET VIEW) for anyone watching.                                                               |
+| `src/render/freecam.js`                       | The free camera's orbit and its limits (pure, docs/OBSERVER.md).                                                                                                                 |
+| `src/game/free-camera.js`                     | `FreeCamera`: the mouse, fingers, wheel and keys that move the free camera (docs/OBSERVER.md).                                                                                   |
 | `src/net/pitch.js`                            | `Pitch`: the shared pitch's controller: joins the room, runs the lobby, drives the Game through the seam, aim casts, shouts, host hand-over.                                     |
 | `src/net/lobby.js`, `seats.js`, `sync.js`     | Thin wrappers over kubb-engine's `room.*` rules; cached seat/actor reads keep these calls out of the render loop (docs/MULTIPLAYER.md).                                          |
 | `src/net/room.js`                             | The room client (docs/ROOMS.md).                                                                                                                                                 |
@@ -598,12 +606,18 @@ some Kubb being played"), so the camera never moves.
   are unchanged.
 - **Switching.** A button beside MENU names the other view (THROWER'S VIEW while the wide
   view shows, WIDE VIEW otherwise), MENU has View (Wide, Thrower's), and V toggles. The
-  choice is remembered as the `watchView` pref; wide is the default. Played matches
-  (solo, a shared pitch, practice) always use the thrower's view and have no switch.
-- **Too small.** Where the smallest base kubb would stand under 6 CSS px (`tune.wideMinPx`;
-  a phone held upright, about 4.5 px), the thrower's view shows whatever is chosen and the
-  button is hidden; it comes back when the window grows. A phone on its side keeps the wide
-  view.
+  choice is remembered as the `watchView` pref; wide is the default. Players (solo,
+  a side on a shared pitch, practice) always use the thrower's view and have no switch;
+  a member watching a shared pitch's match has it.
+- **Too small.** Where the smallest base kubb would stand under 2 CSS px for a watcher
+  (`tune.observeMinPx`) or 6 otherwise (`tune.wideMinPx`), the thrower's view shows
+  whatever is chosen and the button is hidden; it comes back when the window grows. Every
+  wide view today has a watcher, so a phone held upright (about 4.5 px) now keeps it.
+- **The free camera.** A watcher (watching the computer, a member with no side on a shared
+  pitch, an observer, a replay outside the embed) may fly round in the wide view: drag,
+  wheel, two fingers, the arrows, W A S D, + and -, with RESET VIEW to go back. It starts
+  as the engine's wide camera, untouched. Its controls, limits and what it cannot do are
+  docs/OBSERVER.md. Players never get it.
 
 ## Playback
 
