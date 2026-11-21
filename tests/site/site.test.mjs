@@ -501,6 +501,17 @@ test("the landing site: / is the game, /web/ the web game, each nav page a page"
   );
 });
 
+test("the device's settings: /settings/ is a game page, linked from /web/, not indexed", () => {
+  const page = PAGES.find((p) => p.path === "/settings/");
+  assert.ok(page, "/settings/ is a page");
+  assert.equal(page.noindex, true);
+  const config = { mode: "x", release: { text: "0.7.0 (0.9.0)" } };
+  const html = page.render({ config, assets: { main: "/assets/main.js" } });
+  assert.match(html, /"mode":"settings"/);
+  const web = PAGES.find((p) => p.path === "/web/").render({ config });
+  assert.match(web, /<a class="button" href="\/settings\/">Settings<\/a>/);
+});
+
 test("the newsletter: a plain post to Buttondown's one list, on five pages", () => {
   assert.equal(NEWSLETTER_ORIGIN, "https://buttondown.com");
   assert.equal(NEWSLETTER_URL, "https://buttondown.com/throwing-wood");

@@ -89,6 +89,7 @@ function web({ tinylytics, config = {} }) {
         <a class="button" href="/p/?solo=1" data-pitch="?solo=1">Play the computer</a>
         <a class="button" href="/p/?watch=1" data-pitch="?watch=1">Watch the computer</a>
         <a class="button" href="/practice/">Practice</a>
+        <a class="button" href="/settings/">Settings</a>
       </div>
     </div>
     ${BUILDING}
@@ -267,18 +268,35 @@ function notFound({ tinylytics, config = {} }) {
 
 // The build passes { tinylytics, config, assets }: config is the runtime
 // config shared by both game pages, assets the hashed client files.
+const GAME_PAGES = {
+  practice: {
+    path: "/practice/",
+    title: `Practice · ${SITE_TITLE}`,
+    description:
+      "The practice pitch: throw batons and drill kubbs, no match around it.",
+  },
+  pitch: {
+    path: "/pitch/",
+    title: `A pitch · ${SITE_TITLE}`,
+    description:
+      "A pitch of Kubb: Throwing Wood. Open the link to join the match.",
+  },
+  // the device's settings (src/ui/settings.js), the same rows as the game's MENU
+  settings: {
+    path: "/settings/",
+    title: `Settings · ${SITE_TITLE}`,
+    description:
+      "Your name, your level, the meter and the sound, kept in this browser.",
+  },
+};
+
 function game(mode) {
+  const { path, title, description } = GAME_PAGES[mode];
   return ({ tinylytics, config, assets }) =>
     gamePage({
-      path: mode === "practice" ? "/practice/" : "/pitch/",
-      title:
-        mode === "practice"
-          ? `Practice · ${SITE_TITLE}`
-          : `A pitch · ${SITE_TITLE}`,
-      description:
-        mode === "practice"
-          ? "The practice pitch: throw batons and drill kubbs, no match around it."
-          : "A pitch of Kubb: Throwing Wood. Open the link to join the match.",
+      path,
+      title,
+      description,
       config: { ...config, mode },
       script: assets.main,
       styles: ["/game.css", ...(assets.css ? [assets.css] : [])],
@@ -328,6 +346,14 @@ export const PAGES = [
     path: "/pitch/",
     file: "pitch/index.html",
     render: game("pitch"),
+    game: true,
+    noindex: true,
+    sources: ["src"],
+  },
+  {
+    path: "/settings/",
+    file: "settings/index.html",
+    render: game("settings"),
     game: true,
     noindex: true,
     sources: ["src"],
