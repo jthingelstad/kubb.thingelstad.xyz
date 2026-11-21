@@ -1113,11 +1113,15 @@ export class Pitch {
       const m = { ...doc.match, ...match, hash: match.h, snap: match.snap };
       if (this.mode === "match" && this.local.n === match.n) {
         // the same match: in step unless the head moved past this browser, or its hash
-        // is not the head's
-        const behind = this.local.seq !== match.seq;
+        // is not the head's. This browser's own actions not answered yet (the pitch
+        // client sends them again now) may stand between the head and here: then here
+        // is the head with them played, and nothing is taken.
+        const own = this.ownAhead(match);
+        const behind = this.local.seq !== match.seq + own.length;
         let differs = false;
         try {
-          differs = this.game.engine.hash().hash !== match.h;
+          differs =
+            this.game.engine.hash().hash !== (own.at(-1)?.h ?? match.h);
         } catch {
           differs = true;
         }
@@ -1131,6 +1135,22 @@ export class Pitch {
       this.room.resync();
     }
     this.onMembers();
+  }
+
+  // This browser's actions after the head `match` that the pitch has not answered, as
+  // { seq, h }, when they follow on from it one by one; [] otherwise.
+  ownAhead(match) {
+    const out = [];
+    let seq = match.seq;
+    const mine = (this.room.pending ?? [])
+      .filter((p) => p.n === match.n && p.seq > match.seq)
+      .sort((x, y) => x.seq - y.seq);
+    for (const p of mine) {
+      if (p.seq !== seq + 1) return [];
+      seq = p.seq;
+      out.push({ seq: p.seq, h: p.msg?.h });
+    }
+    return out;
   }
 
   // A lobby write (ours or anyone's). A rematch takes the pitch back to the lobby; a
