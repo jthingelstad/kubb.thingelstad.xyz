@@ -34,7 +34,8 @@ protocol: [`PROTOCOL.md`](PROTOCOL.md)). Not live yet: the rooms server in
 
 ## Configuration
 
-Plain variables (`env` in `cloudflare.config.ts`, `vars` in `wrangler.jsonc`):
+Plain variables (`env` in `cloudflare.config.ts`, `vars` in `wrangler.jsonc`;
+`wrangler.jsonc` has no `PUSH_URL`, so `npm run dev` never pushes to AWS):
 
 | Name                     | Meaning                                                                            |
 | ------------------------ | ---------------------------------------------------------------------------------- |
@@ -63,9 +64,22 @@ npm ci
 npx cf deploy --secrets-file .dev.vars </dev/null
 ```
 
-It deploys the Worker named in `cloudflare.config.ts` (`throwingwood-pitches-dev`, on
-workers.dev only: no route, no zone) and prints the version id. `</dev/null` keeps it
-from ever asking a question. The first deploy creates both Durable Object classes with
+It deploys the dev Worker, `throwingwood-pitches-dev` (on workers.dev only: no route, no
+zone), and prints the version id. `</dev/null` keeps it from ever asking a question.
+Bump its `version` in `cloudflare.config.ts` with each deploy.
+
+`cloudflare.config.ts` holds both Workers, picked by `--mode`. Production is
+`throwingwood-pitches`: the same code and `PUSH_URL`, `ALLOWED_ORIGINS` without the
+localhost entries, no `DEV_WRITE_FIRST_PREFIX`, and a secrets file with `PUSH_SECRET` only,
+so `/dev/pitch` answers 404 there:
+
+```sh
+printf 'PUSH_SECRET=%s\n' '<the value from Secrets Manager>' > .prod.vars  # gitignored, mode 600
+npx cf deploy --mode production --secrets-file .prod.vars </dev/null
+```
+
+Any other mode is refused. Production is not deployed yet, and is also on workers.dev
+only: a route or custom domain for it is a later step. The first deploy creates both Durable Object classes with
 SQLite storage; a class is never renamed or removed without a migration.
 
 A deploy reaches new requests at once. A pitch busy at the time keeps its old code until
@@ -93,9 +107,11 @@ push, keyed `<pitch>:<made>:<k>`, retried until a 2xx. `test/receiver.mjs` is a 
 stand-in: it checks the signature and the key exactly as the real one must.
 
 The real one is `backend/api/` (its contract `backend/api/API.md`), the Lambda function
-`throwing-wood-api` in the `throwing-wood-pitches` stack, built and not yet deployed. Its
-secret (`throwing-wood/push-secret`) and `PUSH_URL` steps are `docs/PITCH-SERVER.md`
-section 12.
+`throwing-wood-api` in the `throwing-wood-pitches` stack. The dev Worker pushes to it
+since 2026-11-21 (`dev-3`). Its secret (`throwing-wood/push-secret`) and `PUSH_URL`
+steps are `docs/PITCH-SERVER.md` section 12. `--scenario match` proves the chain: it
+plays one short match to its end, waits for the outbox to empty and, with
+`--replay <the function URL>`, for the api to serve the kept replay.
 
 ## Test
 
@@ -128,6 +144,7 @@ does not). With `DEV_KEY` in the environment or `.dev.vars` it reads `/dev/pitch
 | `resume` | three players drop and come back                                                                    |
 | `idle`   | idle gaps with and without pings: did the object sleep and rebuild?                                 |
 | `rtt`    | round trips to `/health`                                                                            |
+| `match`  | one match to its end (`--acts`, the last `over`): outbox empty, then the kept replay (`--replay`)   |
 
 `--exec-at <s> --exec '<command>'` runs a command part way, a redeploy for instance.
 The numbers measured on 2026-11-21 are in `docs/PITCH-SERVER.md` section 8.

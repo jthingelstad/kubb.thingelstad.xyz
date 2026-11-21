@@ -7,7 +7,7 @@
 //   node driver/driver.mjs --url ws://127.0.0.1:8797 --scenario turns --players 12 --observers 20 --duration 60
 //
 // Scenarios: turns, order (relay-first against write-first), simul, idle (hibernation),
-// resume, rtt. --exec-at/--exec run a command part way (a redeploy). With DEV_KEY (the
+// resume, rtt, match (one short match to its end: the pushes to AWS and the kept replay). --exec-at/--exec run a command part way (a redeploy). With DEV_KEY (the
 // environment or .dev.vars) it reads each pitch's stats from /dev/pitch and wipes the
 // pitch at the end, so test pitches leave nothing behind.
 import { createHash, randomBytes } from "node:crypto";
@@ -56,6 +56,9 @@ function parseArgs(argv) {
     pitch: null,
     label: null,
     keep: "no", // "yes": leave the pitch, do not wipe it
+    acts: 6, // match: actions, the last one `over`
+    replay: null, // match: the api's base URL, to wait for the kept replay there
+    waitSec: 120, // match: how long to wait for the outbox and the replay
   };
   for (let i = 2; i < argv.length; i++) {
     const k = argv[i]
@@ -294,7 +297,7 @@ class Client {
     } else this.castsSent++;
     return this.send(m);
   }
-  act(seq, ms = 8000) {
+  act(seq, ms = 8000, over = false) {
     const id = `${this.name}-${seq}-${rand(6)}`;
     const h = createHash("sha256").update(id).digest("hex").slice(0, 16);
     const sentAt = now();
@@ -309,6 +312,7 @@ class Client {
       a: { st: sentAt, p: pad(600) },
       h,
       snap: pad(12000),
+      ...(over ? { over: true } : {}),
       c: "drv",
     });
     return Promise.race([p, sleep(ms).then(() => ({ t: "timeout", id }))]);
@@ -695,6 +699,64 @@ async function scenarioResume(opts) {
   return finish(opts, R, analyse(opts, R, { resumed }));
 }
 
+// One short match played to its end, then the pushes followed: how long until the
+// outbox is empty (every push taken by the receiver) and, with --replay <api base URL>,
+// until the api serves the kept replay. Wipes the pitch only once the outbox is empty.
+async function scenarioMatch(opts) {
+  const R = await makePitch(opts, opts.pitch || newCode());
+  const outcomes = {};
+  for (let i = 0; i < opts.acts; i++) {
+    const thrower = R.players[i % R.players.length];
+    const last = i === opts.acts - 1;
+    const r = await thrower.act(thrower.head + 1, 8000, last);
+    const k =
+      r.t === "ok" ? "ok" : r.t === "refused" ? `refused:${r.why}` : r.t;
+    outcomes[k] = (outcomes[k] || 0) + 1;
+    await sleep(250);
+  }
+  const overAt = now();
+  const wait = { outboxEmptyMs: null, replayMs: null, replay: null, polls: 0 };
+  const deadline = overAt + opts.waitSec * 1000;
+  let stats = null;
+  while (now() < deadline && opts.devKey) {
+    stats = await dev(opts, R.pitch);
+    wait.polls++;
+    if (stats && stats.outbox === 0 && stats.retrying === 0) {
+      wait.outboxEmptyMs = Math.round(now() - overAt);
+      break;
+    }
+    await sleep(500);
+  }
+  if (opts.replay) {
+    const u = new URL("replay", opts.replay);
+    u.searchParams.set("pitch", R.pitch);
+    while (now() < deadline) {
+      const r = await fetch(u, { cache: "no-store" });
+      const body = await r.text();
+      if (r.ok) {
+        const j = JSON.parse(body);
+        wait.replayMs = Math.round(now() - overAt);
+        wait.replay = {
+          status: r.status,
+          bytes: body.length,
+          v: j.v,
+          at: j.at,
+          sealed: j.sealed,
+          n: j.replay?.n,
+          logLength: j.replay?.log?.length,
+          meta: j.replay ? Object.keys(j.replay) : null,
+        };
+        break;
+      }
+      wait.replay = { status: r.status, body: body.slice(0, 200) };
+      await sleep(1000);
+    }
+  }
+  const res = analyse(opts, R, { outcomes, wait, statsAtEmpty: stats });
+  if (wait.outboxEmptyMs === null) opts.keep = "yes"; // never wipe pending pushes
+  return finish(opts, R, res);
+}
+
 async function main() {
   const opts = parseArgs(process.argv);
   opts.devKey = readDevKey();
@@ -709,6 +771,7 @@ async function main() {
     idle: () => scenarioIdle(opts),
     resume: () => scenarioResume(opts),
     rtt: () => healthRtt(opts),
+    match: () => scenarioMatch(opts),
   }[opts.scenario];
   if (!run) throw new Error(`unknown scenario ${opts.scenario}`);
   const result = await run();
