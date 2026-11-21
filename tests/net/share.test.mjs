@@ -16,7 +16,6 @@ import { memoryStore } from "../../backend/rooms/memory-store.mjs";
 import { dynamoStore } from "../../backend/rooms/dynamo-store.mjs";
 import { lambdaShareChecker } from "../../backend/rooms/handler.mjs";
 import { checkShare as realCheck } from "../../backend/reels/check.mjs";
-import { pitchState, previewOf } from "../../backend/pages/pitch.mjs";
 import { bundleLua } from "../../tools/lua-bundle.mjs";
 import { playSolo, soloSetup } from "../../tools/reel/solo.mjs";
 import engineInfo from "../../vendor/engine.json" with { type: "json" };
@@ -750,7 +749,7 @@ test("lambda check: a check past the wait is busy; a function error is an error"
 
 // ---------- end to end: a real match through the real check ----------
 
-test("share end to end: a real match is checked, reads as a finished pitch, and a reel starts", async () => {
+test("share end to end: a real match is checked and a reel starts", async () => {
   const sources = bundleLua();
   const played = await playSolo(soloSetup(2), sources);
   const started = [];
@@ -779,20 +778,8 @@ test("share end to end: a real match is checked, reads as a finished pitch, and 
   assert.equal(got.t, "shared", JSON.stringify(got));
   assert.ok(got.code);
 
-  // the pages function reads it as any finished pitch, with the computer's title form
-  const doc = await h.store.getDoc(got.code);
-  const kept = await h.store.getReplay(got.code);
-  const s = pitchState({ doc: { v: doc.v, doc: doc.doc }, kept: kept.data });
-  assert.equal(s.state, "over");
-  assert.equal(s.replay, true);
-  assert.deepEqual(s.computer, { side: "B", level: "club" });
-  const p = previewOf(s);
-  assert.equal(p.title, "Riverside vs Computer · Kubb: Throwing Wood");
-  assert.equal(
-    p.description,
-    `Final: Riverside won, against the computer (club), in ${s.turn} turns. Watch the replay.`,
-  );
-
+  // the pages function reads the api function's records now, not the rooms': the same
+  // match through the api's share, then the pages, is in tests/api/api.test.mjs
   // and the shared code asks for a reel through the existing path
   await h.say("c2", { t: "reel", id: 2, room: got.code });
   const reel = h.take("c2").at(-1);

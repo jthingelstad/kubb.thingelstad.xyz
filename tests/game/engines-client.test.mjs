@@ -82,7 +82,7 @@ before(async () => {
         return addOlder(
           injectPreview(html, {
             code,
-            s: pitchState({ doc: null, replay: withEngine("0.6") }),
+            s: pitchState({ kept: keptOf(withEngine("0.6")) }),
             path: `/e/${code}`,
             embed: true,
           }),
@@ -111,6 +111,12 @@ async function open(url) {
   await page.goto(`${env.base}${url}`);
   await page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
   return { page, ctx };
+}
+
+// A kept replay as the api's records give it to the pitch pages (backend/pages/pitch.mjs).
+function keptOf(text) {
+  const r = JSON.parse(text);
+  return { v: 5, made: 1, n: r.n ?? null, hash: r.hash ?? null, snap: r.snap };
 }
 
 const rq = () => `rooms=${encodeURIComponent(rooms.url)}`;

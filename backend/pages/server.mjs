@@ -20,7 +20,7 @@ const PAGES = {
 };
 const IMAGE = "/share/kubb.png";
 
-// load(code) -> { doc: { v, doc } | null, replay: JSON text | null }
+// load(code) -> { state, kept, reel } (pitch.mjs readPitch)
 // base(file) -> the built page's HTML (throws when it cannot be had)
 // render(card) -> PNG bytes
 export function createPages({ load, base, render, site, log = () => {} }) {

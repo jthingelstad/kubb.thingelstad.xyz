@@ -11,7 +11,7 @@ import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import fs from "node:fs/promises";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
-import { readRoom } from "./pitch.mjs";
+import { readPitch } from "./pitch.mjs";
 import { renderer } from "./render.mjs";
 import { createPages, siteBase } from "./server.mjs";
 
@@ -23,8 +23,8 @@ const table = process.env.TABLE;
 if (!table) throw new Error("TABLE is not set");
 const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
-// The room's document and, when it is gone, its kept replay: the fields the
-// preview needs, nothing else (never a connection, never the room's members).
+// The pitch's state and kept replay (the api function's records): the fields the
+// preview needs, nothing else.
 async function item(pk, sk, fields) {
   const { Item } = await client.send(
     new GetCommand({
@@ -38,7 +38,7 @@ async function item(pk, sk, fields) {
   );
   return Item && Item.exp > Date.now() / 1000 ? Item : null;
 }
-const load = (code) => readRoom(item, code);
+const load = (code) => readPitch(item, code);
 
 // Beside this file in the package; from node_modules when run from the repository.
 async function asset(name, fallback) {

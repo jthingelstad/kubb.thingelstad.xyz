@@ -21,6 +21,7 @@
     "dev": "node tools/dev.mjs",
     "images": "node tools/render-images.mjs",
     "rooms:bundle": "node tools/rooms-bundle.mjs",
+    "api:bundle": "node tools/api-bundle.mjs",
     "pages:bundle": "node tools/pages-bundle.mjs",
     "reels:bundle": "node tools/reels-bundle.mjs",
     "games:pull": "node tools/games.mjs pull",

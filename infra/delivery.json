@@ -26,6 +26,12 @@
       "Default": "",
       "AllowedPattern": "^$|^[0-9]+$",
       "Description": "GitHub's numeric id of jthingelstad/kubb.thingelstad.xyz. Empty until the repository exists: then the trust matches the repository by name with any id."
+    },
+    "ApiFunctionName": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^[A-Za-z0-9_-]+$",
+      "Description": "The api Lambda function (stack kubb-xyz-rooms output ApiFunctionName). Empty: the role cannot touch it."
     }
   },
   "Conditions": {
@@ -40,6 +46,9 @@
           ]
         }
       ]
+    },
+    "HasApi": {
+      "Fn::Not": [{ "Fn::Equals": [{ "Ref": "ApiFunctionName" }, ""] }]
     }
   },
   "Resources": {
@@ -149,6 +158,38 @@
                 }
               ]
             }
+          },
+          {
+            "Fn::If": [
+              "HasApi",
+              {
+                "PolicyName": "ApiCodeDelivery",
+                "PolicyDocument": {
+                  "Version": "2012-10-17",
+                  "Statement": [
+                    {
+                      "Effect": "Allow",
+                      "Action": ["s3:GetObject", "s3:PutObject"],
+                      "Resource": {
+                        "Fn::Sub": "arn:${AWS::Partition}:s3:::${CodeBucket}/api/*"
+                      }
+                    },
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "lambda:GetFunction",
+                        "lambda:GetFunctionConfiguration",
+                        "lambda:UpdateFunctionCode"
+                      ],
+                      "Resource": {
+                        "Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ApiFunctionName}"
+                      }
+                    }
+                  ]
+                }
+              },
+              { "Ref": "AWS::NoValue" }
+            ]
           }
         ]
       }

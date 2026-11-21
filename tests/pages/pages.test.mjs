@@ -12,7 +12,7 @@ import {
   injectPreview,
   pitchState,
   previewOf,
-  readRoom,
+  readPitch,
 } from "../../backend/pages/pitch.mjs";
 import { gzipSync } from "node:zlib";
 import { renderer } from "../../backend/pages/render.mjs";
@@ -28,37 +28,39 @@ const overGame = JSON.parse(over).save.game;
 // the kept replay's own last snapshot (tools/replay-fixture.mjs writes it)
 const keptGame = JSON.parse(JSON.parse(replay).snap).save.game;
 
-// The room's document as the rooms keep it: the lobby's teams are member ids.
-const SECRET = "m-0123456789abcdef";
-const doc = (d, v = 7) => ({ v, doc: JSON.stringify(d) });
-const ROOMS = {
-  waiting: { doc: doc({ started: false, teams: { A: [SECRET], B: [] } }) },
+// A pitch's records as the api function keeps them (backend/api/dynamo-store.mjs), as
+// readPitch hands them on: the state (its latest match) and the kept replay.
+const M = 1_763_700_000_000; // when the pitch object was made
+const r = JSON.parse(replay);
+const RECORDS = {
   playing: {
-    doc: doc({
-      started: true,
+    state: {
+      v: 7,
+      made: M,
       n: 1,
-      teams: { A: [SECRET], B: [] },
-      match: {
-        n: 1,
-        snap: inPlay,
-        setup: {},
-        players: { A: [{ id: SECRET }] },
-      },
-    }),
+      seq: 4,
+      over: false,
+      snap: inPlay,
+      hash: "h4",
+    },
   },
+  // over, its replay not kept (yet): no replay to promise
   over: {
-    doc: doc(
-      {
-        started: true,
-        n: 1,
-        teams: { A: [SECRET], B: [] },
-        match: { n: 1, over: true, snap: over, setup: {}, log: [], seq: 0 },
-      },
-      42,
-    ),
+    state: { v: 42, made: M, n: 1, seq: 9, over: true, snap: over, hash: "h9" },
   },
-  kept: { doc: null, replay },
-  none: { doc: null, replay: null },
+  // the state gone, the kept replay still there
+  kept: {
+    kept: { v: M + 1000, made: M, n: r.n, snap: r.snap, hash: r.hash },
+  },
+  none: {},
+};
+// "waiting" comes from no record (the pitch server pushes no lobby), but an embed may
+// be handed one, and its words and image are kept
+const STATES = {
+  waiting: { state: "waiting", v: 0 },
+  ...Object.fromEntries(
+    Object.entries(RECORDS).map(([k, x]) => [k, pitchState(x)]),
+  ),
 };
 
 const base = gamePage({
@@ -87,8 +89,8 @@ test("each state's words", () => {
   const keptWinner = keptGame.teams[keptGame.winner].name;
   assert.deepEqual(
     Object.fromEntries(
-      Object.entries(ROOMS).map(([k, r]) => {
-        const p = previewOf(pitchState(r));
+      Object.entries(STATES).map(([k, st]) => {
+        const p = previewOf(st);
         return [k, p && [p.title, p.description]];
       }),
     ),
@@ -98,12 +100,10 @@ test("each state's words", () => {
         "Waiting for players. Join the pitch.",
       ],
       playing: ["North vs South · Kubb: Throwing Wood", "In play: turn 2"],
-      // the document's match has no complete log: no replay to promise
       over: [
         "North vs South · Kubb: Throwing Wood",
         `Final: ${winner} won, 1 to 0, in ${turns} turns.`,
       ],
-      // the document gone, the kept replay still there
       kept: [
         "North vs South · Kubb: Throwing Wood",
         `Final: ${keptWinner} won, 1 to 0, in ${keptGame.turn} turns. Watch the replay.`,
@@ -111,53 +111,62 @@ test("each state's words", () => {
       none: null,
     },
   );
-  const withReplay = pitchState({
-    doc: doc({
-      started: true,
-      match: { over: true, snap: over, setup: {}, log: [{ a: {} }], seq: 1 },
-    }),
+  assert.equal(STATES.playing.v, 7);
+  assert.equal(STATES.kept.v, M + 1000);
+  // beside a finished state, the kept replay counts only when it is this match
+  const kept = RECORDS.kept.kept;
+  const finished = (n, made = M) => ({
+    v: 9,
+    made,
+    n,
+    seq: 372,
+    over: true,
+    snap: r.snap,
+    hash: r.hash,
   });
-  assert.match(previewOf(withReplay).description, /Watch the replay\.$/);
-  // beside a finished document, the kept replay counts only when it is this match
-  const r = JSON.parse(replay);
-  const finished = (n) =>
-    doc({
-      started: true,
-      match: {
-        over: true,
-        n,
-        snap: r.snap,
-        hash: r.hash,
-        setup: {},
-        log: null,
-      },
-    });
-  const own = pitchState({ doc: finished(r.n), kept: replay });
+  const own = pitchState({ state: finished(r.n), kept });
   assert.equal(own.replay, true);
+  assert.match(previewOf(own).description, /Watch the replay\.$/);
   assert.deepEqual(embedState(own, "abcd2345").match, { n: r.n, hash: r.hash });
-  const rematch = pitchState({ doc: finished(r.n + 1), kept: replay });
+  const rematch = pitchState({ state: finished(r.n + 1), kept });
   assert.equal(rematch.replay, false);
   assert.doesNotMatch(previewOf(rematch).description, /replay/);
-  assert.equal(pitchState({ doc: finished(r.n), kept: null }).replay, false);
-  // a document that cannot be read is no room
-  assert.equal(pitchState({ doc: { v: 1, doc: "{not json" } }).state, "none");
+  // the code wiped and used again: another pitch object, not this replay
+  assert.equal(pitchState({ state: finished(r.n, M + 1), kept }).replay, false);
+  assert.equal(pitchState({ state: finished(r.n), kept: null }).replay, false);
+  // a rematch in play shows the rematch, not the last match
+  assert.equal(
+    pitchState({ state: { ...RECORDS.playing.state, n: 2 }, kept }).state,
+    "playing",
+  );
+  // a snapshot that cannot be read is no state; the kept replay is then shown
+  assert.equal(
+    pitchState({ state: { v: 1, snap: "{not json" } }).state,
+    "none",
+  );
+  assert.equal(
+    pitchState({ state: { v: 1, snap: "{not json" }, kept }).state,
+    "over",
+  );
+  // the names from the match's start where the snapshot has none
+  const nameless = JSON.parse(inPlay);
+  delete nameless.save.game.teams.A.name;
+  delete nameless.save.game.teams.B.name;
+  const named = pitchState({
+    state: {
+      ...RECORDS.playing.state,
+      snap: JSON.stringify(nameless),
+      names: { A: "Oak", B: "Elm" },
+    },
+  });
+  assert.deepEqual(named.teams, { A: "Oak", B: "Elm" });
 });
 
 test("a match against the computer says so, and at what level", () => {
   const vsComputer = (cpu, level) =>
     pitchState({
-      doc: doc({
-        started: true,
-        match: {
-          n: 1,
-          over: true,
-          snap: over,
-          cpu,
-          setup: { teams: { [cpu]: { players: [{ level }] } } },
-          log: [{ a: {} }],
-          seq: 1,
-        },
-      }),
+      state: { ...RECORDS.over.state, cpu, level },
+      kept: { v: M + 5, made: M, n: 1, snap: over, hash: "h9", cpu, level },
     });
   const w = overGame.winner;
   const l = w === "A" ? "B" : "A";
@@ -179,15 +188,20 @@ test("a match against the computer says so, and at what level", () => {
     previewOf(vsComputer(l, "grand")).description,
     /against the computer, in/,
   );
-  assert.equal(pitchState(ROOMS.over).computer, null);
+  assert.equal(STATES.over.computer, null);
+  // the kept replay alone says it too
+  assert.deepEqual(
+    pitchState({
+      kept: { v: M + 5, made: M, n: 1, snap: over, cpu: l, level: "pro" },
+    }).computer,
+    { side: l, level: "pro" },
+  );
 });
 
 test("the preview goes into the page's head; the fallback leaves it as built", () => {
   const code = "abcd2345";
-  for (const [k, r] of Object.entries(ROOMS)) {
-    const s = pitchState(r);
+  for (const [k, s] of Object.entries(STATES)) {
     const html = injectPreview(base, { code, s, path: `/p/${code}` });
-    assert.ok(!html.includes(SECRET), `${k}: a member id`);
     if (k === "none") {
       assert.equal(html, base);
       continue;
@@ -211,10 +225,7 @@ test("names are escaped, and the embed's state block cannot close its element", 
   const snap = JSON.parse(inPlay);
   snap.save.game.teams.A.name = '</script><b x="1">&';
   const s = pitchState({
-    doc: doc({
-      started: true,
-      match: { snap: JSON.stringify(snap), setup: {} },
-    }),
+    state: { ...RECORDS.playing.state, snap: JSON.stringify(snap) },
   });
   const html = injectPreview(base, {
     code: "abcd2345",
@@ -240,10 +251,7 @@ test("a $ sequence in a team name is written as it is", () => {
   const snap = JSON.parse(inPlay);
   snap.save.game.teams.A.name = "$& $1 $` $'";
   const s = pitchState({
-    doc: doc({
-      started: true,
-      match: { snap: JSON.stringify(snap), setup: {} },
-    }),
+    state: { ...RECORDS.playing.state, snap: JSON.stringify(snap) },
   });
   const html = injectPreview(base, {
     code: "abcd2345",
@@ -267,9 +275,7 @@ test("the server: each state's page, and the built page on any failure", async (
       calls.push(code);
       if (code === "bbbbbbbb") throw new Error("down");
       return (
-        ROOMS[
-          { wwwwwwww: "waiting", pppppppp: "playing", vvvvvvvv: "over" }[code]
-        ] ?? ROOMS.none
+        RECORDS[{ pppppppp: "playing", vvvvvvvv: "over" }[code]] ?? RECORDS.none
       );
     },
     base: async (file) =>
@@ -339,7 +345,7 @@ test("the server: each state's page, and the built page on any failure", async (
   assert.equal((await get("/pitch/index.html", "POST")).status, 405);
   // no page to be had: 502, and CloudFront serves the static one
   const away = createPages({
-    load: async () => ROOMS.playing,
+    load: async () => RECORDS.playing,
     base: async () => {
       throw new Error("no site");
     },
@@ -380,7 +386,7 @@ test("the share image renders per state at 1200 x 630", async () => {
   });
   const sizes = {};
   for (const k of ["waiting", "playing", "over", "kept"]) {
-    const png = await render(cardOf(pitchState(ROOMS[k])));
+    const png = await render(cardOf(STATES[k]));
     assert.deepEqual(
       [...png.subarray(0, 8)],
       [137, 80, 78, 71, 13, 10, 26, 10],
@@ -396,63 +402,107 @@ test("the share image renders per state at 1200 x 630", async () => {
   }
   // the pieces differ: a set-out pitch is not the end of a match
   assert.notEqual(sizes.waiting, sizes.over);
-  assert.equal(cardOf(pitchState(ROOMS.none)), null);
+  assert.equal(cardOf(STATES.none), null);
   // a fallen king when the match ended on him
-  const pieces = cardOf(pitchState(ROOMS.over)).pieces;
+  const pieces = cardOf(STATES.over).pieces;
   const king = pieces.find((p) => p.kind === "king");
   assert.equal(king.standing, !/^king/.test(overGame.how));
 });
 
-test("readRoom: a match from before replays is over by its snapshot, and its kept replay is read", async () => {
-  const r = JSON.parse(replay);
-  // no "over" of its own, no log: a document from before replays
-  const old = doc({
-    started: true,
-    match: { n: r.n, snap: r.snap, hash: r.hash },
-  });
+test("readPitch: a match in play costs one read; a finished one reads its replay, then its reel", async () => {
+  const code = "abcd2345";
+  const pk = `pitch#${code}`;
   const items = {
-    doc: { ...old, exp: 2e9 },
-    replay: { z: gzipSync(replay), exp: 2e9 },
+    state: {
+      rev: 3,
+      made: M,
+      n: 1,
+      seq: 4,
+      over: false,
+      z: gzipSync(inPlay),
+      hash: "h4",
+      exp: 2e9,
+    },
   };
   const asked = [];
   const item = async (pk, sk, fields) => {
     asked.push([pk, sk, fields.join(",")]);
     return items[sk] ?? null;
   };
-  const read = await readRoom(item, "abcd2345");
+  const playing = pitchState(await readPitch(item, code));
+  assert.equal(playing.state, "playing");
+  assert.equal(playing.v, 3);
   assert.deepEqual(asked, [
-    ["room#abcd2345", "doc", "v,doc,exp"],
-    ["room#abcd2345", "replay", "v,z,exp"],
-    ["room#abcd2345", "reel", "v,state,wide,exp"],
+    [pk, "state", "rev,made,n,seq,over,z,hash,names,cpu,level,exp"],
   ]);
-  const s = pitchState(read);
-  assert.equal(s.state, "over");
-  assert.equal(s.replay, true);
-  assert.match(previewOf(s).description, /Watch the replay\.$/);
-  // a match in play reads nothing more
+  // over, with its own kept replay and the computer's side and level
   asked.length = 0;
-  items.doc = {
-    ...doc({ started: true, match: { snap: inPlay, setup: {} } }),
+  items.state = {
+    ...items.state,
+    rev: 9,
+    n: r.n,
+    seq: r.log.length,
+    over: true,
+    z: gzipSync(r.snap),
+    hash: r.hash,
+    cpu: "B",
+    level: "club",
+  };
+  items.replay = {
+    v: M + 1000,
+    made: M,
+    n: r.n,
+    s: gzipSync(r.snap),
+    hash: r.hash,
     exp: 2e9,
   };
-  assert.equal(pitchState(await readRoom(item, "abcd2345")).state, "playing");
-  assert.equal(asked.length, 1);
-  // the document gone: the kept replay alone
-  delete items.doc;
-  const gone = pitchState(await readRoom(item, "abcd2345"));
+  const s = pitchState(await readPitch(item, code));
+  assert.deepEqual(asked, [
+    [pk, "state", "rev,made,n,seq,over,z,hash,names,cpu,level,exp"],
+    [pk, "replay", "v,made,n,s,hash,cpu,level,exp"],
+    [pk, "reel", "v,state,wide,exp"],
+  ]);
+  assert.equal(s.state, "over");
+  assert.equal(s.replay, true);
+  assert.deepEqual(s.computer, { side: "B", level: "club" });
+  assert.match(previewOf(s).description, /Watch the replay\.$/);
+  // half a replay (the final snapshot, not yet the kept log, or the other way) is none
+  for (const half of [
+    { made: M, n: r.n, s: gzipSync(r.snap), exp: 2e9 },
+    { v: M + 1000, made: M, n: r.n, exp: 2e9 },
+  ]) {
+    items.replay = half;
+    const h = pitchState(await readPitch(item, code));
+    assert.equal(h.state, "over");
+    assert.equal(h.replay, false);
+  }
+  // the state gone: the kept replay alone
+  delete items.state;
+  items.replay = {
+    v: M + 1000,
+    made: M,
+    n: r.n,
+    s: gzipSync(r.snap),
+    exp: 2e9,
+  };
+  const gone = pitchState(await readPitch(item, code));
   assert.equal(gone.state, "over");
   assert.equal(gone.replay, true);
+  // nothing at all
+  delete items.replay;
+  assert.equal(pitchState(await readPitch(item, code)).state, "none");
 });
 
 test("a finished reel: one more GetItem, og:video tags on the pitch page, the image kept", async () => {
   const code = "abcd2345";
   const wide = `/reels/${code}/7-r1-0.7/wide.mp4`;
   const items = {
-    replay: { v: 7, z: gzipSync(replay), exp: 2e9 },
+    replay: { v: 7, made: M, n: 1, s: gzipSync(r.snap), exp: 2e9 },
     reel: { v: 7, state: "done", wide, exp: 2e9 },
   };
-  const item = async (pk, sk) => items[sk] ?? null;
-  const s = pitchState(await readRoom(item, code));
+  const item = async (pk, sk) =>
+    pk === `pitch#${code}` ? (items[sk] ?? null) : null;
+  const s = pitchState(await readPitch(item, code));
   assert.deepEqual(s.reel, { wide });
   assert.match(
     previewOf(s).description,
@@ -481,7 +531,7 @@ test("a finished reel: one more GetItem, og:video tags on the pitch page, the im
     );
   assert.match(
     html,
-    /<meta property="og:image" content="https:\/\/throwingwood\.com\/og\/abcd2345\.png">/,
+    /<meta property="og:image" content="https:\/\/throwingwood\.com\/og\/abcd2345\.png\?v=7">/,
   );
   // the embed is a player already: no video tags there
   const embed = injectPreview(base, {
@@ -506,16 +556,17 @@ test("no reel tags for a reel not done, of another version, of another pitch, or
   for (const reel of cases) {
     const item = async (pk, sk) => {
       if (sk === "reel" && reel === "throw") throw new Error("boom");
-      if (sk === "replay") return { v: 7, z: gzipSync(replay), exp: 2e9 };
+      if (sk === "replay")
+        return { v: 7, made: M, n: 1, s: gzipSync(r.snap), exp: 2e9 };
       if (sk === "reel") return { ...reel, exp: 2e9 };
       return null;
     };
-    const s = pitchState(await readRoom(item, code));
+    const s = pitchState(await readPitch(item, code));
     assert.equal(s.state, "over");
     assert.equal(s.reel, null, JSON.stringify(reel));
     assert.doesNotMatch(previewOf(s).description, /highlights/);
   }
   // no reel without a replay to go with it
-  const s = pitchState({ doc: null, replay: null, reel: { wide: "/reels/x" } });
+  const s = pitchState({ state: null, kept: null, reel: { wide: "/reels/x" } });
   assert.equal(s.state, "none");
 });

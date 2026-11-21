@@ -101,7 +101,7 @@ reels), the private games bucket, the pitch pages function and the reels functio
 Between them:
 
 - The pitch pushes each committed action record, and the kept replay at the end, to a
-  new Lambda function URL (working name `kubb-xyz-api`). Each request is signed with an
+  new Lambda function URL (`kubb-xyz-rooms-api`, `backend/api/`). Each request is signed with an
   HMAC over the body using a shared secret. No AWS keys live at Cloudflare.
 - The function writes the recorder's objects to the games bucket and the kept replay to
   the rooms table, as the rooms function does today.
@@ -270,8 +270,12 @@ Each step is its own pull request.
 2. `PitchDO`, the Worker and `LobbyDO`, with tests in the Workers pool. Built:
    `backend/pitch-server/src/`, tests in `backend/pitch-server/test/` (CI runs them) and
    `tests/pitch-server/edge.test.mjs`; deployed to dev.
-3. The AWS function the pitch reports to (`kubb-xyz-api`): HMAC check, records, kept
-   replay, and the HTTPS calls (`report`, `game`, `replay`, `reel`, `share`).
+3. The AWS function the pitch reports to: HMAC check, records, kept replay, and the
+   HTTPS calls (`report`, `game`, `replay`, `reel`, `share`). Built, not deployed:
+   `backend/api/` (its contract `backend/api/API.md`), tests in `tests/api/`, the
+   function `kubb-xyz-rooms-api` in `infra/rooms.json` and `/api/*` in
+   `infra/site.json`, off behind `"pitchApi"` (section 12). The pitch pages and the
+   reels read its `pitch#` records.
 4. The web client.
 5. The iPhone client.
 6. Cutover, then remove the old WebSocket API and its function. Deleting old stored
@@ -297,3 +301,84 @@ Each step is its own pull request.
 - Rate limits beyond each connection's own (section 9 of the protocol) and the 5 s cache
   on `/open`: per address at the Worker, if abuse ever shows.
 - The Worker's name for production (`throwingwood-pitches`?) and whether dev stays.
+
+## 12. Step 3: turning it on
+
+The api function is in the repository and off. Merging it changes nothing live:
+`tools/deploy.mjs` updates its code only once a rooms apply has created it, and the
+pitch pages and reels code that read `pitch#` records goes live only with a site apply.
+
+### What turning it on creates
+
+All in the rooms stack, each only with `"pitchApi": true` (the `HasApi` condition):
+
+- `kubb-xyz-rooms-api`: Node 24, arm64, 256 MB, 30 s, at most 10 at once, its code
+  `api/<sha256>.zip` in the site's code bucket.
+- Its function URL, public (`AuthType NONE`): the pitch server pushes to it, and
+  CloudFront's `/api/*` sends the apps' calls to it.
+- `/aws/lambda/kubb-xyz-rooms-api`, 30 days.
+- `ApiRole`, its execution role (a generated name), which may only:
+  - `GetItem`, `PutItem`, `UpdateItem`, `DeleteItem` on the rooms table, for keys that
+    start `pitch#`, `share#`, `reels#` or `shares#` (never the old `room#` or `open`);
+  - `PutObject` under `games/pitch/`, `games/browser/` and `reports/` in the games
+    bucket (no reads, no deletes);
+  - `GetSecretValue` on the push secret only;
+  - write its own log group;
+  - invoke the reels function, when the renderer is on.
+- `kubb-xyz-rooms/push-secret`: the shared secret, made by Secrets Manager (64
+  letters and digits). Nobody types it and it is never in a template, a parameter or a
+  log. The function reads it when it runs.
+
+The site stack adds an origin for the function URL and the `/api/*` behaviour (no
+caching, every header but `Host` forwarded, the site's web ACL), and moves the reels
+role from `room#` to `pitch#` keys. The delivery stack lets `main` update the api
+function's code.
+
+### The secret: the owner's steps
+
+The simplest scheme: one secret, made in AWS, copied once into the Worker. Claude never
+reads, prints or moves its value.
+
+1. After the rooms apply, open Secrets Manager in the console (us-east-1),
+   `kubb-xyz-rooms/push-secret`, "Retrieve secret value", and copy it.
+2. In `backend/pitch-server/`, add the line `PUSH_SECRET=<value>` to `.dev.vars`
+   (gitignored, beside `DEV_KEY`) and deploy the Worker with
+   `npx cf deploy --secrets-file .dev.vars </dev/null` (its README.md "Deploy").
+3. Set the Worker's plain variable `PUSH_URL` (`env` in `cloudflare.config.ts`) to the
+   rooms stack's `ApiUrl` output followed by `push` (the output ends in `/`, so
+   `https://<id>.lambda-url.us-east-1.on.aws/push`), in a pull request, and deploy
+   again. The outbox then drains: every push it held is sent.
+4. To rotate: "Rotate secret immediately" is not set up (no rotation function); instead
+   put a new value in the console ("Edit"), then repeat step 2. Pushes signed with the
+   old value fail with 401 until the Worker has the new one and are retried, so nothing
+   is lost; the function reads the new value within 5 minutes of the first failure.
+
+### Order
+
+As `cloud-engineer` (`AWS_PROFILE=cloud-engineer`), plan first each time:
+
+1. `"pitchApi": true` in `infra/deployment.json`, in a pull request.
+2. `npm run infra:plan -- rooms`, then `npm run infra:apply -- rooms`: the function,
+   its role, URL, logs and the secret. `infra/deployment.json` gains an `api` block.
+3. `npm run infra:plan -- delivery`, then `infra:apply -- delivery`.
+4. The secret's steps above.
+5. At cutover only: `npm run infra:plan -- site`, then `infra:apply -- site`. This adds
+   `/api/*` and points the pitch pages and reels at `pitch#` records, so every pitch
+   played on the old rooms server loses its preview, replay embed card and reel. Do it
+   with step 4 of the build order (the web client), not before.
+
+Roll back by setting `"pitchApi": false` and applying rooms (the function, URL, role,
+logs and secret go; Secrets Manager keeps a deleted secret 7 to 30 days) and site.
+
+### Owner's calls for step 3
+
+- Daily caps for reports and one-device matches (none today beyond size and the 10
+  concurrent runs; the old 3 a connection has no connection to hang on).
+- The function URL is public and outside the web ACL for the apps' calls too. A
+  CloudFront origin access control for Lambda would close that, but the pitch server
+  must still reach `push`.
+- A signed push this function cannot read is answered 400 and retried for as long as
+  the pitch lives; a replay over the limit is 200 `kept: false`.
+- The `meta` the clients put in `keep` (`v`, `setup`, `engine`, `players`, `cpu`, and
+  the computer's `level`) is step 4's to settle; the api only copies it.
+- `tools/games.mjs` does not pull `games/pitch/` yet.

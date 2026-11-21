@@ -172,12 +172,18 @@ request.
   the Worker with `PitchDO` and `LobbyDO` over it (`backend/pitch-server/src/`, its
   Workers-pool tests in `backend/pitch-server/test/`, run by the `check` job; deployed
   only to the dev Worker `throwingwood-pitches-dev`; `backend/pitch-server/README.md`);
-  the throwaway proof of concept is `backend/room-server-poc/`.
+  the throwaway proof of concept is `backend/room-server-poc/`; and the AWS function the
+  pitch server pushes to and the apps call over HTTPS, `kubb-xyz-rooms-api`
+  (`backend/api/`, contract `backend/api/API.md`, tests in `tests/api/`), in this stack
+  behind `"pitchApi"` in `infra/deployment.json`, off until the owner turns it on
+  (`docs/PITCH-SERVER.md` section 12: never apply the site stack with it before the
+  cutover; that moves the pitch pages and reels to its `pitch#` records).
   `npm run infra:apply -- rooms` bundles `backend/rooms/handler.mjs` (esbuild, one ESM
   file, AWS SDK left out), zips it the same way every time and uploads it as
   `rooms/<sha256>.zip`.
 - `infra/delivery.json` (stack `kubb-xyz-delivery`): the GitHub OIDC role `main` deploys
-  with: the site bucket, invalidations, and this one function's code.
+  with: the site bucket, invalidations, and the rooms function's code (and the api
+  function's, once it exists).
 - Change infrastructure with `npm run infra:plan` then `npm run infra:apply` as the
   `cloud-engineer` profile (`AWS_PROFILE=cloud-engineer`); both run through change sets and
   rewrite `infra/deployment.json`. Name stacks to limit a run (`-- site`, `-- rooms`).

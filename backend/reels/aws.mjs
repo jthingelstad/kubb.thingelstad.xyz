@@ -1,5 +1,6 @@
 // The reel function's adapters on AWS: the reel item and the kept replay in the rooms
-// table, the finished files in the site bucket. Each call asks for exactly what the
+// table (the api function's pitch#<code> items, backend/api/dynamo-store.mjs), the
+// finished files in the site bucket. Each call asks for exactly what the
 // function's role allows (infra/site.json, ReelsRole): GetItem on the replay with the
 // attributes named, UpdateItem on the reel item's own attributes, PutObject under
 // reels/. `client` is a DynamoDBDocumentClient, `s3` an S3Client (or anything with the
@@ -9,11 +10,11 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import fs from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { REEL_CACHE } from "./job.mjs";
+import { withSnap } from "../api/push.mjs";
 
 const lost = (error) => error?.name === "ConditionalCheckFailedException";
 
-// The reel item's own attributes: none of them is on the room, doc, replay or conn
-// items, so a role allowed to update only these cannot touch anything else.
+// The reel item's own attributes: none of them is on the state or replay items, so a role allowed to update only these cannot touch anything else.
 export const REEL_FIELDS = [
   "state",
   "tries",
@@ -32,16 +33,24 @@ export function reelStore({ client, table, now = Date.now }) {
       const { Item } = await client.send(
         new GetCommand({
           TableName: table,
-          Key: { pk: `room#${code}`, sk: "replay" },
-          ProjectionExpression: "#v, #z, #exp",
-          ExpressionAttributeNames: { "#v": "v", "#z": "z", "#exp": "exp" },
+          Key: { pk: `pitch#${code}`, sk: "replay" },
+          ProjectionExpression: "#v, #z, #s, #exp",
+          ExpressionAttributeNames: {
+            "#v": "v",
+            "#z": "z",
+            "#s": "s",
+            "#exp": "exp",
+          },
           ConsistentRead: true,
         }),
       );
-      if (!Item || !(Item.exp > seconds())) return null;
+      if (!Item || !(Item.exp > seconds()) || !Item.v || !Item.z || !Item.s)
+        return null;
+      const unzip = (z) => gunzipSync(Buffer.from(z)).toString();
+      // the kept replay with its final snapshot, as the api function serves it
       return {
         v: Item.v,
-        data: gunzipSync(Buffer.from(Item.z)).toString(),
+        data: withSnap(unzip(Item.z), unzip(Item.s)),
         exp: Item.exp,
       };
     },
@@ -51,7 +60,7 @@ export function reelStore({ client, table, now = Date.now }) {
         const out = await client.send(
           new UpdateCommand({
             TableName: table,
-            Key: { pk: `room#${code}`, sk: "reel" },
+            Key: { pk: `pitch#${code}`, sk: "reel" },
             UpdateExpression: "ADD #tries :one",
             ConditionExpression: "#job = :job AND #state = :rendering",
             ExpressionAttributeNames: {
@@ -82,7 +91,7 @@ export function reelStore({ client, table, now = Date.now }) {
         await client.send(
           new UpdateCommand({
             TableName: table,
-            Key: { pk: `room#${code}`, sk: "reel" },
+            Key: { pk: `pitch#${code}`, sk: "reel" },
             UpdateExpression:
               "SET " + names.map((_, i) => `#f${i} = :f${i}`).join(", "),
             ConditionExpression: "#job = :job",

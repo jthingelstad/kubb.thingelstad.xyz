@@ -203,7 +203,11 @@ test("the site stack: edge web ACL, logs, and the optional /ws route", async () 
   assert.equal(site.Resources.AccessLogGroup.Properties.RetentionInDays, 731);
   const fields = site.Resources.AccessLogDelivery.Properties.RecordFields;
   assert.ok(!fields.some((f) => /c-ip|cs-uri-query/.test(f)), "IP-free log");
-  const ws = config.CacheBehaviors[0]["Fn::If"];
+  const behaviour = (path) =>
+    config.CacheBehaviors.map((b) => b["Fn::If"]).find(
+      (b) => b?.[1]?.PathPattern === path,
+    );
+  const ws = behaviour("/ws");
   assert.equal(ws[0], "HasRooms");
   assert.equal(ws[1].PathPattern, "/ws");
   // CachingDisabled and AllViewerExceptHostHeader (AWS managed policies).
@@ -213,6 +217,17 @@ test("the site stack: edge web ACL, logs, and the optional /ws route", async () 
     "b689b0a8-53d0-40ab-baf2-68738e2966ac",
   );
   assert.equal(site.Parameters.RoomsApiDomain.Default, "");
+  // The api function's /api/* (docs/PITCH-SERVER.md section 12): off by default, never
+  // cached, every viewer header but Host to the function URL.
+  const api = behaviour("/api/*");
+  assert.equal(api[0], "HasApi");
+  assert.equal(api[1].TargetOriginId, "api");
+  assert.equal(api[1].CachePolicyId, "4135ea2d-6df8-44a3-9df3-4b5a84be39ad");
+  assert.equal(
+    api[1].OriginRequestPolicyId,
+    "b689b0a8-53d0-40ab-baf2-68738e2966ac",
+  );
+  assert.equal(site.Parameters.ApiDomain.Default, "");
   // No em dash in any name or description.
   assert.doesNotMatch(JSON.stringify(site), /\u2014/);
   assert.doesNotMatch(
