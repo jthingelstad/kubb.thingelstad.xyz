@@ -1221,6 +1221,7 @@ export function rebuildPitch({
       value: JSON.parse(stored.doc.text),
     };
   const wasOn = [];
+  const wasOff = new Set();
   for (const r of stored.members ?? []) {
     st.members.set(r.id, {
       joined: r.joined,
@@ -1230,6 +1231,7 @@ export function rebuildPitch({
       conn: null,
     });
     if (r.on) wasOn.push(r.id);
+    else wasOff.add(r.id);
   }
   for (const e of stored.outbox ?? []) {
     st.outbox.set(e.k, e);
@@ -1258,6 +1260,16 @@ export function rebuildPitch({
     if (m && !m.conn && m.role === k.role) {
       m.conn = k.conn;
       st.conns.get(k.conn).member = k.member;
+      // back on a socket the object attached before dying, ahead of the write
+      // (relay-first): the records follow the socket, and a returning host keeps it
+      if (wasOff.has(k.member)) {
+        m.since = now;
+        cx.dirty.members = true;
+      }
+      if (k.member === st.host && st.hostAway !== null) {
+        st.hostAway = null;
+        cx.dirty.pitch = true;
+      }
     } else if (k.member) {
       cx.out.push({ kind: "attach", conn: k.conn, member: null, role: null });
     }
