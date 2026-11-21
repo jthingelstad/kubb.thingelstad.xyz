@@ -183,9 +183,10 @@ of a live resource. A site check holds new templates and tools to it.
   `npm run infra:apply -- rooms` bundles `backend/rooms/handler.mjs` (esbuild, one ESM
   file, AWS SDK left out), zips it the same way every time and uploads it as
   `rooms/<sha256>.zip`.
-- `infra/pitches.json` (stack `throwing-wood-pitches`, not yet created): that function,
+- `infra/pitches.json` (stack `throwing-wood-pitches`, created 2026-11-21): that function,
   its URL, role, logs and push secret, and its own table and private games bucket, behind
-  `"pitchesStack"` in `infra/deployment.json`, off until the owner turns it on
+  `"pitchesStack"` in `infra/deployment.json`, on since 2026-11-21 (pitches and delivery
+  applied; the site stack not yet, so nothing points at it until the cutover)
   (`docs/PITCH-SERVER.md` section 12: never apply the site stack with it on before the
   cutover; that moves the pitch pages and reels to its table). At cutover the whole
   rooms stack goes.
@@ -199,7 +200,8 @@ of a live resource. A site check holds new templates and tools to it.
 - Changes to `main` require a pull request with a passing `check` job on an up-to-date branch.
   Merging to `main` deploys: CI builds with `KUBB_PRODUCTION=true` (production rooms
   address, analytics), `tools/deploy.mjs` uploads, invalidates, compares the live bytes and
-  the wasm content type, and updates the rooms function's code when its bundle changed.
+  the wasm content type, and updates the rooms function's code and `throwing-wood-api`'s
+  when their bundles changed.
   Roll back by reverting. The same script publishes by hand as `cloud-engineer`.
 
 ## Recorded games

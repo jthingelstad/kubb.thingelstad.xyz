@@ -310,7 +310,10 @@ Each step is its own pull request.
 
 ## 12. Step 3: turning it on
 
-The api function is in the repository and off. Merging it changes nothing live:
+Steps 1 to 3 of the order below were done on 2026-11-21: the pitches stack is up, the
+delivery role may update `throwing-wood-api`, and `"pitchesStack"` is on. The site stack
+is not applied, so nothing players reach points at it yet. Before that the api function
+was in the repository and off, and merging it changed nothing live:
 `tools/deploy.mjs` updates its code only once a pitches apply has created it and
 `"pitchesStack"` is on, and the pitch pages and reels code that read `pitch#` records
 goes live only with a site apply.

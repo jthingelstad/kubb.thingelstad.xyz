@@ -10,7 +10,7 @@
   "productionUrl": "https://throwingwood.com/",
   "wsRoute": true,
   "reelRenderer": true,
-  "pitchesStack": false,
+  "pitchesStack": true,
   "githubRepositoryId": "1459352238",
   "siteBucket": "kubb-xyz-site-web-999153317627",
   "codeBucket": "kubb-xyz-site-code-999153317627",
@@ -48,5 +48,14 @@
     "engines": "0.9,0.8,0.7",
     "codeKey": "reels/945a1a3fbfbbe49ce1a324edc9a502ca59deec646a52bc63c5b8ff66ee69b26c.zip",
     "layerKey": "reels/ffmpeg-f4149bb2b0784e30e99bdda85471c9b5930d3402014e934a5098b41d0f7201b1.zip"
+  },
+  "pitches": {
+    "functionName": "throwing-wood-api",
+    "url": "https://pdtv3isifdl64z7x52etbrqfci0qwlnv.lambda-url.us-east-1.on.aws/",
+    "domain": "pdtv3isifdl64z7x52etbrqfci0qwlnv.lambda-url.us-east-1.on.aws",
+    "pushSecretArn": "arn:aws:secretsmanager:us-east-1:999153317627:secret:throwing-wood/push-secret-tpJVzR",
+    "tableName": "throwing-wood-pitches-PitchesTable-1NHQM3KZSNXUO",
+    "gamesBucket": "throwing-wood-pitches-games-999153317627",
+    "codeKey": "api/3712ea8aea3f7105d1fc253427f7a8d876d393184e347534a28b0bf13c184efd.zip"
   }
 }
