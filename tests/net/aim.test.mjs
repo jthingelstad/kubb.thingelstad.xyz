@@ -85,6 +85,10 @@ test("aim: never drawn between two throws or two senders", () => {
   assert.equal(buf.at(1150).x, 100);
   // a late sample from the same sender is dropped
   assert.equal(buf.push(cast("m2", 1150, aim(2, 9), 1), 1250), false);
+  // the sender reloaded: its count starts again, stamped later, and is drawn
+  assert.equal(buf.push(cast("m2", 1300, aim(2, 600), 1), 1300), true);
+  assert.equal(buf.push(cast("m2", 1400, aim(2, 700), 2), 1400), true);
+  assert.equal(buf.at(1400).x, 700);
 });
 
 test("aim: an action waits for the aim before it to be drawn, at most 250 ms", () => {

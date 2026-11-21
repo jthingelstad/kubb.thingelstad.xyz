@@ -252,8 +252,9 @@ A throw taken for an absent teammate says YOUR THROW FOR <NAME>.
 
 - **Aim** (`src/net/aim.js`; the iPhone follows the same numbers). While it is this
   browser's throw, the engine's `aimState()` is sampled 15 times a second and cast as
-  `{ t: "aim", s, k, c }` when it changed (`k` counts this browser's samples, `c` is its
-  clock), through the stroke and the release: the release's own frame, the aim as it
+  `{ t: "aim", s, k, c }` when it changed (`k` counts this browser's samples and starts
+  again when the page reloads, so a watcher drops a lower `k` only when it is also stamped
+  earlier; `c` is its clock), through the stroke and the release: the release's own frame, the aim as it
   stood just before the throw went, goes at once with `all: true`, which the server
   never thins (observers' casts are thinned to about 10 a second otherwise). A shout
   spends a slot too, so the two stay under the server's 16 casts a second.
