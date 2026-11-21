@@ -2,8 +2,10 @@
 
 The plan for the next live multiplayer server. It replaces the rooms server in
 `docs/ROOMS.md` (API Gateway WebSocket, one Lambda invoke a message, DynamoDB). That
-server is still the live one until the cutover below. Nothing here is built yet except a
-throwaway proof of concept in `backend/room-server-poc/`.
+server is still the live one until the cutover below. Built so far: the pitch core
+(build step 1, `backend/pitch-server/`, its wire protocol in
+`backend/pitch-server/PROTOCOL.md`), and a throwaway proof of concept in
+`backend/room-server-poc/`. Nothing live uses either.
 
 This is a working document. It holds what was decided, what was measured and what is
 still open, so the build can start on any machine without the conversation that led to
@@ -115,34 +117,51 @@ Stored data:
 
 ## 6. Protocol
 
-The full contract is written in build step 1. What it must do:
+The full contract, as built, is `backend/pitch-server/PROTOCOL.md`. What it does:
 
 - **Stamps.** Every relayed frame carries the pitch's sequence `s` and the server's
-  clock `ts` in ms.
+  clock `ts` in ms. `s` goes up with every frame that changes the pitch for everyone
+  (members, host, lobby, start, actions) and survives sleeps, so a jump means a client
+  missed something. A cast carries the current `s` and its own `ts`.
 - **Actions only.** A commit is `{ t: "act", id, n, seq, a, h, snap }`: the match
-  number, the next sequence, the action, the hash after it and the snapshot after it.
-  About 10 to 14 KB in. The relay to everyone else drops the snapshot: about 600 B.
-  Then `ok` goes to the sender.
+  number, the next sequence, the action, the hash after it and the snapshot after it,
+  with an optional `over: true` on the action that ends the match. About 10 to 14 KB
+  in. The relay to everyone else drops the snapshot: about 600 B. Then `ok` goes to the
+  sender.
+- **Starting a match** is `start`: a lobby write (compare-and-set) from the host that
+  also sets the next match's number, its first hash and snapshot and an opaque `meta`
+  (setup, engine, players). It drops the previous match's log.
 - **One wins.** `seq` must be the head plus one. Two players acting at once: one is
   stored, the other is refused with the head, and both see the same log.
 - **Duplicates.** An `id` already stored is acked again with its stored sequence, not
   stored twice. A client may resend freely after a drop.
 - **Lobby writes** are compare-and-set on the lobby document, without the log.
 - **The full state** (lobby, last snapshot) goes only on join or on a resync.
-- **Resume.** A client that comes back sends the last sequence it has. The pitch sends
-  back exactly the actions it missed.
+- **Resume.** A client that comes back sends the match and the last action sequence it
+  has. The pitch sends back exactly the actions it missed, or the whole state when it
+  is more than 64 actions behind, ahead of the pitch, or on another match.
 - **Aim** casts at up to 15 Hz. Receivers keep about 100 ms of buffer and interpolate
   between samples by `ts`.
-- **Observers** are read-only. They get a thinned feed: at most one cast per sender per
-  100 ms.
+- **Observers** are read-only. They get a thinned feed: about one cast per sender per
+  100 ms on average, never two within 50 ms (the proof of concept's "at most one per
+  100 ms" could only give 7.5 Hz from 15 Hz aim). A cast marked `all` (a shout, the
+  release) reaches them unthinned.
+- **The host** is the pitch's decision: kept 15 s while away, then passed to the
+  earliest-joined connected player. Observers are never host, so they no longer leave
+  and join again. There is no `claim`.
+- **The kept replay** is built by the pitch from its own log when the `over` action
+  lands, and pushed to AWS. No client uploads it (`keep` is gone).
 - **No engine on the server.** The pitch relays and keeps the log. It does not run the
   Lua engine. Clients cross-check hashes, as they do today. So the server needs no
-  engine release and carries no engine list.
+  engine release and carries no engine list. It cannot tell whose turn it is: "out of
+  turn" on the server means the wrong match, a finished match or the wrong sequence;
+  seats stay the engine's rules in the clients.
 
-Recommended, still to confirm: relay an action first and write it right after.
+Recommended, still to confirm: relay an action first and write it right after
+(`commitOrder: "relay-first"`, the core's default; `write-first` is the other).
 Measured 25 ms median against 42 to 51 ms for writing first. The cost: an action could be
 shown and then lost if the object dies between the two. The next commit's sequence or the
-hash check catches it, and the client resyncs.
+hash check catches it, and the client resyncs (a test in `tests/pitch-server/` shows it).
 
 ## 7. Client work
 
@@ -209,7 +228,8 @@ workers-scripts.read workers-tail.read` (a device code the account owner enters)
 Each step is its own pull request.
 
 1. Pitch core as pure, tested logic: the protocol, sequencing, duplicates, resume,
-   lobby compare-and-set, observer thinning. No Workers APIs.
+   lobby compare-and-set, observer thinning. No Workers APIs. Built:
+   `backend/pitch-server/core.mjs`, tests in `tests/pitch-server/`.
 2. `PitchDO`, the Worker and `LobbyDO`, with tests in the Workers pool.
 3. The AWS function the pitch reports to (`kubb-xyz-api`): HMAC check, records, kept
    replay, and the HTTPS calls (`report`, `game`, `replay`, `reel`, `share`).
@@ -225,8 +245,10 @@ Each step is its own pull request.
   - or the workers.dev name,
   - or move the whole zone to Cloudflare.
 - Turnstile on create and join. It has no native iPhone path.
-- Whether a dead code answers "no such pitch" instead of opening an empty one.
-- The cap on observers: 20 or 100.
+- Whether a dead code answers "no such pitch" instead of opening an empty one (the
+  core's `unknownPitch`: `open`, today's behaviour, by default; `refuse` needs
+  `create: true` on the join that makes a pitch). An observer never opens one either way.
+- The cap on observers: 20 or 100 (the core's `limits.observers`, 20 by default).
 - Deploys only in quiet hours, or a "reconnecting" state the apps show.
 - A line on the privacy page that names Cloudflare.
 - A CI token for deploys.

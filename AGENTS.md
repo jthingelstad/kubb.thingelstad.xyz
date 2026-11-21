@@ -166,8 +166,10 @@ request.
 - `infra/rooms.json` (stack `kubb-xyz-rooms`): the WebSocket API, its function and table,
   and the private games bucket (below).
   It is still the live server. Its planned replacement, live pitches on Cloudflare Durable
-  Objects with everything else kept in AWS, is `docs/PITCH-SERVER.md` (not built yet; the
-  throwaway proof of concept is `backend/room-server-poc/`).
+  Objects with everything else kept in AWS, is `docs/PITCH-SERVER.md`. Built so far: the
+  pitch core, pure logic with no Cloudflare APIs (`backend/pitch-server/core.mjs`, its
+  wire protocol `backend/pitch-server/PROTOCOL.md`, tests in `tests/pitch-server/`); the
+  throwaway proof of concept is `backend/room-server-poc/`.
   `npm run infra:apply -- rooms` bundles `backend/rooms/handler.mjs` (esbuild, one ESM
   file, AWS SDK left out), zips it the same way every time and uploads it as
   `rooms/<sha256>.zip`.
