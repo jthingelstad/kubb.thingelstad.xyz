@@ -64,7 +64,7 @@ function openGames(roomsUrl) {
   if (!roomsUrl) return "";
   return `<section class="frame open-games" aria-labelledby="open-games" data-rooms="${esc(roomsUrl)}" hidden>
   <h2 class="display" id="open-games">Open games</h2>
-  <p>These pitches are open to anyone. Join one and pick a side.</p>
+  <p>These pitches are open to anyone. Join one and pick a side, or watch a match.</p>
   <ul class="open-list" data-open-list></ul>
   <p class="open-status" data-open-status role="status">Looking for open games...</p>
 </section>`;

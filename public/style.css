@@ -704,7 +704,12 @@ main > section.intro + section {
 .open-game__text {
   font-weight: 700;
 }
-.open-game__join {
+.open-game__acts {
+  display: flex;
+  gap: 0.6rem;
+}
+.open-game__join,
+.open-game__watch {
   font-size: 1.1rem;
   padding: 0.45rem 1rem;
 }

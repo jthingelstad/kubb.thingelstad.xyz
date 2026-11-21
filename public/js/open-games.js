@@ -2,7 +2,8 @@
 // open, newest first, from the rooms server's `list` message (docs/ROOMS.md section 9).
 // A socket of its own for each look, closed as soon as the answer comes; again every
 // 30 seconds while the page is in view. Each row says only how many are on the pitch,
-// whether it has started and how long ago it was made, with JOIN to its link.
+// whether it has started and how long ago it was made, with JOIN to its link and
+// WATCH to the same link with ?observe=1 (watching without a seat, docs/OBSERVER.md).
 (function () {
   var section = document.querySelector("[data-rooms]");
   if (!section || typeof WebSocket !== "function") return;
@@ -60,9 +61,16 @@
             ago(now - g.made),
         ),
       );
+      var acts = el("span", "open-game__acts");
       var a = el("a", "button open-game__join", "Join");
       a.href = "/p/" + g.room + carry;
-      li.appendChild(a);
+      acts.appendChild(a);
+      var w = el("a", "button open-game__watch", "Watch");
+      w.href =
+        "/p/" + g.room + "?observe=1" + (carry ? "&" + carry.slice(1) : "");
+      w.setAttribute("data-watch", "");
+      acts.appendChild(w);
+      li.appendChild(acts);
       list.appendChild(li);
       shown++;
     }
