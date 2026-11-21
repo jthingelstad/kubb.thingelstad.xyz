@@ -1,16 +1,15 @@
 // Observer mode in real browsers (docs/OBSERVER.md): WATCH on the open games list,
 // /p/<code>?observe=1 on a match in play (in step at once, never acting, never the
 // host), the watcher's card between matches, an empty pitch, and the free camera.
-// The room server (tools/rooms-dev.mjs, with a short host grace) and the preview on
-// free 127.0.0.1 ports. Skipped with a notice when Playwright's Chromium is missing.
+// The pitch server and the api (tools/pitch-dev.mjs, with a short host grace) and the
+// preview on free 127.0.0.1 ports. Skipped with a notice when Playwright's Chromium is missing.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
 import { serve, sweep, swing, VIEWPORTS } from "./browser.mjs";
-import { startRoomsServer } from "../../tools/rooms-dev.mjs";
-import { LIMITS } from "../../backend/rooms/core.mjs";
-import { makeRoomCode } from "../../src/net/room.js";
+import { startPitchServer } from "../../tools/pitch-dev.mjs";
+import { makePitchCode } from "../../src/net/pitch-client.js";
 
 let available = false;
 try {
@@ -27,19 +26,14 @@ const browserTest = available ? test : test.skip;
 let env, rooms;
 before(async () => {
   if (!available) return;
-  // the host may be replaced half a second after it goes (live: 15 s)
-  rooms = await startRoomsServer({
-    port: 0,
-    limits: { ...LIMITS, hostGraceMs: 500 },
-  });
+  // the host passes on half a second after it goes (live: 15 s)
+  rooms = await startPitchServer({ options: { limits: { hostGraceMs: 500 } } });
   env = await serve({ build: true });
 });
 after(async () => {
   if (env) await env.close();
   if (rooms) await rooms.close();
 });
-
-const FAST = { hostGoneMs: 1200, claimEveryMs: 400, stepBackMs: 1500 };
 
 async function open(url, kind = "desktop", name = null) {
   const ctx = await env.browser.newContext(VIEWPORTS[kind]);
@@ -58,7 +52,8 @@ async function open(url, kind = "desktop", name = null) {
   return page;
 }
 
-const roomsQ = () => `rooms=${encodeURIComponent(rooms.url)}`;
+const roomsQ = () =>
+  `pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`;
 
 // A browser on the pitch: the lobby's member, or with lobby false one that skips it.
 async function join(code, name, { query = "", kind = "desktop" } = {}) {
@@ -68,7 +63,6 @@ async function join(code, name, { query = "", kind = "desktop" } = {}) {
     name,
   );
   await page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
-  await page.evaluate((t) => Object.assign(window.__kubb.pitchTune, t), FAST);
   await waitFor(page, () => window.__kubb.pitch?.state().status === "open");
   return page;
 }
@@ -179,7 +173,7 @@ async function dragPitch(page, dx, dy, button = "left") {
 browserTest(
   "WATCH on the open games list: in step mid-match, never acting, the free camera, never the host",
   async () => {
-    const code = makeRoomCode();
+    const code = makePitchCode();
     const host = await join(code, "Hanna", { query: "&open=1" });
     await host.waitForSelector("[data-test=lobby]");
     await host.click("[data-test=join-A]");
@@ -209,7 +203,7 @@ browserTest(
       );
     }
     assert.ok(watchHref, "a WATCH link for the pitch");
-    assert.match(watchHref, new RegExp(`^/p/${code}\\?observe=1&rooms=`));
+    assert.match(watchHref, new RegExp(`^/p/${code}\\?observe=1&pitchserver=`));
     const joinHref = await home.evaluate(
       (c) =>
         document
@@ -223,7 +217,6 @@ browserTest(
     );
     await home.click(`a[data-watch][href^="/p/${code}"]`);
     await home.waitForSelector("body[data-ready='1']", { timeout: 30000 });
-    await home.evaluate((t) => Object.assign(window.__kubb.pitchTune, t), FAST);
     const obs = home;
     await waitFor(obs, () => window.__kubb.pitch.state().mode === "match");
 
@@ -341,7 +334,7 @@ browserTest(
     assert.equal((await pst(obs)).pending, 0, "the observer wrote nothing");
 
     // a third arrives after the observer, then the host goes: the observer is first in
-    // line but steps back (joins again, last), and the third becomes the host
+    // line, but the server hands the host to a player, never an observer
     const late = await join(code, "Lou", {});
     await waitFor(late, () => window.__kubb.pitch.state().mode === "match");
     await inStep([host, obs, late]);
@@ -357,18 +350,8 @@ browserTest(
     );
     const after = await pst(obs);
     assert.notEqual(after.host, after.you, "the observer never hosts");
-    assert.ok(
-      (await obs.evaluate(() => window.__kubb.pitch.log)).some(
-        (e) => e[1] === "step-back",
-      ),
-      "it stepped back",
-    );
-    assert.ok(
-      !(await obs.evaluate(() => window.__kubb.pitch.log)).some(
-        (e) => e[1] === "claim",
-      ),
-      "it never claimed",
-    );
+    assert.equal(after.host, (await pst(late)).you, "the player hosts");
+    assert.equal(rooms.pitch(code).host, after.host, "as the server has it");
     // the new host runs the computer; the observer stays in step
     const l = await pst(late);
     assert.equal(l.control.cpu, true);
@@ -384,7 +367,7 @@ browserTest(
 browserTest(
   "between matches an observer sees the watching card, and is listed as watching",
   async () => {
-    const code = makeRoomCode();
+    const code = makePitchCode();
     const host = await join(code, "Hanna");
     await host.waitForSelector("[data-test=lobby]");
     await host.click("[data-test=join-A]");
@@ -439,7 +422,7 @@ browserTest(
 browserTest(
   "a host who opens WATCH on their own pitch in another tab stays the host in the first",
   async () => {
-    const code = makeRoomCode();
+    const code = makePitchCode();
     const host = await join(code, "Hanna");
     await host.waitForSelector("[data-test=lobby]");
     await host.click("[data-test=join-A]");
@@ -471,7 +454,7 @@ browserTest(
 browserTest(
   "an observer at an empty pitch hears there is no game, and leaves",
   async () => {
-    const code = makeRoomCode();
+    const code = makePitchCode();
     const obs = await open(
       `${env.base}/p/${code}?nohowto=1&observe=1&${roomsQ()}`,
       "desktop",
@@ -479,15 +462,14 @@ browserTest(
     );
     await obs.waitForSelector("[data-test=no-game]", { timeout: 30000 });
     assert.equal((await pst(obs)).mode, "gone");
-    // the room keeps no member and no document
-    for (let i = 0; i < 40; i++) {
-      const r = await rooms.store.getRoom(code);
-      if (!r || !Object.keys(r.members).length) break;
-      await obs.waitForTimeout(50);
-    }
-    const r = await rooms.store.getRoom(code);
-    assert.ok(!r || !Object.keys(r.members).length, JSON.stringify(r));
-    assert.equal(await rooms.store.getDoc(code), null);
+    // the pitch keeps no member and no document, and nothing reached the api
+    const empty = () => {
+      const p = rooms.pitch(code);
+      return !p || (p.members.size === 0 && p.doc.value === null);
+    };
+    for (let i = 0; i < 40 && !empty(); i++) await obs.waitForTimeout(50);
+    assert.ok(empty(), "no member and no document");
+    assert.equal(await rooms.api.store.getState(code), null);
     assert.deepEqual(obs.errors, []);
     await obs.context().close();
   },
@@ -497,7 +479,7 @@ browserTest(
   "watching the computer: the free camera, and back to the wide view",
   async () => {
     const page = await open(
-      `${env.base}/p/${makeRoomCode()}?watch=1&nohowto=1`,
+      `${env.base}/p/${makePitchCode()}?watch=1&nohowto=1`,
     );
     await page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
     await page.waitForFunction(() => window.__kubb.game.wide, null, {

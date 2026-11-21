@@ -10,9 +10,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
 import { serve, open, waitPhase, VIEWPORTS } from "./browser.mjs";
-import { startRoomsServer } from "../../tools/rooms-dev.mjs";
-import { makeRoomCode } from "../../src/net/room.js";
-import { memoryReporter } from "../../backend/rooms/reports.mjs";
+import { startPitchServer } from "../../tools/pitch-dev.mjs";
+import { makePitchCode } from "../../src/net/pitch-client.js";
 
 let available = false;
 try {
@@ -29,7 +28,7 @@ const browserTest = available ? test : test.skip;
 let env, rooms;
 before(async () => {
   if (!available) return;
-  rooms = await startRoomsServer({ port: 0, report: memoryReporter() });
+  rooms = await startPitchServer();
   env = await serve({ build: true });
 });
 after(async () => {
@@ -214,7 +213,7 @@ async function join(code, name) {
   page.on("pageerror", (e) => page.errors.push(e.message));
   // ?scene= is never a shared pitch's: the host's choice is
   await page.goto(
-    `${env.base}/p/${code}?nohowto=1&scene=neon&rooms=${encodeURIComponent(rooms.url)}`,
+    `${env.base}/p/${code}?nohowto=1&scene=neon&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
   );
   await page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
   await page.waitForSelector("[data-test=lobby]");
@@ -238,7 +237,7 @@ const sceneShown = (page, label) =>
 browserTest(
   "a pitch on 0.9: the host sets the Scene, a guest and a late joiner see it, the match draws it on every page",
   async () => {
-    const code = makeRoomCode();
+    const code = makePitchCode();
     const host = await join(code, "Hanna");
     const guest = await join(code, "Ola");
     const pages = [host, guest];
@@ -283,9 +282,8 @@ browserTest(
           { timeout: 20000 },
         );
       assert.equal(
-        await host.evaluate(
-          () => window.__kubb.pitch.room.doc.match.setup.scene,
-        ),
+        // the setup goes in the start's `meta`, not the document (PROTOCOL.md `start`)
+        await host.evaluate(() => window.__kubb.pitch.meta?.setup?.scene),
         "night",
       );
       for (const p of pages) {
@@ -306,7 +304,7 @@ browserTest(
 browserTest(
   "a pitch whose next match runs on 0.8 has no Scene row and draws the day",
   async () => {
-    const code = makeRoomCode();
+    const code = makePitchCode();
     const host = await join(code, "Hanna");
     const guest = await join(code, "Ola");
     try {

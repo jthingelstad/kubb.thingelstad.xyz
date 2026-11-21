@@ -91,6 +91,7 @@ import {
 } from "./plan-sliders.js";
 import { standSpan, groundAt } from "./stand-pad.js";
 import { prefs } from "./prefs.js";
+import { pacing } from "./pacing.js";
 import { loadName, saveName } from "./player-name.js";
 import { loadThrowLevel } from "./throw-level.js";
 import { NudgeTrigger, timeline, swingOf, captionFor } from "./nudge.js";
@@ -106,7 +107,7 @@ import {
 
 export const tune = {
   maxDt: 1 / 20, // s: a longer frame (a hitch, a background tab) is cut to this
-  holdAfter: 0.8, // s the pitch rests after a throw before play goes on
+  holdAfter: pacing.restAfterThrow, // s the pitch rests after a throw (src/game/pacing.js)
   raiseZoom: 1.8, // a tall canvas's raise scene, over the whole frame across
   grabTouch: 56, // px round the target circle a finger grabs it
   grabMouse: 30,
@@ -295,6 +296,10 @@ export class Game {
     this.frozen = false;
     this.noCards = false;
     this.driver = null; // (dt) => void, after each tick with the replay's dt
+    // A shared pitch (src/net/pitch.js): someone else's aim to draw, asked each frame of
+    // their throw (null: nothing new), and this browser's aim just before its throw went.
+    this.remoteFeed = null; // () => aimState | null
+    this.onRelease = null; // (aimState | null) => void, before onAction
 
     this.hud = new Hud(ui, {
       slide: (what, f, phase) => this.planSlide(what, f, phase),
@@ -749,6 +754,11 @@ export class Game {
     // sends nothing, so after `holdFeed` the same arm is fed again: the stop.
     let out;
     let fed = false; // the engine was fed with no arm: a press's end is judged
+    // the aim as it stood before this frame, for the release's own cast (onRelease)
+    const pre =
+      this.onRelease && may && !paused && (input.arm != null || input.touch)
+        ? this.engine.aimState()
+        : null;
     if (paused) out = { ...this.out, event: undefined };
     else if (this.modal && may) out = this.out;
     else if (input.arm != null) {
@@ -772,6 +782,7 @@ export class Game {
     if (out.event === "release" && out.action) {
       if (may && (this.nudgeEnd || this.ptr?.kind === "dial"))
         this.nudgeThrown();
+      if (may) this.onRelease?.(pre);
       this.emit(out.action);
       this.startPlayback(out.recording, may, out);
       return;
@@ -786,6 +797,10 @@ export class Game {
     if (out.dial && out.dial.phase !== "idle" && this.result)
       this.result.age = Math.max(this.result.age, tune.flagFor - 0.3);
 
+    if (!may && this.remoteFeed) {
+      const s = this.remoteFeed();
+      if (s) this.showRemoteAim(s);
+    }
     let aim = out.aim,
       camera = out.camera,
       dial = out.dial;

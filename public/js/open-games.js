@@ -1,22 +1,27 @@
 // The home page's Open games list (src/site/pages.mjs): pitches whose host made them
-// open, newest first, from the rooms server's `list` message (docs/ROOMS.md section 9).
-// A socket of its own for each look, closed as soon as the answer comes; again every
-// 30 seconds while the page is in view. Each row says only how many are on the pitch,
-// whether it has started and how long ago it was made, with JOIN to its link and
-// WATCH to the same link with ?observe=1 (watching without a seat, docs/OBSERVER.md).
+// open, newest first, from the pitch server's GET /open (backend/pitch-server/PROTOCOL.md
+// "open"): plain HTTPS, again every 30 seconds while the page is in view. Each row says
+// only how many are on the pitch, whether it has started and how long ago it was made,
+// with JOIN to its link and WATCH to the same link with ?observe=1 (watching without a
+// seat, docs/OBSERVER.md).
 (function () {
-  var section = document.querySelector("[data-rooms]");
-  if (!section || typeof WebSocket !== "function") return;
-  var url = section.getAttribute("data-rooms");
-  // Only when testing (127.0.0.1 or localhost), a ?rooms= override, as the game takes
-  // (src/main.js); the JOIN links carry it on.
+  var section = document.querySelector("[data-pitchserver]");
+  if (!section || typeof fetch !== "function") return;
+  var server = section.getAttribute("data-pitchserver");
+  // Only when testing (127.0.0.1 or localhost), the ?pitchserver= and ?api= overrides,
+  // as the game takes them (src/main.js); the JOIN links carry them on.
   var carry = "";
   var local = /^(127\.0\.0\.1|localhost)$/.test(location.hostname);
-  var override = local && new URLSearchParams(location.search).get("rooms");
+  var params = new URLSearchParams(location.search);
+  var override = local && params.get("pitchserver");
   if (override && /^wss?:\/\//.test(override)) {
-    url = override;
-    carry = "?rooms=" + encodeURIComponent(override);
+    server = override;
+    carry = "pitchserver=" + encodeURIComponent(override);
+    var api = params.get("api");
+    if (api) carry += "&api=" + encodeURIComponent(api);
   }
+  // the socket's host, over http(s): wss://host -> https://host/open
+  var url = server.replace(/^ws/, "http").replace(/\/+$/, "") + "/open";
   var list = section.querySelector("[data-open-list]");
   var status = section.querySelector("[data-open-status]");
   // The same pattern as infra/viewer-request.js and the rooms server.
@@ -46,7 +51,7 @@
     var shown = 0;
     for (var i = 0; i < games.length; i++) {
       var g = games[i];
-      if (!g || !CODE.test(g.room)) continue;
+      if (!g || !CODE.test(g.pitch)) continue;
       var li = el("li", "open-game");
       li.appendChild(
         el(
@@ -63,11 +68,10 @@
       );
       var acts = el("span", "open-game__acts");
       var a = el("a", "button open-game__join", "Join");
-      a.href = "/p/" + g.room + carry;
+      a.href = "/p/" + g.pitch + (carry ? "?" + carry : "");
       acts.appendChild(a);
       var w = el("a", "button open-game__watch", "Watch");
-      w.href =
-        "/p/" + g.room + "?observe=1" + (carry ? "&" + carry.slice(1) : "");
+      w.href = "/p/" + g.pitch + "?observe=1" + (carry ? "&" + carry : "");
       w.setAttribute("data-watch", "");
       acts.appendChild(w);
       li.appendChild(acts);
@@ -82,49 +86,32 @@
   function look() {
     if (busy || document.hidden) return;
     busy = true;
-    var done = false;
-    var ws;
-    var finish = function (games, now) {
-      if (done) return;
-      done = true;
-      busy = false;
-      clearTimeout(guard);
-      try {
-        ws.close();
-      } catch (e) {}
-      if (games) show(games, now);
-      else if (!list.firstChild)
-        status.textContent = "The open games could not be loaded just now.";
-    };
+    var ctl =
+      typeof AbortController === "function" ? new AbortController() : null;
     var guard = setTimeout(function () {
-      finish(null);
+      if (ctl) ctl.abort();
     }, 10000);
-    try {
-      ws = new WebSocket(url);
-    } catch (e) {
-      finish(null);
-      return;
-    }
-    ws.onopen = function () {
-      ws.send(JSON.stringify({ t: "list", id: 1 }));
-    };
-    ws.onmessage = function (e) {
-      var msg;
-      try {
-        msg = JSON.parse(e.data);
-      } catch (err) {
-        return;
-      }
-      if (msg && msg.t === "list" && Array.isArray(msg.games))
-        finish(msg.games, typeof msg.now === "number" ? msg.now : Date.now());
-      else if (msg && msg.t === "error") finish(null);
-    };
-    ws.onerror = function () {
-      finish(null);
-    };
-    ws.onclose = function () {
-      finish(null);
-    };
+    fetch(url, {
+      cache: "no-store",
+      credentials: "omit",
+      signal: ctl && ctl.signal,
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (msg) {
+        if (!msg || !Array.isArray(msg.games)) throw new Error("not a list");
+        show(msg.games, typeof msg.now === "number" ? msg.now : Date.now());
+      })
+      .catch(function () {
+        if (!list.firstChild)
+          status.textContent = "The open games could not be loaded just now.";
+      })
+      .then(function () {
+        clearTimeout(guard);
+        busy = false;
+      });
   }
 
   function schedule() {

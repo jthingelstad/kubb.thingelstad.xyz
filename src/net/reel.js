@@ -18,7 +18,7 @@
 // (backend/rooms/core.mjs `reel`). So the page never sends one on load. It knows a reel
 // is done only from the pitch page's own `og:video` tag, which the pages function writes
 // when the reel item is done beside this match's own kept replay (reelFromPage).
-import { ask } from "./ask.js";
+import { apiCall } from "./api.js";
 
 export const reelTune = {
   pollMs: 5000, // ask again this often while it renders and the card is open
@@ -209,7 +209,7 @@ export function reelStep(s, e) {
       const code = e.code ?? "error";
       if (code === "too-many")
         return { ...s, phase: "refused", why: "too-many" };
-      if (code === "bad-room")
+      if (code === "bad-pitch" || code === "bad-room")
         return { ...s, phase: "refused", why: "unavailable" };
       const offline =
         code === "timeout" || code === "closed" || code === "unavailable";
@@ -277,16 +277,15 @@ export function reelView(s) {
 
 // ---------- the request ----------
 
-// One `reel` message on a socket of its own (src/net/ask.js), no join. Resolves the
-// answer { t: "reel", room, v, reel, why? }; rejects an AskError whose code is the
-// server's (too-many, failed, bad-room) or timeout, closed, unavailable.
-export function askReel({ url, code, v, ...rest }) {
-  return ask({
-    url,
-    message: { t: "reel", id: 1, room: code, ...(v != null ? { v } : {}) },
-    done: "reel",
-    re: "reel",
-    ...rest,
+// POST /api/reel (src/net/api.js). Resolves the answer { pitch, v, reel, why? };
+// rejects an ApiError whose code is the function's (failed, bad-pitch), too-many, or
+// timeout, closed, unavailable.
+export function askReel({ url, code, v, fetch }) {
+  return apiCall({
+    base: url,
+    call: "reel",
+    body: { pitch: code, ...(v != null ? { v } : {}) },
+    ...(fetch ? { fetch } : {}),
   });
 }
 
@@ -294,7 +293,7 @@ export function askReel({ url, code, v, ...rest }) {
 // "kept" reads the room's kept replay afresh every time, never a copy in hand, because
 // a viewer can sit in an old replay while a rematch is kept and asking for the reel of
 // a room that has moved on starts the newer match's render. `at`: { url, code,
-// WebSocket? }; `match`: { n, hash } of the match on the screen.
+// fetch? }; `match`: { n, hash } of the match on the screen.
 export async function reelRequest(s, at, match) {
   const what = reelView(s).ask;
   try {
@@ -311,18 +310,18 @@ export async function reelRequest(s, at, match) {
   return null;
 }
 
-// Which match the room keeps, read without starting anything: one `replay` message
-// (docs/ROOMS.md section 10). Resolves { kept: its version, n, hash } or null when the
-// room keeps none; rejects as askReel does, so no connection is not "no replay".
-export async function askKept({ url, code, ...rest }) {
-  const a = await ask({
-    url,
-    message: { t: "replay", id: 1, room: code },
-    done: "replay",
-    re: "replay",
-    ...rest,
+// Which match the pitch keeps, read without starting anything: GET /api/replay
+// (backend/api/API.md). Resolves { kept: its version, n, hash } or null when it keeps
+// none; rejects as askReel does, so no connection is not "no replay".
+export async function askKept({ url, code, fetch }) {
+  const a = await apiCall({
+    base: url,
+    call: "replay",
+    query: { pitch: code },
+    ...(fetch ? { fetch } : {}),
   });
   const r = a?.replay;
-  if (!r || typeof r !== "object" || !Number.isInteger(a.v)) return null;
+  if (!r || typeof r !== "object" || !Number.isInteger(a.v) || a.v < 1)
+    return null;
   return { kept: a.v, n: r.n ?? null, hash: r.hash ?? null };
 }

@@ -1,12 +1,13 @@
-// Version admission through the real controller and local room server. The
+// Version admission through the real controller and the local pitch server
+// (tools/pitch-dev.mjs). The
 // existing multiplayer scenarios remain unchanged in multiplayer.test.mjs.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
 import { serve, VIEWPORTS } from "./browser.mjs";
-import { startRoomsServer } from "../../tools/rooms-dev.mjs";
-import { makeRoomCode } from "../../src/net/room.js";
+import { startPitchServer } from "../../tools/pitch-dev.mjs";
+import { makePitchCode } from "../../src/net/pitch-client.js";
 
 const available = fs.existsSync(chromium.executablePath());
 const browserTest = available ? test : test.skip;
@@ -14,7 +15,7 @@ if (!available) console.log("# room-version: SKIPPED, no Playwright Chromium");
 let env, rooms;
 before(async () => {
   if (!available) return;
-  rooms = await startRoomsServer({ port: 0 });
+  rooms = await startPitchServer();
   env = await serve();
 });
 after(async () => {
@@ -31,7 +32,7 @@ async function join(code, kind = "desktop") {
     if (["error", "warning"].includes(m.type())) page.errors.push(m.text());
   });
   await page.goto(
-    `${env.base}/p/${code}?nohowto=1&rooms=${encodeURIComponent(rooms.url)}`,
+    `${env.base}/p/${code}?nohowto=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
   );
   await page.waitForFunction(
     () => window.__kubb?.pitch?.room.status === "open",
@@ -42,7 +43,7 @@ async function join(code, kind = "desktop") {
 browserTest(
   "join advertises the engines; START refuses a mismatch until the other tab reloads",
   async () => {
-    const code = makeRoomCode();
+    const code = makePitchCode();
     const host = await join(code);
     const guest = await join(code);
     try {
@@ -128,30 +129,34 @@ for (const [engine, kind, seated, text, reload] of [
   browserTest(
     `a running ${engine} pitch refuses this client's seat and CPU control`,
     async () => {
-      const page = await join(makeRoomCode(), kind);
+      const page = await join(makePitchCode(), kind);
       try {
-        // A different engine's document in the local server only. The second case is
-        // a host watching: it must not run the CPU when it has no player on a team.
+        // A match on a different engine, started on the local pitch server only (the
+        // page's own `start` message, as an older or newer client's would be), then the
+        // whole pitch asked for again. The second case is a host watching: it must not
+        // run the CPU when it has no player on a team.
         await page.evaluate(
           async ({ engine, seated }) => {
             const { pitch, engine: e } = window.__kubb;
             e.newMatch({ seed: 6, cpu: "B" });
             const id = seated ? pitch.you : "other-member";
-            await pitch.room.update(() => ({
-              v: 1,
-              teams: { A: [id], B: [] },
-              started: true,
-              n: 1,
-              match: {
+            const players = { A: [{ id, name: "Player" }], B: [] };
+            const h = e.hash().hash;
+            const r = await pitch.room.start({
+              doc: {
+                v: 1,
+                teams: { A: [id], B: [] },
+                started: true,
                 n: 1,
-                seq: 0,
-                engine,
-                players: { A: [{ id, name: "Player" }], B: [] },
-                cpu: "B",
-                snap: e.snapshot(),
-                hash: e.hash().hash,
+                match: { n: 1, players, cpu: "B", host: pitch.you, engine },
               },
-            }));
+              n: 1,
+              h,
+              snap: e.snapshot(),
+              meta: { v: 1, engine, players, cpu: "B" },
+            });
+            if (!r) throw new Error("the start was refused");
+            pitch.room.resync();
           },
           { engine, seated },
         );

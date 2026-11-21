@@ -1,12 +1,11 @@
 // The browser's side of sharing a match against the computer (src/net/share.js;
 // docs/CLIENT.md "Sharing a match"): the name the card takes, the `share` message the
-// engine makes, the card's states as a pure reducer, and real shares against the local
-// room server (tools/rooms-dev.mjs) with the reel function's own check: a code, the same
-// code again, each refusal's line, the shared code read as a replay, and a sealed join.
+// engine makes, the card's states as a pure reducer, and real shares (POST /api/share)
+// against the local api (tools/pitch-dev.mjs) with the reel function's own check: a code,
+// the same code again, each refusal's line, and the shared code read as a sealed replay.
 import "./room-engine.mjs";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { WebSocket as NodeWs } from "ws";
 import {
   SHARE_LIMITS,
   SHARE_WORDS,
@@ -21,13 +20,13 @@ import {
   shareable,
 } from "../../src/net/share.js";
 import { REEL_WORDS, askReel } from "../../src/net/reel.js";
-import { fetchReplay } from "../../src/replay/fetch.js";
-import { connect, RoomError } from "../../src/net/room.js";
+import { askReplay, fetchReplay } from "../../src/replay/fetch.js";
 import { Engine } from "../../src/engine/index.js";
 import { LOG_BUDGET, useRoomEngine } from "../../src/net/lobby.js";
-import { LIMITS, ShareBusy } from "../../backend/rooms/core.mjs";
+import { ShareBusy } from "../../backend/api/core.mjs";
+import { LIMITS } from "../../backend/api/checks.mjs";
 import { checkShare } from "../../backend/reels/check.mjs";
-import { startRoomsServer } from "../../tools/rooms-dev.mjs";
+import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { devReelEngines } from "../../tools/reels-dev.mjs";
 import { bundleLua, engineVersion } from "../../tools/lua-bundle.mjs";
 import { playSolo, soloSetup } from "../../tools/reel/solo.mjs";
@@ -73,6 +72,16 @@ test("share: the card's words have no em dash and name no device", () => {
     "too-many",
   ])
     assert.ok(SHARE_WORDS.why[why], why);
+});
+
+test("share: the browser's limits are the api's", () => {
+  assert.equal(SHARE_LIMITS.bytes, LIMITS.shareBytes);
+  assert.equal(SHARE_LIMITS.actions, LIMITS.shareActions);
+  assert.equal(SHARE_LIMITS.startBytes, LIMITS.shareStartBytes);
+  assert.ok(
+    SHARE_LIMITS.waitMs > LIMITS.shareWaitMs,
+    "the browser waits longer than the api waits for the check",
+  );
 });
 
 test("share: the name field takes what the check takes, and says why not", () => {
@@ -194,7 +203,7 @@ test("share: SHARE goes to checking, and a code hands over to the reel", () => {
   assert.equal(v.line, SHARE_WORDS.checking);
   assert.equal(v.bar, true);
   assert.equal(v.retry, false);
-  const done = shareStep(s, answer({ t: "shared", code: "abcdefgh23", v: 1 }));
+  const done = shareStep(s, answer({ code: "abcdefgh23", v: 1 }));
   assert.equal(done.phase, "shared");
   assert.equal(done.code, "abcdefgh23");
   assert.equal(done.v, 1);
@@ -209,7 +218,7 @@ test("share: each why has its line, and none offers TRY AGAIN", () => {
     "too-long",
     "unavailable",
   ]) {
-    const s = run([send, answer({ t: "shared", code: null, v: 0, why })]);
+    const s = run([send, answer({ code: null, v: 0, why })]);
     assert.equal(s.phase, "refused");
     assert.equal(shareView(s).text, SHARE_WORDS.why[why], why);
     assert.equal(shareView(s).retry, false, why);
@@ -262,15 +271,16 @@ test("share: opened again, a refusal that may pass later starts over; a final on
   assert.equal(shareView(known).text, SHARE_WORDS.why["too-long"]);
 });
 
-// ---------- against the local room server ----------
+// ---------- against the local api ----------
 
 let server;
-let plain; // a room server with no check: sharing unavailable
+let plain; // an api with no check: sharing unavailable
 const servers = [];
+const reels = []; // the renders the api started
 const quiet = () => {};
 
 async function serve(opts = {}) {
-  const s = await startRoomsServer({ port: 0, log: quiet, ...opts });
+  const s = await startPitchServer({ port: 0, log: quiet, ...opts });
   servers.push(s);
   return s;
 }
@@ -293,7 +303,7 @@ const realChecker = async (g) => {
 before(async () => {
   server = await serve({
     reelEngines: devReelEngines(),
-    reelRenderer: () => async () => {},
+    startReel: async (job) => void reels.push(job),
     shareChecker: realChecker,
   });
   plain = await serve({ reelEngines: devReelEngines() });
@@ -303,14 +313,14 @@ after(async () => {
   for (const s of servers) await s.close();
 });
 
-const at = (s) => ({ url: s.url, WebSocket: NodeWs });
+const at = (s) => ({ url: s.apiUrl });
 const message = (name = "Lakeside") =>
   shareMessage({ engine, trail, need, name }).message;
 
 // What the card shows for one real share.
-async function shown(s, msg) {
+async function shown(s, msg, extra = {}) {
   try {
-    const a = await askShare({ ...at(s), message: msg });
+    const a = await askShare({ ...at(s), message: msg, ...extra });
     return { a, view: shareView(run([send, answer(a)])) };
   } catch (e) {
     return { e, view: shareView(run([send, error(e?.code)])) };
@@ -321,9 +331,9 @@ let sharedCode = null;
 
 test("share (server): a match gets a code, and the same match again the same code", async () => {
   const one = await askShare({ ...at(server), message: message() });
-  assert.equal(one.t, "shared");
   assert.match(one.code, /^[2-9a-hjkmnp-z]{8,24}$/);
   assert.equal(one.v, 1);
+  assert.equal(one.why, undefined);
   sharedCode = one.code;
   const two = await askShare({ ...at(server), message: message() });
   assert.equal(two.code, one.code, "a share is idempotent");
@@ -336,31 +346,34 @@ test("share (server): the shared code reads as a finished pitch's replay, and it
   assert.ok(sharedCode);
   const r = await fetchReplay({ ...at(server), code: sharedCode });
   assert.ok(r, "the replay");
-  assert.equal(r.kept, 1);
+  assert.equal(
+    r.kept,
+    server.api.store.items.get(`pitch#${sharedCode}|replay`).v,
+  );
   assert.equal(r.players.A[0].name, "Lakeside");
-  const reel = await askReel({ ...at(server), code: sharedCode, v: 1 });
-  assert.equal(reel.v, 1);
+  const reel = await askReel({ ...at(server), code: sharedCode, v: r.kept });
+  assert.equal(reel.v, r.kept);
   assert.equal(reel.reel?.state, "rendering", JSON.stringify(reel));
+  assert.equal(reels.at(-1).room, sharedCode);
 });
 
-test("share (server): a sealed room refuses a join; the page falls back to its replay", async () => {
+// The old rooms server refused a join on a sealed room; the pitch server knows nothing of
+// shares, so the page asks the api first and never joins a pitch it says is sealed
+// (src/net/pitch.js `sealedAsk`).
+test("share (server): the shared code is sealed, so the page watches its replay and never joins", async () => {
   assert.ok(sharedCode);
-  const room = connect({
-    url: server.url,
-    room: sharedCode,
-    member: "member-sealed-1",
-    name: "Someone",
-    WebSocket: NodeWs,
-  });
-  const err = await room.ready.then(
-    () => null,
-    (e) => e,
-  );
-  assert.ok(err instanceof RoomError);
-  assert.equal(err.code, "sealed");
-  room.close?.();
+  const a = await askReplay({ ...at(server), code: sharedCode });
+  assert.equal(a.sealed, true);
+  assert.equal(a.pitch, sharedCode);
   const r = await fetchReplay({ ...at(server), code: sharedCode });
+  assert.equal(r?.sealed, true);
   assert.equal(r?.n, 1);
+  // an ordinary code is not
+  const open = await askReplay({ ...at(server), code: "pqrstuvw22" });
+  assert.deepEqual(
+    { sealed: open.sealed, replay: open.replay, v: open.v },
+    { sealed: false, replay: null, v: 0 },
+  );
 });
 
 test("share (server): each refusal shows its line", async () => {
@@ -411,29 +424,31 @@ test("share (server): each refusal shows its line", async () => {
   assert.equal(got.view.text, SHARE_WORDS.failed);
   assert.equal(got.view.retry, true);
 
-  // too-many: past the connection's shares (the web asks on a socket each, so only a
-  // server with none to give says it)
-  const none = await serve({
-    reelEngines: devReelEngines(),
-    limits: { ...LIMITS, sharesPerConn: 0 },
-    shareChecker: realChecker,
+  // too-many: there is no connection to count shares on any more; only the site's web
+  // ACL says it, as a bare 429
+  got = await shown(server, message("Parkside"), {
+    fetch: async () => new Response("", { status: 429 }),
   });
-  got = await shown(none, message("Parkside"));
   assert.equal(got.e?.code, "too-many");
   assert.equal(got.view.text, SHARE_WORDS.why["too-many"]);
 
-  // too-long, from the server: past its own action ceiling
-  const short = await serve({
-    reelEngines: devReelEngines(),
-    limits: { ...LIMITS, shareActions: 3 },
-    shareChecker: realChecker,
-  });
-  got = await shown(short, message("Bayside"));
+  // too-long, from the server: past its own action ceiling, before any check
+  const long = message("Bayside");
+  const many = {
+    ...long,
+    g: {
+      ...long.g,
+      log: Array.from({ length: LIMITS.shareActions + 1 }, () => ({
+        a: { type: "raise" },
+      })),
+    },
+  };
+  got = await shown(plain, many);
   assert.equal(got.a?.why, "too-long");
   assert.equal(got.view.text, SHARE_WORDS.why["too-long"]);
 
   // no connection
-  got = await shown({ url: "ws://127.0.0.1:9" }, message());
+  got = await shown({ apiUrl: "http://127.0.0.1:9/api" }, message());
   assert.equal(got.view.text, SHARE_WORDS.offline);
   assert.equal(got.view.retry, true);
 });

@@ -29,10 +29,10 @@ import {
 
 export class Share {
   // root: the element cards go in; game: the Game whose finished match this is; url:
-  // the rooms server; WebSocket: for tests.
-  constructor({ root, game, url, WebSocket = null }) {
+  // the api's base (src/net/api.js); fetch: for tests.
+  constructor({ root, game, url, fetch = null }) {
     Object.assign(this, { root, game, url });
-    this.ws = WebSocket ? { WebSocket } : {};
+    this.ws = fetch ? { fetch } : {};
     this.trail = game.trail; // the match as it ended, kept if a rematch starts
     this.need = game.need;
     this.state = shareStart();

@@ -7,8 +7,11 @@
 //   version:  "0.1.0",            package.json's version
 //   commit:   "abc123..." | null, the commit the build was made from
 //   mode:     "pitch" | "practice",
-//   roomsUrl: "wss://throwingwood.com/ws" | "ws://127.0.0.1:8788" | null,
-//             null while the rooms are not deployed
+//   pitchUrl: "wss://throwingwood-pitches.throwingwood.workers.dev" (the deploy build)
+//             | the dev Worker | "ws://127.0.0.1:8797" (npm run dev) | null,
+//             the pitch server's origin (src/net/pitch-client.js adds /ws?pitch=, the
+//             open games list its https form and /open); src/site/site.mjs
+//   apiUrl:   "/api", the api function on the site's own origin (src/net/api.js)
 //   wasmUrl:  "/assets/glue-<hash>.wasm",        wasmoon's Lua VM
 //   luaUrl:   "/assets/lua-sources-<hash>.json", the newest engine's Lua
 //             (tools/lua-bundle.mjs)

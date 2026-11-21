@@ -19,8 +19,7 @@
 // version and `client: "web"` (checked by the server, then dropped: never stored, as
 // the iPhone's "ios" is not). No hashes, no member id, no clock of this browser's. The
 // match's own start, with the day and time it began, is part of the first snapshot.
-import { ask } from "./ask.js";
-import { asciiJson } from "./room.js";
+import { apiCall, asciiJson } from "./api.js";
 import { CLIENT } from "./sync.js";
 import { LOG_BUDGET } from "./lobby.js";
 
@@ -165,19 +164,18 @@ export function shareMessage({ engine, trail, need, name, id = 1 }) {
   return { message, bytes };
 }
 
-// One `share` message on a socket of its own, in parts when long (src/net/ask.js).
-// Resolves { t: "shared", code, v, why? }; rejects an AskError (too-many, failed,
-// bad-message, too-big; timeout, closed, unavailable). A share is idempotent on the
-// server (the same start and log are answered the same code, free), so sending it again
-// after a lost answer is safe and gives one link.
-export function askShare({ url, message, ...rest }) {
-  return ask({
-    url,
-    message,
-    done: "shared",
-    re: "share",
+// POST /api/share with the message's `g` (src/net/api.js). Resolves { code, v, why? };
+// rejects an ApiError (too-many, failed, bad-message, too-big; timeout, closed,
+// unavailable). A share is idempotent on the server (the same start and log are
+// answered the same code, free), so sending it again after a lost answer is safe and
+// gives one link.
+export function askShare({ url, message, fetch }) {
+  return apiCall({
+    base: url,
+    call: "share",
+    body: { g: message.g },
     timeoutMs: SHARE_LIMITS.waitMs,
-    ...rest,
+    ...(fetch ? { fetch } : {}),
   });
 }
 

@@ -26,9 +26,15 @@ export class Cards {
   }
 
   // A card in the middle, over a dimmed pitch. Returns close().
-  show(card, game = null, { modal = true, onClose = null } = {}) {
+  // banner: at the top with the pitch undimmed and live under it (a watched turn's
+  // hand-off, so the thrower's dial is seen while it is up).
+  show(
+    card,
+    game = null,
+    { modal = true, onClose = null, banner = false } = {},
+  ) {
     this.close();
-    const scrim = h("div.scrim", card);
+    const scrim = h(banner ? "div.scrim.banner" : "div.scrim", card);
     this.layer.append(scrim);
     if (game && modal) game.modal++;
     let closed = false;
@@ -80,8 +86,11 @@ export class Cards {
       const go = el.querySelector(".row .btn");
       if (go) go.textContent = "WATCH";
     }
-    close = this.show(el, game);
-    if (who && !who.mine) setTimeout(done, tune.watchCardMs);
+    // someone else's turn on a shared pitch: the card's words as a banner over the live
+    // pitch, so their aim is seen from the first moment (docs/MULTIPLAYER.md "Aim")
+    const watched = !!who && !who.mine;
+    close = this.show(el, game, watched ? { modal: false, banner: true } : {});
+    if (watched) setTimeout(done, tune.watchCardMs);
   }
 
   // again: the rematch button's words; stop: a STOP button that calls it and

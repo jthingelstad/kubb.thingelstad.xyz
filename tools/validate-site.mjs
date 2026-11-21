@@ -106,7 +106,8 @@ for (const page of PAGES) {
       "version",
       "commit",
       "mode",
-      "roomsUrl",
+      "pitchUrl",
+      "apiUrl",
       "wasmUrl",
       "luaUrl",
       "sounds",
@@ -149,7 +150,7 @@ for (const { href } of NAV) {
 // / is the landing page, not the lobby: one click from its hero to the web
 // game, and no pitch buttons or open games of its own. /web/ has them.
 assert.ok(
-  !/data-pitch|data-rooms|data-access/.test(landing),
+  !/data-pitch|data-pitchserver|data-access/.test(landing),
   "/ is not the lobby",
 );
 assert.match(

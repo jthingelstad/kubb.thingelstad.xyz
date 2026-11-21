@@ -1,14 +1,14 @@
 // The share card in the browser, once (docs/CLIENT.md "Sharing a match"): a match
 // against the computer, won, MAKE A HIGHLIGHT REEL on its winner card, the share card,
-// a name typed, SHARE AND MAKE THE REEL against the local room server with the reel
-// function's own check, and the reel card for the new code with its link. The words and
-// every answer are tests/net/share-client.test.mjs.
+// a name typed, SHARE AND MAKE THE REEL against the local api (tools/pitch-dev.mjs) with
+// the reel function's own check, and the reel card for the new code with its link. The
+// words and every answer are tests/net/share-client.test.mjs.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
 import { serve, open } from "./browser.mjs";
-import { startRoomsServer } from "../../tools/rooms-dev.mjs";
+import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { devReelEngines, devShareChecker } from "../../tools/reels-dev.mjs";
 
 let available = false;
@@ -35,16 +35,15 @@ browserTest(
   "a match against the computer: the winner card's button, the share card, then the reel card for its link",
   async () => {
     const asked = [];
-    const rooms = await startRoomsServer({
-      port: 0,
+    const rooms = await startPitchServer({
       reelEngines: devReelEngines(),
-      reelRenderer: () => async (job) => asked.push(job), // no render here
+      startReel: async (job) => void asked.push(job), // no render here
       shareChecker: devShareChecker({ log: () => {} }),
     });
     try {
       const page = await open(
         env,
-        `/p/abcdefgh?solo=1&nohowto=1&rooms=${encodeURIComponent(rooms.url)}`,
+        `/p/abcdefgh?solo=1&nohowto=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
       );
       await page.click("[data-test=start]");
       await page.waitForSelector("[data-test=handoff]");
@@ -109,9 +108,11 @@ browserTest(
       );
       assert.equal(asked.length, 1);
       assert.equal(asked[0].room, code);
-      // the shared room keeps the name typed on the card
-      const doc = await rooms.store.getDoc(code);
-      assert.match(doc.doc, /Lakeside/);
+      // the shared pitch is sealed, and its replay keeps the name typed on the card
+      const state = await rooms.api.store.getState(code);
+      assert.equal(state.sealed, true);
+      const kept = await rooms.api.store.getReplay(code);
+      assert.match(kept.data, /Lakeside/);
       assert.deepEqual(page.errors, []);
       await page.context().close();
     } finally {

@@ -50,15 +50,16 @@ the web game's page, `/web/` (`/` is the landing page for the whole game). The H
 | `src/ui/watch-view.js`                        | `WatchView` (WIDE VIEW or THROWER'S VIEW, MENU's View, V) and `CamBar` (the hint, RESET VIEW) for anyone watching.                                                               |
 | `src/render/freecam.js`                       | The free camera's orbit and its limits (pure, docs/OBSERVER.md).                                                                                                                 |
 | `src/game/free-camera.js`                     | `FreeCamera`: the mouse, fingers, wheel and keys that move the free camera (docs/OBSERVER.md).                                                                                   |
-| `src/net/pitch.js`                            | `Pitch`: the shared pitch's controller: joins the room, runs the lobby, drives the Game through the seam, aim casts, shouts, host hand-over.                                     |
+| `src/net/pitch.js`                            | `Pitch`: the shared pitch's controller: joins the pitch, runs the lobby, drives the Game through the seam, aim casts, shouts.                                                    |
 | `src/net/lobby.js`, `seats.js`, `sync.js`     | Thin wrappers over kubb-engine's `room.*` rules; cached seat/actor reads keep these calls out of the render loop (docs/MULTIPLAYER.md).                                          |
-| `src/net/room.js`                             | The room client (docs/ROOMS.md).                                                                                                                                                 |
+| `src/net/pitch-client.js`, `src/net/aim.js`   | The pitch server's client (`backend/pitch-server/PROTOCOL.md`) and the aim on the wire (docs/MULTIPLAYER.md).                                                                    |
+| `src/net/api.js`                              | `apiCall`: the HTTPS api (`backend/api/API.md`) that replays, reels, shares, reports and records go through.                                                                     |
 | `src/game/stand-pad.js`                       | STAND: where the thrower stands, the plate's map to the ground and back and its words (pure), and `StandPad`, its DOM and pointer ("Standing", below).                           |
 | `src/ui/settings.js`                          | The device's settings rows (Your name, Your level, Meter, Meter side, Sound), shared by MENU and the `/settings/` page ("Settings", below).                                      |
 | `src/ui/menu.js`                              | `Menu`: the device's rows (`src/ui/settings.js`), View when watching, Surface and Scene in practice, then how to throw, resign, feedback, rules, home.                           |
 | `src/ui/report.js`, `src/net/report.js`       | The report card, and what a report carries and how it is sent (below, and docs/ROOMS.md section 8).                                                                              |
 | `src/ui/sheet.js`                             | The score sheet card (below).                                                                                                                                                    |
-| `src/net/record.js`, `src/net/ask.js`         | What a solo or watch match's record carries and how it is sent; `ask`, the one-message socket reports and records share.                                                         |
+| `src/net/record.js`                           | What a solo or watch match's record carries and how it is sent (`POST /api/game`).                                                                                               |
 | `src/replay/player.js`, `src/replay/fetch.js` | The replay player (`ReplayPlayer`, `startReplay`) and `fetchReplay`, a pitch's kept replay by its code (below).                                                                  |
 | `src/ui/reel.js`, `src/net/reel.js`           | MAKE A HIGHLIGHT REEL: the button and its card (DOM), and the card's states, words and requests (pure, `tests/net/reel-client.test.mjs`); "Highlight reels", below.              |
 | `src/ui/howto.js`                             | The HOW TO THROW overlay.                                                                                                                                                        |
@@ -80,15 +81,21 @@ const game = new Game({ engine, canvas, ui, sound, cards, seat, onAction });
   overrides the engine's `need.local`. `game.setSeat(seat)` changes it mid-match.
 - **`onAction(action, snapshotText, hash)`**: called after every action applied here (a
   throw, the computer's throw when `cpu` is true, a raise, a punishment kubb, a resignation),
-  with the engine's snapshot and hash after it, for the room to commit.
+  with the engine's snapshot and hash after it, for the pitch to commit.
 - **`game.applyRemote(action)`**: an action taken elsewhere. Applied with `engine.apply` and
   played back here; queued while a throw is still playing back. Returns the engine's result
   (`{ ok: false, ... }` on a refused action).
 - **`game.showRemoteAim(state)`**: someone else's aim (their `aimState()`), shown for 1.5 s
   while it is their throw.
+- **`game.remoteFeed`** (optional): a function the game calls every frame while it is not
+  this browser's turn; what it returns (an aim state, or nothing) is drawn with
+  `showRemoteAim`. The pitch hands it the aim buffer's picture, 100 ms behind and between
+  samples (docs/MULTIPLAYER.md "Being there").
+- **`game.onRelease`** (optional): called with the aim as it stood the frame before this
+  browser's throw went, before `onAction`; the pitch sends it as the release's frame.
 - **`game.adopt(snapshotText)`**: take a committed match snapshot as it is (a reconnect, a
   disagreement on the hash).
-- **`game.aimState()`**: this browser's aim, for the room to send while aiming.
+- **`game.aimState()`**: this browser's aim, for the pitch to send while aiming.
 - **`game.whoActs(need)`** and **`cards.who(need)`** (optional): `{ text, mine }`, who acts
   for this need. The HUD's status pill shows the text (marigold when it is this browser's),
   and the engine's cards name them; a card for someone else's turn has a WATCH button and
@@ -96,9 +103,9 @@ const game = new Game({ engine, canvas, ui, sound, cards, seat, onAction });
 
 Solo is only this seam with no network: `seat = { sides: ["A"], cpu: true }`, the local
 player owns team A and this browser runs the computer as B (`src/main.js` `startSolo`).
-A shared pitch is the same seam with the room behind it: `src/net/pitch.js` joins the
-room, builds the seat from the match's teams, passes `onAction` to the room and calls the
-three methods as documents and casts arrive. docs/MULTIPLAYER.md has the rules.
+A shared pitch is the same seam with the pitch server behind it: `src/net/pitch.js` joins
+the pitch, builds the seat from the match's teams, sends what `onAction` gives it and
+calls the three methods as actions, states and casts arrive. docs/MULTIPLAYER.md has the rules.
 
 ## The loop
 
@@ -203,9 +210,9 @@ step, unit, scope }` for `arc`, `tilt` and `spin`), and the slider takes any val
   call. `setArc` replans and refits the camera at once (`throw.setArc` calls `replan`), so
   the dashed arc and the dial's release band follow the drag; it does not set `planDirty`,
   and needs not.
-- **Online**, the aim is still cast from `Pitch.tick` every `tickMs` (200 ms) and only when
-  `aimKey` changed: a drag that changes the aim every frame sends at most 5 casts a second,
-  as walking or dragging the circle does, under the room's 10 a second.
+- **Online**, the aim is cast on its own clock, 15 a second at most and only when it
+  changed (`src/net/aim.js`): a drag that changes the aim every frame sends no more than
+  walking or dragging the circle does, under the pitch server's 16 a second.
 - **Where.** A wide screen: one block on the meter's inner side, TILT over STAND, and
   ARC over SIDE VIEW by the meter (`mirror` when the block is right of the meter). It is
   no taller than TILT and STAND, so it stays under the linear meter's prompt on a
@@ -728,8 +735,9 @@ replay of the match."). A replay is not a video: the match is set out again from
 `newMatch` options and every committed action goes through the engine in order
 (the engine's `session/replay.lua`), the same throws with the same physics: the match's
 own engine (`match.engine`, carried in the replay) where the site still carries it, else
-the newest (`docs/ENGINES.md`). What the pitch keeps is `docs/MULTIPLAYER.md` "The document"; where it is
-stored, `docs/ROOMS.md` section 10.
+the newest (`docs/ENGINES.md`). What the pitch keeps is `docs/MULTIPLAYER.md` "The document"; the api keeps
+the finished match's replay (`backend/api/API.md`, `GET /api/replay?pitch=<code>`), and
+the page that played it builds one from the actions it holds without asking.
 
 - **The engine.** `engine.replayLoad(data)` sets the replay out from its `setup` (the `newMatch` options),
   or from `start`, the match's first snapshot, for one kept after it was played, in a session that belongs
@@ -746,7 +754,7 @@ stored, `docs/ROOMS.md` section 10.
 - **The player.** `new ReplayPlayer({ game, root, data, home, close, menu, onEnd })`
   drives a `Game` it is handed and puts its own bar in `root`; `startReplay({ code, url,
 data, ... })` fetches a replay by its pitch code and plays it. It needs nothing of the
-  pitch page's lobby, room session or menu (`menu` is optional, for its View item), so an
+  pitch page's lobby, pitch session or menu (`menu` is optional, for its View item), so an
   embed can mount it on a page of its own. It takes over the Game's seat (one that may
   never act), its cards (`game.noCards`), its view and its loop (`game.driver`, called
   every tick, and `game.timeScale`), and gives every one back on `destroy()`. Given
@@ -774,8 +782,8 @@ data, ... })` fetches a replay by its pitch code and plays it. It needs nothing 
 `/e/<code>` (`src/site/pages.mjs` `embed`, mode `embed`; `bootEmbed` in `src/main.js`,
 `startEmbed` in `src/embed/embed.js`). The pitch pages function writes the pitch's state
 into the page as `<script type="application/json" id="kubb-pitch">`
-(`{ code, state, teams, turn, final }`); without it the embed asks the room server for a
-kept replay and shows "No match here" when there is none.
+(`{ code, state, teams, turn, final }`); without it the embed asks the api for a
+kept replay (`GET /api/replay`) and shows "No match here" when there is none.
 
 - **A kept replay** is a `ReplayPlayer` with `embedded: true` on a `Game` with no sound
   and no menu: the wide view (not remembered), no score sheet beside it (SHEET opens it),
@@ -810,24 +818,23 @@ tested without a browser.
   asked for or renders, WATCH THE REEL once it is done. Pressing it opens the card.
 - **Asking is starting.** The first `reel` request for a kept replay starts its render,
   so the page never sends one before the button is pressed. First the card reads the
-  room's kept replay (`askKept`, a `replay` message, which starts nothing) and checks it
-  is the match on the screen (`n` and `hash`): a just-ended match's `keep` may still be
-  on its way, so it looks again up to `reelTune.keptTries` times, 2.5 s apart, and a
+  api's kept replay (`askKept`, `GET /api/replay`, which starts nothing) and checks it
+  is the match on the screen (`n` and `hash`): a just-ended match's pushes may still be
+  on their way to the api, so it looks again up to `reelTune.keptTries` times, 2.5 s apart, and a
   newer match kept since means this one's reel can no longer be asked for. It reads it
   afresh on every press and every TRY AGAIN (`reelRequest`), never from a replay already
   in hand: a viewer can sit in an old replay while a rematch is kept, and asking then
   would start the newer match's render. Then `askReel`, which names that version (`v`)
-  on every request (the first ask, each poll, a card opened again, TRY AGAIN): a room
-  that keeps another answers `why: "moved"` and starts nothing (docs/ROOMS.md section
-  12). The answer's `v` is still checked against the kept one, for a rooms server from
-  before `v`.
+  on every request (the first ask, each poll, a card opened again, TRY AGAIN): a pitch
+  that keeps another answers `why: "moved"` and starts nothing (API.md `reel`). The
+  answer's `v` is still checked against the kept one.
 - **Making.** The card's title is "Highlight reel" in every state (the words are the
   table in docs/REEL.md "What a player sees", `REEL_WORDS`). While it renders, the state
   line MAKING YOUR REEL, a slow bar that never claims how far, and "About a
   minute. You can keep watching." The card closes with BACK, Escape or a press outside
   it. It asks again every 5 s (`reelTune.pollMs`) while it is open and the page is shown,
   and stops when either is not; opened again, or the page shown again, it asks at once.
-  Each request is one message on a socket of its own (`src/net/ask.js`); asking how a
+  Each request is one HTTPS call (`POST /api/reel`, `src/net/api.js`); asking how a
   reel stands is free on the server. A lost poll while it renders adds "No connection."
   and the next one is tried.
 - **Done.** The video muted, looping, `playsinline`: the tall file when the window is
@@ -841,7 +848,7 @@ tested without a browser.
   `reelFromPage` reads it, and only for the match the browser found finished on
   arriving: the page was written for that one. WATCH THE REEL then reads the kept
   replay and shows the video when its version is the tag's; a page older than the
-  room's newest match asks the server as MAKE does. The page is cached up to 5 minutes
+  pitch's newest match asks the server as MAKE does. The page is cached up to 5 minutes
   at the edge, and the static fallback has no tag, so a reel done since shows MAKE A
   HIGHLIGHT REEL, whose press finds it done without rendering again.
 - **When there is none.** `engine`: "This match was played on another version of the
@@ -861,14 +868,14 @@ tested without a browser.
 ## Sharing a match
 
 A match against the computer has no pitch, so its reel needs the match shared first:
-sent once, checked by the server playing it again, and kept as a sealed room under a
+sent once, checked by the server playing it again, and kept as a sealed pitch under a
 new code (docs/REEL.md "Sharing a match against the computer", docs/ROOMS.md section
 13). The button and card are `Share` in `src/ui/share.js`; the name rules, the message
 and the card's states are a pure reducer in `src/net/share.js` (`shareStart`,
 `shareStep`, `shareView`), tested in `tests/net/share-client.test.mjs`.
 
 - **Where.** MAKE A HIGHLIGHT REEL on the winner card of a solo match (`startSolo` in
-  `src/main.js`), when the page has a rooms server and the match is one of side A
+  `src/main.js`), when the page has an api address and the match is one of side A
   against the computer on B with its whole trail (`shareable`). Not when watching the
   computer against itself (docs/REEL.md "What a player sees": nobody played), not in
   practice. A rematch starts a new `Share`; the old match's is dropped with its card.
@@ -887,8 +894,7 @@ and the card's states are a pure reducer in `src/net/share.js` (`shareStart`,
   `renameStart` gives them with side A renamed to the typed name (team and player; the
   name typed for the match never leaves the page in a share), and `end` (`winner` from
   the `over` need, `throws` the log's throws). No hashes, member id or clock of the
-  browser's. It goes on a socket of its own, in parts over 30,000 bytes (`src/net/ask.js`,
-  `askShare`), and waits up to 45 s for the answer: the server plays the match first.
+  browser's. It goes as one HTTPS call (`POST /api/share`, `askShare`), and waits up to 45 s for the answer: the server plays the match first.
 - **Too long, known here.** Past the server's ceilings (256 KB, 1000 actions, a 16 KB
   start), or plainly past the engine's log budget as the finished document would hold it
   (each action with its hash, and the last snapshot, against `LOG_BUDGET`), the card says
@@ -944,11 +950,11 @@ a shared pitch's versions are (docs/ROOMS.md section 7): `recordMatch` in
 match's first snapshot, every action and the engine's hash after each, how it ended and
 the game file. Once a match (`game.trail.recorded`), including from a hidden tab while
 watching; a failure is a console warning and nothing else. No user agent, address or
-member id. Practice is not recorded. A build without a rooms address records nothing.
+member id. Practice is not recorded. It goes as `POST /api/game`. A build without an api address records nothing.
 
 ## Reports
 
-MENU, SEND FEEDBACK (shown in every mode whenever the build has a rooms address) closes
+MENU, SEND FEEDBACK (shown in every mode whenever the build has an api address) closes
 the menu and opens the "Send feedback" card. It starts with a choice, two real radio
 inputs drawn as the site's segmented buttons in a fieldset with a hidden legend (arrow
 keys move between them): "A throw looked wrong" and "Something else". The first is chosen
@@ -997,7 +1003,7 @@ the last throw, including collisions with previously thrown wood.
   pieces, then the snapshot after (listed in `r.dropped`); never what was typed.
 - `tests/net/reports.test.mjs` covers both kinds' payloads, the server's checks and the
   replay; `client.test.mjs` sends a throw report from a solo match, practice and
-  watching, and feedback from practice, against `tools/rooms-dev.mjs`.
+  watching, and feedback from practice, against the api in `tools/pitch-dev.mjs`.
 
 ## Swing feel
 
@@ -1067,8 +1073,8 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
 - **Exact identity** is the web commit: freshness (below) compares it, and a feedback
   report carries the label (`build.label`) beside `build.version`, `build.commit` and the
   Lua bundle it played on.
-- **Never on the wire or in a match.** The room's `me`, the rider (`c: "web"`, `e`), the
-  room document, a kept replay, an embed, a share and a reel name only the engine a match
+- **Never on the wire or in a match.** The pitch's `me`, an action's `c: "web"`, the
+  lobby document, `meta`, a kept replay, an embed, a share and a reel name only the engine a match
   was played on, never the app's version, so a web player and an iPhone player look the
   same there.
 - **Freshness** (`src/net/freshness.js`): the client fetches `/version.json` with
@@ -1140,12 +1146,12 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
   `tests/render/dial.test.mjs` the dial's (its finger track too), and `layout.test.mjs`
   checks both sides and the finger track's room, and on a phone on its side that the
   panel's bar clears the kubb being raised and the punishment half's near baseline (and
-  lifts the scene on a window too short for it). `multiplayer.test.mjs` runs `tools/rooms-dev.mjs`
+  lifts the scene on a window too short for it). `multiplayer.test.mjs` runs `tools/pitch-dev.mjs`
   on a free port too and plays a shared pitch (docs/MULTIPLAYER.md "Tests"). Both are
   skipped with a notice when Chromium is not installed (`npx playwright install chromium`).
 - `window.__kubb` (engine, game, sound, cards, menu, config, and on a shared pitch `pitch`)
-  exists only with `?test=1` or on 127.0.0.1 or localhost. There too, `?rooms=ws://...`
-  points a pitch at another room server.
+  exists only with `?test=1` or on 127.0.0.1 or localhost. There too, `?pitchserver=ws://...`
+  points a pitch at another pitch server and `?api=http://...` the page at another api.
 - Screenshots at 1280 x 768, 390 x 844 and 844 x 390 go to `build/client-shots/`
   (gitignored); `KUBB_MP_SHOTS=build/mp-shots` makes the multiplayer test take the lobby's.
 

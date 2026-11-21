@@ -879,6 +879,20 @@ body.game {
   touch-action: pan-y;
   pointer-events: auto;
 }
+/* a watched turn's hand-off: a banner at the top, the pitch live and undimmed */
+.scrim.banner {
+  inset: 0 0 auto 0;
+  background: none;
+  pointer-events: none;
+  overflow: visible;
+}
+.scrim.banner > * {
+  margin: 0 auto;
+  pointer-events: auto;
+}
+.scrim.banner .card.handoff {
+  padding: 10px 14px 12px;
+}
 .scrim > * {
   /* centred, and still scrolled from the top when taller than the screen */
   margin: auto;

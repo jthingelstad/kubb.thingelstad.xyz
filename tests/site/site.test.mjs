@@ -9,6 +9,7 @@ import { cacheControl, prepareObject } from "../../tools/delivery-plan.mjs";
 import { expectedTemplate } from "../../tools/site-template.mjs";
 import { zipOne } from "../../tools/rooms-bundle.mjs";
 import {
+  PITCH_ORIGINS,
   PLAYDATE_SITE,
   contentSecurityPolicy,
   embedSecurityPolicy,
@@ -22,6 +23,7 @@ import {
   NEWSLETTER_ORIGIN,
   NEWSLETTER_REFER,
   NEWSLETTER_URL,
+  PITCH_URL,
   TESTFLIGHT_URL,
   ref,
 } from "../../src/site/site.mjs";
@@ -31,7 +33,8 @@ import {
   PREVIEW_AGENTS,
   robotsTxt,
 } from "../../src/site/robots.mjs";
-import { ROOM_CODE } from "../../backend/rooms/core.mjs";
+import { PITCH_CODE } from "../../backend/pitch-server/core.mjs";
+import { PITCH_CODE as API_CODE } from "../../backend/api/checks.mjs";
 import { releaseOf } from "../../tools/build.mjs";
 import { carriedEngines } from "../../tools/lua-bundle.mjs";
 import { NAV, footer } from "../../src/site/layout.mjs";
@@ -167,7 +170,7 @@ test("directories serve index.html; other paths get the slash", () => {
   }
 });
 
-test("one pitch code alphabet everywhere, and the rooms accept its codes", async () => {
+test("one pitch code alphabet everywhere, and the pitch server and api accept its codes", async () => {
   assert.equal(CODE_ALPHABET.length, 31);
   assert.doesNotMatch(CODE_ALPHABET, /[ilo01]/);
   const start = await fs.readFile("public/js/start.js", "utf8");
@@ -175,8 +178,14 @@ test("one pitch code alphabet everywhere, and the rooms accept its codes", async
   assert.ok(start.includes(`"${CODE_ALPHABET}"`), "start.js");
   assert.ok(fn.includes(`"${CODE_ALPHABET}"`), "viewer-request.js");
   assert.ok(start.includes(`LENGTH = ${CODE_LENGTH}`));
-  for (const c of CODE_ALPHABET)
-    assert.match(c.repeat(CODE_LENGTH), ROOM_CODE, `the rooms refuse ${c}`);
+  for (const c of CODE_ALPHABET) {
+    assert.match(
+      c.repeat(CODE_LENGTH),
+      PITCH_CODE,
+      `the pitch server refuses ${c}`,
+    );
+    assert.match(c.repeat(CODE_LENGTH), API_CODE, `the api refuses ${c}`);
+  }
   assert.equal(pitchCode("/p/abcd2345"), "abcd2345");
   assert.equal(pitchCode("/practice/"), null);
 });
@@ -189,9 +198,33 @@ test("infra/site.json carries the viewer request function and the CSP", async ()
   );
   const csp = contentSecurityPolicy();
   assert.match(csp, /script-src 'self' 'wasm-unsafe-eval'/);
-  assert.match(csp, /connect-src [^;]*wss:\/\/throwingwood\.com/);
   assert.doesNotMatch(csp, /'unsafe-eval'/);
   assert.ok(csp.length < 1700, "CloudFront's CSP header limit");
+  // connect-src: 'self' (the api at /api/*), the pitch server's WebSocket and its https
+  // origin (the open games list), Tinylytics; no longer the old rooms WebSocket through
+  // throwingwood.com/ws or its execute-api fallback
+  assert.equal(
+    PITCH_URL,
+    "wss://throwingwood-pitches.throwingwood.workers.dev",
+  );
+  assert.deepEqual(PITCH_ORIGINS, [
+    "wss://throwingwood-pitches.throwingwood.workers.dev",
+    "https://throwingwood-pitches.throwingwood.workers.dev",
+  ]);
+  for (const policy of [csp, embedSecurityPolicy()]) {
+    const connect = policy
+      .split("; ")
+      .find((d) => d.startsWith("connect-src "))
+      .split(" ")
+      .slice(1);
+    assert.deepEqual(connect, [
+      "'self'",
+      ...PITCH_ORIGINS,
+      "https://tinylytics.app",
+    ]);
+    assert.doesNotMatch(policy, /wss:\/\/throwingwood\.com/);
+    assert.doesNotMatch(policy, /execute-api/);
+  }
 });
 
 test("the site stack: edge web ACL, logs, and the optional /ws route", async () => {
@@ -489,14 +522,14 @@ test("the version label: package.json's version and the newest engine's, never t
   const sha = "a2659b744210e4c5baa5b69c672e11ec87f9bfab";
   const release = releaseOf(pkg.version, sha, carried);
   assert.equal(release.text, `${pkg.version} (${carried[0].version})`);
-  // this checkout: 0.8.0 on 0.9.0, also playing 0.8.2 and 0.7.4
-  assert.equal(release.text, "0.8.0 (0.9.0)");
+  // this checkout: 0.9.0 on 0.9.0, also playing 0.8.2 and 0.7.4
+  assert.equal(release.text, "0.9.0 (0.9.0)");
   assert.equal(release.detail, "Also plays 0.8.2 and 0.7.4");
   assert.equal(release.web, sha, "the commit stays the exact identity");
   // one engine carried: no detail
   assert.equal(releaseOf("0.2.0", sha, carried.slice(0, 1)).detail, null);
   const foot = footer(release.text);
-  assert.match(foot, /data-release>Version 0\.8\.0 \(0\.9\.0\)<\/p>/);
+  assert.match(foot, /data-release>Version 0\.9\.0 \(0\.9\.0\)<\/p>/);
   assert.ok(!foot.includes(sha.slice(0, 7)));
 });
 

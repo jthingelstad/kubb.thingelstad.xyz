@@ -19,13 +19,21 @@ import {
 } from "./browser.mjs";
 import { linearGeometry } from "../../src/render/linear.js";
 import { tune as layoutTune } from "../../src/game/layout.js";
-import { startRoomsServer } from "../../tools/rooms-dev.mjs";
-import { memoryReporter } from "../../backend/rooms/reports.mjs";
-import { memoryGameRecorder } from "../../backend/rooms/recorder.mjs";
+import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { Engine } from "../../src/engine/index.js";
 import { bundleLua } from "../../tools/lua-bundle.mjs";
 import { replayReport } from "../../tools/reports.mjs";
 import { browserMatch, replayBrowser } from "../../tools/games.mjs";
+
+// The local api's kept records under `prefix` ("reports/", "games/browser/"), oldest
+// first and read afresh on every look: [{ key, text }] (backend/api/records.mjs keys).
+const keptUnder = (server, prefix) => ({
+  get kept() {
+    return [...server.api.records.kept]
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([key, text]) => ({ key, text: String(text) }));
+  },
+});
 
 let available = false;
 try {
@@ -908,8 +916,8 @@ browserTest(
 browserTest(
   "watching the computer: both sides throw, in a hidden tab too, and the next match starts by itself",
   async () => {
-    const recordGame = memoryGameRecorder();
-    const rooms = await startRoomsServer({ port: 0, recordGame });
+    const rooms = await startPitchServer();
+    const recordGame = keptUnder(rooms, "games/browser/");
     try {
       await watchMatches(recordGame, rooms);
     } finally {
@@ -921,11 +929,8 @@ browserTest(
 browserTest(
   "watching in the wide view: the default, switched by the button and V, remembered, and played to a winner",
   async () => {
-    // the finished match is sent to a rooms server, as every watched one is
-    const rooms = await startRoomsServer({
-      port: 0,
-      recordGame: memoryGameRecorder(),
-    });
+    // the finished match is sent to the api, as every watched one is
+    const rooms = await startPitchServer();
     try {
       await watchWide(rooms);
     } finally {
@@ -938,7 +943,7 @@ async function watchWide(rooms) {
   {
     const page = await open(
       env,
-      `/p/abcdefgh?watch=1&rooms=${encodeURIComponent(rooms.url)}`,
+      `/p/abcdefgh?watch=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
     );
     await page.evaluate(() => (window.__kubb.game.zen = null));
     await page.waitForFunction(() => window.__kubb.game.need?.kind === "throw");
@@ -1032,7 +1037,7 @@ async function watchMatches(recordGame, rooms) {
   {
     const page = await open(
       env,
-      `/p/abcdefgh?watch=1&rooms=${encodeURIComponent(rooms.url)}`,
+      `/p/abcdefgh?watch=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
     );
     assert.equal(await page.locator("[data-test=options]").count(), 0);
     // the calm pace: the computer stands a while before its first throw
@@ -1202,12 +1207,22 @@ async function watchMatches(recordGame, rooms) {
 browserTest(
   "a match that cannot be kept goes on as if nothing happened",
   async () => {
-    // a room server that keeps no matches answers `unavailable`
-    const rooms = await startRoomsServer({ port: 0 });
+    // an api that keeps no matches answers `unavailable` (503)
+    const rooms = await startPitchServer();
     try {
       const page = await open(
         env,
-        `/p/abcdefgh?watch=1&rooms=${encodeURIComponent(rooms.url)}`,
+        `/p/abcdefgh?watch=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
+      );
+      await page.route(`${rooms.apiUrl}/game`, (route) =>
+        route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: "unavailable",
+            message: "Matches are not kept here.",
+          }),
+        }),
       );
       await page.waitForFunction(() => window.__kubb.game.need?.cpu, null, {
         timeout: 10000,
@@ -1220,6 +1235,7 @@ browserTest(
         false,
         "not kept, and nothing else happened",
       );
+      assert.equal(keptUnder(rooms, "games/").kept.length, 0);
       await page.waitForSelector("[data-test=winner]", {
         state: "detached",
         timeout: 5000,
@@ -1229,7 +1245,11 @@ browserTest(
         1,
         "the next match started",
       );
-      assert.deepEqual(page.errors, []);
+      // the browser's own line for the 503 is all: nothing from the page
+      assert.deepEqual(
+        page.errors.filter((e) => !/^Failed to load resource/.test(e)),
+        [],
+      );
       await page.context().close();
     } finally {
       await rooms.close();
@@ -1879,12 +1899,12 @@ browserTest("the menu's Side moves the meter and remembers", async () => {
 browserTest(
   "a solo match's report: the card holds the aim, and the report arrives with the throw to replay",
   async () => {
-    const report = memoryReporter();
-    const rooms = await startRoomsServer({ port: 0, report });
+    const rooms = await startPitchServer();
+    const report = keptUnder(rooms, "reports/");
     try {
       const page = await open(
         env,
-        `/p/abcdefgh?solo=1&nohowto=1&rooms=${encodeURIComponent(rooms.url)}`,
+        `/p/abcdefgh?solo=1&nohowto=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
       );
       await page.click("[data-test=start]");
       await page.waitForSelector("[data-test=handoff]");
@@ -2005,9 +2025,9 @@ browserTest(
 browserTest(
   "reports from practice and from watching the computer, which goes on while the card is open",
   async () => {
-    const report = memoryReporter();
-    const rooms = await startRoomsServer({ port: 0, report });
-    const q = `nohowto=1&rooms=${encodeURIComponent(rooms.url)}`;
+    const rooms = await startPitchServer();
+    const report = keptUnder(rooms, "reports/");
+    const q = `nohowto=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`;
     try {
       const send = async (page, text) => {
         await page.click("[data-test=menu]");
@@ -2081,12 +2101,12 @@ browserTest(
 browserTest(
   "feedback about anything: the card's choice, one box, sent with the game",
   async () => {
-    const report = memoryReporter();
-    const rooms = await startRoomsServer({ port: 0, report });
+    const rooms = await startPitchServer();
+    const report = keptUnder(rooms, "reports/");
     try {
       const page = await open(
         env,
-        `/practice/?nohowto=1&rooms=${encodeURIComponent(rooms.url)}`,
+        `/practice/?nohowto=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
       );
       await waitPhase(page, "aim", 10000);
       await page.click("[data-test=menu]");

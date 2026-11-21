@@ -7,7 +7,8 @@ server is still the live one until the cutover below. Built so far: the pitch co
 `backend/pitch-server/PROTOCOL.md`), the Worker with `PitchDO` and `LobbyDO` (build step
 2, `backend/pitch-server/src/`, deployed to dev as `throwingwood-pitches-dev`; deploying
 and operating it: `backend/pitch-server/README.md`), and a throwaway proof of concept in
-`backend/room-server-poc/`. No client uses any of them yet.
+`backend/room-server-poc/`. The web client is moved onto them in its cutover pull
+request (build step 4, docs/MULTIPLAYER.md); until that merges no live client uses them.
 
 This is a working document. It holds what was decided, what was measured and what is
 still open, so the build can start on any machine without the conversation that led to
@@ -173,8 +174,10 @@ hash check catches it, and the client resyncs (a test in `tests/pitch-server/` s
 
 ## 7. Client work
 
-Web: `src/net/room.js` (rewritten as the pitch client), `src/net/pitch.js`,
-`src/net/ask.js`.
+Web (done in step 4): `src/net/pitch-client.js` (the pitch client, replacing
+`src/net/room.js`), `src/net/aim.js`, `src/net/pitch.js`, and `src/net/api.js` for the
+HTTPS calls (replacing `src/net/ask.js`). docs/MULTIPLAYER.md "What the iPhone app
+mirrors" is the list for the iPhone.
 
 iPhone (`throwingwood-ios`): `RoomsClient.swift`, `Transport.swift` (its
 `maximumMessageSize = 32 * 1024` must be raised: a join with the full state is larger),
@@ -282,7 +285,8 @@ Each step is its own pull request.
    function `throwing-wood-api` in its own stack (`infra/pitches.json`) and `/api/*` in
    `infra/site.json`, off behind `"pitchesStack"` (section 12). The pitch pages and the
    reels read its `pitch#` records.
-4. The web client.
+4. The web client: built in its cutover pull request, `tools/pitch-dev.mjs` and
+   `wrangler dev` for local play. Merging it is the cutover.
 5. The iPhone client.
 6. Cutover, then delete the whole old rooms stack (section 12, "What cutover deletes").
    Deleting old stored games is the owner's own named step here.
@@ -430,6 +434,7 @@ delivery stack's rooms grant (`RoomsFunctionName`) in a pull request.
   must still reach `push`.
 - A signed push this function cannot read is answered 400 and retried for as long as
   the pitch lives; a replay over the limit is 200 `kept: false`.
-- The `meta` the clients put in `keep` (`v`, `setup`, `engine`, `players`, `cpu`, and
-  the computer's `level`) is step 4's to settle; the api only copies it.
+- `meta`, settled in step 4: the host sends it with `start` as
+  `{ v: 1, setup, engine, version, players, cpu }` (`engine` the major.minor, `version`
+  the full engine version; the computer's level is in `setup`); the api only copies it.
 - `tools/games.mjs` pulls `games/pitch/` but does not replay it yet.
