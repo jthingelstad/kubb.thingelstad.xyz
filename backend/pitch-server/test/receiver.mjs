@@ -2,20 +2,24 @@
 // Worker's outbound service: every fetch the Worker or the tests make lands here.
 //
 //   POST https://receiver.test/push      a push: checked like the real one must
-//   POST https://receiver.test/control   { fail: n, failPitch } answers that pitch's next n pushes 503
+//   POST https://receiver.test/control   { fail: n, failPitch } answers that pitch's next n pushes 503;
+//                                        { delayMs, delayPitch } holds that pitch's answers
 //   GET  https://receiver.test/received?pitch=  what it took for one pitch
 //   POST https://receiver.test/reset
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export const RECEIVER_SECRET = "made-up-test-secret-not-used-anywhere";
 
-const state = {
+const fresh = () => ({
   fail: 0,
   failPitch: null,
+  delayMs: 0,
+  delayPitch: null,
   taken: new Map(),
   attempts: [],
   bad: 0,
-};
+});
+const state = fresh();
 
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -32,13 +36,7 @@ export async function receiver(request) {
     return json({ ok: true });
   }
   if (url.pathname === "/reset") {
-    Object.assign(state, {
-      fail: 0,
-      failPitch: null,
-      taken: new Map(),
-      attempts: [],
-      bad: 0,
-    });
+    Object.assign(state, fresh());
     return json({ ok: true });
   }
   if (url.pathname === "/received") {
@@ -67,6 +65,8 @@ export async function receiver(request) {
   state.attempts.push({ key, pitch: msg.pitch, k: msg.k, topic: msg.topic });
   if (key !== `${msg.pitch}:${msg.made}:${msg.k}`)
     return json({ error: "bad key" }, 400);
+  if (state.delayMs > 0 && msg.pitch === state.delayPitch)
+    await new Promise((r) => setTimeout(r, state.delayMs));
   if (state.fail > 0 && msg.pitch === state.failPitch) {
     state.fail--;
     return json({ error: "try later" }, 503);

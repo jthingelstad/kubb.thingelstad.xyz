@@ -104,6 +104,35 @@ describe("pushes", () => {
     a.close();
   });
 
+  it("leave a push on its way out of the alarm, so a slow receiver is not hammered", async () => {
+    const code = newCode();
+    await receiverPost("/control", { fail: 1, failPitch: code });
+    const a = await join(code, "anna");
+    a.send(startMsg(1));
+    await a.next((f) => f.t === "ok" && f.re === "start");
+    await waitUntil(async () =>
+      (await outbox(code)).some((r) => r.tries === 1),
+    );
+    // the retry is due and the receiver now takes 1.5 s to answer
+    await receiverPost("/control", { delayMs: 1500, delayPitch: code });
+    await runInDurableObject(stub(code), (inst) => {
+      inst.clock = () => Date.now() + 10_000;
+    });
+    expect(await runDurableObjectAlarm(stub(code))).toBe(true);
+    await settle(200);
+    // while it is on its way no alarm is set for it (one in the past would fire at once)
+    const during = await runInDurableObject(stub(code), async (inst, s) => ({
+      inflight: inst.inflight.size,
+      alarm: await s.storage.getAlarm(),
+    }));
+    expect(during).toEqual({ inflight: 1, alarm: null });
+    await waitUntil(async () => (await outbox(code)).length === 0);
+    expect(
+      (await receiverGet(`/received?pitch=${code}`)).taken.map((m) => m.k),
+    ).toEqual(["start:1"]);
+    a.close();
+  });
+
   it("wait quietly in the outbox when no receiver is configured", async () => {
     const code = newCode();
     const a = await join(code, "anna");
