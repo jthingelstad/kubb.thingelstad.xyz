@@ -1,9 +1,9 @@
 // The browser's side of highlight reels (src/net/reel.js; docs/CLIENT.md "Highlight
 // reels"): the card's states as a pure reducer, what the page knows on load, and the two
-// requests against the local room server (tools/rooms-dev.mjs) over a real socket.
+// requests (POST /api/reel, GET /api/replay) against the local api (tools/pitch-dev.mjs)
+// over real HTTP, with a `startReel` that only notes the job.
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { WebSocket as NodeWs } from "ws";
 import {
   REEL_WORDS,
   askKept,
@@ -18,7 +18,7 @@ import {
   reelView,
 } from "../../src/net/reel.js";
 import { reelPaths } from "../../backend/reels/tag.mjs";
-import { startRoomsServer } from "../../tools/rooms-dev.mjs";
+import { startPitchServer } from "../../tools/pitch-dev.mjs";
 
 const CODE = "abcdefgh23";
 const MATCH = { n: 2, hash: "h2" };
@@ -258,48 +258,47 @@ test("reel: no copy has an em dash", () => {
   assert.equal(all.includes("—"), false);
 });
 
-// ---------- the requests, against the local room server ----------
+// ---------- the requests, against the local api ----------
 
 let server;
 const started = [];
 let store;
 
 before(async () => {
-  server = await startRoomsServer({
+  server = await startPitchServer({
     port: 0,
     reelEngines: ["0.7"],
-    reelRenderer: (s) => {
-      store = s;
-      return async (job) => {
-        started.push(job);
-      };
+    startReel: async (job) => {
+      started.push(job);
     },
   });
+  store = server.api.store;
 });
 
 after(async () => {
   await server.close();
 });
 
+// A pitch's kept replay of match n, as the pushes leave it: the final snapshot and the
+// kept half (backend/api/memory-store.mjs putFinal, putKept).
+async function keep(code, { v, n, made = 1 }) {
+  const exp = Math.floor(Date.now() / 1000) + 86400;
+  const hash = `h${n}`;
+  const data = JSON.stringify({ v: 1, n, hash, engine: "0.7.1", log: [] });
+  assert.equal(await store.putFinal(code, { made, n, snap: "{}", exp }), true);
+  assert.equal(
+    await store.putKept(code, { made, n, v, data, hash, exp }),
+    true,
+  );
+}
+
 test("reel: askKept reads the kept replay and starts nothing; askReel starts one render", async () => {
-  const at = { url: server.url, code: CODE, WebSocket: NodeWs };
+  const at = { url: server.apiUrl, code: CODE };
   assert.equal(await askKept(at), null);
   const none = await askReel(at);
   assert.equal(none.reel, null);
   assert.equal(none.why, "replay");
-  await store.putReplay(CODE, {
-    v: 14,
-    t: Date.now(),
-    data: JSON.stringify({
-      v: 1,
-      n: 2,
-      hash: "h2",
-      engine: "0.7.1",
-      log: [],
-      snap: "{}",
-    }),
-    exp: Math.floor(Date.now() / 1000) + 86400,
-  });
+  await keep(CODE, { v: 14, n: 2 });
   assert.deepEqual(await askKept(at), KEPT);
   assert.equal(started.length, 0);
   const first = await askReel(at);
@@ -308,32 +307,42 @@ test("reel: askKept reads the kept replay and starts nothing; askReel starts one
   const again = await askReel(at);
   assert.equal(again.reel.state, "rendering");
   assert.equal(started.length, 1);
+  assert.deepEqual(
+    { room: started[0].room, v: started[0].v },
+    { room: CODE, v: 14 },
+  );
   // the reducer takes the server's own answers
   const s = run([press, kept(await askKept(at)), answer(first), answer(again)]);
   assert.equal(s.phase, "asking");
   assert.equal(s.polled, true);
 });
 
+test("reel: a bad code is refused by the api, and the card says reels are unavailable", async () => {
+  const at = { url: server.apiUrl, code: "NOT-A-CODE" };
+  await assert.rejects(askReel(at), (e) => e.code === "bad-pitch");
+  await assert.rejects(askKept(at), (e) => e.code === "bad-pitch");
+  const s = run([press, { type: "error", code: "bad-pitch" }]);
+  assert.equal(s.phase, "refused");
+  assert.equal(reelView(s).text, REEL_WORDS.why.unavailable);
+});
+
 test("reel: no server is no connection", async () => {
   await assert.rejects(
-    askReel({
-      url: "ws://127.0.0.1:9",
-      code: CODE,
-      WebSocket: NodeWs,
-      timeoutMs: 2000,
-    }),
+    askReel({ url: "http://127.0.0.1:9/api", code: CODE }),
+    (e) => ["closed", "timeout"].includes(e.code),
+  );
+  await assert.rejects(
+    askKept({ url: "http://127.0.0.1:9/api", code: CODE }),
     (e) => ["closed", "timeout"].includes(e.code),
   );
 });
 
-// A socket that notes the type of every message it sends (and the messages, in `all`).
+// A fetch that notes the call of every request it makes (and the bodies, in `all`).
 function counting(sent, all = []) {
-  return class extends NodeWs {
-    send(data, ...rest) {
-      all.push(JSON.parse(data));
-      sent.push(JSON.parse(data).t);
-      return super.send(data, ...rest);
-    }
+  return (url, init = {}) => {
+    sent.push(new URL(url).pathname.split("/").at(-1));
+    all.push(init.body ? JSON.parse(init.body) : null);
+    return fetch(url, init);
   };
 }
 
@@ -349,25 +358,13 @@ async function drive(s, at, match) {
 
 test("reel: the room keeps a newer match than the one on screen: 'moved', no reel asked", async () => {
   const code = "staxhntq22";
-  await store.putReplay(code, {
-    v: 30,
-    t: Date.now(),
-    data: JSON.stringify({
-      v: 1,
-      n: 3,
-      hash: "h3",
-      engine: "0.7.1",
-      log: [],
-      snap: "{}",
-    }),
-    exp: Math.floor(Date.now() / 1000) + 86400,
-  });
+  await keep(code, { v: 30, n: 3 });
   const sent = [];
   const before = started.length;
   // the viewer's replay (and any hint of it) is match 2; the room has kept match 3
   const s = await drive(
     reelStep(reelStart(), press),
-    { url: server.url, code, WebSocket: counting(sent) },
+    { url: server.apiUrl, code, fetch: counting(sent) },
     { n: 2, hash: "h2" },
   );
   assert.equal(s.phase, "refused");
@@ -378,23 +375,11 @@ test("reel: the room keeps a newer match than the one on screen: 'moved', no ree
 
 test("reel: a press reads the kept replay once, then asks for the reel once", async () => {
   const code = "nrmxhtqp22";
-  await store.putReplay(code, {
-    v: 40,
-    t: Date.now(),
-    data: JSON.stringify({
-      v: 1,
-      n: 2,
-      hash: "h2",
-      engine: "0.7.1",
-      log: [],
-      snap: "{}",
-    }),
-    exp: Math.floor(Date.now() / 1000) + 86400,
-  });
+  await keep(code, { v: 40, n: 2 });
   const sent = [];
   const s = await drive(
     reelStep(reelStart(), press),
-    { url: server.url, code, WebSocket: counting(sent) },
+    { url: server.apiUrl, code, fetch: counting(sent) },
     MATCH,
   );
   assert.equal(s.phase, "asking");
@@ -405,28 +390,14 @@ test("reel: a press reads the kept replay once, then asks for the reel once", as
 
 test("reel: a card reopened while asking, after a rematch was kept, names its version and starts nothing", async () => {
   const code = "rpnxhtqm22";
-  const keep = (v, n) =>
-    store.putReplay(code, {
-      v,
-      t: Date.now(),
-      data: JSON.stringify({
-        v: 1,
-        n,
-        hash: `h${n}`,
-        engine: "0.7.1",
-        log: [],
-        snap: "{}",
-      }),
-      exp: Math.floor(Date.now() / 1000) + 86400,
-    });
-  await keep(50, 2);
-  const at = { url: server.url, code, WebSocket: NodeWs };
+  await keep(code, { v: 50, n: 2 });
+  const at = { url: server.apiUrl, code };
   let s = await drive(reelStep(reelStart(), press), at, MATCH);
   assert.equal(s.phase, "asking");
   assert.equal(s.v, 50);
   const before = started.length;
   // the card is closed; the players finish a rematch and it is kept
-  await keep(60, 3);
+  await keep(code, { v: 60, n: 3 });
   // reopened: the state is still asking, so it polls the reel at once
   s = reelStep(s, press);
   assert.equal(reelView(s).ask, "reel");
@@ -434,10 +405,10 @@ test("reel: a card reopened while asking, after a rematch was kept, names its ve
   const all = [];
   s = reelStep(
     s,
-    await reelRequest(s, { ...at, WebSocket: counting(sent, all) }, MATCH),
+    await reelRequest(s, { ...at, fetch: counting(sent, all) }, MATCH),
   );
   assert.deepEqual(sent, ["reel"]);
-  assert.equal(all[0].v, 50);
+  assert.deepEqual(all[0], { pitch: code, v: 50 });
   assert.equal(s.phase, "refused");
   assert.equal(reelView(s).text, "This pitch has moved on to a newer match.");
   assert.equal(started.length, before);

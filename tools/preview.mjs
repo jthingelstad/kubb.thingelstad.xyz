@@ -1,8 +1,10 @@
 // Serve dist/ on http://127.0.0.1:4322/ the way CloudFront does: every
 // request goes through infra/viewer-request.js (the same file the
 // distribution runs, so /p/<code> serves the game page), a missing file gets
-// 404.html with status 404, and pages carry the site's CSP with the local
-// rooms server (tools/rooms-dev.mjs) allowed.
+// 404.html with status 404, and pages carry the site's CSP with a local pitch server
+// and api (tools/pitch-dev.mjs, `wrangler dev`) and the dev Worker allowed. `/api/*`
+// goes on to `api` when given (`npm run dev`'s local api), as CloudFront sends it to
+// the api function.
 //
 //   node tools/preview.mjs        PORT=4400 to move it
 import http from "node:http";
@@ -15,7 +17,7 @@ import {
   contentSecurityPolicy,
   embedSecurityPolicy,
 } from "../src/site/csp.mjs";
-import { DEV_ROOMS_URL } from "../src/site/site.mjs";
+import { DEV_PITCH_URL, httpOrigin } from "../src/site/site.mjs";
 
 // The viewer request function, run as CloudFront runs it.
 export async function loadViewerRequest() {
@@ -39,14 +41,16 @@ export function cloudfrontRequest(url) {
   };
 }
 
-// Preview only: any local port, so a test can run its own room server
-// (tools/rooms-dev.mjs on a free port, passed to the page as ?rooms=).
+// Preview only: any local port, so a test can run its own pitch server and api
+// (tools/pitch-dev.mjs on a free port, passed to the page as ?pitchserver= and ?api=).
 const CONNECT = [
   "'self'",
-  DEV_ROOMS_URL,
-  "ws://localhost:8788",
+  DEV_PITCH_URL,
+  httpOrigin(DEV_PITCH_URL),
   "ws://127.0.0.1:*",
   "ws://localhost:*",
+  "http://127.0.0.1:*",
+  "http://localhost:*",
 ];
 const CSP = contentSecurityPolicy(CONNECT);
 // /e/<code> is the one route any site may frame, as on the distribution.
@@ -61,10 +65,12 @@ export async function startPreview({
   root = "dist",
   reels = "build/reels-dev",
   page = null,
+  api = null,
 } = {}) {
   const handler = await loadViewerRequest();
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://127.0.0.1");
+    if (api && url.pathname.startsWith("/api/")) return proxy(req, res, api);
     const embed = /^\/e\//.test(url.pathname);
     const result = handler({ request: cloudfrontRequest(url) });
     if (result.statusCode) {
@@ -114,6 +120,26 @@ export async function startPreview({
   });
   await new Promise((resolve) => server.listen(port, "127.0.0.1", resolve));
   return server;
+}
+
+// /api/* on to the local api (an http://127.0.0.1:<port> origin), as it is.
+function proxy(req, res, api) {
+  const to = new URL(req.url, api);
+  const out = http.request(
+    to,
+    { method: req.method, headers: { ...req.headers, host: to.host } },
+    (r) => {
+      res.writeHead(r.statusCode ?? 502, r.headers);
+      r.pipe(res);
+    },
+  );
+  out.on("error", () => {
+    res.writeHead(502, { "content-type": "application/json" });
+    res.end(
+      '{"error":"unavailable","message":"The local api is not running."}',
+    );
+  });
+  req.pipe(out);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

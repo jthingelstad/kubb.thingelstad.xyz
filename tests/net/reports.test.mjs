@@ -1,65 +1,82 @@
-// Reports (MENU, SEND FEEDBACK: a throw or anything else): the room server's `report` message, the object it keeps
-// (backend/rooms/reports.mjs), the browser's payload (src/net/report.js) and the replay of
-// the reported moment (tools/reports.mjs).
+// Reports (MENU, SEND FEEDBACK: a throw or anything else): the api function's `report`
+// call (backend/api/core.mjs, its checks backend/api/checks.mjs), the object it keeps
+// (backend/api/records.mjs), the browser's payload and its POST (src/net/report.js), and
+// the replay of the reported moment (tools/reports.mjs).
+//
+// The old rooms server's report socket is gone: no frames to join and no 3 reports a
+// connection (there is no connection; API.md "Limits that are not here").
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { gunzipSync, gzipSync } from "node:zlib";
+import { createApi } from "../../backend/api/core.mjs";
 import {
   LIMITS,
   REPORT_KINDS,
   REPORT_MODES,
   asciiJson,
-  createRooms,
-} from "../../backend/rooms/core.mjs";
-import { memoryStore } from "../../backend/rooms/memory-store.mjs";
+} from "../../backend/api/checks.mjs";
+import { memoryStore } from "../../backend/api/memory-store.mjs";
 import {
-  memoryReporter,
+  memoryRecords,
   reportKey,
   reportText,
-  s3Reporter,
-} from "../../backend/rooms/reports.mjs";
+  s3Reports,
+} from "../../backend/api/records.mjs";
 import {
   REPORT_LIMITS,
   REPORT_KINDS as CLIENT_KINDS,
   REPORT_MODES as CLIENT_MODES,
+  ReportError,
   captureReport,
   reportMessage,
   reportReady,
+  sendReport,
 } from "../../src/net/report.js";
-import { toFrames } from "../../src/net/room.js";
 import { Engine } from "../../src/engine/index.js";
 import { bundleLua } from "../../tools/lua-bundle.mjs";
 import { parseRecord } from "../../tools/games.mjs";
+import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { describeReport, replayReport } from "../../tools/reports.mjs";
 
 const sources = await bundleLua();
 const ROOM = "abcdefgh";
 const T0 = 1_763_300_000_000; // 2025-11-16
 
-function harness({ report = memoryReporter(), limits } = {}) {
+// The api over its in-memory adapters; `post(r)` sends `{ r }` as the browser does.
+function harness({ keepReport, limits } = {}) {
   let t = T0;
-  const inbox = new Map();
-  const rooms = createRooms({
+  const records = memoryRecords();
+  const api = createApi({
     store: memoryStore({ now: () => t }),
+    keepReport: keepReport === undefined ? records.keepReport : keepReport,
     now: () => t,
-    report,
+    log: () => {},
     ...(limits ? { limits } : {}),
-    async send(conn, text) {
-      if (!inbox.has(conn)) inbox.set(conn, []);
-      inbox.get(conn).push(JSON.parse(text));
-      return true;
-    },
   });
-  const say = (conn, msg) => rooms.message(conn, asciiJson(msg));
-  const raw = (conn, text) => rooms.message(conn, text);
-  const last = (conn) => inbox.get(conn)?.at(-1);
-  return { rooms, say, raw, last, report, tick: (ms) => (t += ms) };
+  const send = async (text) => {
+    const res = await api.handle({
+      method: "POST",
+      path: "/api/report",
+      query: new URLSearchParams(),
+      headers: { "content-type": "application/json" },
+      body: Buffer.from(text),
+    });
+    return { status: res.status, json: JSON.parse(res.body) };
+  };
+  const post = (r) => send(asciiJson({ r }));
+  // the kept reports, oldest first: [{ key, text }]
+  const kept = () =>
+    [...records.kept]
+      .filter(([k]) => k.startsWith("reports/"))
+      .map(([key, text]) => ({ key, text: String(text) }));
+  return { api, send, post, kept, tick: (ms) => (t += ms) };
 }
 
 const minimal = (extra = {}) => ({
-  t: "report",
-  id: 7,
-  r: { mode: "solo", happened: "The kubb fell through.", should: "", ...extra },
+  mode: "solo",
+  happened: "The kubb fell through.",
+  should: "",
+  ...extra,
 });
 
 test("the limits and modes agree between the browser and the server", () => {
@@ -68,15 +85,16 @@ test("the limits and modes agree between the browser and the server", () => {
   assert.equal(REPORT_LIMITS.feedbackChars, LIMITS.feedbackChars);
   assert.deepEqual([...CLIENT_MODES], [...REPORT_MODES]);
   assert.deepEqual([...CLIENT_KINDS], [...REPORT_KINDS]);
-  assert.ok(LIMITS.reportBytes < 128 * 1024, "inside API Gateway's message");
+  assert.ok(LIMITS.reportBytes < LIMITS.bodyBytes, "inside a request body");
 });
 
-test("a report on a connection that joined no room is kept and acknowledged", async () => {
+test("a report is kept and acknowledged, and nothing names the sender", async () => {
   const h = harness();
-  await h.say("c1", minimal());
-  assert.deepEqual(h.last("c1"), { t: "reported", id: 7 });
-  assert.equal(h.report.kept.length, 1);
-  const kept = h.report.kept[0];
+  const res = await h.post(minimal());
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.json, { ok: true });
+  assert.equal(h.kept().length, 1);
+  const kept = h.kept()[0];
   assert.match(
     kept.key,
     /^reports\/2025-11-16\/\d{13}-[2-9a-hjkmnp-z]{8}\.json\.gz$/,
@@ -92,107 +110,99 @@ test("a report on a connection that joined no room is kept and acknowledged", as
   );
 });
 
-test("a report on a joined connection works too, and leaves the room alone", async () => {
+test("a shared pitch's report keeps its room and version", async () => {
   const h = harness();
-  await h.say("c1", {
-    t: "join",
-    room: ROOM,
-    member: "member-a-1",
-    name: "Åsa",
-  });
-  assert.equal(h.last("c1").t, "joined");
-  await h.say("c1", minimal({ mode: "pitch", room: ROOM, v: 4 }));
-  assert.deepEqual(h.last("c1"), { t: "reported", id: 7 });
-  const obj = JSON.parse(h.report.kept[0].text);
+  const res = await h.post(minimal({ mode: "pitch", room: ROOM, v: 4 }));
+  assert.deepEqual(res.json, { ok: true });
+  const obj = JSON.parse(h.kept()[0].text);
   assert.equal(obj.report.room, ROOM);
   assert.equal(obj.report.v, 4);
-  assert.ok(!h.report.kept[0].text.includes("member-a-1"), "no member id");
-  // the room still works
-  await h.say("c1", { t: "set", id: 1, base: 0, doc: { a: 1 } });
-  assert.equal(h.last("c1").t, "ok");
+  // `pitch` (API.md's name for it) is taken too
+  await h.post(minimal({ mode: "pitch", pitch: ROOM }));
+  assert.equal(JSON.parse(h.kept()[1].text).report.pitch, ROOM);
 });
 
-test("a report split into parts is joined and kept", async () => {
+test("a big report goes in one request, no parts to join", async () => {
   const h = harness();
-  const msg = minimal({ pad: "x".repeat(40_000) });
-  const frames = toFrames(asciiJson(msg), LIMITS.frame);
-  assert.ok(frames.length > 1);
-  for (const f of frames) await h.raw("c1", f);
-  assert.deepEqual(h.last("c1"), { t: "reported", id: 7 });
-  assert.equal(JSON.parse(h.report.kept[0].text).report.pad.length, 40_000);
+  const res = await h.post(minimal({ pad: "x".repeat(40_000) }));
+  assert.deepEqual(res.json, { ok: true });
+  assert.equal(JSON.parse(h.kept()[0].text).report.pad.length, 40_000);
 });
 
-test("refusals: too big, empty, too long, a bad mode, not JSON, too many", async () => {
+test("refusals: too big, empty, too long, a bad mode, not JSON; no cap a sender", async () => {
   const h = harness();
-  const refused = async (conn, msg, code) => {
-    await (typeof msg === "string" ? h.raw(conn, msg) : h.say(conn, msg));
-    const e = h.last(conn);
-    assert.equal(e.t, "error", JSON.stringify(e));
-    assert.equal(e.code, code);
-    if (typeof msg !== "string") {
-      assert.equal(e.re, "report");
-      assert.equal(e.id, 7);
-    }
+  const refused = async (body, code, status) => {
+    const res = await (typeof body === "string"
+      ? h.send(body)
+      : h.send(asciiJson(body)));
+    assert.equal(res.json.error, code, JSON.stringify(res.json));
+    assert.equal(res.status, status);
+    assert.equal(typeof res.json.message, "string");
   };
   await refused(
-    "c1",
-    minimal({ pad: "x".repeat(LIMITS.reportBytes) }),
+    { r: minimal({ pad: "x".repeat(LIMITS.reportBytes) }) },
     "too-big",
+    413,
   );
-  await refused("c1", minimal({ happened: "  ", should: "\n" }), "bad-message");
-  await refused("c1", minimal({ happened: "é".repeat(1001) }), "too-big");
-  await refused("c1", minimal({ should: 5 }), "bad-message");
-  await refused("c1", minimal({ mode: "arcade" }), "bad-message");
-  await refused("c1", minimal({ room: "BAD" }), "bad-room");
-  await refused("c1", { t: "report", id: 7 }, "bad-message");
-  await refused("c1", "{not json", "bad-message");
-  assert.equal(h.report.kept.length, 0, "nothing refused is kept");
+  await refused(
+    { r: minimal({ happened: "  ", should: "\n" }) },
+    "bad-message",
+    400,
+  );
+  await refused({ r: minimal({ happened: "é".repeat(1001) }) }, "too-big", 413);
+  await refused({ r: minimal({ should: 5 }) }, "bad-message", 400);
+  await refused({ r: minimal({ mode: "arcade" }) }, "bad-message", 400);
+  await refused({ r: minimal({ room: "BAD" }) }, "bad-pitch", 400);
+  await refused({ r: minimal({ pitch: "BAD" }) }, "bad-pitch", 400);
+  await refused({ t: "report", id: 7 }, "bad-message", 400);
+  await refused("{not json", "bad-message", 400);
+  await refused("[1]", "bad-message", 400);
+  assert.equal(h.kept().length, 0, "nothing refused is kept");
 
-  // 1000 characters of anything is fine
-  await h.say("c2", minimal({ happened: "é".repeat(1000) }));
-  assert.equal(h.last("c2").t, "reported");
-  await h.say("c2", minimal());
-  await h.say("c2", minimal());
-  assert.equal(h.last("c2").t, "reported");
-  await refused("c2", minimal(), "too-many");
-  assert.equal(h.report.kept.length, 3);
-  // another connection may still send
-  await h.say("c3", minimal());
-  assert.equal(h.last("c3").t, "reported");
+  // 1000 characters of anything is fine, and there is no connection to cap
+  assert.equal(
+    (await h.post(minimal({ happened: "é".repeat(1000) }))).status,
+    200,
+  );
+  for (let i = 0; i < 4; i++)
+    assert.equal((await h.post(minimal())).status, 200);
+  assert.equal(h.kept().length, 5);
 });
 
 const feedback = (extra = {}) => ({
-  t: "report",
-  id: 7,
-  r: { kind: "feedback", mode: "solo", text: "Love the sound.", ...extra },
+  kind: "feedback",
+  mode: "solo",
+  text: "Love the sound.",
+  ...extra,
 });
 
 test("a report with no kind is a throw report, kept with kind throw (older clients)", async () => {
   const h = harness();
-  const msg = minimal({ selectedPieces: [{ id: "king", kind: "king" }] });
-  assert.equal(msg.r.kind, undefined, "the iPhone app's current shape");
-  await h.say("c1", msg);
-  assert.deepEqual(h.last("c1"), { t: "reported", id: 7 });
-  const r = JSON.parse(h.report.kept[0].text).report;
-  assert.equal(r.kind, "throw");
-  assert.equal(r.happened, "The kubb fell through.");
-  assert.equal(r.should, "");
-  assert.equal(r.selectedPieces[0].id, "king");
+  const r = minimal({ selectedPieces: [{ id: "king", kind: "king" }] });
+  assert.equal(r.kind, undefined, "the iPhone app's current shape");
+  assert.deepEqual((await h.post(r)).json, { ok: true });
+  const kept = JSON.parse(h.kept()[0].text).report;
+  assert.equal(kept.kind, "throw");
+  assert.equal(kept.happened, "The kubb fell through.");
+  assert.equal(kept.should, "");
+  assert.equal(kept.selectedPieces[0].id, "king");
   // null is absent too; and "throw" said outright is the same
-  await h.say("c2", minimal({ kind: null }));
-  await h.say("c3", minimal({ kind: "throw" }));
-  for (const k of [1, 2])
-    assert.equal(JSON.parse(h.report.kept[k].text).report.kind, "throw");
+  h.tick(1);
+  await h.post(minimal({ kind: null }));
+  h.tick(1);
+  await h.post(minimal({ kind: "throw" }));
+  const all = h.kept();
+  assert.equal(all.length, 3);
+  for (const k of all) assert.equal(JSON.parse(k.text).report.kind, "throw");
 });
 
 test("feedback about anything: one text, kept with its kind and the game context", async () => {
   const h = harness();
-  await h.say(
-    "c1",
+  const res = await h.post(
     feedback({ mode: "pitch", room: ROOM, v: 3, phase: "aim", pieces: [] }),
   );
-  assert.deepEqual(h.last("c1"), { t: "reported", id: 7 });
-  const kept = h.report.kept[0];
+  assert.deepEqual(res.json, { ok: true });
+  const kept = h.kept()[0];
   assert.ok(kept.key.startsWith("reports/2025-11-16/"), "the same prefix");
   const r = JSON.parse(kept.text).report;
   assert.equal(r.kind, "feedback");
@@ -202,19 +212,15 @@ test("feedback about anything: one text, kept with its kind and the game context
   assert.equal(r.happened, undefined);
   assert.equal(r.should, undefined);
   // 2000 characters after trimming, whatever the white space around them
-  await h.say("c2", feedback({ text: `  ${"é".repeat(2000)}\n\n` }));
-  assert.equal(h.last("c2").t, "reported");
+  const long = await h.post(feedback({ text: `  ${"é".repeat(2000)}\n\n` }));
+  assert.equal(long.status, 200);
 });
 
 test("feedback refusals: a bad kind, no text, blank, too long, the throw's answers", async () => {
   const h = harness();
-  const refused = async (msg, code) => {
-    await h.say("c1", msg);
-    const e = h.last("c1");
-    assert.equal(e.t, "error", JSON.stringify(msg.r));
-    assert.equal(e.code, code, JSON.stringify(msg.r));
-    assert.equal(e.re, "report");
-    assert.equal(e.id, 7);
+  const refused = async (r, code) => {
+    const res = await h.post(r);
+    assert.equal(res.json.error, code, JSON.stringify(r));
   };
   for (const kind of ["idea", "Feedback", "", 1, true, ["feedback"], {}])
     await refused(feedback({ kind }), "bad-message");
@@ -226,38 +232,29 @@ test("feedback refusals: a bad kind, no text, blank, too long, the throw's answe
   await refused(feedback({ happened: "x" }), "bad-message");
   await refused(feedback({ should: "" }), "bad-message");
   await refused(feedback({ mode: "arcade" }), "bad-message");
-  await refused(feedback({ room: "BAD" }), "bad-room");
+  await refused(feedback({ room: "BAD" }), "bad-pitch");
   await refused(feedback({ client: "Web" }), "bad-message");
   await refused(feedback({ pad: "x".repeat(LIMITS.reportBytes) }), "too-big");
   // a throw report is still judged as one: its answers, not a text
   await refused(minimal({ kind: "throw", happened: undefined }), "bad-message");
-  await refused(
-    { t: "report", id: 7, r: { kind: "throw", mode: "solo", text: "hi" } },
-    "bad-message",
-  );
-  assert.equal(h.report.kept.length, 0, "nothing refused is kept");
-});
-
-test("feedback and throw reports share the 3 a connection", async () => {
-  const h = harness();
-  await h.say("c1", feedback());
-  await h.say("c1", minimal());
-  await h.say("c1", feedback());
-  assert.equal(h.last("c1").t, "reported");
-  await h.say("c1", feedback());
-  assert.equal(h.last("c1").code, "too-many");
-  assert.equal(h.report.kept.length, 3);
+  await refused({ kind: "throw", mode: "solo", text: "hi" }, "bad-message");
+  assert.equal(h.kept().length, 0, "nothing refused is kept");
 });
 
 test("a report may say which client and engine sent it; a bad tag is refused", async () => {
   const h = harness();
-  await h.say("c1", minimal({ client: "ios", engine: "1.2.0+core.c11f533" }));
-  assert.deepEqual(h.last("c1"), { t: "reported", id: 7 });
-  const kept = JSON.parse(h.report.kept[0].text);
+  const res = await h.post(
+    minimal({ client: "ios", engine: "1.2.0+core.c11f533" }),
+  );
+  assert.deepEqual(res.json, { ok: true });
+  const kept = JSON.parse(h.kept()[0].text);
   assert.equal(kept.report.client, "ios");
   assert.equal(kept.report.engine, "1.2.0+core.c11f533");
-  await h.say("c2", minimal());
-  assert.deepEqual(h.last("c2"), { t: "reported", id: 7 }, "absent is fine");
+  assert.deepEqual(
+    (await h.post(minimal())).json,
+    { ok: true },
+    "absent is fine",
+  );
 
   const bad = harness();
   for (const extra of [
@@ -269,46 +266,42 @@ test("a report may say which client and engine sent it; a bad tag is refused", a
     { engine: "1".repeat(65) },
     { engine: false },
   ]) {
-    await bad.say("c1", minimal(extra));
-    const r = bad.last("c1");
-    assert.equal(r.t, "error", JSON.stringify(extra));
-    assert.equal(r.code, "bad-message");
-    assert.equal(r.re, "report");
+    const r = await bad.post(minimal(extra));
+    assert.equal(r.status, 400, JSON.stringify(extra));
+    assert.equal(r.json.error, "bad-message");
   }
-  assert.equal(bad.report.kept.length, 0);
+  assert.equal(bad.kept().length, 0);
 });
 
-test("a report that cannot be kept says so, and does not count", async () => {
+test("a report that cannot be kept says so", async () => {
   let fail = true;
+  const records = memoryRecords();
   const h = harness({
-    report: async () => {
+    keepReport: async (entry) => {
       if (fail) throw new Error("S3 down");
+      return records.keepReport(entry);
     },
   });
-  const quiet = console.error;
-  console.error = () => {};
-  try {
-    for (let i = 0; i < 4; i++) {
-      await h.say("c1", minimal());
-      assert.equal(h.last("c1").code, "failed");
-    }
-  } finally {
-    console.error = quiet;
+  for (let i = 0; i < 4; i++) {
+    const res = await h.post(minimal());
+    assert.equal(res.status, 500);
+    assert.equal(res.json.error, "failed");
   }
   fail = false;
-  await h.say("c1", minimal());
-  assert.equal(h.last("c1").t, "reported");
+  assert.deepEqual((await h.post(minimal())).json, { ok: true });
+  assert.equal(records.kept.size, 1);
 });
 
 test("without a reporter, reports are unavailable", async () => {
-  const h = harness({ report: null });
-  await h.say("c1", minimal());
-  assert.equal(h.last("c1").code, "unavailable");
+  const h = harness({ keepReport: null });
+  const res = await h.post(minimal());
+  assert.equal(res.status, 503);
+  assert.equal(res.json.error, "unavailable");
 });
 
 test("the S3 reporter writes one gzipped object under reports/", async () => {
   const sent = [];
-  const keep = s3Reporter({
+  const keep = s3Reports({
     client: { send: async (cmd) => void sent.push(cmd.input) },
     bucket: "games-bucket",
   });
@@ -329,6 +322,62 @@ test("the S3 reporter writes one gzipped object under reports/", async () => {
     `reports/2025-11-16/${T0}-abcdefgh.json.gz`,
   );
   assert.equal(reportText({ t: 5, report: "{}" }), '{"t":5,"report":{}}');
+});
+
+// The browser's POST over real HTTP to the local api (tools/pitch-dev.mjs): it resolves
+// on { ok: true } and rejects a ReportError carrying the function's error code.
+async function withServer(fn) {
+  const s = await startPitchServer({ port: 0 });
+  try {
+    return await fn(s);
+  } finally {
+    await s.close();
+  }
+}
+
+const keptReports = (s) =>
+  [...s.api.records.kept]
+    .filter(([k]) => k.startsWith("reports/"))
+    .map(([key, text]) => ({ key, text: String(text) }));
+
+test("sendReport posts { r } to the api and resolves on its ack; refusals reject with the code", async () => {
+  await withServer(async (s) => {
+    const ok = await sendReport({
+      url: s.apiUrl,
+      message: { t: "report", id: 1, r: minimal() },
+    });
+    assert.equal(ok, true);
+    const kept = keptReports(s);
+    assert.equal(kept.length, 1);
+    assert.equal(
+      JSON.parse(kept[0].text).report.happened,
+      "The kubb fell through.",
+    );
+
+    await assert.rejects(
+      sendReport({
+        url: s.apiUrl,
+        message: { r: minimal({ happened: " ", should: "" }) },
+      }),
+      (e) =>
+        e instanceof ReportError &&
+        e.code === "bad-message" &&
+        e.status === 400,
+    );
+    assert.equal(keptReports(s).length, 1, "nothing refused is kept");
+  });
+  // nothing listening: closed, never a hang
+  const s = await startPitchServer({ port: 0 });
+  const gone = s.apiUrl;
+  await s.close();
+  await assert.rejects(
+    sendReport({ url: gone, message: { r: minimal() } }),
+    (e) => e instanceof ReportError && e.code === "closed",
+  );
+  await assert.rejects(
+    sendReport({ url: null, message: { r: minimal() } }),
+    (e) => e.code === "unavailable",
+  );
 });
 
 // ---------- the browser's payload, against a real engine ----------
@@ -419,11 +468,12 @@ test("the payload carries the match, the build, the viewport, and no person", as
   assert.ok(text.length <= REPORT_LIMITS.bytes, `${text.length} bytes`);
   assert.ok(!/userAgent|Mozilla/.test(text));
 
-  // it goes through the server and replays to the same snapshot
-  const h = harness();
-  for (const f of toFrames(text, LIMITS.frame)) await h.raw("c1", f);
-  assert.equal(h.last("c1").t, "reported");
-  const kept = parseRecord(gzipSync(h.report.kept[0].text));
+  // it goes over HTTP to the api and replays to the same snapshot
+  const keptText = await withServer(async (s) => {
+    await sendReport({ url: s.apiUrl, message: msg });
+    return keptReports(s)[0].text;
+  });
+  const kept = parseRecord(gzipSync(keptText));
   const engine = await Engine.create({ sources });
   const out = replayReport(engine, kept);
   assert.equal(out.kind, "match");
@@ -528,9 +578,8 @@ test("feedback: one trimmed text with the same game context, cut the same way, n
 
   // through the server; the tools print it, and replay its throw
   const h = harness();
-  await h.raw("c1", asciiJson(msg));
-  assert.equal(h.last("c1").t, "reported");
-  const kept = parseRecord(gzipSync(h.report.kept[0].text));
+  assert.deepEqual((await h.send(asciiJson({ r: msg.r }))).json, { ok: true });
+  const kept = parseRecord(gzipSync(h.kept()[0].text));
   const lines = describeReport(kept, "x.json.gz").join("\n");
   assert.match(lines, /feedback {2}solo \[web\]/);
   assert.match(lines, /Feedback: The menu is hard to find\./);
@@ -635,10 +684,10 @@ test("a report from the wide view keeps the thrower's frame, so it still replays
   assert.ok(out.drift.max < 1e-3, "the pieces where the replay has them");
 });
 
-test("a shared pitch's report names the room and the version", async () => {
+test("a shared pitch's report names the pitch, the version and the match's head", async () => {
   const game = await soloGame(1);
   const pitch = {
-    room: { code: ROOM, v: 12, doc: { match: { n: 2, seq: 5 } } },
+    room: { code: ROOM, v: 12, match: { n: 2, seq: 5, h: "x" }, doc: {} },
   };
   const r = captureReport({
     game,
@@ -647,7 +696,8 @@ test("a shared pitch's report names the room and the version", async () => {
     pitch,
     win: WIN,
   });
-  assert.equal(r.room, ROOM);
+  assert.equal(r.pitch, ROOM);
+  assert.equal(r.room, undefined);
   assert.equal(r.v, 12);
   assert.deepEqual(r.match, { n: 2, seq: 5 });
 });

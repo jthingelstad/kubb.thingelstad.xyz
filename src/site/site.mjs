@@ -17,8 +17,24 @@ export const GAME_READY = true;
 export const TINYLYTICS_SCRIPT = "https://tinylytics.app/js/script.js";
 export const TINYLYTICS_SITE = "gXy1ayRzgXUVfn_G3nvb";
 
-// Where the game's rooms are in a local build (tools/rooms-dev.mjs).
-export const DEV_ROOMS_URL = "ws://127.0.0.1:8788";
+// The pitch server (backend/pitch-server, docs/PITCH-SERVER.md): live play on a link.
+// Its production address is still the owner's call (docs/PITCH-SERVER.md section 11),
+// so it is this one value: the deploy build gives it to the page and the CSP allows it
+// (src/site/csp.mjs). The Worker's workers.dev name until a hostname is chosen.
+export const PITCH_URL = "wss://throwingwood-pitches.throwingwood.workers.dev";
+// Every other build (local, preview, CI) talks to the dev Worker; `npm run dev` runs
+// the server on this machine instead (tools/dev.mjs sets KUBB_PITCH_URL to it).
+export const DEV_PITCH_URL =
+  "wss://throwingwood-pitches-dev.throwingwood.workers.dev";
+export const LOCAL_PITCH_URL = "ws://127.0.0.1:8797"; // wrangler dev, backend/pitch-server
+// The api function (backend/api/API.md): on the site's own origin, where CloudFront
+// sends /api/* to it, so the page's `connect-src 'self'` covers it. `npm run dev`'s
+// preview hands /api/* to the local stand-in (tools/pitch-dev.mjs).
+export const API_URL = "/api";
+
+// The pitch server's https origin, for GET /open: the same host as its socket.
+export const httpOrigin = (wsUrl) =>
+  wsUrl ? new URL(String(wsUrl).replace(/^ws/, "http")).origin : null;
 
 // A pitch's code: 8 characters from an alphabet with no look-alikes (no i, l,
 // o, 0 or 1). The same alphabet is in public/js/start.js and in

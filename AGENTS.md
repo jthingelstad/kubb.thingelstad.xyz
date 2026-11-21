@@ -36,7 +36,8 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
   `src/net/room-engine.js`. Initialize with `useRoomEngine` (the newest engine) before
   calling them; a call that names a major.minor goes to that carried engine. Pass
   connected ids as an array, and keep seat/actor calls cached out of the render loop.
-  Keep `aimKey` and socket pacing in JavaScript. `me.engine` announces the room's
+  Keep the aim's pacing (`src/net/aim.js`) and the socket (`src/net/pitch-client.js`) in
+  JavaScript. `me.engine` announces the room's
   engine marked `+engines` and `me.engines` all the page carries (`room.announce`, re-sent
   on member, seat and host changes); START runs on the room's engine (`room.engineFor`,
   checked again inside the write) with `room.speakAs` members and writes `match.engine`;
@@ -112,7 +113,10 @@ address or home path in `dist/`, no account id in Markdown).
   CSP allows none.
 - `npm run preview` serves `dist/` on 127.0.0.1:4322 through `infra/viewer-request.js`, so
   `/p/<code>` works as it does live. `npm run dev` rebuilds on every change and also runs
-  `tools/rooms-dev.mjs` (ws://127.0.0.1:8788). Stop both when done.
+  the pitch server, `wrangler dev` from `backend/pitch-server/` on ws://127.0.0.1:8797
+  (after `npm ci --prefix backend/pitch-server`; without it, the pitch core in Node), and
+  the api stand-in on 127.0.0.1:8798 (`tools/pitch-dev.mjs --api-only`), which takes the
+  pitch server's pushes and answers the page's `/api/*`. Ctrl-C stops all of it.
 - `infra/site.json` carries `infra/viewer-request.js` and the CSP from `src/site/csp.mjs`
   as copies; `node tools/site-template.mjs` writes them in (infra:plan does it too) and the
   check fails on drift. Edit the sources, never the copies.
@@ -124,7 +128,7 @@ address or home path in `dist/`, no account id in Markdown).
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `0.8.0 (0.9.0)`, at the foot of
+the full version of the newest engine the site carries, `0.9.0 (0.9.0)`, at the foot of
 every reading page and of MENU, with "Also plays 0.8.2 and 0.7.4" under it in MENU while older
 engines are carried (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
@@ -198,8 +202,8 @@ of a live resource. A site check holds new templates and tools to it.
   rewrite `infra/deployment.json`. Name stacks to limit a run (`-- site`, `-- rooms`,
   `-- pitches`). A plan leaves nothing behind.
 - Changes to `main` require a pull request with a passing `check` job on an up-to-date branch.
-  Merging to `main` deploys: CI builds with `KUBB_PRODUCTION=true` (production rooms
-  address, analytics), `tools/deploy.mjs` uploads, invalidates, compares the live bytes and
+  Merging to `main` deploys: CI builds with `KUBB_PRODUCTION=true` (the production
+  pitch server and api addresses, analytics), `tools/deploy.mjs` uploads, invalidates, compares the live bytes and
   the wasm content type, and updates the rooms function's code and `throwing-wood-api`'s
   when their bundles changed.
   Roll back by reverting. The same script publishes by hand as `cloud-engineer`.
@@ -207,9 +211,9 @@ of a live resource. A site check holds new templates and tools to it.
 ## Recorded games
 
 Every match is recorded (Jamie, 2026-11-15: "all games should be recorded so that we can
-use it to test and improve the game"). The rooms function writes every committed version
-of a room's document, with the action that made it, to the private games bucket for good
-(`backend/rooms/recorder.mjs`, `docs/ROOMS.md` section 7). Solo and watch matches have no
+use it to test and improve the game"). The pitch server pushes every start and action of
+a shared pitch to the api, which writes them to the private games bucket for good
+(`backend/api/API.md`). Solo and watch matches have no
 room: the browser sends each once when it ends (`src/net/record.js`, Jamie 2026-11-16:
 "watch mode should record ... All games recorded"), kept under
 `games/browser/<yyyy-mm-dd>/`. The names players typed are in them: records are pulled to
@@ -246,8 +250,8 @@ enough to play a reported throw again here (`src/net/report.js` says exactly wha
 name field, no contact field, no user agent, no member id). There is no reply channel:
 the site promises none. It goes as one `report` message (`kind: "throw"` or
 `"feedback"`; a message with no `kind` is a throw report, as older clients and the
-iPhone app's current builds send) on a socket of its own to the rooms server
-(`docs/ROOMS.md` section 8), which writes one gzipped object to the private games bucket
+iPhone app's current builds send) as `POST /api/report` (`backend/api/API.md`), which
+writes one gzipped object to the private games bucket
 under `reports/<yyyy-mm-dd>/`, kept for good like the games.
 
 - Limits: 64 KB a report as ASCII JSON (history, then pieces, then the snapshot after
@@ -299,15 +303,15 @@ view. docs/CLIENT.md "The wide view".
 Anyone can watch a shared pitch without taking a seat (Jamie, 2026-11-20: "I want to
 allow an observer to view open games that people are playing ... In observer mode you
 should be able to fly around and position your view wherever you want to be."):
-`/p/<code>?observe=1`, WATCH beside JOIN on the open games list. It joins the room as a
-member (so the lobby's Watching line names it), is in step at once from the room's
-snapshot, and never acts, writes the document, shouts or hosts: first in line for host,
-it leaves and joins again last (`Room.rejoin`). Between matches it has its own card
+`/p/<code>?observe=1`, WATCH beside JOIN on the open games list. It joins the pitch with
+`role: "observer"` (so the lobby's Watching line names it), is in step at once from the
+pitch's snapshot, and never acts, writes the document, shouts or hosts (the pitch server
+hands the host only to players). Between matches it has its own card
 (`src/ui/watching.js`). Every watcher, an observer, a member with no side, watching the
 computer and a replay outside the embed, gets the free camera in the wide view (drag,
 wheel, two fingers, keys, RESET VIEW; `src/render/freecam.js`,
 `src/game/free-camera.js`, `src/ui/watch-view.js`). Players keep their view. No engine
-or room server change. Controls, limits, what it cannot do and the notes for the iPhone
+change. Controls, limits, what it cannot do and the notes for the iPhone
 port: `docs/OBSERVER.md`.
 
 ## Open games
@@ -318,9 +322,8 @@ can join" (Invite only, the default, or Open), or Open on the web game's page's 
 (`?open=1`). That page (`/web/`) lists open games under "Open games" (`public/js/open-games.js`):
 counts, state and age only, never names, the 20 newest, refreshed every 30 s, each with
 JOIN and WATCH (Observer mode). The host's
-browser tells the room server what to list (`docs/MULTIPLAYER.md`), and the server keeps
-it in the rooms table's `open` partition with a 15 minute TTL: no new AWS resources, no
-scans (`docs/ROOMS.md` section 9).
+browser tells the pitch server what to list (`docs/MULTIPLAYER.md`), and the page reads
+the list from the pitch server's `GET /open` (`backend/pitch-server/PROTOCOL.md`).
 
 ## Replays
 
@@ -335,12 +338,13 @@ offers WATCH THE LAST MATCH. A replay belongs to nobody: the engine refuses ever
 from outside while one is loaded. A hash that disagrees (an older match on the newest
 engine after a physics change) is noted and it plays on.
 
-- The document carries the replay while the match is played (`setup`, `h0`, `log`;
-  `docs/MULTIPLAYER.md`); at the end a player's browser sends `keep` and the rooms table
-  keeps it gzipped beside the document, and the room a year from the end of the match
-  (`docs/ROOMS.md` section 10). No new AWS resources. Old matches show the result without
+- The pitch server keeps the match's log while it is played; the host sends `meta` (what
+  a replay needs besides the actions) with START, and the action that ends the match
+  goes with `over`. The pitch server then pushes the log and the final snapshot to the
+  api, which keeps the replay a year (`docs/MULTIPLAYER.md` "The document",
+  `backend/api/API.md`). No browser uploads a replay. Old matches show the result without
   WATCH REPLAY.
-- Anyone can fetch a kept replay by its code without joining (`{ t: "replay", room }`,
+- Anyone can fetch a kept replay by its code without joining (`GET /api/replay`,
   `src/replay/fetch.js`); `startReplay({ code, game, root })` needs nothing of the pitch
   page, so an embed or a share image can build on the two.
 - Replays are never served from the private games bucket. A match from before replays
@@ -440,9 +444,8 @@ sends the same `reel` and `share` messages.
   366 days.
 - `/p/<code>` gains `og:video` (the wide MP4) and "Watch the highlights." when its
   reel is done (`backend/pages/pitch.mjs`).
-- `npm run dev` renders reels in the local room server's process with the ffmpeg on the
-  PATH into `build/reels-dev/` (`tools/reels-dev.mjs`); `npm run preview` serves them at
-  `/reels/...`.
+- `npm run dev` renders no reels: the api stand-in answers `reel` as unavailable (a test
+  can pass its own `startReel` to `startPitchServer`). Shares are checked locally.
 
 ## Score sheet
 

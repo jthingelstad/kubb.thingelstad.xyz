@@ -10,7 +10,7 @@ import fs from "node:fs";
 import http from "node:http";
 import { chromium } from "playwright";
 import { serve } from "./browser.mjs";
-import { startRoomsServer } from "../../tools/rooms-dev.mjs";
+import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { injectPreview, pitchState } from "../../backend/pages/pitch.mjs";
 
 let available = false;
@@ -72,20 +72,28 @@ const POLL = { polling: 100, timeout: 10000 };
 let env, rooms, hostServer, embedder, hosted;
 before(async () => {
   if (!available) return;
-  rooms = await startRoomsServer({ port: 0 });
+  rooms = await startPitchServer();
   hostServer = http.createServer((req, res) => {
     res.writeHead(200, { "content-type": "text/html" });
     res.end(hosted);
   });
   await new Promise((r) => hostServer.listen(0, "127.0.0.1", r));
   embedder = `http://127.0.0.1:${hostServer.address().port}/`;
-  for (const code of [CODES.replay, CODES.rematch, CODES.older])
-    await rooms.store.putReplay(code, {
-      v: 9,
-      t: Date.now(),
-      data: REPLAY,
-      exp: Math.floor(Date.now() / 1000) + 3600,
+  // the kept replay in the api's store as the pitch's pushes leave it: the final
+  // snapshot and the kept half (backend/api/memory-store.mjs putFinal, putKept)
+  const { snap, ...half } = R;
+  const exp = Math.floor(Date.now() / 1000) + 3600;
+  for (const code of [CODES.replay, CODES.rematch, CODES.older]) {
+    const at = { made: KEPT.made, n: KEPT.n, exp };
+    await rooms.api.store.putFinal(code, { ...at, snap });
+    await rooms.api.store.putKept(code, {
+      ...at,
+      v: KEPT.v,
+      data: JSON.stringify(half),
+      hash: KEPT.hash,
     });
+    assert.ok(await rooms.api.store.getReplay(code), code);
+  }
   env = await serve({
     build: true,
     page: (html, { uri, query }) => {
@@ -117,7 +125,7 @@ async function host(code, { below = false } = {}) {
   const page = await ctx.newPage();
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
-  const src = `${env.base}/e/${code}?rooms=${encodeURIComponent(rooms.url)}`;
+  const src = `${env.base}/e/${code}?pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`;
   hosted = `<!doctype html><body style="margin:0">
 ${below ? '<div style="height:2000px">above</div>' : ""}
 <iframe id="kubb" src="${src}" title="A match of Kubb: Throwing Wood" width="100%" style="aspect-ratio: 16 / 10; border: 0;" loading="lazy" allow=""></iframe>
@@ -179,8 +187,8 @@ browserTest(
       null,
       { timeout: 20000 },
     );
-    // nothing joined the room: an embed only reads the kept replay
-    assert.equal(await rooms.store.getRoom(CODES.replay), null);
+    // nothing joined the pitch: an embed only reads the kept replay
+    assert.equal(rooms.pitch(CODES.replay), null);
     assert.deepEqual(page.errors, []);
     await ctx.close();
   },

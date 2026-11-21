@@ -5,13 +5,14 @@ playing. This would be the same concept for watching a computer v computer game.
 this way you can watch any game that is open. In observer mode you should be able to fly
 around and position your view wherever you want to be."
 
-This note is the web's behaviour, written so the iPhone app can do the same. Nothing here
-needs an engine change or a room server change.
+This note is the web's behaviour, written so the iPhone app can do the same. No engine
+change; on the pitch server an observer is a member with `role: "observer"`
+(`backend/pitch-server/PROTOCOL.md`).
 
 ## Who watches
 
 - **An observer** opens `/p/<code>?observe=1`: WATCH on a row of the open games list
-  (`public/js/open-games.js`), beside JOIN. It joins the room as a member, so the lobby's
+  (`public/js/open-games.js`), beside JOIN. It joins the pitch as an observer, so the lobby's
   "Watching" line names it (the name this browser last typed, else "Someone"), and the
   open games count ("2 of 12 on the pitch") counts it, as it counts anyone on the pitch.
 - **A watcher** is any member with no side in the match: an observer, someone who chose
@@ -28,41 +29,36 @@ the thrower's view, no free camera.
 
 An observer:
 
-- gets in step at once, mid-match or not: the room's document carries the match's
-  snapshot, and it adopts it (the same late join every member has), then plays each
-  action as it comes;
+- gets in step at once, mid-match or not: its `joined` carries the whole match with the
+  snapshot after the last action, and it adopts it (the same late join every member
+  has), then plays each action as it comes;
 - is a member of its own: its member id is kept for the tab (`observerId`,
   sessionStorage), never the browser's player id. A host or player who opens WATCH on
   their own pitch in another tab stays the host or player in the first, and the watching
-  tab is one more watcher;
+  tab is one more watcher (the server refuses a known member id joining with the other
+  role, `bad-role`);
 - may never act: its seat has no side and no computer, `mayAct` is always false, and it
-  commits nothing to the document; the pages hold `onAction` shut too;
-- never writes the room's options on arrival, even on a new room;
-- never becomes host (the host runs the computer and keeps the open listing). When the
-  host has gone and the observer is first in line, it leaves and joins again, last in
-  line (`Room.rejoin`, only when someone else is connected), and the next member claims
-  as before. A race is harmless: the room server decides who is first, and the observer
-  looks again on its next tick. While nobody takes host (only observers left on an
-  abandoned pitch) it backs off: the first step back at once, then 20 s, 40 s, 80 s,
-  doubling to 5 minutes (`src/net/step-back.js`). It starts from the first again when a
-  host is connected, or when a member it has never seen connects, so a player who
-  arrives is not kept behind an observer. Observers keep their member id when they
-  rejoin, so their own step backs never count as an arrival. Nothing new on the wire;
-- has no SHOUT;
+  sends no action, write or start (the server refuses them from an observer); the pages
+  hold `onAction` shut too;
+- never writes the pitch's options on arrival, even on a new pitch;
+- never becomes host (the host runs the computer and keeps the open listing): the pitch
+  server hands the host only to players, so an observer has nothing to do about it. When
+  only observers are left on a pitch it has no host until a player comes back;
+- has no SHOUT and sends no aim: the server takes no cast from an observer. It still
+  hears every cast, thinned to about 10 a second except each release's frame;
 - sees the hand-off card with the teams' names, not the engine's "YOUR BASE 5 · THEIRS 4"
   (`baseText`, which speaks to the team the card goes to): "NORTH BASE 4", "SOUTH BASE
   5", the far team first as the card's map draws it, "they throw 6 batons", and WATCH,
   closing by itself. The same for every browser with no side (a member who watches
   instead, watching the computer); players' cards are as before
   (`src/ui/handoff-words.js`);
-- may ask the room to keep a finished match's replay, as every browser that watched the
-  end does (it is not an action);
 - between matches sees its own card instead of the lobby: who is on each team, who is
   watching, WATCH THE LAST MATCH when there is one, JOIN THIS PITCH (the same link
   without `?observe=1`, the lobby) and HOME. No name box, no team buttons, no options, no
   START;
-- at a pitch nobody is on (its join made the room) hears "No game here" and leaves at
-  once, so the room keeps no member.
+- at a pitch with no player connected hears "No game here" and leaves at once, so the
+  pitch keeps no member. Where the server refuses observers at an unknown pitch
+  (`unknownPitch: "refuse"`) the join's `no-pitch` gives the same card.
 
 ## The free camera
 
@@ -112,17 +108,16 @@ On while a watcher sees the wide view and no card is over the pitch.
 
 ## The iPhone port
 
-- Same rules: an observer is a member with no seat, never acts, never writes the document
-  (no options on arrival, no commits), never claims host and steps back (leave, then join
-  again) when first in line with another member connected, with the same back-off
-  (at once, then 20 s doubling to 5 minutes; again from the first when a host is
-  connected or a member never seen before connects). Keep the member id across the
-  rejoin. No room server change is needed: `leave` then `join` puts a member last.
+- Same rules: an observer joins with `role: "observer"`, has no seat, never acts, never
+  writes the document (no options on arrival, no actions, no start) and sends no casts.
+  The server never makes it host, so there is no stepping back.
 - An observer's member id is its own, never the device's player id (the web keeps it for
   the tab). A host who leaves their pitch and taps WATCH on it must come back as a new
-  watcher, not as the host: an observer holding the host's place stalls the pitch.
+  watcher, not as the host.
+- Same picture of the thrower: the aim drawn 100 ms behind between samples and the
+  hand-off as a banner over the dial (docs/MULTIPLAYER.md "Being there").
 - Same view: start at the engine's wide camera untouched; orbit with the limits above;
   lens unchanged; RESET VIEW eases 0.45 s, or at once with Reduce Motion. The gestures
   map one to one: one finger turns, two fingers pinch, twist and slide.
 - Same honesty: the observer shows in the lobby's Watching line and in the open games
-  count. Nothing new goes on the wire, in a record, a replay or a reel.
+  count. Nothing new goes in a record, a replay or a reel.

@@ -1,5 +1,5 @@
 // A pitch on the room's engine (docs/ENGINES.md "Playing together") through the real
-// controller, the built site and the local room server: the page carries 0.9, 0.8 and 0.7,
+// controller, the built site and the local pitch server and api (tools/pitch-dev.mjs): the page carries 0.9, 0.8 and 0.7,
 // announces the room's engine, starts on it, plays it, and says what blocks START when
 // the players share none. An older client is stood in for by a page that announces less
 // than it carries (`only`), or by one that writes a lone `engine` as an older tab does.
@@ -9,9 +9,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
 import { serve, sweep, swing, VIEWPORTS } from "./browser.mjs";
-import { startRoomsServer } from "../../tools/rooms-dev.mjs";
-import { makeRoomCode } from "../../src/net/room.js";
-import { memoryReporter } from "../../backend/rooms/reports.mjs";
+import { startPitchServer } from "../../tools/pitch-dev.mjs";
+import { makePitchCode } from "../../src/net/pitch-client.js";
 
 let available = false;
 try {
@@ -26,10 +25,12 @@ if (!available)
 const browserTest = available ? test : test.skip;
 
 let env, rooms;
-const reports = memoryReporter();
 before(async () => {
   if (!available) return;
-  rooms = await startRoomsServer({ port: 0, report: reports });
+  // the host passes on two seconds after it goes (live: 15 s)
+  rooms = await startPitchServer({
+    options: { limits: { hostGraceMs: 2000 } },
+  });
   env = await serve({ build: true });
 });
 after(async () => {
@@ -46,7 +47,7 @@ async function join(code, name, { lobby = true } = {}) {
   });
   page.on("pageerror", (e) => page.errors.push(e.message));
   await page.goto(
-    `${env.base}/p/${code}?nohowto=1&rooms=${encodeURIComponent(rooms.url)}`,
+    `${env.base}/p/${code}?nohowto=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
   );
   await page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
   if (lobby) {
@@ -167,19 +168,16 @@ async function inStep(pages, ms = 20000) {
   throw new Error(`not in step: ${JSON.stringify(last)}`);
 }
 
-// Watch the other page's riders, then let whoever throws first throw once; both pages
-// end on the same hash. Returns the riders seen.
-async function oneThrowInStep(host, guest) {
-  const riders = [];
-  for (const p of [host, guest]) {
-    await p.exposeFunction("__rider", (w) => riders.push(w));
-    await p.evaluate(() =>
-      window.__kubb.pitch.room.on(
-        "doc",
-        (e) => !e.mine && e.with && window.__rider(e.with),
-      ),
-    );
-  }
+// The reports the api kept, oldest first (backend/api/records.mjs memoryRecords).
+const reportsKept = () =>
+  [...rooms.api.records.kept]
+    .filter(([k]) => k.startsWith("reports/"))
+    .map(([, text]) => JSON.parse(text).report);
+
+// Let whoever throws first throw once; both pages end on the same hash. Returns the
+// match as the pitch server holds it: its meta (the engine it plays) and its actions
+// (each with the client tag it came with).
+async function oneThrowInStep(host, guest, code) {
   // whoever throws first (the match's opening decides)
   let first = null;
   for (let i = 0; i < 300 && !first; i++) {
@@ -199,8 +197,9 @@ async function oneThrowInStep(host, guest) {
   await throwOnce(first);
   const st = await inStep([host, guest]);
   assert.ok(st[0].docSeq >= 1);
-  assert.ok(riders.length >= 1, "the other page saw a rider");
-  return riders;
+  const m = rooms.pitch(code).match;
+  assert.ok(m.acts.length >= 1, "the pitch committed the throw");
+  return m;
 }
 
 // An iPhone tester's build (TestFlight build 121): it carries 0.8 and 0.7.
@@ -211,7 +210,7 @@ const close = (...pages) => Promise.all(pages.map((p) => p.context().close()));
 browserTest(
   "two pages start on 0.9; a watcher that carries only 0.7 does not pull the room down",
   async () => {
-    const code = makeRoomCode();
+    const code = makePitchCode();
     const host = await join(code, "Hanna");
     const guest = await join(code, "Ola");
     const watcher = await join(code, "Per");
@@ -259,7 +258,7 @@ browserTest(
 browserTest(
   "an iPhone that carries 0.8 and 0.7 moves the pitch to 0.8: START waits for 0.8 to load, both play it on 0.8.2",
   async () => {
-    const code = makeRoomCode();
+    const code = makePitchCode();
     const host = await join(code, "Hanna");
     // the host's 0.8 bundle is held back until START has been pressed
     let release;
@@ -312,8 +311,8 @@ browserTest(
       assert.equal(h.matchEngine, "0.8");
       assert.deepEqual([h.engine, g.engine], ["0.8.2", "0.8.2"]);
       // and it plays: a throw on 0.8, applied by the other page to the same hash
-      const riders = await oneThrowInStep(host, guest);
-      assert.equal(riders[0].e, "0.8.2");
+      const m = await oneThrowInStep(host, guest, code);
+      assert.equal(m.meta.engine, "0.8");
       for (const p of [host, guest]) assert.deepEqual(p.errors, []);
     } finally {
       release();
@@ -323,9 +322,9 @@ browserTest(
 );
 
 browserTest(
-  "a player on 0.7 alone (an older tab) moves the pitch to 0.7: both play it on 0.7.4, the rider names it, and the lobby is back on 0.9 after",
+  "a player on 0.7 alone (an older tab) moves the pitch to 0.7: both play it on 0.7.4, the pitch names it, and the lobby is back on 0.9 after",
   async () => {
-    const code = makeRoomCode();
+    const code = makePitchCode();
     const host = await join(code, "Hanna");
     const guest = await join(code, "Ola");
     try {
@@ -351,10 +350,11 @@ browserTest(
       assert.equal(h.matchEngine, "0.7");
       assert.deepEqual([h.engine, g.engine], ["0.7.4", "0.7.4"]);
 
-      // a throw on 0.7, applied by the other page to the same hash
-      const riders = await oneThrowInStep(host, guest);
-      assert.equal(riders[0].e, "0.7.4");
-      assert.equal(riders[0].c, "web");
+      // a throw on 0.7, applied by the other page to the same hash; the pitch keeps the
+      // match's engine and the client each action came from
+      const m = await oneThrowInStep(host, guest, code);
+      assert.equal(m.meta.engine, "0.7");
+      assert.equal(m.acts[0].c, "web");
 
       // a report from the 0.7 match names 0.7.4 and the 0.7 bundle
       await host.click("[data-test=menu]");
@@ -370,7 +370,7 @@ browserTest(
           "Sent, thank you.",
       );
       await host.click("[data-test=report-done]");
-      const sent = JSON.parse(reports.kept.at(-1).text).report;
+      const sent = reportsKept().at(-1);
       assert.equal(sent.engine, "0.7.4");
       assert.match(sent.build.lua, /^lua-sources-0\.7-/);
 
@@ -393,7 +393,7 @@ browserTest(
 browserTest(
   "no engine in common: the lobby says who and what to do, and START stays off",
   async () => {
-    const code = makeRoomCode();
+    const code = makePitchCode();
     const host = await join(code, "Hanna");
     const guest = await join(code, "Ola");
     try {
@@ -466,7 +466,7 @@ browserTest(
 browserTest(
   "a page that arrives at a 0.7 match loads 0.7 first, holding the room's news, then watches it on 0.7.4",
   async () => {
-    const code = makeRoomCode();
+    const code = makePitchCode();
     const host = await join(code, "Hanna");
     const guest = await join(code, "Ola");
     try {
@@ -511,29 +511,30 @@ browserTest(
 browserTest(
   "a page that cannot play the match and becomes host mid-match says so",
   async () => {
-    const code = makeRoomCode();
+    const code = makePitchCode();
     const host = await join(code, "Hanna");
     const other = await join(code, "Ola");
     try {
-      // a match of an engine no page here carries, against the computer
+      // a match of an engine no page here carries, against the computer, started on
+      // the local pitch server by the host's page as a newer client would
       await host.evaluate(async () => {
         const { pitch, engine: e } = window.__kubb;
         e.newMatch({ seed: 6, cpu: "B" });
-        await pitch.room.update(() => ({
-          v: 1,
-          teams: { A: [pitch.you], B: [] },
-          started: true,
-          n: 1,
-          match: {
+        const players = { A: [{ id: pitch.you, name: "Hanna" }], B: [] };
+        const r = await pitch.room.start({
+          doc: {
+            v: 1,
+            teams: { A: [pitch.you], B: [] },
+            started: true,
             n: 1,
-            seq: 0,
-            engine: "0.10",
-            players: { A: [{ id: pitch.you, name: "Hanna" }], B: [] },
-            cpu: "B",
-            snap: e.snapshot(),
-            hash: e.hash().hash,
+            match: { n: 1, players, cpu: "B", host: pitch.you, engine: "0.10" },
           },
-        }));
+          n: 1,
+          h: e.hash().hash,
+          snap: e.snapshot(),
+          meta: { v: 1, engine: "0.10", players, cpu: "B" },
+        });
+        if (!r) throw new Error("the start was refused");
       });
       await other.waitForSelector("[data-test=engine-differs]");
       assert.equal(

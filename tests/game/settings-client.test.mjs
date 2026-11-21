@@ -9,8 +9,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
 import { serve, open, VIEWPORTS } from "./browser.mjs";
-import { startRoomsServer } from "../../tools/rooms-dev.mjs";
-import { makeRoomCode } from "../../src/net/room.js";
+import { startPitchServer } from "../../tools/pitch-dev.mjs";
+import { makePitchCode } from "../../src/net/pitch-client.js";
 
 let available = false;
 try {
@@ -27,7 +27,7 @@ const browserTest = available ? test : test.skip;
 let env, rooms;
 before(async () => {
   if (!available) return;
-  rooms = await startRoomsServer({ port: 0 });
+  rooms = await startPitchServer();
   env = await serve({ build: true });
 });
 after(async () => {
@@ -117,7 +117,7 @@ browserTest(
     });
     const solo = await open(
       env,
-      `/p/abcdefgh?solo=1&nohowto=1&rooms=${encodeURIComponent(rooms.url)}`,
+      `/p/abcdefgh?solo=1&nohowto=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
       "desktop",
       {
         prefs,
@@ -163,7 +163,7 @@ browserTest(
   async () => {
     const page = await open(
       env,
-      `/p/abcdefgh?solo=1&nohowto=1&rooms=${encodeURIComponent(rooms.url)}`,
+      `/p/abcdefgh?solo=1&nohowto=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
       "desktop",
       {
         prefs: { howtoSeen: true },
@@ -252,7 +252,7 @@ browserTest(
   async () => {
     const page = await open(
       env,
-      `/p/abcdefgh?solo=1&nohowto=1&rooms=${encodeURIComponent(rooms.url)}`,
+      `/p/abcdefgh?solo=1&nohowto=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
       "desktop",
       {
         prefs: { howtoSeen: true },
@@ -283,8 +283,8 @@ browserTest(
 browserTest(
   "the lobby's You row shows a kept name with CHANGE IN MENU, and the room hears a change",
   async () => {
-    const code = makeRoomCode();
-    const url = `/p/${code}?nohowto=1&rooms=${encodeURIComponent(rooms.url)}`;
+    const code = makePitchCode();
+    const url = `/p/${code}?nohowto=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`;
     const page = await open(env, url, "desktop", {
       prefs: { name: "Birch", howtoSeen: true },
     });

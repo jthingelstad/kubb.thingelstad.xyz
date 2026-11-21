@@ -58,11 +58,11 @@ const BUILDING = GAME_READY
   ? ""
   : `<p class="notice">The game is still being built. Until it is, a pitch only says so.</p>`;
 
-// The web game's list of open games (public/js/open-games.js asks the rooms
-// server for it): only when this build has a rooms server.
-function openGames(roomsUrl) {
-  if (!roomsUrl) return "";
-  return `<section class="frame open-games" aria-labelledby="open-games" data-rooms="${esc(roomsUrl)}" hidden>
+// The web game's list of open games (public/js/open-games.js reads the pitch
+// server's GET /open): only when this build has a pitch server.
+function openGames(pitchUrl) {
+  if (!pitchUrl) return "";
+  return `<section class="frame open-games" aria-labelledby="open-games" data-pitchserver="${esc(pitchUrl)}" hidden>
   <h2 class="display" id="open-games">Open games</h2>
   <p>These pitches are open to anyone. Join one and pick a side, or watch a match.</p>
   <ul class="open-list" data-open-list></ul>
@@ -96,7 +96,7 @@ function web({ tinylytics, config = {} }) {
   </div>
   ${heroScene()}
 </section>
-${openGames(config.roomsUrl)}
+${openGames(config.pitchUrl)}
 <section class="frame how" aria-labelledby="how">
   <h2 class="display" id="how">How it works</h2>
   <ol class="steps">
@@ -129,7 +129,7 @@ ${signup()}`;
     release: config.release?.text,
     scripts: [
       "/js/start.js",
-      ...(config.roomsUrl ? ["/js/open-games.js"] : []),
+      ...(config.pitchUrl ? ["/js/open-games.js"] : []),
     ],
   });
 }

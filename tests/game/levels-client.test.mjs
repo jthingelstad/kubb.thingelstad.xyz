@@ -7,9 +7,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
 import { serve, open, waitPhase, VIEWPORTS } from "./browser.mjs";
-import { startRoomsServer } from "../../tools/rooms-dev.mjs";
-import { makeRoomCode } from "../../src/net/room.js";
-import { memoryReporter } from "../../backend/rooms/reports.mjs";
+import { startPitchServer } from "../../tools/pitch-dev.mjs";
+import { makePitchCode } from "../../src/net/pitch-client.js";
 
 let available = false;
 try {
@@ -26,7 +25,7 @@ const browserTest = available ? test : test.skip;
 let env, rooms;
 before(async () => {
   if (!available) return;
-  rooms = await startRoomsServer({ port: 0, report: memoryReporter() });
+  rooms = await startPitchServer();
   env = await serve({ build: true });
 });
 after(async () => {
@@ -116,7 +115,7 @@ async function join(code, name, level) {
   });
   page.on("pageerror", (e) => page.errors.push(e.message));
   await page.goto(
-    `${env.base}/p/${code}?nohowto=1&rooms=${encodeURIComponent(rooms.url)}`,
+    `${env.base}/p/${code}?nohowto=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
   );
   await page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
   await page.waitForSelector("[data-test=lobby]");
@@ -131,7 +130,7 @@ async function join(code, name, level) {
 browserTest(
   "a pitch on 0.9: the host sets the computer's level, the computer throws at it",
   async () => {
-    const code = makeRoomCode();
+    const code = makePitchCode();
     const host = await join(code, "Hanna", "beginner");
     const guest = await join(code, "Ola", "pro");
     try {
@@ -178,9 +177,9 @@ browserTest(
           timeout: 20000,
         },
       );
-      const setup = await host.evaluate(
-        () => window.__kubb.pitch.room.doc.match.setup,
-      );
+      // the match's setup goes in the start's `meta`, beside the document, not in it
+      // (backend/pitch-server/PROTOCOL.md `start`)
+      const setup = await guest.evaluate(() => window.__kubb.pitch.meta?.setup);
       assert.equal(setup.computer, "pro");
       for (const page of [host, guest]) {
         const o = await matchOpts(page);

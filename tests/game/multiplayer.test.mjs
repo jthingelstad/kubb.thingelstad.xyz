@@ -1,15 +1,15 @@
-// A shared pitch in real browsers (docs/MULTIPLAYER.md): the room server
-// (tools/rooms-dev.mjs) and the preview (tools/preview.mjs) on free
+// A shared pitch in real browsers (docs/MULTIPLAYER.md): the pitch server and the api
+// (tools/pitch-dev.mjs) and the preview (tools/preview.mjs) on free
 // 127.0.0.1 ports, and one browser context per player on one /p/<code>,
-// each passed the room server with ?rooms= (honoured only on 127.0.0.1).
+// each passed the servers with ?pitchserver= and ?api= (honoured only on 127.0.0.1).
 // Skipped with a notice when Playwright's Chromium is not installed.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
 import { serve, sweep, swing, waitPhase, VIEWPORTS } from "./browser.mjs";
-import { startRoomsServer } from "../../tools/rooms-dev.mjs";
-import { makeRoomCode } from "../../src/net/room.js";
+import { startPitchServer } from "../../tools/pitch-dev.mjs";
+import { makePitchCode } from "../../src/net/pitch-client.js";
 
 let available = false;
 try {
@@ -26,7 +26,7 @@ const browserTest = available ? test : test.skip;
 let env, rooms;
 before(async () => {
   if (!available) return;
-  rooms = await startRoomsServer({ port: 0 });
+  rooms = await startPitchServer();
   env = await serve({ build: true });
 });
 after(async () => {
@@ -56,7 +56,7 @@ async function join(
     if (m.type() === "error") page.errors.push(m.text());
   });
   page.on("pageerror", (e) => page.errors.push(e.message));
-  const url = `${env.base}/p/${code}?nohowto=1&rooms=${encodeURIComponent(rooms.url)}${query}`;
+  const url = `${env.base}/p/${code}?nohowto=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}${query}`;
   await page.goto(url);
   await page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
   if (lobby) {
@@ -73,6 +73,18 @@ async function join(
 }
 
 const pst = (page) => page.evaluate(() => window.__kubb.pitch.state());
+
+// The api keeps a finished match's replay once the pitch server has pushed both halves
+// (its kept log and its final snapshot): wait for it.
+async function keptReplay(code, ms = 20000) {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    const r = await rooms.api.store.getReplay(code);
+    if (r) return r;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`the api never kept a replay of ${code}`);
+}
 
 async function waitFor(page, fn, arg, ms = 20000) {
   try {
@@ -168,7 +180,7 @@ async function shot(page, name) {
 }
 
 browserTest("two browsers on opposite teams play the same throws", async () => {
-  const code = makeRoomCode();
+  const code = makePitchCode();
   const host = await join(code, "Hanna");
   const guest = await join(code, "Gus");
   await host.click("[data-test=join-A]");
@@ -295,7 +307,7 @@ browserTest("two browsers on opposite teams play the same throws", async () => {
   );
 
   // the guest's connection drops: it comes back and is still in step
-  await guest.evaluate(() => window.__kubb.pitch.room._socket.close());
+  await guest.evaluate(() => window.__kubb.pitch.room.ws.close());
   await waitFor(guest, () => window.__kubb.pitch.state().status === "open");
   await inStep([host, guest, late]);
 
@@ -335,7 +347,7 @@ browserTest("two browsers on opposite teams play the same throws", async () => {
 });
 
 browserTest("one person against the computer through the room", async () => {
-  const code = makeRoomCode();
+  const code = makePitchCode();
   const solo = await join(code, "Ada", "portrait");
   await solo.click("[data-test=join-B]");
   await waitFor(solo, () =>
@@ -378,7 +390,7 @@ browserTest("one person against the computer through the room", async () => {
 // as its main action, plays the match again through its own engine (read only) to the
 // same end, and goes back to the pitch; after REMATCH the lobby offers the last match.
 browserTest("a finished pitch plays its match again", async () => {
-  const code = makeRoomCode();
+  const code = makePitchCode();
   const solo = await join(code, "Ada");
   await solo.click("[data-test=join-B]");
   await waitFor(solo, () =>
@@ -401,6 +413,11 @@ browserTest("a finished pitch plays its match again", async () => {
   await waitFor(solo, () => window.__kubb.game.phase !== "play");
   await solo.evaluate(() => window.__kubb.game.resign("B"));
   await waitFor(solo, () => !!document.querySelector("[data-test=winner]"));
+  // the card does not wait for the resignation's ok: the pitch's head catches up
+  await waitFor(solo, () => {
+    const s = window.__kubb.pitch.state();
+    return s.pending === 0 && s.docHash === s.hash;
+  });
   const played = await pst(solo);
   // the player: REMATCH leads, WATCH REPLAY beside it
   await waitFor(
@@ -411,10 +428,8 @@ browserTest("a finished pitch plays its match again", async () => {
     await solo.getAttribute("[data-test=rematch]", "data-default"),
     "",
   );
-  // the room was told to keep it
-  await waitFor(solo, () =>
-    window.__kubb.pitch.log.some((e) => e[1] === "keep"),
-  );
+  // the pitch server kept it: the api holds its replay
+  await keptReplay(code);
 
   // a visitor after the end
   const late = await join(code, "Vic", "desktop", { lobby: false });
@@ -559,10 +574,12 @@ browserTest("a finished pitch plays its match again", async () => {
   }
 });
 
+// A browser that arrives after the end, with every player gone, has no log of its own:
+// the pitch gives it the finished match, and its replay is the one the api keeps.
 browserTest(
-  "a match from before replays offers the replay the room keeps for it",
+  "after the players leave, a finished pitch offers the replay the api keeps",
   async () => {
-    const code = makeRoomCode();
+    const code = makePitchCode();
     const solo = await join(code, "Ada");
     await solo.click("[data-test=join-B]");
     await waitFor(solo, () =>
@@ -573,24 +590,10 @@ browserTest(
     await settle(solo);
     await solo.evaluate(() => window.__kubb.game.resign("B"));
     await waitFor(solo, () => !!document.querySelector("[data-test=winner]"));
-    await waitFor(solo, () =>
-      window.__kubb.pitch.log.some((e) => e[1] === "keep"),
-    );
+    // the api keeps a replay of that match
+    await keptReplay(code);
     const played = await pst(solo);
     await solo.context().close();
-    // the document as one written before replays: no setup, start hash, log or end
-    const stored = await rooms.store.getDoc(code);
-    const doc = JSON.parse(stored.doc);
-    for (const k of ["setup", "h0", "log", "over"]) delete doc.match[k];
-    assert.ok(
-      await rooms.store.putDoc(
-        code,
-        { ...stored, doc: JSON.stringify(doc) },
-        stored.v,
-      ),
-    );
-    // the room keeps a replay of that match (as tools/backfill-replay.mjs writes one)
-    assert.ok(await rooms.store.getReplay(code));
 
     const late = await join(code, "Vic", "desktop", { lobby: false });
     await waitFor(late, () => !!document.querySelector("[data-test=winner]"));
@@ -626,7 +629,7 @@ browserTest(
 );
 
 browserTest("the lobby on a phone, as a guest", async () => {
-  const code = makeRoomCode();
+  const code = makePitchCode();
   const host = await join(code, "Hanna");
   await host.click("[data-test=join-A]");
   const guest = await join(code, "Gus", "portrait");
@@ -648,7 +651,7 @@ browserTest("the lobby on a phone, as a guest", async () => {
 browserTest(
   "an open game: listed on the web game’s page, joined from the list, taken off by the host",
   async () => {
-    const code = makeRoomCode();
+    const code = makePitchCode();
     const host = await join(code, "Hanna", "desktop", { query: "&open=1" });
     const access = () =>
       host.evaluate(
@@ -668,7 +671,7 @@ browserTest(
     });
     const look = async () => {
       await home.goto(
-        `${env.base}/web/?rooms=${encodeURIComponent(rooms.url)}`,
+        `${env.base}/web/?pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
       );
       await home.waitForFunction(
         () =>
@@ -715,7 +718,7 @@ browserTest(
     const passer = await ctx2.newPage();
     const lookAgain = async () => {
       await passer.goto(
-        `${env.base}/web/?rooms=${encodeURIComponent(rooms.url)}`,
+        `${env.base}/web/?pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
       );
       await passer.waitForFunction(
         () =>
@@ -767,10 +770,12 @@ browserTest(
   },
 );
 
-browserTest("a bad pitch code and a missing room server say so", async () => {
+browserTest("a bad pitch code and a missing pitch server say so", async () => {
   const ctx = await env.browser.newContext(VIEWPORTS.desktop);
   const page = await ctx.newPage();
-  await page.goto(`${env.base}/p/abcdefgh?nohowto=1&rooms=ws://127.0.0.1:1`);
+  await page.goto(
+    `${env.base}/p/abcdefgh?nohowto=1&pitchserver=ws://127.0.0.1:1&api=http://127.0.0.1:1/api`,
+  );
   await page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
   await page.waitForSelector("[data-test=lobby]");
   assert.match(

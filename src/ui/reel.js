@@ -46,11 +46,11 @@ const tallWindow = () => window.innerHeight > window.innerWidth;
 
 export class Reel {
   // root: the element cards go in; game: the Game (modal count), or null; code: the
-  // pitch; url: the rooms server; match: { n, hash } of the match shown, to be sure the
+  // pitch; url: the api's base (src/net/api.js); match: { n, hash } of the match shown, to be sure the
   // room's kept replay is this match (read afresh before every ask that could start a
   // render); known: the page's own word that the reel is done (reelFromPage); link:
   // show the pitch's link and COPY LINK in every state (a match just shared, whose link
-  // is new); WebSocket: for tests.
+  // is new); fetch: for tests.
   constructor({
     root,
     game = null,
@@ -59,10 +59,10 @@ export class Reel {
     match = null,
     known = null,
     link = false,
-    WebSocket = null,
+    fetch = null,
   }) {
     Object.assign(this, { root, game, code, url, match, link });
-    this.ws = WebSocket ? { WebSocket } : {};
+    this.ws = fetch ? { fetch } : {};
     this.state = reelStart(known);
     this.buttons = new Set();
     this.card = null; // { scrim, body, close } while open

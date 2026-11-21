@@ -123,7 +123,7 @@ async function bootEmbed() {
   const made = await startEmbed({
     ui,
     code: embedCode(),
-    roomsUrl: roomsUrl(),
+    apiUrl: apiUrl(),
     engines,
     makeGame: async () => {
       const engine = await makeEngine();
@@ -170,25 +170,25 @@ async function boot() {
   // never on a shared pitch, whose scene is the host's (src/render/scenes.js)
   const asked = mode !== "pitch" ? sceneFromQuery(location.search) : null;
   let pitch = null;
-  // Feedback goes to the room server: none in this build, no SEND FEEDBACK.
-  const report = roomsUrl()
+  // Feedback goes to the api: none in this build, no SEND FEEDBACK.
+  const report = apiUrl()
     ? () =>
         openReport(ui, {
           game,
           mode,
           config,
           pitch,
-          url: roomsUrl(),
+          url: apiUrl(),
         })
     : null;
   // a shared pitch's finished match is read from its own engine (docs/ENGINES.md)
   const sheet = () =>
     pitch?.openSheet ? pitch.openSheet() : openSheet(ui, { game });
-  // A solo or watch match, when it ends, goes to the room server to be kept
-  // (src/net/record.js); a shared pitch's room records itself.
+  // A solo or watch match, when it ends, goes to the api to be kept
+  // (src/net/record.js); a shared pitch's server records it.
   const record = () =>
-    roomsUrl()
-      ? recordMatch({ game, mode, config, url: roomsUrl() })
+    apiUrl()
+      ? recordMatch({ game, mode, config, url: apiUrl() })
       : Promise.resolve(false);
   const menu = new Menu(ui, {
     game,
@@ -273,7 +273,8 @@ async function boot() {
       ui,
       code,
       home,
-      roomsUrl: roomsUrl(),
+      pitchUrl: pitchUrl(),
+      apiUrl: apiUrl(),
       sheet: () => openSheet(ui, { game }),
       menu,
       engines,
@@ -411,8 +412,8 @@ function startSolo(game, cards, { sheet, record, menu, asked }) {
       record();
       share?.destroy();
       share =
-        roomsUrl() && shareable({ trail: game.trail, need })
-          ? new Share({ root: ui, game, url: roomsUrl() })
+        apiUrl() && shareable({ trail: game.trail, need })
+          ? new Share({ root: ui, game, url: apiUrl() })
           : null;
       if (testing && window.__kubb) window.__kubb.share = share;
       cards.winner(need, {
@@ -517,12 +518,19 @@ function watchView(game, menu) {
 
 // ---------- a shared pitch ----------
 
-// The room server's address: the build's, or, only when testing (127.0.0.1,
-// localhost or ?test=1), a ?rooms= override so a test can run its own.
-function roomsUrl() {
-  const o = params.get("rooms");
+// The pitch server's address and the api's: the build's, or, only when testing
+// (127.0.0.1, localhost or ?test=1), ?pitchserver= and ?api= overrides so a test (or
+// `npm run dev`) can run its own (tools/pitch-dev.mjs).
+function pitchUrl() {
+  const o = params.get("pitchserver");
   if (testing && o && /^wss?:\/\//.test(o)) return o;
-  return config.roomsUrl;
+  return config.pitchUrl;
+}
+
+function apiUrl() {
+  const o = params.get("api");
+  if (testing && o && /^https?:\/\//.test(o)) return o;
+  return config.apiUrl;
 }
 
 boot().catch(fail);

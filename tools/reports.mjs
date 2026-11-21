@@ -41,7 +41,8 @@ export const reportKind = (r) =>
 export function describeReport(obj, file = "") {
   const r = obj.report ?? {};
   const lines = [];
-  const where = r.room ? ` room ${r.room} v ${r.v ?? "?"}` : "";
+  const code = r.pitch ?? r.room; // `room` from older clients
+  const where = code ? ` pitch ${code} v ${r.v ?? "?"}` : "";
   const client = typeof r.client === "string" ? ` [${r.client}]` : "";
   const kind = reportKind(r);
   lines.push(
@@ -80,7 +81,7 @@ export function describeReport(obj, file = "") {
     state.push(`start + ${r.actions.length} actions`);
   if (r.practice?.before) state.push("practice checkpoint + reported throw");
   if (r.practice?.ops) state.push(`practice + ${r.practice.ops.length} steps`);
-  if (r.room) state.push(`recorded game: games/${r.room}/ (v ${r.v ?? "?"})`);
+  if (code) state.push(`recorded pitch: ${code} (v ${r.v ?? "?"})`);
   lines.push(`  Replay: ${state.join("; ") || "nothing replayable"}`);
   if (r.dropped) lines.push(`  Dropped to fit: ${r.dropped.join(", ")}`);
   lines.push(

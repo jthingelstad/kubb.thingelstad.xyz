@@ -13,7 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
 import { serve } from "./browser.mjs";
-import { startRoomsServer } from "../../tools/rooms-dev.mjs";
+import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { bundleText } from "../../tools/lua-bundle.mjs";
 import { injectPreview, pitchState } from "../../backend/pages/pitch.mjs";
 import { writeEngineTree } from "../engine/engine-fixture.mjs";
@@ -62,18 +62,47 @@ before(async () => {
   olderDir = fs.mkdtempSync(path.join(os.tmpdir(), "kubb-older-engine-"));
   writeEngineTree(olderDir, "0.6.9");
   olderText = bundleText(olderDir).text;
-  rooms = await startRoomsServer({ port: 0 });
+  rooms = await startPitchServer();
+  // kept replays in the api's store (backend/api/memory-store.mjs): a finished pitch's
+  // as its pushes leave it (the final snapshot and the kept half), and a shared match's
+  // as `share` keeps it (a sealed state and replay)
+  const store = rooms.api.store;
   const exp = Math.floor(Date.now() / 1000) + 3600;
-  const keep = (code, data) =>
-    rooms.store.putReplay(code, { v: 9, t: Date.now(), data, exp });
-  await keep(CODES.older, withEngine("0.6"));
-  await keep(CODES.unknown, withEngine("0.5"));
-  await rooms.store.putRoom(
-    CODES.sealed,
-    { host: null, members: {}, sealed: true, rev: 1, exp },
-    0,
-  );
-  await keep(CODES.sealed, withEngine("0.6"));
+  const { snap, hash, n } = REPLAY;
+  const half = (engine) => {
+    const { snap: _, ...rest } = { ...REPLAY, engine };
+    return JSON.stringify(rest);
+  };
+  const keep = async (code, engine) => {
+    await store.putFinal(code, { made: 1, n, snap, exp });
+    await store.putKept(code, {
+      made: 1,
+      n,
+      v: 9,
+      data: half(engine),
+      hash,
+      exp,
+    });
+  };
+  await keep(CODES.older, "0.6");
+  await keep(CODES.unknown, "0.5");
+  await store.keepShare(`fixture-${CODES.sealed}`, CODES.sealed, {
+    state: {
+      made: 9,
+      n,
+      seq: REPLAY.log.length,
+      over: true,
+      snap,
+      hash,
+      sealed: true,
+      rev: 1,
+      exp,
+    },
+    replay: { made: 9, n, v: 9, data: half("0.6"), snap, hash, exp },
+  });
+  for (const code of Object.values(CODES))
+    assert.ok(await store.getReplay(code), code);
+  assert.equal((await store.getReplay(CODES.sealed)).sealed, true);
   env = await serve({
     build: true,
     page: (html, { uri, query }) => {
@@ -119,7 +148,8 @@ function keptOf(text) {
   return { v: 5, made: 1, n: r.n ?? null, hash: r.hash ?? null, snap: r.snap };
 }
 
-const rq = () => `rooms=${encodeURIComponent(rooms.url)}`;
+const rq = () =>
+  `pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`;
 
 browserTest(
   "an embed plays a carried engine's match on that engine, another on the newest",

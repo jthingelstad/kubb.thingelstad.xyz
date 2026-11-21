@@ -14,9 +14,10 @@
 //
 // Everything under dist/assets/ carries a content hash in its name and is
 // cached for a year; the pages name those files, so a page always loads the
-// client it was built with. The deploy build differs in two ways: the rooms
-// address is the production one (infra/deployment.json) and the pages load
-// Tinylytics (once its site id is set, and only on the production host).
+// client it was built with. The deploy build differs in two ways: the pitch
+// server's address is the production one (PITCH_URL in src/site/site.mjs) and
+// the pages load Tinylytics (once its site id is set, and only on the
+// production host).
 //
 // Sitemap lastmod is the last commit that touched a page's sources, never the
 // build time (search-consoles rule, 2026-10-28). CI checks out full history.
@@ -32,8 +33,10 @@ import { bundleFile, carriedEngines } from "./lua-bundle.mjs";
 import { associationKey } from "./delivery-plan.mjs";
 import { robotsTxt } from "../src/site/robots.mjs";
 import {
-  DEV_ROOMS_URL,
+  API_URL,
+  DEV_PITCH_URL,
   GAME_READY,
+  PITCH_URL,
   NEWSLETTER_URL,
   ORIGIN,
   SITE_TITLE,
@@ -56,17 +59,12 @@ const lastCommit = (paths) =>
 const hash = (bytes) =>
   createHash("sha256").update(bytes).digest("hex").slice(0, 12);
 
-// The rooms address the client is given. Locally: tools/rooms-dev.mjs. In the
-// deploy build: wss://throwingwood.com/ws once the /ws route is on, else
-// the API's own address, else null (the rooms are not deployed yet).
-export async function roomsUrl(production) {
-  if (!production) return DEV_ROOMS_URL;
-  const deployment = JSON.parse(
-    await fs.readFile("infra/deployment.json", "utf8"),
-  );
-  if (!deployment.rooms) return null;
-  if (deployment.wsRoute) return `wss://${new URL(ORIGIN).host}/ws`;
-  return deployment.rooms.webSocketUrl;
+// The pitch server the client is given: PITCH_URL in the deploy build, the dev
+// Worker in every other, and KUBB_PITCH_URL over either (npm run dev points it at
+// the server on this machine, tools/dev.mjs).
+export function pitchUrl(production, env = process.env) {
+  if (env.KUBB_PITCH_URL) return env.KUBB_PITCH_URL;
+  return production ? PITCH_URL : DEV_PITCH_URL;
 }
 
 // A file under dist/assets/, named <name>-<hash><ext>.
@@ -171,7 +169,8 @@ export async function buildSite({
   const config = {
     version: pkg.version,
     commit,
-    roomsUrl: await roomsUrl(production),
+    pitchUrl: pitchUrl(production),
+    apiUrl: API_URL,
     wasmUrl: await hashedAsset("node_modules/wasmoon/dist/glue.wasm", "glue"),
     luaUrl: engines[newest].luaUrl,
     engine,
@@ -239,7 +238,7 @@ A pitch at /p/<code> is one group's game, reached by its link; those pages are n
   await fs.writeFile("dist/version.json", JSON.stringify(release) + "\n");
   if (!quiet)
     console.log(
-      `Built ${PAGES.length} pages${production ? " (deploy build)" : ""}; rooms ${config.roomsUrl ?? "not deployed"}; Lua ${config.luaUrl ?? "not bundled yet"}`,
+      `Built ${PAGES.length} pages${production ? " (deploy build)" : ""}; pitch server ${config.pitchUrl ?? "none"}; Lua ${config.luaUrl ?? "not bundled yet"}`,
     );
   return { config, assets };
 }

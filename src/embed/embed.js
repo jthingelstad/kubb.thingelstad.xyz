@@ -51,7 +51,7 @@ export function readPitch(doc = document) {
 export async function startEmbed({
   ui,
   code,
-  roomsUrl,
+  apiUrl,
   makeGame,
   fetch = fetchReplay,
   engines = null,
@@ -105,11 +105,11 @@ export async function startEmbed({
     return quiet("Waiting for players", null, "waiting");
   // checked once the engine is here (the check is the engine's): fetched first, so a
   // pitch with nothing kept never loads it
-  const fetched = roomsUrl
-    ? await fetch({ url: roomsUrl, code, check: null })
+  const fetched = apiUrl
+    ? await fetch({ url: apiUrl, code, check: null })
     : null;
   // a finished match plays only its own replay: a rematch that could not be kept
-  // leaves the one before it in the room (src/net/pitch.js lookForKept)
+  // leaves the one before it kept (src/net/pitch.js lookForKept)
   const m = s?.state === "over" ? s.match : null;
   const data =
     fetched && m && (fetched.n !== m.n || fetched.hash !== m.hash)

@@ -1,8 +1,8 @@
 // Every match is recorded (AGENTS.md "Recorded games"). A shared pitch's room records
 // itself on the server (backend/rooms/recorder.mjs). A match played in this browser alone,
 // against the computer (?solo=1) or the computer against itself (?watch=1), has no room:
-// when it ends, the browser sends it whole, once, on a socket of its own, and the room
-// server keeps it beside the rooms' records (docs/ROOMS.md section 7).
+// when it ends, the browser sends it whole, once, over HTTPS (backend/api/API.md "game"),
+// and the api function keeps it beside the pitches' records.
 //
 //   recordMatch({ game, mode, config, url });   // on the `over` need; never throws
 //
@@ -19,8 +19,7 @@
 // The whole message is held to GAME_LIMITS.bytes as ASCII JSON. Over it, the parts that
 // only help are dropped in this order (listed in `g.dropped`): the hashes, the game file,
 // then the first snapshot and the actions (the options, with the seed, stay).
-import { asciiJson } from "./room.js";
-import { ask } from "./ask.js";
+import { apiCall, asciiJson } from "./api.js";
 import { CLIENT } from "./sync.js";
 import { luaFor } from "../site/config.js";
 
@@ -112,8 +111,15 @@ export function gameMessage(record, { id = 1, limits = GAME_LIMITS } = {}) {
   return msg;
 }
 
-export function sendGame(opts) {
-  return ask({ ...opts, done: "recorded", re: "game" });
+// POST /api/game with the message's `g`.
+export async function sendGame({ url, message, fetch }) {
+  await apiCall({
+    base: url,
+    call: "game",
+    body: { g: message.g },
+    ...(fetch ? { fetch } : {}),
+  });
+  return true;
 }
 
 // When a solo or watch match ends: send it once (the trail is marked), in the background.

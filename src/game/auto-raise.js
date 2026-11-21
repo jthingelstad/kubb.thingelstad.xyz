@@ -4,8 +4,10 @@
 // match (raising is a match option, so it is not in MENU). Pure: Game calls
 // step() every frame and raises when it says so. Nothing here is kept on the device: a match that should
 // always raise itself is the match's own Raising option.
+import { pacing } from "./pacing.js";
+
 export const tune = {
-  wait: 0.7, // s a kubb is shown lying before an automatic raise stands it
+  wait: pacing.autoRaiseWait, // s a kubb lies before an automatic raise (src/game/pacing.js)
 };
 
 // game: for the rest of the match. turn: for the rest of this turn's kubbs.

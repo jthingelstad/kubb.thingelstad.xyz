@@ -1,11 +1,12 @@
-// A shared pitch (docs/MULTIPLAYER.md): /p/<code> without ?solo=1. Joins
-// the room (src/net/room.js), shows the lobby, and once the host starts,
-// drives the Game through its seam (docs/CLIENT.md): the seat says who may
-// act here, onAction commits what was done here, applyRemote plays what was
-// done elsewhere, adopt takes the room's snapshot when this browser is out of
-// step. The rules of who acts, the document's reducers and the in-step decision are
-// the engine's (vendor/engine/room/), through src/net/seats.js, lobby.js and sync.js.
-import { connect, memberId, observerId, RoomError } from "./room.js";
+// A shared pitch (docs/MULTIPLAYER.md): /p/<code> without ?solo=1. Joins the pitch on
+// the pitch server (src/net/pitch-client.js), shows the lobby, and once the host starts,
+// drives the Game through its seam (docs/CLIENT.md): the seat says who may act here,
+// onAction commits what was done here, applyRemote plays what was done elsewhere, adopt
+// takes the pitch's snapshot when this browser is out of step. The rules of who acts and
+// the lobby document's reducers are the engine's (vendor/engine/room/), through
+// src/net/seats.js and lobby.js.
+import { connect, memberId, observerId, PitchError } from "./pitch-client.js";
+import { AimSender, AimBuffer, aimTune } from "./aim.js";
 import {
   lobbyOf,
   joinTeam,
@@ -14,7 +15,6 @@ import {
   lineup,
   matchOptions,
   startMatch,
-  commitAction,
   backToLobby,
   cleanName,
   cleanOptions,
@@ -40,38 +40,28 @@ import {
   mayAct,
   shownActor,
   playingSide,
-  nextHost,
 } from "./seats.js";
-import { decide, rider, aimKey } from "./sync.js";
 import { Lobby } from "../ui/lobby.js";
 import { WatchCard } from "../ui/watching.js";
 import { WatchView } from "../ui/watch-view.js";
 import { prefs } from "../game/prefs.js";
 import { h, button } from "../ui/dom.js";
 import { ReplayPlayer } from "../replay/player.js";
-import { fetchReplay } from "../replay/fetch.js";
+import { fetchReplay, askReplay } from "../replay/fetch.js";
 import { openEmbed, EMBED_ORIGIN } from "../ui/embed.js";
 import { Reel } from "../ui/reel.js";
 import { reelFromPage } from "./reel.js";
 import { majorMinor, withEngineFor } from "../engine/registry.js";
 import { openSheet } from "../ui/sheet.js";
 import { SCENE_ROW } from "../render/scenes.js";
-import { StepBack } from "./step-back.js";
 
 export const tune = {
-  tickMs: 200, // the controller's clock: aim casts (5 a second), drain, host check
-  hostGoneMs: 16000, // a host away this long is replaced (the room allows 15 s)
-  claimEveryMs: 5000,
+  tickMs: 200, // the controller's clock: drain, seats, the open listing
+  aimMs: 1000 / aimTune.hz, // the aim's clock while it is this browser's throw
   shoutMs: 2600, // a shout stays up this long
   shoutGapMs: 700, // this browser's shouts at most this often
   stuckMs: 8000, // still not connected after this: say so
   watchNoteMs: 7000,
-  openEveryMs: 5 * 60 * 1000, // an open pitch's host says so again this often (listing TTL 15 min)
-  // an observer first in line for host steps back (rejoins, last in line) so a player
-  // can take over; while nobody does, the wait doubles from this to the cap
-  // (src/net/step-back.js, docs/OBSERVER.md)
-  stepBackMs: 20000,
-  stepBackMaxMs: 5 * 60 * 1000,
 };
 
 export const SHOUTS = ["NICE!", "OOH!", "TOK!", "UNLUCKY"];
@@ -132,8 +122,10 @@ export function startPitch(env) {
 }
 
 export class Pitch {
-  // env: { game, cards, ui, config, code, home, roomsUrl, sheet?, menu?, engines?,
-  //        observe?, WebSocket? }
+  // env: { game, cards, ui, config, code, home, pitchUrl, apiUrl, sheet?, menu?,
+  //        engines?, observe?, WebSocket?, fetch? }
+  // pitchUrl: the pitch server (wss://...); apiUrl: the api over HTTPS (kept replays,
+  //   reels), "/api" on the site
   // observe: /p/<code>?observe=1, an observer (docs/OBSERVER.md): joins to watch,
   //   never takes a side, the computer or the host, and never writes the document
   // sheet: () => void, opens the score sheet of the Game's engine
@@ -146,28 +138,30 @@ export class Pitch {
     // and a match this browser may not play are drawn from it (docs/ENGINES.md)
     this.newestEngine = env.game?.engine ?? null;
     this.matchMm = undefined; // the running match's major.minor, when this page plays it
-    this.engineWait = null; // a match's engine loading: the room's news waits for it
+    this.engineWait = null; // a match's engine loading: the pitch's news waits for it
     this.engineFailed = null; // a match's engine that did not load
     this.mode = "lobby"; // lobby | match | replay | gone | sealed
     this.sealed = null; // a shared match's kept replay (showSealed)
     this.replay = null; // the replay player while one plays (src/replay/player.js)
     this.replayFrom = null; // the mode to go back to
-    this.kept = null; // the match number this browser asked the room to keep
     this.arrivedOver = null; // the match number this browser first saw finished
-    this.lastReplay = null; // the room's kept replay, for the lobby
+    this.lastReplay = null; // the pitch's kept replay, for the lobby
     this.reel = null; // the highlight reel of the last finished match (src/ui/reel.js)
     this.local = { n: null, seq: 0 }; // the match and action this browser holds
-    this.match = null; // doc.match's players and cpu, for the seats
-    this.queue = []; // remote actions waiting for a playback to end
-    this.pending = 0; // our own commits in flight
+    this.head = null; // { seq, h }: the newest action this browser knows was committed
+    this.match = null; // the match header (players, cpu, host, engine), for the seats
+    this.meta = null; // the match's start info, what its replay needs besides the log
+    this.acts = null; // the match's log as seen here ([{ a, h, ts }]), null when not whole
+    this.h0 = null; // the hash at the match's start
+    this.overSnap = null; // the snapshot a finished match ended on
+    this.queue = []; // remote actions waiting for a playback (or their aim) to end
+    this.stale = false; // the pitch's news was missed (a replay, an engine loading)
     this.control = null;
-    this.lastAim = "";
     this.lastShout = 0;
-    this.hostGoneAt = null;
-    this.lastClaim = 0;
     this.watchNoteUntil = 0;
     this.observe = !!env.observe;
-    this.stepping = new StepBack(tune);
+    this.aimOut = new AimSender();
+    this.aimIn = new AimBuffer();
     this.view = null; // the watcher's view (src/ui/watch-view.js), made when first needed
     this.log = []; // what happened, for the test hook and debugging
   }
@@ -176,24 +170,34 @@ export class Pitch {
     return this.room?.you;
   }
 
+  // our own actions the pitch has not answered yet
+  get pending() {
+    return this.room?.pending.length ?? 0;
+  }
+
+  // the api calls' options (src/net/api.js): a test's fetch when it gave one
+  apiOpts() {
+    return { url: this.apiUrl, ...(this.fetch ? { fetch: this.fetch } : {}) };
+  }
+
   // ---------- starting ----------
 
   begin() {
     const { game, cards } = this;
     // The pages function's og:video, written when this pitch's reel is done
     // (backend/pages/pitch.mjs): the one honest way to know on load, because asking
-    // the room server is what starts a render (src/net/reel.js).
+    // the api is what starts a render (src/net/reel.js).
     this.pageReel = reelFromPage(
       document.querySelector('meta[property="og:video"]')?.content,
       this.code,
       [EMBED_ORIGIN, location.origin],
     );
     game.newPractice({ surface: prefs.get("pitchOptions", {}).surface });
-    if (!this.roomsUrl) {
+    if (!this.pitchUrl) {
       cards.notice({
         kicker: `PITCH ${this.code}`,
-        title: "No rooms here",
-        text: "This copy of the game has no room server, so friends cannot join this pitch. You can still play the computer.",
+        title: "No pitches here",
+        text: "This copy of the game has no pitch server, so friends cannot join this pitch. You can still play the computer.",
         actions: [
           ["PLAY THE COMPUTER", () => this.solo(), "go"],
           ["HOME", this.home],
@@ -207,14 +211,21 @@ export class Pitch {
     this.name = name;
     // every engine this page can play, newest first (src/engine/registry.js)
     this.carries = this.engines?.newest ? this.engines.carried() : [ENGINE];
+    // A shared match (docs/REEL.md) has no live pitch, only its kept replay: asked of
+    // the api beside the join, and looked at before this browser writes anything on a
+    // pitch nobody has used (onReady).
+    this.sealedAsk = this.apiUrl
+      ? askReplay({ ...this.apiOpts(), code: this.code }).catch(() => null)
+      : Promise.resolve(null);
     try {
       this.room = connect({
-        url: this.roomsUrl,
-        room: this.code,
+        url: this.pitchUrl,
+        pitch: this.code,
         // an observer is a member of its own, never this browser's player
         member: this.observe ? observerId() : memberId(),
+        role: this.observe ? "observer" : "player",
         // engine and engines: what this page carries, the newest until it knows the
-        // room (the engine's docs/ROOM.md "Speaking down"; Pitch.speak)
+        // pitch (the engine's docs/ROOM.md "Speaking down"; Pitch.speak)
         me: { name, level: game.level, ...this.announcement(null) },
         ...(this.WebSocket ? { WebSocket: this.WebSocket } : {}),
       });
@@ -253,9 +264,9 @@ export class Pitch {
           { code: this.code, name, level: game.level },
         );
 
-    // a change of level in MENU: the lobby says it, the room hears it
+    // a change of level in MENU: the lobby says it, the pitch hears it
     this.stopLevel = game.onLevel((v) => this.levelChanged(v));
-    // and a change of name there (or the first one typed in the lobby): the room hears it
+    // and a change of name there (or the first one typed in the lobby): the pitch hears it
     this.stopName = game.onPlayerName((v) => this.nameChanged(v));
 
     this.buildHud();
@@ -263,16 +274,24 @@ export class Pitch {
     game.onAction = (a, snap, hash) => this.onAction(a, snap, hash);
     game.onNeed = (need) => this.onNeed(need);
     game.whoActs = (need) => this.who(need);
+    game.remoteFeed = () => this.remoteAim();
+    game.onRelease = (pre) => this.castRelease(pre);
     cards.who = (need) => this.who(need);
 
     room.on("status", () => this.onStatus());
-    room.on("state", () => this.resync());
+    room.on("state", (e) => this.onState(e));
     room.on("members", () => this.onMembers());
-    room.on("host", () => this.onMembers());
     room.on("left", () => this.pruneLater());
     room.on("doc", (e) => this.onDoc(e));
+    room.on("start", (e) => this.onStart(e));
+    room.on("acts", (acts) => this.onActs(acts));
+    room.on("ok", (e) => this.onOk(e));
+    room.on("refused", (e) => this.onRefused(e));
     room.on("cast", (e) => this.onCast(e));
-    room.on("error", (e) => this.note("room", e.code));
+    room.on("error", (e) => this.note("pitch", e.code));
+    room.on("failed", (err) => {
+      if (this.ready) this.joinFailed(err);
+    });
 
     this.lobby.show();
     this.renderLobby();
@@ -285,16 +304,34 @@ export class Pitch {
         this.lobby.say("Still trying to reach the pitch...");
     }, tune.stuckMs);
     this.timer = setInterval(() => this.tick(), tune.tickMs);
+    this.aimTimer = setInterval(() => this.castAim(), tune.aimMs);
   }
 
-  onReady() {
+  async onReady() {
     clearTimeout(this.stuckTimer);
     const room = this.room;
     if (this.lobby.note.textContent.startsWith("Still trying"))
       this.lobby.say("");
-    // an observer that made the room (nobody was here): there is nothing to watch
-    if (this.observe && room.isHost() && room.v === 0) return this.noGame();
-    // the host's own options go in on a new pitch, and OPEN from the web game’s page
+    // a pitch nobody has used: a shared match's code is one (its replay is kept, there
+    // is no live pitch), and an observer has nothing to watch
+    if (room.v === 0 && !room.match) {
+      const kept = await this.sealedAsk;
+      if (this.mode === "gone") return;
+      if (kept?.sealed) {
+        this.note("sealed-code");
+        room.leave();
+        clearInterval(this.timer);
+        clearInterval(this.aimTimer);
+        this.lobby?.hide();
+        return this.showSealed();
+      }
+      const players = room.members.filter(
+        (m) => m.connected && m.role !== "observer",
+      );
+      if (this.observe && players.length === 0) return this.noGame();
+    }
+    this.ready = true;
+    // the host's own options go in on a new pitch, and OPEN from the web game's page
     // (/p/<code>?open=1) makes it an open game
     if (!this.observe && room.isHost() && room.v === 0) {
       const saved = prefs.get("pitchOptions", {});
@@ -310,30 +347,31 @@ export class Pitch {
         return open ? (setAccess(d, true) ?? d) : d;
       });
     }
-    this.resync();
+    this.renderLobby();
     this.lookForReplay();
   }
 
   // Between matches, a pitch that has had one offers its last finished match
-  // (WATCH THE LAST MATCH) when the room keeps its replay. Asked on a socket of
-  // its own (src/replay/fetch.js), once on arriving and after each match.
+  // (WATCH THE LAST MATCH) when the api keeps its replay. Asked over HTTPS
+  // (src/replay/fetch.js), once on arriving and after each match.
   async lookForReplay() {
     const doc = this.room?.doc;
-    if (this.mode !== "lobby" || !doc || lobbyOf(doc).n < 1) return;
+    if (this.mode !== "lobby" || !doc || lobbyOf(doc).n < 1 || !this.apiUrl)
+      return;
     const r = await fetchReplay({
-      url: this.roomsUrl,
+      ...this.apiOpts(),
       code: this.code,
       check: isReplay,
-      ...(this.WebSocket ? { WebSocket: this.WebSocket } : {}),
     });
     this.lastReplay = r;
     this.lobby?.setReplay(!!r);
   }
 
-  // An observer found an empty pitch (its join made the room): it leaves, so the room
-  // keeps no member, and says so.
+  // An observer found an empty pitch: it leaves, so the pitch keeps no member, and says
+  // so.
   noGame() {
     clearInterval(this.timer);
+    clearInterval(this.aimTimer);
     this.mode = "gone";
     this.note("no-game");
     this.room.leave();
@@ -360,14 +398,23 @@ export class Pitch {
   joinFailed(err) {
     clearTimeout(this.stuckTimer);
     clearInterval(this.timer);
+    clearInterval(this.aimTimer);
+    if (this.mode === "gone") return;
     this.mode = "gone";
     this.lobby?.hide();
-    const code = err instanceof RoomError ? err.code : "error";
-    if (code === "sealed") return this.showSealed();
+    let code = err instanceof PitchError ? err.code : "error";
+    if (code === "bad-pitch" || code === "bad-member") code = "bad-room";
+    // an observer refused for a pitch with nobody on it
+    if (code === "no-pitch" && this.observe) {
+      this.mode = "lobby";
+      return this.noGame();
+    }
     const text = {
-      full: "Sixteen people are on this pitch already, every one of them connected. Start a pitch of your own, or try again when someone leaves.",
+      full: "This pitch has as many people on it as it takes, every one of them connected. Start a pitch of your own, or try again when someone leaves.",
       "bad-room":
         "That is not a pitch's link. Pitch links come from Start a pitch on the web game’s page.",
+      "no-pitch":
+        "Nobody has started this pitch. Pitch links come from Start a pitch on the web game’s page.",
       replaced: "This pitch is open in another tab or window of this browser.",
     }[code];
     this.cards.notice({
@@ -375,7 +422,7 @@ export class Pitch {
       title:
         code === "full"
           ? "This pitch is full"
-          : code === "bad-room"
+          : code === "bad-room" || code === "no-pitch"
             ? "No such pitch"
             : code === "replaced"
               ? "Open somewhere else"
@@ -395,20 +442,18 @@ export class Pitch {
 
   // ---------- a shared match ----------
 
-  // A match against the computer shared from a winner card (docs/REEL.md, docs/ROOMS.md
-  // section 13) is a sealed room: it is watched, never joined. Its page shows the
-  // finished match from the room's kept replay, as a browser arriving after a pitch's
-  // end sees it: the result, WATCH REPLAY, the score sheet, EMBED and the reel. No
-  // lobby, seats or rematch. The room never moves on, so the replay read here is the
-  // one its reel is made from.
+  // A match against the computer shared from a winner card (docs/REEL.md, backend/api
+  // `share`) is a sealed pitch: it is watched, never joined. Its page shows the finished
+  // match from the api's kept replay, as a browser arriving after a pitch's end sees it:
+  // the result, WATCH REPLAY, the score sheet, EMBED and the reel. No lobby, seats or
+  // rematch. It never moves on, so the replay read here is the one its reel is made from.
   async showSealed() {
     this.mode = "sealed";
     if (this.shoutBar) this.shoutBar.hidden = true;
     const r = await fetchReplay({
-      url: this.roomsUrl,
+      ...this.apiOpts(),
       code: this.code,
       check: isReplay,
-      ...(this.WebSocket ? { WebSocket: this.WebSocket } : {}),
     });
     if (!r) {
       this.mode = "gone";
@@ -458,14 +503,14 @@ export class Pitch {
 
   // ---------- writing the document ----------
 
-  // room.update with the errors turned into a word in the lobby; resolves
-  // the result or null.
-  async write(fn, opts) {
+  // The lobby document through fn, compare-and-set (pitch.update), with the errors
+  // turned into a word in the lobby; resolves the result or null.
+  async write(fn) {
     try {
-      return await this.room.update(fn, opts);
+      return await this.room.update(fn);
     } catch (err) {
       this.note("write", err.code);
-      if (err.code === "uncertain" || err.code === "busy") this.resync();
+      if (err.code === "uncertain" || err.code === "busy") this.room.resync();
       else if (this.lobby?.shown) this.lobby.say(plainError(err));
       return null;
     }
@@ -521,25 +566,23 @@ export class Pitch {
     this.write((d) => setAccess(d, open));
   }
 
-  // The host keeps the room server's listing in step with the document: on every
-  // change, and again every tune.openEveryMs while open. Anyone else sends nothing.
-  publishOpen(at = Date.now()) {
+  // The host keeps the open games list in step with the document: { seats, state }
+  // on every change (the pitch server counts who is on it and says it again while
+  // listed). Anyone else sends nothing.
+  publishOpen() {
     const room = this.room;
     if (!room || !room.isHost() || room.status !== "open") return;
-    const info = openListing(room.doc, room.members, {
+    const listed = openListing(room.doc, room.members, {
       over:
         this.mode === "replay" ||
         (this.mode === "match" && this.game.need?.kind === "over"),
     });
+    const info = listed ? { seats: listed.seats, state: listed.state } : null;
     if (info) this.sawOpen = true;
     else if (!this.sawOpen) return; // never open here: nothing to take off
     const key = JSON.stringify(info);
-    if (key === this.openKey && (!info || at - this.openAt < tune.openEveryMs))
-      return;
-    if (room.setOpen(info)) {
-      this.openKey = key;
-      this.openAt = at;
-    }
+    if (key === this.openKey) return;
+    if (room.setOpen(info)) this.openKey = key;
   }
 
   async share() {
@@ -860,37 +903,66 @@ export class Pitch {
     const hash = this.game.engine.hash().hash;
     this.speak(mm);
     this.note("start-on", mm);
-    const key = JSON.stringify(lu);
-    let moved = false;
-    this.pending++;
-    const r = await this.write((d) => {
-      const members = room.members;
-      moved =
-        JSON.stringify(lineup(d, members)) !== key ||
-        roomEngineFor(d, members, room.you, room.you, this.carries).engine !==
-          mm;
-      if (moved) return undefined;
-      return startMatch(
-        d,
-        {
-          snap,
-          hash,
-          players: lu.players,
-          cpu: lu.cpu,
-          host: room.you,
-          setup: opts,
-          members: speakAs(members, mm),
-        },
-        mm,
-      );
-    });
-    this.pending--;
+    // The document gets the match's header (who plays, the computer, the host, the
+    // engine) and its number; the snapshot, the hash and `meta` (what a replay needs
+    // besides the log) go beside it in the start (PROTOCOL.md `start`), never in it.
+    const full = startMatch(
+      doc,
+      {
+        snap,
+        hash,
+        players: lu.players,
+        cpu: lu.cpu,
+        host: room.you,
+        setup: opts,
+        members: speakAs(room.members, mm),
+      },
+      mm,
+    );
+    if (!full) {
+      this.mode = "lobby";
+      this.toLobby();
+      this.lobby.say("The match could not start. Try again.");
+      return;
+    }
+    const fm = full.match;
+    const header = {
+      ...full,
+      match: {
+        n: fm.n,
+        players: fm.players,
+        cpu: fm.cpu ?? null,
+        host: fm.host,
+        engine: fm.engine,
+      },
+    };
+    // `engine` is the match's major.minor (what picks the engine to replay it on);
+    // `version` the full one it was started on, for the records (the old rider's `e`).
+    const meta = {
+      v: 1,
+      setup: fm.setup,
+      engine: fm.engine,
+      version: engine.version ?? null,
+      players: fm.players,
+      cpu: fm.cpu ?? null,
+    };
+    this.match = header.match;
+    this.newLog(n, hash, meta);
+    let r = null;
+    try {
+      r = await room.start({ doc: header, n, h: hash, snap, meta });
+    } catch (err) {
+      this.note("start", err.code);
+    }
     if (!r) {
-      this.resync();
-      if (moved && tries < 3 && this.mode === "lobby") {
-        this.note("start-again", tries + 1);
+      // someone wrote first (a member joined or changed side): from the top on the
+      // newer document, a few times at most
+      this.note("start-lost", tries + 1);
+      if (this.mode === "match" && this.local.n === n) this.toLobby();
+      if (tries < 3 && room.doc && !lobbyOf(room.doc).started)
         return this.start(tries + 1);
-      }
+      room.resync();
+      return;
     }
     if (this.mode === "match") this.afterEnter();
   }
@@ -898,6 +970,17 @@ export class Pitch {
   // REMATCH (the host): back to the lobby with the same teams.
   rematch() {
     this.write((d) => backToLobby(d, this.local.n));
+  }
+
+  // A new match's log, kept here so its replay can be watched at its end without asking
+  // the api; null when this browser has not seen every action.
+  newLog(n, h0, meta) {
+    this.acts = [];
+    this.h0 = h0;
+    this.meta = meta;
+    this.head = { seq: 0, h: h0 };
+    this.overSnap = null;
+    this.local = { n, seq: 0 };
   }
 
   // ---------- the match ----------
@@ -969,123 +1052,160 @@ export class Pitch {
     return this.pending > 0 || this.queue.length > 0;
   }
 
-  // An action taken here: commit the snapshot after it, the action riding
-  // along for the others to watch.
+  // An action taken here: committed at once (PROTOCOL.md `act`: the action, the hash
+  // and snapshot after it), and play goes on without waiting for the answer. The pitch
+  // client sends it again after a reconnect until the pitch answers; a refusal (someone
+  // else was first) brings the whole pitch back (onRefused).
   onAction(action, snap, hash) {
     if (this.mode !== "match" || this.refused || this.observe || snap == null)
       return;
     const n = this.local.n;
     const seq = this.local.seq + 1;
     this.local.seq = seq;
-    this.pending++;
-    const w = rider(n, seq, action, {
-      bytes: this.room.limits?.withBytes ?? 4096,
-      engine: this.game.engine.version,
-    });
-    if (!w) this.note("too-big-for-with", action.type);
+    this.head = { seq, h: hash };
+    this.acts?.push({ a: action, h: hash, ts: Date.now() });
     let over = false;
     try {
       over = this.game.engine.need()?.kind === "over";
     } catch {
       // no need to read: not the end
     }
-    this.room
-      .update(
-        (d) =>
-          commitAction(d, { n, seq, snap, hash, action, over }, this.matchMm),
-        w ? { with: w } : {},
-      )
-      .then(
-        (r) => {
-          this.pending--;
-          this.note("commit", seq, r ? "ok" : "lost");
-          // lost: someone else acted first; their document is already here
-          if (!r) this.resync();
-          else this.keepReplay(r.doc, r.v);
-          this.overLater();
-        },
-        (err) => {
-          this.pending--;
-          this.note("commit", seq, err.code);
-          this.resync();
-          this.overLater();
-        },
-      );
+    if (over) this.overSnap = snap;
+    this.room.act({ n, seq, a: action, h: hash, snap, over });
+    this.note("commit", seq);
   }
 
-  onDoc({ v, doc, with: w, mine }) {
-    this.handleDoc(doc, w, mine);
-    this.keepReplay(doc, v);
+  onOk({ seq, dup }) {
+    this.note("ok", seq, dup ? "dup" : "");
   }
 
-  // A match this browser watched end (here or elsewhere): ask the room to keep its
-  // replay a year (docs/ROOMS.md section 10). Once a match; the room keeps the
-  // first it is told for a document version. A browser that only arrived after the
-  // end sends nothing.
-  keepReplay(doc, v) {
-    const m = doc?.match;
-    if (!doc?.started || !m?.over || m.n !== this.local.n) return;
-    if (this.kept === m.n || this.arrivedOver === m.n) return;
-    const r = replayOf(m);
-    if (!r) return;
-    if (this.room.keep(r, v)) {
-      this.kept = m.n;
-      this.note("keep", m.n);
+  // Someone else committed this seq first: their action is on its way, or already here;
+  // the whole pitch is asked for and its snapshot taken (onState).
+  onRefused({ seq, why }) {
+    this.note("refused", seq, why);
+    this.queue.length = 0;
+    this.room.resync();
+  }
+
+  // ---------- the pitch's news ----------
+
+  // `joined` (every connect) and `state` (a resync): the lobby document and the match
+  // as the pitch holds them. A whole match (`full`) comes with the snapshot at its head;
+  // a resume only with the header, its missed actions following as `acts`.
+  onState({ doc, match }) {
+    if (this.mode === "gone" || this.mode === "sealed") return;
+    if (this.mode === "replay" || this.engineWait) {
+      this.stale = true; // looked at again when the replay ends or the engine is in
+      return;
     }
-  }
-
-  // Look at the room's document as it is now.
-  resync() {
-    if (!this.room || this.mode === "gone") return;
-    this.handleDoc(this.room.doc, undefined, false);
+    const started = !!doc?.started && !!doc?.match && !!match;
+    if (!started) {
+      if (this.mode === "match") this.toLobby();
+      this.onMembers();
+      this.renderLobby();
+      return;
+    }
+    if (match.full) {
+      const m = { ...doc.match, ...match, hash: match.h, snap: match.snap };
+      if (this.mode === "match" && this.local.n === match.n) {
+        // the same match: in step unless the head moved past this browser, or its hash
+        // is not the head's
+        const behind = this.local.seq !== match.seq;
+        let differs = false;
+        try {
+          differs = this.game.engine.hash().hash !== match.h;
+        } catch {
+          differs = true;
+        }
+        if (behind || differs) {
+          this.note("adopt", match.seq, behind ? "behind" : "hash");
+          this.adoptMatch(m);
+        }
+      } else this.enterMatch(m);
+    } else if (this.mode !== "match" || this.local.n !== match.n) {
+      // a resume of a match this page is not in (it cannot be, but be safe)
+      this.room.resync();
+    }
     this.onMembers();
   }
 
-  handleDoc(doc, w, mine) {
-    if (this.mode === "gone") return;
-    // a replay playing: the room's news waits for its end (endReplay looks again)
-    if (this.mode === "replay") return;
-    // a match's engine loading: so does the room's news (waitFor looks again)
-    if (this.engineWait) return;
-    const d = decide(this.local, doc, w, mine);
-    switch (d.kind) {
-      case "lobby":
-        if (this.mode === "match") this.toLobby();
-        this.renderLobby();
-        return;
-      case "start":
-        return this.enterMatch(d.match);
-      case "old":
-        return;
-      case "same":
-        if (!this.busy() && this.game.engine.hash().hash !== d.match.hash) {
-          this.note("adopt", d.match.seq, "hash");
-          this.adoptMatch(d.match);
-        }
-        return;
-      case "apply":
-        this.queue.push({
-          seq: d.match.seq,
-          action: d.action,
-          hash: d.match.hash,
-          snap: d.match.snap,
-        });
-        this.local.seq = d.match.seq;
-        this.drain();
-        return;
-      case "adopt":
-        this.note("adopt", d.match.seq, d.why);
-        this.adoptMatch(d.match);
-        return;
+  // A lobby write (ours or anyone's). A rematch takes the pitch back to the lobby; a
+  // new match comes as its own `start`.
+  onDoc({ doc }) {
+    if (this.mode === "gone" || this.mode === "sealed") return;
+    if (this.mode === "replay" || this.engineWait) {
+      this.stale = true;
+      return;
     }
+    if (!doc?.started && this.mode === "match") this.toLobby();
+    this.renderLobby();
   }
 
-  // Play the queued actions, one playback at a time; each must end on the
-  // committed hash, or the committed snapshot is taken.
+  // The host started a match.
+  onStart({ doc, n, h, snap, meta }) {
+    if (this.mode === "gone" || this.mode === "sealed") return;
+    if (this.mode === "replay" || this.engineWait) {
+      this.stale = true;
+      return;
+    }
+    this.newLog(n, h, meta);
+    this.enterMatch({
+      ...doc.match,
+      n,
+      seq: 0,
+      hash: h,
+      snap,
+      over: false,
+      fresh: true,
+    });
+  }
+
+  // Actions others committed, in order. Each must be the next after this browser's;
+  // a gap (something missed) asks for the whole pitch.
+  onActs(acts) {
+    if (this.mode === "replay" || this.engineWait) {
+      this.stale = true;
+      return;
+    }
+    if (this.mode !== "match") return;
+    const now = Date.now();
+    for (const a of acts) {
+      if (a.n !== this.local.n || a.seq <= this.local.seq) continue;
+      if (a.seq !== this.local.seq + 1) {
+        this.note("gap", this.local.seq, a.seq);
+        this.queue.length = 0;
+        this.room.resync();
+        return;
+      }
+      this.local.seq = a.seq;
+      this.head = { seq: a.seq, h: a.h };
+      this.acts?.push({ a: a.a, h: a.h, ts: a.ts });
+      // a throw is drawn after its aim has played out on this screen (src/net/aim.js)
+      const due =
+        now + (a.a?.type === "throw" ? this.aimIn.holdFor(a.ts, now) : 0);
+      this.queue.push({
+        seq: a.seq,
+        action: a.a,
+        hash: a.h,
+        due,
+        over: a.over,
+      });
+    }
+    this.drain();
+  }
+
+  // Play the queued actions, one playback at a time; each must end on the committed
+  // hash, or the whole pitch is asked for (its snapshot is the head's).
   drain() {
     const game = this.game;
     while (this.queue.length && game.phase !== "play") {
-      const e = this.queue.shift();
+      const e = this.queue[0];
+      if (e.due > Date.now()) {
+        clearTimeout(this.drainTimer);
+        this.drainTimer = setTimeout(() => this.drain(), e.due - Date.now());
+        return;
+      }
+      this.queue.shift();
       let r;
       try {
         r = game.applyRemote(e.action);
@@ -1093,18 +1213,19 @@ export class Pitch {
         r = { ok: false, why: String(err?.message || err) };
       }
       const ok = r && r.ok !== false && game.engine.hash().hash === e.hash;
-      this.note("apply", e.seq, ok ? "ok" : "adopt");
+      this.note("apply", e.seq, ok ? "ok" : "resync");
       if (!ok) {
         this.queue.length = 0;
-        game.adopt(e.snap);
-        this.local.seq = e.seq;
+        this.room.resync();
+        return;
       }
+      if (e.over) this.overSnap = game.engine.snapshot();
     }
   }
 
   // The match's own engine (docs/ENGINES.md "Playing together"): a carried one not loaded
-  // yet holds the room's news until it has (waitFor); one this page does not carry is
-  // watched, never played, and says so.
+  // yet holds the pitch's news until it has (waitFor); one this page does not carry is
+  // watched, never played, and says so. `m`: the header with n, seq, hash, snap, over.
   enterMatch(m) {
     const mm = majorMinor(m.engine);
     const reg = this.engines?.newest ? this.engines : null;
@@ -1113,9 +1234,23 @@ export class Pitch {
     if (carried && reg && !failed && !reg.loaded(mm)) return this.waitFor(mm);
     this.mode = "match";
     this.arrivedOver = m.over ? m.n : null;
-    this.match = { players: m.players, cpu: m.cpu };
+    this.match = {
+      players: m.players,
+      cpu: m.cpu ?? null,
+      host: m.host,
+      engine: m.engine,
+    };
+    if (!m.fresh) {
+      // arrived part way (or after the end): the log so far is not here
+      this.acts = null;
+      this.meta = m.meta ?? null;
+      this.h0 = m.h0 ?? null;
+    }
     this.local = { n: m.n, seq: m.seq };
+    this.head = { seq: m.seq, h: m.hash };
+    this.overSnap = m.over ? m.snap : null;
     this.queue.length = 0;
+    this.aimIn.clear();
     this.lobby?.hide();
     this.cards.close();
     this.game.shownCards.clear();
@@ -1137,11 +1272,11 @@ export class Pitch {
     this.game.localSide = this.sideHere();
     this.syncView();
     this.game.adopt(m.snap);
-    // a match that had ended before replays has no `over`: the engine says so, after
-    // the winner card went up, so it goes up again as an arrival's (with any replay
-    // the room keeps for it)
+    // a match that ended with no `over` on its last action: the engine says so, after
+    // the winner card went up, so it goes up again as an arrival's
     if (!m.over && this.game.engine.need().kind === "over") {
       this.arrivedOver = m.n;
+      this.overSnap = m.snap;
       if (this.game.need?.kind === "over") this.onNeed(this.game.need);
     }
     this.note("start", m.n, m.seq);
@@ -1153,8 +1288,8 @@ export class Pitch {
     this.afterEnter();
   }
 
-  // A match's carried engine is loading: the room's news waits (handleDoc), then the
-  // document as it is by then is looked at afresh.
+  // A match's carried engine is loading: the pitch's news waits, then the whole pitch is
+  // asked for afresh.
   waitFor(mm) {
     if (this.engineWait === mm) return;
     this.engineWait = mm;
@@ -1162,25 +1297,36 @@ export class Pitch {
     this.engines.loadEngine(mm).then(
       () => {
         this.engineWait = null;
-        this.resync();
+        this.catchUp(true);
       },
       (err) => {
         this.engineWait = null;
         this.engineFailed = mm;
         this.note("engine-failed", mm, String(err?.message || err));
-        this.resync();
+        this.catchUp(true);
       },
     );
   }
 
+  // The pitch's news was held (a replay, an engine loading): the whole pitch again.
+  catchUp(always = false) {
+    if (!this.stale && !always) return;
+    this.stale = false;
+    this.room.resync();
+  }
+
   afterEnter() {
     this.shoutBar.hidden = this.observe;
-    this.lastAim = "";
+    this.aimOut.reset();
   }
 
   adoptMatch(m) {
     this.queue.length = 0;
     this.local.seq = m.seq;
+    this.head = { seq: m.seq, h: m.hash };
+    // the log here is no longer whole: the replay comes from the api
+    this.acts = null;
+    if (m.over) this.overSnap = m.snap;
     this.game.adopt(m.snap);
   }
 
@@ -1191,7 +1337,9 @@ export class Pitch {
     this.engineFailed = null; // the next match tries its engine again
     this.refused = null;
     this.local = { n: null, seq: 0 };
+    this.head = null;
     this.queue.length = 0;
+    this.aimIn.clear();
     this.control = null;
     this.cards.close();
     this.cards.clearPanel();
@@ -1209,40 +1357,62 @@ export class Pitch {
     this.lookForReplay();
   }
 
-  onNeed(need) {
-    this.lastAim = "";
-    setTimeout(() => this.drain(), 0);
-    if (this.mode !== "match" || need.kind !== "over") return;
-    const m = this.room.doc?.match;
-    const data = m && m.n === this.local.n ? replayOf(m) : null;
-    // the last action is ours and still on its way: the card when it lands
-    if (!data && this.pending > 0) {
-      this.overNeed = need;
-      return;
-    }
-    this.overNeed = null;
-    const arrived = this.arrivedOver === this.local.n;
-    this.winnerCard(need, m, data, arrived);
-    // a match whose document carries no replay (it ended before replays) may still have
-    // one the room keeps, set down after it was played (tools/backfill-replay.mjs):
-    // offered when it is this match and ends on the very snapshot the room holds
-    if (!data && arrived && m) this.lookForKept(need, m);
+  // The finished match's replay as this browser saw it: every action from the start,
+  // with the start's info and the snapshot it ended on. null when any part is missing.
+  replayHere() {
+    const n = this.local.n;
+    if (!this.acts || !this.meta || this.acts.length !== this.local.seq)
+      return null;
+    const snap = this.overSnap ?? this.game.engine.snapshot();
+    const r = {
+      ...this.meta,
+      n,
+      h0: this.h0,
+      log: this.acts.map((e) => ({ a: e.a, h: e.h, ts: e.ts ?? null })),
+      snap,
+      hash: this.head?.h ?? null,
+    };
+    return isReplay(r) ? r : null;
   }
 
-  async lookForKept(need, m) {
+  onNeed(need) {
+    setTimeout(() => this.drain(), 0);
+    if (this.mode !== "match" || need.kind !== "over") return;
+    // (the last action may be ours and on its way: the card does not wait for it, as
+    // play never waits for `ok`; a refusal brings the pitch's own end back)
+    this.overSnap ??= this.game.engine.snapshot();
+    const arrived = this.arrivedOver === this.local.n;
+    const data = this.replayHere();
+    const m = { ...this.match, n: this.local.n, hash: this.head?.h ?? null };
+    this.winnerCard(need, m, data, arrived);
+    // arrived part way or after the end: the replay is the api's, offered when it is
+    // this match and ends on the same hash
+    if (!data) this.lookForKept(need, m);
+  }
+
+  async lookForKept(need, m, tries = 0) {
+    if (!this.apiUrl) return;
     const r = await fetchReplay({
-      url: this.roomsUrl,
+      ...this.apiOpts(),
       code: this.code,
       check: isReplay,
-      ...(this.WebSocket ? { WebSocket: this.WebSocket } : {}),
     });
     const still =
       this.mode === "match" &&
       this.local.n === m.n &&
       this.game.need?.kind === "over";
-    if (!r || !still || r.n !== m.n || r.snap !== m.snap) return;
+    if (!still) return;
+    if (!r || r.n !== m.n || (m.hash && r.hash !== m.hash)) {
+      // the api may not have made it whole yet (the last pushes are on their way)
+      if (tries < 3)
+        setTimeout(
+          () => this.lookForKept(need, m, tries + 1),
+          1500 * (tries + 1),
+        );
+      return;
+    }
     this.note("kept", m.n);
-    this.winnerCard(need, m, r, true);
+    this.winnerCard(need, m, r, this.arrivedOver === m.n);
   }
 
   winnerCard(need, m, data, arrived) {
@@ -1252,7 +1422,7 @@ export class Pitch {
       sheet: this.sheet ? () => this.openSheet() : null,
       home: this.home,
       note: host ? null : `${this.nameOf(this.room.host)} can start a rematch.`,
-      // a match from before replays (or too long to keep) has none
+      // a match whose replay is not to be had (yet) has none
       replay: data ? () => this.watch(data) : null,
       // a finished match on another site (src/embed/embed.js): with its replay only
       embed: data ? () => this.showEmbed() : null,
@@ -1263,20 +1433,11 @@ export class Pitch {
     });
   }
 
-  // The winner card held back for our own last commit (onNeed).
-  overLater() {
-    if (this.pending > 0 || !this.overNeed) return;
-    const need = this.overNeed;
-    this.overNeed = null;
-    if (this.mode === "match" && this.game.need?.kind === "over")
-      this.onNeed(need);
-  }
-
   // ---------- a replay ----------
 
   // WATCH REPLAY (the winner card) or WATCH THE LAST MATCH (the lobby): the match
-  // played again here (src/replay/player.js), read only. The room stays joined; its
-  // news waits until BACK TO THE PITCH.
+  // played again here (src/replay/player.js), read only. The pitch stays joined; its
+  // news is looked at again at BACK TO THE PITCH.
   watch(data) {
     if (
       this.mode !== "match" &&
@@ -1328,8 +1489,13 @@ export class Pitch {
     const m =
       this.mode === "sealed"
         ? this.sealed
-        : this.mode === "match" && this.room?.doc?.match?.n === this.local.n
-          ? this.room.doc.match
+        : this.mode === "match" && this.overSnap
+          ? {
+              engine: this.match?.engine,
+              n: this.local.n,
+              snap: this.overSnap,
+              over: true,
+            }
           : null;
     const mm = majorMinor(m?.engine);
     const engines = this.engines;
@@ -1348,9 +1514,7 @@ export class Pitch {
       // pressed while it loaded is playing by now, and a restore would end its replay
       const still =
         this.mode === mode &&
-        (mode === "sealed"
-          ? this.sealed === m
-          : this.room?.doc?.match?.n === m.n);
+        (mode === "sealed" ? this.sealed === m : this.local.n === m.n);
       if (!still) return this.sheet?.();
       engine.restore(m.snap);
       return openSheet(this.ui, { game: this.game, engine });
@@ -1365,21 +1529,21 @@ export class Pitch {
   // MAKE A HIGHLIGHT REEL: one Reel a finished match, shared by its winner card and
   // its replay, so their buttons say the same. `m`: { n, hash } of the match. The
   // replay in hand only decides that the button is shown: before asking, the card reads
-  // the room's kept replay afresh (src/net/reel.js). The page's own word that a reel is done is
+  // the api's kept replay afresh (src/net/reel.js). The page's own word that a reel is done is
   // given only to the match this browser found finished on arriving: the page was
   // written for that one, never for a match played after it loaded.
   reelFor(m) {
-    if (!this.roomsUrl || !m) return null;
+    if (!this.apiUrl || !m) return null;
     if (this.reel && this.reel.match?.n === m.n) return this.reel;
     this.reel?.destroy();
     this.reel = new Reel({
       root: this.ui,
       game: this.game,
       code: this.code,
-      url: this.roomsUrl,
+      url: this.apiUrl,
       match: { n: m.n, hash: m.hash ?? null },
       known: m.n === this.arrivedOver ? this.pageReel : null,
-      ...(this.WebSocket ? { WebSocket: this.WebSocket } : {}),
+      fetch: this.fetch ?? null,
     });
     return this.reel;
   }
@@ -1395,20 +1559,17 @@ export class Pitch {
       this.game.adopt(this.sealed.snap); // the winner card again (sealedCard)
       return;
     }
-    const doc = this.room.doc;
-    if (from === "match" && doc?.started && doc.match?.n === this.local.n) {
+    if (from === "match") {
+      // back where the match was (the snapshot the Game held is the engine's now: the
+      // replay played on it), then the pitch as it is now
       this.shoutBar.hidden = this.observe;
       this.syncView();
-      this.adoptMatch(doc.match);
+      if (this.overSnap) this.game.adopt(this.overSnap);
+      this.catchUp(true);
       return;
     }
-    if (from === "lobby") {
-      this.toLobby();
-      this.resync();
-      return;
-    }
-    // the pitch moved on while the replay played (a rematch)
-    this.resync();
+    if (from === "lobby") this.toLobby();
+    this.catchUp(true);
   }
 
   // Who acts, for the HUD and the engine's cards.
@@ -1444,12 +1605,13 @@ export class Pitch {
     return { text: `${many ? team : up(this.nameOf(actor))} ${verb}`, mine };
   }
 
-  // ---------- the room's news ----------
+  // ---------- members, the host, casts ----------
 
   onStatus() {
     const s = this.room.status;
     this.openKey = null; // a new connection (or a new host) says it again
-    if (s === "replaced") return this.joinFailed(new RoomError("replaced", ""));
+    if (s === "replaced")
+      return this.joinFailed(new PitchError("replaced", ""));
     this.renderNet();
     this.renderLobby();
   }
@@ -1459,8 +1621,6 @@ export class Pitch {
       this.openHost = this.room.host;
       this.openKey = null;
     }
-    const host = this.room.members.find((m) => m.id === this.room.host);
-    if (host && host.connected) this.hostGoneAt = null;
     this.refreshSeat();
     this.checkRefusedHost();
     this.renderLobby();
@@ -1473,11 +1633,7 @@ export class Pitch {
     const r = this.room;
     if (this.mode !== "match" || !this.refused || !r.isHost()) return;
     if (r.host === this.enteredHost) return; // host from the start: its card says it
-    if (
-      !this.match?.cpu ||
-      r.doc?.match?.over ||
-      this.hostCard === this.local.n
-    )
+    if (!this.match?.cpu || r.match?.over || this.hostCard === this.local.n)
       return;
     this.hostCard = this.local.n;
     this.note("host-refused", this.local.n);
@@ -1494,10 +1650,21 @@ export class Pitch {
     });
   }
 
-  onCast({ from, d }) {
+  onCast(e) {
+    const d = e.d;
     if (!d || typeof d !== "object") return;
-    if (d.t === "aim" && this.mode === "match") this.game.showRemoteAim(d.s);
-    else if (d.t === "shout" && SHOUTS.includes(d.w)) this.showShout(from, d.w);
+    if (d.t === "aim" && this.mode === "match") this.aimIn.push(e, Date.now());
+    else if (d.t === "shout" && SHOUTS.includes(d.w))
+      this.showShout(e.from, d.w);
+  }
+
+  // Someone else's aim for this frame (Game.remoteFeed): drawn about 100 ms behind,
+  // between their samples (src/net/aim.js); null when it has not changed.
+  remoteAim() {
+    if (this.mode !== "match") return null;
+    const before = this.aimIn.drawn;
+    const s = this.aimIn.at(Date.now());
+    return s && s !== before ? s : null;
   }
 
   tick() {
@@ -1505,70 +1672,50 @@ export class Pitch {
     if (!room || this.mode === "gone") return;
     this.drain();
     this.refreshSeat();
-    this.castAim();
-    this.checkHost();
     this.publishOpen();
     this.renderNet();
   }
 
-  // While it is this browser's throw: its aim, about 5 a second, when it changed.
-  castAim() {
+  // May this browser's aim go out now: its own throw in a match.
+  aiming() {
     const game = this.game;
-    if (
-      this.mode !== "match" ||
-      game.phase !== "aim" ||
-      game.need?.kind !== "throw" ||
-      !game.mayAct()
-    )
-      return;
+    return (
+      this.mode === "match" &&
+      this.room?.status === "open" &&
+      game.phase === "aim" &&
+      game.need?.kind === "throw" &&
+      game.mayAct()
+    );
+  }
+
+  // While it is this browser's throw: its aim, up to 15 a second, when it changed.
+  castAim() {
+    if (!this.aiming()) return;
     let st;
     try {
-      st = game.aimState();
+      st = this.game.aimState();
     } catch {
       return;
     }
-    const key = aimKey(st);
-    if (key === this.lastAim) return;
-    if (this.room.cast({ t: "aim", s: st })) this.lastAim = key;
+    const d = this.aimOut.sample(st, performance.now());
+    if (d) this.room.cast(d);
   }
 
-  // The host has been away a while: the next in line claims.
-  checkHost() {
-    const room = this.room;
-    if (room.status !== "open" || room.isHost()) return;
-    if (this.observe)
-      this.stepping.see(
-        room.members.filter((m) => m.connected).map((m) => m.id),
-      );
-    const host = room.members.find((m) => m.id === room.host);
-    if (host && host.connected) {
-      this.hostGoneAt = null;
-      this.stepping.reset();
-      return;
+  // The throw went (Game.onRelease): the aim as it stood just before, sent to every
+  // watcher whatever the rate (`all`), so each sees the swing let go.
+  castRelease(pre) {
+    if (!this.aiming()) return;
+    let st = pre;
+    if (!st) {
+      try {
+        st = this.game.aimState();
+      } catch {
+        return;
+      }
     }
-    const now = Date.now();
-    this.hostGoneAt ??= now;
-    if (host && now - this.hostGoneAt < tune.hostGoneMs) return;
-    if (nextHost(room.members, room.host) !== room.you) return;
-    if (this.observe) return this.stepBack(now);
-    if (now - this.lastClaim < tune.claimEveryMs) return;
-    this.lastClaim = now;
-    this.note("claim");
-    room.claimHost();
-  }
-
-  // An observer never hosts (the host runs the computer and opens the game), so when it
-  // is first in line it leaves and joins again, last in line, and the next member
-  // claims as before. Only when someone else is here to take over, and backing off
-  // while nobody takes host (src/net/step-back.js). A race (two step at once, or a claim meanwhile) is harmless: the
-  // room server decides who is first, and this is asked again on the next tick.
-  stepBack(now = Date.now()) {
-    const room = this.room;
-    if (!room.members.some((m) => m.connected && m.id !== room.you)) return;
-    if (!this.stepping.due(now)) return;
-    this.stepping.took(now);
-    this.note("step-back");
-    room.rejoin();
+    const d = this.aimOut.sample(st, performance.now(), { force: true });
+    if (d) this.room.cast(d, true);
+    this.aimOut.reset();
   }
 
   // The side this browser plays in the match: none for an observer or a refused engine.
@@ -1623,6 +1770,7 @@ export class Pitch {
     this.shoutOpts.hidden = true;
     if (now - this.lastShout < tune.shoutGapMs) return;
     this.lastShout = now;
+    this.aimOut.spend(performance.now());
     this.room.cast({ t: "shout", w });
     this.showShout(this.you, w);
   }
@@ -1673,8 +1821,8 @@ export class Pitch {
       pending: this.pending,
       queued: this.queue.length,
       v: this.room?.v,
-      docSeq: this.room?.doc?.match?.seq ?? null,
-      docHash: this.room?.doc?.match?.hash ?? null,
+      docSeq: this.room?.match?.seq ?? null,
+      docHash: this.room?.match?.h ?? null,
       hash: g.mode === "match" ? g.engine.hash().hash : null,
       phase: g.phase,
       side: sideOf(this.room?.doc, this.you),
@@ -1687,13 +1835,14 @@ export class Pitch {
       // the engines (docs/ENGINES.md): the Game's, the match's, and what this browser says
       engine: g.engine?.version ?? null,
       matchEngine: this.room?.doc?.match?.engine ?? null,
+      aimSent: this.aimOut.k,
+      aimHeard: this.aimIn.samples.length,
       announced: this.room?.me?.engine ?? null,
       // the watcher's view (docs/OBSERVER.md)
       observe: this.observe,
       observing: g.observing,
       wide: g.viewName,
       camMoved: g.freeCam?.moved ?? false,
-      stepBacks: this.stepping.steps,
     };
   }
 }
@@ -1716,7 +1865,7 @@ function namesLine(names) {
 
 function plainError(err) {
   const c = err?.code;
-  if (c === "too-big") return "That was too big for the room.";
+  if (c === "too-big") return "That was too big for the pitch.";
   if (c === "closed") return "The connection to the pitch is closed.";
   return "The pitch did not take that. Try again.";
 }

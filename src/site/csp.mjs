@@ -3,14 +3,18 @@
 // policy for the preview server, and tests/site fails when the two differ.
 //
 // What the game needs beyond a static site: 'wasm-unsafe-eval' to compile
-// the Lua VM (WebAssembly), the rooms WebSocket (through this hostname at
-// /ws, or the API's own address as the fallback), blob: for sounds and
-// workers the client may make, and Tinylytics. No inline scripts: pages
-// carry their settings as a JSON data block, which is not script.
+// the Lua VM (WebAssembly), the pitch server (its WebSocket, and its https
+// origin for the open games list; PITCH_URL in src/site/site.mjs), blob: for
+// sounds and workers the client may make, and Tinylytics. The api function is
+// /api/* on this origin, so 'self' covers it. No inline scripts: pages carry
+// their settings as a JSON data block, which is not script.
+import { PITCH_URL, httpOrigin } from "./site.mjs";
+
+export const PITCH_ORIGINS = [new URL(PITCH_URL).origin, httpOrigin(PITCH_URL)];
+
 export const PRODUCTION_CONNECT = [
   "'self'",
-  "wss://throwingwood.com",
-  "wss://*.execute-api.us-east-1.amazonaws.com",
+  ...PITCH_ORIGINS,
   "https://tinylytics.app",
 ];
 

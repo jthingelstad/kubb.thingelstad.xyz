@@ -1,11 +1,11 @@
-// Reports (MENU, SEND FEEDBACK; docs/ROOMS.md section 8): what the player typed and the
-// game as it stood when they opened the card, sent once to the room server on a socket of
-// its own, which keeps it privately so a throw can be played again offline.
+// Reports (MENU, SEND FEEDBACK; backend/api/API.md "report"): what the player typed and
+// the game as it stood when they opened the card, sent once to the api function over
+// HTTPS, which keeps it privately so a throw can be played again offline.
 //
 //   const state = captureReport({ game, mode, config, pitch });   // when the card opens
 //   const msg = reportMessage(state, { kind: "throw", happened, should, selected });
 //   const msg = reportMessage(state, { kind: "feedback", text });  // on SEND
-//   await sendReport({ url: config.roomsUrl, message: msg });      // resolves on the ack
+//   await sendReport({ url: config.apiUrl, message: msg });        // resolves on the ack
 //
 // Two kinds: `kind: "throw"`, a throw that looked wrong, carries the two answers
 // (`happened`, `should`) and any pieces marked (`selectedPieces`); `kind: "feedback"`,
@@ -22,8 +22,8 @@
 // here since (start + actions replay it), and the snapshot before the last action with the
 // one after (before + last replays the reported moment). For practice: its options and
 // every throw and pitch change since it was set out (they replay it from newPractice). On
-// a shared pitch also the room code and the document version `v`, which join the report to
-// the recorded game. No name field, no user agent, no member id (each is swapped for
+// a shared pitch also the pitch code, the document version `v` and the match's `n` and
+// `seq`, which join the report to the recorded game. No name field, no user agent, no member id (each is swapped for
 // "member1", "member2", ... everywhere, snapshots included): names are only what the
 // match options and snapshots already carry.
 //
@@ -31,8 +31,7 @@
 // the parts that only help are dropped in this order (and listed in `r.dropped`): the
 // match's start and actions (or practice's ops), the pieces, the snapshot after. The typed
 // answers, the snapshot before and the last action are never cut.
-import { asciiJson } from "./room.js";
-import { ask } from "./ask.js";
+import { apiCall, asciiJson } from "./api.js";
 import { CLIENT } from "./sync.js";
 import { luaFor } from "../site/config.js";
 
@@ -135,9 +134,11 @@ export function captureReport({
     level: game.level ?? null,
   };
   if (pitch?.room) {
-    r.room = pitch.room.code ?? null;
+    // the pitch's code (API.md `pitch`; older clients sent `room`), its lobby document's
+    // version, and the match's head as the pitch client holds it
+    r.pitch = pitch.room.code ?? null;
     r.v = pitch.room.v ?? null;
-    const m = pitch.room.doc?.match;
+    const m = pitch.room.match;
     if (m) r.match = { n: m.n, seq: m.seq };
   }
   const ops = trail?.kind === "practice" ? trail.ops : (trail?.actions ?? []);
@@ -178,7 +179,7 @@ export function captureReport({
   return pseudonymise(structuredClone(r), memberIds({ pitch, trail }));
 }
 
-// Room member ids are kept in each browser (src/net/room.js memberId), so they would
+// Member ids are kept in each browser (src/net/pitch-client.js memberId), so they would
 // name the browser; a match's players carry them as their `key`. A report swaps each
 // for "member1", "member2", ... in every place it appears, the snapshot strings too,
 // the same way throughout, so the report still replays.
@@ -280,12 +281,17 @@ export function reportReady({
   return Boolean(String(happened).trim() || String(should).trim());
 }
 
-// The error a send rejects with (src/net/ask.js): `code` is the server's error code, or
-// timeout, closed, unavailable.
-export { AskError as ReportError } from "./ask.js";
+// The error a send rejects with (src/net/api.js): `code` is the function's error code,
+// or timeout, closed, unavailable.
+export { ApiError as ReportError } from "./api.js";
 
-// Open a socket, send the report (in parts when it is longer than a frame), wait for the
-// server's `reported` (or an error, or the timeout), close. Resolves true.
-export function sendReport(opts) {
-  return ask({ ...opts, done: "reported", re: "report" });
+// POST /api/report with the message's `r`: resolves on the function's { ok: true }.
+export async function sendReport({ url, message, fetch }) {
+  await apiCall({
+    base: url,
+    call: "report",
+    body: { r: message.r },
+    ...(fetch ? { fetch } : {}),
+  });
+  return true;
 }
