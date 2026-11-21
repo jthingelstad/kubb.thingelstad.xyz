@@ -13,6 +13,7 @@ import { NAME_MAX, PLACEHOLDER, tidyName } from "../game/player-name.js";
 import { drawMinimap } from "../render/minimap.js";
 import { teamOf } from "../game/scenes.js";
 import { SCENE_ROW, sceneId } from "../render/scenes.js";
+import { watcherBases } from "./handoff-words.js";
 
 export class Cards {
   constructor(root) {
@@ -58,7 +59,11 @@ export class Cards {
     const done = () => close();
     let el;
     const who = this.who?.(need);
-    if (card.kind === "handoff") el = handoff(c, need, done, who && !who.mine);
+    // a browser with no side in the match (docs/OBSERVER.md): the card speaks of the
+    // teams, not to one of them
+    const watcher = !!game && !game.localSide && !game.seat?.sides?.length;
+    if (card.kind === "handoff")
+      el = handoff(c, need, done, (who && !who.mine) || watcher, watcher);
     else if (card.kind === "pass") el = pass(c, done);
     else if (card.kind === "settle") el = settle(c, done);
     else return;
@@ -70,10 +75,10 @@ export class Cards {
           who.text,
         ),
       );
-      if (!who.mine) {
-        const go = el.querySelector(".row .btn");
-        if (go) go.textContent = "WATCH";
-      }
+    }
+    if ((who && !who.mine) || watcher) {
+      const go = el.querySelector(".row .btn");
+      if (go) go.textContent = "WATCH";
     }
     close = this.show(el, game);
     if (who && !who.mine) setTimeout(done, tune.watchCardMs);
@@ -464,8 +469,9 @@ function segmented(key, choices, value, onPick = null) {
 
 // The Playdate's hand-off card: who it goes to, what the last turn took,
 // what this one throws, the bases, and the pitch from above.
-// theirs: this browser only watches the turn (a shared pitch)
-function handoff(c, need, done, theirs = false) {
+// theirs: this browser only watches the turn (a shared pitch); watcher: it has no
+// side in the match, so the bases name both teams (src/ui/handoff-words.js)
+function handoff(c, need, done, theirs = false, watcher = false) {
   const took = c.took
     ? c.took.field || c.took.base
       ? `${c.fromName} just took ${[
@@ -501,7 +507,9 @@ function handoff(c, need, done, theirs = false) {
         ),
         h(
           "p.bases",
-          (c.baseText || []).map((t) => h("span.chip", t)),
+          (watcher ? watcherBases(c, need) : c.baseText || []).map((t) =>
+            h("span.chip", t),
+          ),
         ),
       ),
       map,
