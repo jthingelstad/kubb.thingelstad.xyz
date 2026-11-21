@@ -733,8 +733,12 @@ async function scenarioMatch(opts) {
     while (now() < deadline) {
       const r = await fetch(u, { cache: "no-store" });
       const body = await r.text();
-      if (r.ok) {
-        const j = JSON.parse(body);
+      let j = null;
+      try {
+        j = r.ok ? JSON.parse(body) : null;
+      } catch {}
+      // The api answers 200 with `replay: null` until a replay is kept: keep polling.
+      if (j?.replay) {
         wait.replayMs = Math.round(now() - overAt);
         wait.replay = {
           status: r.status,
