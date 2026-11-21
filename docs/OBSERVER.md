@@ -45,6 +45,12 @@ An observer:
   arrives is not kept behind an observer. Observers keep their member id when they
   rejoin, so their own step backs never count as an arrival. Nothing new on the wire;
 - has no SHOUT;
+- sees the hand-off card with the teams' names, not the engine's "YOUR BASE 5 · THEIRS 4"
+  (`baseText`, which speaks to the team the card goes to): "NORTH BASE 4", "SOUTH BASE
+  5", the far team first as the card's map draws it, "they throw 6 batons", and WATCH,
+  closing by itself. The same for every browser with no side (a member who watches
+  instead, watching the computer); players' cards are as before
+  (`src/ui/handoff-words.js`);
 - may ask the room to keep a finished match's replay, as every browser that watched the
   end does (it is not an action);
 - between matches sees its own card instead of the lobby: who is on each team, who is

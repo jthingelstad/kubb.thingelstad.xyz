@@ -238,6 +238,52 @@ browserTest(
     assert.equal(h0.wide, "thrower");
     assert.equal(h0.members, 2, "the observer is a member, shown watching");
 
+    // the hand-off card: a player keeps the engine's words, a watcher gets the teams
+    const handoffOn = (page) =>
+      page.evaluate(() => {
+        const { cards, game } = window.__kubb;
+        const card = {
+          kind: "handoff",
+          handoff: {
+            to: "A",
+            toName: game.need.teams.A,
+            from: "B",
+            fromName: game.need.teams.B,
+            turn: 2,
+            batons: 6,
+            kubbs: 0,
+            took: { field: 0, base: 1 },
+            base: [4, 5],
+            baseText: ["YOUR BASE 5", "THEIRS 4"],
+            pieces: [],
+          },
+        };
+        cards.engineCard(card, game.need, game);
+        const el = document.querySelector("[data-test=handoff]");
+        const out = {
+          bases: [...el.querySelectorAll(".bases .chip")].map(
+            (c) => c.textContent,
+          ),
+          go: el.querySelector("[data-test=handoff-go]").textContent,
+          text: el.textContent,
+        };
+        cards.close();
+        return { ...out, teams: game.need.teams };
+      });
+    const hc = await handoffOn(host);
+    assert.deepEqual(
+      hc.bases,
+      ["YOUR BASE 5", "THEIRS 4"],
+      "players unchanged",
+    );
+    const oc = await handoffOn(obs);
+    assert.deepEqual(oc.bases, [
+      `${oc.teams.B.toUpperCase()} BASE 4`,
+      `${oc.teams.A.toUpperCase()} BASE 5`,
+    ]);
+    assert.equal(oc.go, "WATCH");
+    assert.doesNotMatch(oc.text, /YOUR|THEIRS|you throw/i);
+
     // the free camera: a drag turns, the wheel zooms, RESET VIEW goes back
     await dragPitch(obs, 120, 40);
     await waitFor(obs, () => window.__kubb.pitch.state().camMoved);
