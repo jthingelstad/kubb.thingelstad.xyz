@@ -112,13 +112,15 @@ export class AimBuffer {
     if (this.gaps.length > this.tune.offsetSamples) this.gaps.shift();
     this.offset = Math.min(...this.gaps);
     const last = this.samples.at(-1);
-    // the same sender's older sample, late: nothing to draw from it
+    // the same sender's older sample, late: nothing to draw from it. A lower count
+    // stamped later is the sender's page reloaded (its count starts again), drawn.
     if (
       last &&
       last.from === from &&
       isNum(d.k) &&
       isNum(last.k) &&
-      d.k <= last.k
+      d.k <= last.k &&
+      ts <= last.ts
     )
       return false;
     const e = { from, ts, s: d.s, k: d.k ?? null };
