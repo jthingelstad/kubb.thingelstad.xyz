@@ -687,7 +687,8 @@ test("a report from the wide view keeps the thrower's frame, so it still replays
 test("a shared pitch's report names the pitch, the version and the match's head", async () => {
   const game = await soloGame(1);
   const pitch = {
-    room: { code: ROOM, v: 12, match: { n: 2, seq: 5, h: "x" }, doc: {} },
+    // as PitchClient holds them: the code is its `pitch`
+    room: { pitch: ROOM, v: 12, match: { n: 2, seq: 5, h: "x" }, doc: {} },
   };
   const r = captureReport({
     game,
