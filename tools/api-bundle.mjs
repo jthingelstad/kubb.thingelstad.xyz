@@ -5,9 +5,10 @@
 //
 //   node tools/api-bundle.mjs   write build/api.zip and print its key
 //
-// With "pitchApi": true in infra/deployment.json, tools/infra.mjs uploads it as
-// s3://<code bucket>/api/<sha256>.zip and passes ApiCodeKey to the rooms stack;
-// tools/deploy.mjs updates the function's code when Lambda's CodeSha256 differs.
+// With "pitchesStack": true in infra/deployment.json, tools/infra.mjs uploads it as
+// s3://<code bucket>/api/<sha256>.zip (the site stack's code bucket, which keeps its old
+// name) and passes ApiCodeKey to the pitches stack (infra/pitches.json);
+// tools/deploy.mjs updates throwing-wood-api's code when Lambda's CodeSha256 differs.
 import { build } from "esbuild";
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";

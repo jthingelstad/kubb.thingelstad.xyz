@@ -1,7 +1,7 @@
 // The pages function's entry, on Lambda Web Functions and on this Mac alike: an
 // ordinary Node HTTP server on AWS_LAMBDA_HTTP_ENDPOINT (127.0.0.1:8789 locally).
 //
-//   TABLE   the rooms table (stack kubb-xyz-rooms), read with GetItem only
+//   TABLE   the pitches table (stack throwing-wood-pitches), read with GetItem only
 //   SITE    the site it serves pages for (https://throwingwood.com)
 //
 // tools/pages-bundle.mjs packages this with resvg's WebAssembly and the display

@@ -1,12 +1,13 @@
 # The api function: its contract
 
-`kubb-xyz-rooms-api` (the Lambda function in `infra/rooms.json`, code in this folder) is
+`throwing-wood-api` (the Lambda function in `infra/pitches.json`, stack
+`throwing-wood-pitches`, code in this folder) is
 what the pitch server reports to and what the apps call for everything that is not live
 play. It replaces the old rooms function's non-play messages (`report`, `game`,
 `replay`, `reel`, `share`) with plain HTTPS. The design is `docs/PITCH-SERVER.md`; the
 pitch server's side of a push is `backend/pitch-server/PROTOCOL.md`.
 
-It is off until `"pitchApi": true` in `infra/deployment.json` (docs/PITCH-SERVER.md
+It is off until `"pitchesStack": true` in `infra/deployment.json` (docs/PITCH-SERVER.md
 "Step 3: turning it on").
 
 ## Addresses
@@ -14,7 +15,7 @@ It is off until `"pitchApi": true` in `infra/deployment.json` (docs/PITCH-SERVER
 | Who                       | Address                                                                |
 | ------------------------- | ---------------------------------------------------------------------- |
 | The web and iPhone apps   | `https://throwingwood.com/api/<call>` (CloudFront, the site's web ACL) |
-| The pitch server's pushes | `<ApiUrl>push`, the function URL (a rooms stack output)                |
+| The pitch server's pushes | `<ApiUrl>push`, the function URL (a pitches stack output)              |
 
 The function strips a leading `/api`, so `/api/report` and `/report` are the same call.
 A trailing slash is ignored. Every answer is JSON with `cache-control: no-store`.
@@ -94,8 +95,8 @@ person; clients branch on `error`.
 ## CORS
 
 A request with an `Origin` header is answered only when that origin is in the function's
-`ALLOWED_ORIGINS` (the rooms stack's `AllowedOrigins`, the same list the WebSocket
-API checks: the site, `app.throwingwood.com`, and `http://localhost` and
+`ALLOWED_ORIGINS` (the pitches stack's `AllowedOrigins`, the same list the old
+WebSocket API checks: the site, `app.throwingwood.com`, and `http://localhost` and
 `http://127.0.0.1` on any port), with `access-control-allow-origin: <origin>` and
 `vary: origin`. Another origin gets `403 forbidden`. A request with no `Origin` (the
 iPhone app, curl) is answered as it is. `OPTIONS` answers the preflight (204, the call's
@@ -145,7 +146,7 @@ Every push that was taken answers `200 { "ok": true }`; one already had adds
 
 ## Records
 
-The rooms table (`pk`, `sk`, TTL on `exp` in seconds):
+The pitches stack's table (`pk`, `sk`, TTL on `exp` in seconds; nothing else is in it):
 
 | pk                            | sk                | What                                                                                                                                                                               |
 | ----------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -157,11 +158,12 @@ The rooms table (`pk`, `sk`, TTL on `exp` in seconds):
 | `reels#<day>`, `shares#<day>` | `count`           | the day's counters                                                                                                                                                                 |
 
 The pitch pages (`backend/pages/`) read `state`, `replay` and `reel` with `GetItem`; the
-renderer (`backend/reels/`) reads `replay` and writes `reel`. The old `room#` items are
-not read by anything new.
+renderer (`backend/reels/`) reads `replay` and writes `reel`. The old rooms table and
+its `room#` items are not read by anything new.
 
-The private games bucket: the pushes above, `games/browser/` and `reports/` as the rooms
-function wrote them. Nothing in it is ever served.
+The pitches stack's private games bucket (`throwing-wood-pitches-games-<account>`): the
+pushes above, `games/browser/` and `reports/` as the rooms function wrote them. Nothing
+in it is ever served.
 
 ## Limits that are not here
 

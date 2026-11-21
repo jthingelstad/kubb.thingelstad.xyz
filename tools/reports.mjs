@@ -5,7 +5,9 @@
 //   node tools/reports.mjs pull [--since 2026-11-16] [--dir build/reports]
 //       copies new reports from the games bucket to build/reports/<yyyy-mm-dd>/ (never in
 //       git: they carry what players typed) and prints each new one. Run as the
-//       cloud-engineer identity.
+//       cloud-engineer identity. With "pitchesStack": true in infra/deployment.json it
+//       reads the pitches stack's games bucket (the api function keeps reports there
+//       under the same reports/<yyyy-mm-dd>/ names), the rooms stack's before.
 //   node tools/reports.mjs show [--dir build/reports] [file ...]
 //       prints reports already pulled (all of them, or the files named).
 //   node tools/reports.mjs replay <file> [--engine <major.minor>]

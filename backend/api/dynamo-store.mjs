@@ -1,5 +1,5 @@
-// The api store on DynamoDB: the rooms table (stack kubb-xyz-rooms; pk, sk, TTL on `exp`),
-// under new keys. The old room# items are left alone and nothing here reads them.
+// The api store on DynamoDB: the pitches table (stack throwing-wood-pitches; pk, sk, TTL
+// on `exp`). Nothing here reads the old rooms table or its room# items.
 //
 //   pitch#<code>  state   { made, n, seq, over, z, hash, names?, cpu?, level?, rev,
 //                           sealed?, exp }

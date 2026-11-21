@@ -5,7 +5,11 @@
 //       copies new records from the games bucket to build/games/<room>/, and the matches
 //       played in one browser (solo, watching the computer) to build/games/browser/<day>/
 //       (never in git: they carry the names players typed). Run as the cloud-engineer
-//       identity. --room <code> pulls only that room.
+//       identity. --room <code> pulls only that room. With "pitchesStack": true in
+//       infra/deployment.json it reads the pitches stack's games bucket instead
+//       (throwing-wood-pitches): the one-browser matches as before, and every push of a
+//       pitch, games/pitch/<code>/<made>/<n>-<seq>.json.gz (backend/api/records.mjs), to
+//       build/games/pitch/<code>/<made>/; `replay` does not play pushes yet.
 //   node tools/games.mjs replay [--room <code>] [--dir build/games] [--throws]
 //                               [--engine <major.minor>]
 //       restores every recorded match at its start and applies each recorded action to
@@ -268,6 +272,8 @@ export function parseRecord(buffer) {
 // Where one-browser matches are kept, under games/ in the bucket and under the pull
 // directory here. "browser" can never be a room code (it has an "o").
 export const BROWSER_DIR = "browser";
+// The api function's pushes (games/pitch/...): pulled, not yet replayed.
+export const PITCH_DIR = "pitch";
 
 async function readBrowserRecords(dir) {
   const records = [];
@@ -304,7 +310,7 @@ async function readRecords(dir, room) {
     return records;
   }
   for (const code of rooms) {
-    if (code === BROWSER_DIR) continue;
+    if (code === BROWSER_DIR || code === PITCH_DIR) continue;
     let names;
     try {
       names = await fs.readdir(path.join(dir, code));
@@ -320,6 +326,53 @@ async function readRecords(dir, room) {
   return records;
 }
 
+// Which games bucket the pull tools read: the pitches stack's once it is on (the api
+// function records there), the rooms stack's before.
+export function gamesBucketOf(config) {
+  if (config.pitchesStack && config.pitches?.gamesBucket)
+    return config.pitches.gamesBucket;
+  return config.rooms?.gamesBucket || null;
+}
+
+// Where a games bucket key goes under the pull's directory, as path parts, or null for
+// a key that is not a record: games/browser/<day>/<ms>-<random>.json.gz,
+// games/<room>/<ms>-<v>.json.gz (the rooms function's), and
+// games/pitch/<code>/<made>/<n>-<seq>.json.gz (the api function's pushes). `since` (ms)
+// compares the record's own time: a room record's or one-browser match's stamp, a push's
+// pitch made time.
+export function pulledPath(key, { room, since = 0 } = {}) {
+  if (!key.startsWith(PREFIX)) return null;
+  const rest = key.slice(PREFIX.length).split("/");
+  const name = rest.at(-1);
+  let t;
+  if (
+    rest.length === 3 &&
+    rest[0] === BROWSER_DIR &&
+    /^\d{4}-\d{2}-\d{2}$/.test(rest[1]) &&
+    /^\d{13}-[a-z0-9]{8}\.json\.gz$/.test(name)
+  ) {
+    if (room) return null;
+    t = Number(name.slice(0, 13));
+  } else if (
+    rest.length === 4 &&
+    rest[0] === PITCH_DIR &&
+    /^[2-9a-hjkmnp-z]{8,24}$/.test(rest[1]) &&
+    /^\d{13}$/.test(rest[2]) &&
+    /^\d{4}-\d{6}\.json\.gz$/.test(name)
+  ) {
+    if (room && rest[1] !== room) return null;
+    t = Number(rest[2]);
+  } else if (
+    rest.length === 2 &&
+    /^\d{13}-\d{6}\.json\.gz$/.test(name) &&
+    /^[2-9a-hjkmnp-z]{8,24}$/.test(rest[0])
+  ) {
+    if (room && rest[0] !== room) return null;
+    t = Number(name.slice(0, 13));
+  } else return null;
+  return t < since ? null : rest;
+}
+
 // The games bucket as the cloud-engineer identity, after checking the account
 // (tools/reports.mjs uses it too).
 export async function openGamesBucket() {
@@ -328,7 +381,7 @@ export async function openGamesBucket() {
   const { STSClient, GetCallerIdentityCommand } =
     await import("@aws-sdk/client-sts");
   const config = JSON.parse(await fs.readFile("infra/deployment.json", "utf8"));
-  const bucket = config.rooms?.gamesBucket;
+  const bucket = gamesBucketOf(config);
   if (!bucket)
     throw new Error("infra/deployment.json names no games bucket yet");
   const settings = { region: config.region, maxAttempts: 5 };
@@ -338,11 +391,17 @@ export async function openGamesBucket() {
   if (identity.Account !== config.account)
     throw new Error(`Unexpected AWS account ${identity.Account}`);
   const s3 = new S3Client(settings);
-  return { s3, bucket, ListObjectsV2Command, GetObjectCommand };
+  return {
+    s3,
+    bucket,
+    pitches: bucket !== config.rooms?.gamesBucket,
+    ListObjectsV2Command,
+    GetObjectCommand,
+  };
 }
 
 async function pull({ room, since, dir }) {
-  const { s3, bucket, ListObjectsV2Command, GetObjectCommand } =
+  const { s3, bucket, pitches, ListObjectsV2Command, GetObjectCommand } =
     await openGamesBucket();
   const after = since ? Date.parse(since) : 0;
   if (Number.isNaN(after)) throw new Error(`--since ${since} is not a date`);
@@ -353,27 +412,15 @@ async function pull({ room, since, dir }) {
     const page = await s3.send(
       new ListObjectsV2Command({
         Bucket: bucket,
-        Prefix: room ? `${PREFIX}${room}/` : PREFIX,
+        Prefix: room
+          ? `${PREFIX}${pitches ? `${PITCH_DIR}/` : ""}${room}/`
+          : PREFIX,
         ContinuationToken: token,
       }),
     );
     for (const { Key } of page.Contents ?? []) {
-      const rest = Key.slice(PREFIX.length).split("/");
-      const name = rest.at(-1);
-      if (
-        rest.length === 3 &&
-        rest[0] === BROWSER_DIR &&
-        /^\d{4}-\d{2}-\d{2}$/.test(rest[1]) &&
-        /^\d{13}-[a-z0-9]{8}\.json\.gz$/.test(name)
-      ) {
-        // a one-browser match: games/browser/<day>/<ms>-<random>.json.gz
-      } else if (
-        rest.length !== 2 ||
-        !/^\d{13}-\d{6}\.json\.gz$/.test(name) ||
-        !/^[2-9a-hjkmnp-z]{8,24}$/.test(rest[0])
-      )
-        continue;
-      if (Number(name.slice(0, 13)) < after) continue;
+      const rest = pulledPath(Key, { room, since: after });
+      if (!rest) continue;
       const file = path.join(dir, ...rest);
       try {
         await fs.access(file);

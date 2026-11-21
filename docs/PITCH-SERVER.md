@@ -73,8 +73,11 @@ play on a pitch." and "queue it for a rename in the new build".
   protocol (`/ws?pitch=<code>`), the docs and the rewritten client networking.
 - The engine's `room.*` module is renamed with the engine's next minor. No engine
   release is cut only for the name.
-- AWS stack, table and bucket names stay (`kubb-xyz-rooms` and the rest) unless there
-  is a reason: renaming one replaces the resource.
+- AWS names (Jamie, 2026-11-21: "abandon the xyz nomenclature. This is now Throwing
+  Wood."): everything new is `throwing-wood-*` (`tw` where a short prefix is needed),
+  starting with the pitches stack (section 12). The live `kubb-xyz-*` stacks, buckets
+  and functions keep their names until each is replaced or retired: renaming one
+  replaces the resource.
 - Stored keys may change. The new store may use `pitch#<code>` keys and a new record
   format if that is simpler (section 5, "Stored data").
 - The proof of concept keeps "room". It is thrown away.
@@ -95,16 +98,18 @@ At Cloudflare:
   - `setWebSocketAutoResponse` answers a literal `ping` without waking the object.
 - One `LobbyDO` holds the open-games list (today's `open` partition in DynamoDB).
 
-In AWS, unchanged: the site and CloudFront, the rooms table (kept replays, shares,
-reels), the private games bucket, the pitch pages function and the reels function.
+In AWS, unchanged: the site and CloudFront, the pitch pages function and the reels
+function. New, in the `throwing-wood-pitches` stack: the api function, its own table
+(kept replays, shares, reels) and its own private games bucket. The rooms stack, with
+its table and games bucket, goes at cutover.
 
 Between them:
 
 - The pitch pushes each committed action record, and the kept replay at the end, to a
-  new Lambda function URL (`kubb-xyz-rooms-api`, `backend/api/`). Each request is signed with an
+  new Lambda function URL (`throwing-wood-api`, `backend/api/`). Each request is signed with an
   HMAC over the body using a shared secret. No AWS keys live at Cloudflare.
-- The function writes the recorder's objects to the games bucket and the kept replay to
-  the rooms table, as the rooms function does today.
+- The function writes the recorder's objects to its games bucket and the kept replay to
+  its table, as the rooms function does to the old ones today.
 - Messages that are not live play become plain HTTPS calls to that function: `report`,
   `game`, `replay`, `reel`, `share`.
 
@@ -113,7 +118,8 @@ Stored data:
 - No backward compatibility. Old kept replays, shares, reels and recorded games are not
   migrated, and nothing new has to read them.
 - Keys and formats may change freely: `pitch#<code>` keys and a new record format are
-  fine if simpler. Stack, table and bucket names stay (renaming replaces resources).
+  fine if simpler. The new records go to a new table and bucket, so the old ones go
+  whole with the rooms stack.
 - Deleting old stored games is a separate, named step for the owner at cutover. No pull
   request deletes stored data on its own.
 
@@ -273,13 +279,13 @@ Each step is its own pull request.
 3. The AWS function the pitch reports to: HMAC check, records, kept replay, and the
    HTTPS calls (`report`, `game`, `replay`, `reel`, `share`). Built, not deployed:
    `backend/api/` (its contract `backend/api/API.md`), tests in `tests/api/`, the
-   function `kubb-xyz-rooms-api` in `infra/rooms.json` and `/api/*` in
-   `infra/site.json`, off behind `"pitchApi"` (section 12). The pitch pages and the
+   function `throwing-wood-api` in its own stack (`infra/pitches.json`) and `/api/*` in
+   `infra/site.json`, off behind `"pitchesStack"` (section 12). The pitch pages and the
    reels read its `pitch#` records.
 4. The web client.
 5. The iPhone client.
-6. Cutover, then remove the old WebSocket API and its function. Deleting old stored
-   games, if wanted, is the owner's own named step here.
+6. Cutover, then delete the whole old rooms stack (section 12, "What cutover deletes").
+   Deleting old stored games is the owner's own named step here.
 
 ## 11. Open: the owner's calls
 
@@ -305,47 +311,61 @@ Each step is its own pull request.
 ## 12. Step 3: turning it on
 
 The api function is in the repository and off. Merging it changes nothing live:
-`tools/deploy.mjs` updates its code only once a rooms apply has created it, and the
-pitch pages and reels code that read `pitch#` records goes live only with a site apply.
+`tools/deploy.mjs` updates its code only once a pitches apply has created it and
+`"pitchesStack"` is on, and the pitch pages and reels code that read `pitch#` records
+goes live only with a site apply.
 
 ### What turning it on creates
 
-All in the rooms stack, each only with `"pitchApi": true` (the `HasApi` condition):
+One new stack, `throwing-wood-pitches` (`infra/pitches.json`, tags as the other stacks
+but `Project: throwing-wood`). It owns everything the new system keeps, so the old rooms
+stack can later go whole:
 
-- `kubb-xyz-rooms-api`: Node 24, arm64, 256 MB, 30 s, at most 10 at once, its code
-  `api/<sha256>.zip` in the site's code bucket.
+- `throwing-wood-api`: Node 24, arm64, 256 MB, 30 s, at most 10 at once, its code
+  `api/<sha256>.zip` in the site stack's code bucket (`kubb-xyz-site-code-<account>`,
+  which keeps its old name).
 - Its function URL, public (`AuthType NONE`): the pitch server pushes to it, and
   CloudFront's `/api/*` sends the apps' calls to it.
-- `/aws/lambda/kubb-xyz-rooms-api`, 30 days.
+- `/aws/lambda/throwing-wood-api`, 30 days.
 - `ApiRole`, its execution role (a generated name), which may only:
-  - `GetItem`, `PutItem`, `UpdateItem`, `DeleteItem` on the rooms table, for keys that
-    start `pitch#`, `share#`, `reels#` or `shares#` (never the old `room#` or `open`);
-  - `PutObject` under `games/pitch/`, `games/browser/` and `reports/` in the games
-    bucket (no reads, no deletes);
+  - `GetItem`, `PutItem`, `UpdateItem`, `DeleteItem` on the pitches table, for keys that
+    start `pitch#`, `share#`, `reels#` or `shares#`;
+  - `PutObject` under `games/pitch/`, `games/browser/` and `reports/` in the pitches
+    games bucket (no reads, no deletes);
   - `GetSecretValue` on the push secret only;
   - write its own log group;
   - invoke the reels function, when the renderer is on.
-- `kubb-xyz-rooms/push-secret`: the shared secret, made by Secrets Manager (64
-  letters and digits). Nobody types it and it is never in a template, a parameter or a
-  log. The function reads it when it runs.
+- `throwing-wood/push-secret`: the shared secret, made by Secrets Manager (64 letters and
+  digits). Nobody types it and it is never in a template, a parameter or a log. The
+  function reads it when it runs.
+- The pitches table (a generated name, `throwing-wood-pitches-PitchesTable-...`): `pk`
+  and `sk` strings, TTL on `exp`, on demand, no point-in-time recovery, deleted with the
+  stack: as the rooms table.
+- `throwing-wood-pitches-games-<account>`: the private games bucket, kept when the stack
+  goes; public access blocked, SSE-S3, bucket owner enforced, TLS only, no versioning or
+  lifecycle: as the rooms games bucket.
+- Outputs `ApiUrl`, `ApiFunctionName`, `PushSecretArn`, `TableName`, `GamesBucket`,
+  exported as `throwing-wood-api-url`, `throwing-wood-api-function`,
+  `throwing-wood-push-secret-arn`, `throwing-wood-pitches-table` and
+  `throwing-wood-pitches-games-bucket`.
 
-The site stack adds an origin for the function URL and the `/api/*` behaviour (no
-caching, every header but `Host` forwarded, the site's web ACL), and moves the reels
-role from `room#` to `pitch#` keys. The delivery stack lets `main` update the api
-function's code.
+The site stack then adds an origin for the function URL and the `/api/*` behaviour (no
+caching, every header but `Host` forwarded, the site's web ACL), and points the pitch
+pages and the reels function (their `PitchTable`, roles and `TABLE`) at the pitches
+table's `pitch#` keys. The delivery stack lets `main` update `throwing-wood-api`'s code.
 
 ### The secret: the owner's steps
 
 The simplest scheme: one secret, made in AWS, copied once into the Worker. Claude never
 reads, prints or moves its value.
 
-1. After the rooms apply, open Secrets Manager in the console (us-east-1),
-   `kubb-xyz-rooms/push-secret`, "Retrieve secret value", and copy it.
+1. After the pitches apply, open Secrets Manager in the console (us-east-1),
+   `throwing-wood/push-secret`, "Retrieve secret value", and copy it.
 2. In `backend/pitch-server/`, add the line `PUSH_SECRET=<value>` to `.dev.vars`
    (gitignored, beside `DEV_KEY`) and deploy the Worker with
    `npx cf deploy --secrets-file .dev.vars </dev/null` (its README.md "Deploy").
 3. Set the Worker's plain variable `PUSH_URL` (`env` in `cloudflare.config.ts`) to the
-   rooms stack's `ApiUrl` output followed by `push` (the output ends in `/`, so
+   pitches stack's `ApiUrl` output followed by `push` (the output ends in `/`, so
    `https://<id>.lambda-url.us-east-1.on.aws/push`), in a pull request, and deploy
    again. The outbox then drains: every push it held is sent.
 4. To rotate: "Rotate secret immediately" is not set up (no rotation function); instead
@@ -355,20 +375,46 @@ reads, prints or moves its value.
 
 ### Order
 
-As `cloud-engineer` (`AWS_PROFILE=cloud-engineer`), plan first each time:
+As `cloud-engineer` (`AWS_PROFILE=cloud-engineer`), plan first each time. A plan
+creates nothing: for a stack that does not exist yet it lists the template's resources
+without a change set, and every change set it makes is deleted once printed.
 
-1. `"pitchApi": true` in `infra/deployment.json`, in a pull request.
-2. `npm run infra:plan -- rooms`, then `npm run infra:apply -- rooms`: the function,
-   its role, URL, logs and the secret. `infra/deployment.json` gains an `api` block.
-3. `npm run infra:plan -- delivery`, then `infra:apply -- delivery`.
+1. `"pitchesStack": true` in `infra/deployment.json`, in a pull request.
+2. `npm run infra:plan -- pitches`, then `npm run infra:apply -- pitches`: the stack
+   above. `infra/deployment.json` gains a `pitches` block.
+3. `npm run infra:plan -- delivery`, then `infra:apply -- delivery`: `main` may update
+   `throwing-wood-api`'s code. Commit the rewritten `infra/deployment.json` only after
+   this (a deploy from `main` with the `pitches` block and no delivery grant fails).
 4. The secret's steps above.
 5. At cutover only: `npm run infra:plan -- site`, then `infra:apply -- site`. This adds
-   `/api/*` and points the pitch pages and reels at `pitch#` records, so every pitch
+   `/api/*` and points the pitch pages and reels at the pitches table, so every pitch
    played on the old rooms server loses its preview, replay embed card and reel. Do it
-   with step 4 of the build order (the web client), not before.
+   with step 4 of the build order (the web client), not before. Until then, name the
+   stacks on every apply: with the flag on and the stack there, a bare `infra:apply`
+   includes site.
 
-Roll back by setting `"pitchApi": false` and applying rooms (the function, URL, role,
-logs and secret go; Secrets Manager keeps a deleted secret 7 to 30 days) and site.
+`npm run games:pull` and `reports:pull` read the pitches games bucket once
+`"pitchesStack"` is on and the stack is there (pushes land in
+`build/games/pitch/<code>/<made>/`; `games:replay` does not play them yet), the rooms
+games bucket before.
+
+Roll back by setting `"pitchesStack": false` and applying site and delivery (the site
+goes back to the rooms table and loses `/api/*`). The stack itself stays until the
+owner deletes it (`aws cloudformation delete-stack --stack-name throwing-wood-pitches`:
+the function, URL, role, logs, table and secret go, Secrets Manager keeping a deleted
+secret 7 to 30 days; the games bucket stays and is emptied and deleted by hand).
+
+### What cutover deletes
+
+The owner's own named step, once the web and iPhone clients are on the pitch server and
+nothing reaches `/ws`: `"wsRoute": false`, `infra:apply -- site` (the `/ws` route goes),
+then delete the whole `kubb-xyz-rooms` stack (`aws cloudformation delete-stack
+--stack-name kubb-xyz-rooms`): the WebSocket API, `kubb-xyz-rooms-rooms`, its role and
+log group, and the rooms table with every old room, kept replay, share and reel in it.
+Its games bucket, `kubb-xyz-rooms-games-<account>`, is kept by its `Retain` policy:
+deleting the old recorded games and reports is emptying and deleting that bucket by
+hand, a separate named step. Then drop `rooms` from `infra/deployment.json` and the
+delivery stack's rooms grant (`RoomsFunctionName`) in a pull request.
 
 ### Owner's calls for step 3
 
@@ -381,4 +427,4 @@ logs and secret go; Secrets Manager keeps a deleted secret 7 to 30 days) and sit
   the pitch lives; a replay over the limit is 200 `kept: false`.
 - The `meta` the clients put in `keep` (`v`, `setup`, `engine`, `players`, `cpu`, and
   the computer's `level`) is step 4's to settle; the api only copies it.
-- `tools/games.mjs` does not pull `games/pitch/` yet.
+- `tools/games.mjs` pulls `games/pitch/` but does not replay it yet.
