@@ -1866,6 +1866,42 @@ body.embed .replay-controls {
   font-weight: 800;
 }
 
+/* ---------- the free camera's bar (a watcher, docs/OBSERVER.md) ---------- */
+
+.cam-bar {
+  position: absolute;
+  left: calc(var(--safe-left) + 12px);
+  bottom: calc(var(--safe-bottom) + 12px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 24px - var(--safe-left) - var(--safe-right));
+  pointer-events: none;
+}
+.cam-bar > * {
+  pointer-events: auto;
+}
+.cam-bar[hidden],
+.cam-bar > [hidden] {
+  display: none;
+}
+.cam-hint {
+  padding: 3px 10px;
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  background: var(--paper);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+}
+/* a replay has the bottom: the bar goes where the shouts would be */
+.replaying .cam-bar {
+  bottom: auto;
+  top: calc(var(--safe-top) + 92px);
+}
+
 /* ---------- a tall screen (a phone held upright) ---------- */
 
 @media (max-aspect-ratio: 20/21) {
@@ -1886,6 +1922,9 @@ body.embed .replay-controls {
     top: calc(var(--safe-top) + 108px);
   }
   .shout-bar {
+    top: calc(var(--safe-top) + 120px);
+  }
+  .replaying .cam-bar {
     top: calc(var(--safe-top) + 120px);
   }
   .shouts {

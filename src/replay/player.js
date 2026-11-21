@@ -33,6 +33,7 @@
 // HOME. Read only: nothing here sends anything, and the engine refuses every action
 // from outside while the replay is loaded.
 import { h, button } from "../ui/dom.js";
+import { VIEWS, CamBar } from "../ui/watch-view.js";
 import { prefs } from "../game/prefs.js";
 import { openSheet } from "../ui/sheet.js";
 import { fetchReplay } from "./fetch.js";
@@ -48,8 +49,6 @@ export const replayTune = {
 };
 
 export const DIFFERS = "This replay may differ from the match as played.";
-
-const VIEWS = { wide: "WIDE VIEW", thrower: "THROWER'S VIEW" };
 
 // Fetch a pitch's kept replay and play it. Resolves the player, or null when the pitch
 // keeps none (the caller says so: a match from before replays, a room long gone).
@@ -145,6 +144,8 @@ export class ReplayPlayer {
       zen: g.zen,
       onWide: g.onWide,
       wideWanted: g.wideWanted,
+      observing: g.observing,
+      camChange: g.freeCam.onChange,
       view: this.menu?.hooks.view ?? null,
       report: this.menu?.hooks.report ?? null,
     };
@@ -160,6 +161,13 @@ export class ReplayPlayer {
     g.driver = (dt) => this.drive(dt);
     g.onWide = () => this.renderView();
     this.build();
+    // the free camera (docs/OBSERVER.md), not in an embed: another site's page
+    // scrolls under it, and a wheel there must scroll the page
+    if (!this.embedded) {
+      this.cam = new CamBar({ game: g, ui: this.root });
+      g.setObserving(true);
+      this.cam.on();
+    }
     if (this.menu) {
       this.menu.hooks.view = {
         get: () => this.chosen(),
@@ -213,6 +221,11 @@ export class ReplayPlayer {
       zen: s.zen,
       onWide: s.onWide,
     });
+    this.cam?.off();
+    this.cam = null;
+    g.freeCam.home();
+    g.freeCam.onChange = s.camChange;
+    g.setObserving(s.observing);
     if (this.menu) {
       this.menu.hooks.view = s.view;
       this.menu.hooks.report = s.report;
@@ -360,6 +373,7 @@ export class ReplayPlayer {
     if (this.viewBtn.textContent !== label) this.viewBtn.textContent = label;
     // a window too small for the wide view shows the thrower's: no switch
     this.viewBtn.hidden = this.chosen() === "wide" && !this.game.wide;
+    this.cam?.render();
   }
 
   key(e) {
