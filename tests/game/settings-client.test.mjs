@@ -248,6 +248,39 @@ browserTest(
 );
 
 browserTest(
+  "a name set in MENU over the solo card is the name START takes, not the box's older text",
+  async () => {
+    const page = await open(
+      env,
+      `/p/abcdefgh?solo=1&nohowto=1&rooms=${encodeURIComponent(rooms.url)}`,
+      "desktop",
+      {
+        prefs: { howtoSeen: true },
+      },
+    );
+    try {
+      await page.waitForSelector("[data-test=solo-name]");
+      await page.fill("[data-test=solo-name]", "Birch");
+      await page.click("[data-test=solo-you-menu]");
+      await page.fill("[data-test=settings-name]", "Elm");
+      await page.press("[data-test=settings-name]", "Enter");
+      await page.keyboard.press("Escape");
+      assert.equal(await page.inputValue("[data-test=solo-name]"), "Elm");
+      await page.click("[data-test=start]");
+      await page.waitForFunction(() => window.__kubb.game.mode === "match");
+      assert.equal(await pref(page, "name"), "Elm");
+      const teamA = await page.evaluate(
+        () => JSON.parse(window.__kubb.game.engine.snapshot()).opts.teams.A,
+      );
+      assert.equal(teamA.name, "Elm");
+      assert.deepEqual(page.errors, []);
+    } finally {
+      await page.context().close();
+    }
+  },
+);
+
+browserTest(
   "the lobby's You row shows a kept name with CHANGE IN MENU, and the room hears a change",
   async () => {
     const code = makeRoomCode();

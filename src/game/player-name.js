@@ -25,12 +25,23 @@ export function tidyName(text) {
   return out.trim();
 }
 
+// The solo card's old name is read once: it leaves the card's saved options as it
+// is read, and whenever a name is kept, so a name cleared in Settings stays cleared.
+function dropSoloName(prefs) {
+  const solo = prefs.get("solo", null);
+  if (!solo || typeof solo !== "object" || !("name" in solo)) return;
+  const rest = { ...solo };
+  delete rest.name;
+  prefs.set("solo", rest);
+}
+
 // The device's name, moved from the older values when needed and stored; "" for none.
 // prefs: { get(key, fallback), set(key, value) } (src/game/prefs.js).
 export function loadName(prefs) {
   const own = tidyName(prefs.get("name", null));
   if (own) return own;
   const solo = tidyName(prefs.get("solo", null)?.name);
+  dropSoloName(prefs);
   if (solo && solo !== PLACEHOLDER) {
     prefs.set("name", solo);
     return solo;
@@ -42,5 +53,6 @@ export function loadName(prefs) {
 export function saveName(prefs, text) {
   const name = tidyName(text);
   prefs.set("name", name);
+  dropSoloName(prefs);
   return name;
 }
