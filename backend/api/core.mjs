@@ -11,11 +11,11 @@
 //               putState(code, state, prevRev) -> bool   false when the stored rev is not
 //                                                        prevRev (0: none, or expired)
 //               putFinal(code, { made, n, snap, exp }) -> bool    the final snapshot
-//                           of match (made, n), one half of its replay; false for an older
-//                           match or one that has it already
+//                           of match (made, n), one half of its replay; false when the
+//                           replay holds this match or a later one, or this half is in
 //               putKept(code, { made, n, v, data, hash, cpu, level, exp }) -> bool   the kept
 //                           replay of match (made, n), `v` the time it ended, the other
-//                           half; false when this or a later one is kept. Whichever half
+//                           half; false the same way. Whichever half
 //                           comes second makes the replay whole; until then the last
 //                           match's replay is still the one served
 //               getReplay(code) -> { v, made, n, data, sealed, exp } | null   only a

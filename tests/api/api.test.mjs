@@ -574,6 +574,41 @@ for (const kind of STORES)
     assert.deepEqual(await h.replay(), second);
   });
 
+// Codex on PR #97: pushes of matches in a row cross. Match 1's last action, then match
+// 2's, then match 1's late keep: match 1's replay is whole, and stays when match 2's keep
+// is too long to keep. Then match 2 is never whole, and nothing of match 1 is left over.
+for (const kind of STORES)
+  test(`${kind}: halves of matches in a row may cross; each match's replay is made whole`, async () => {
+    const h = harness(kind);
+    const one = matchPushes({ n: 1 });
+    await h.push(one.start);
+    for (const p of one.acts) await h.push(p);
+    await h.push(start(2));
+    await h.push(act(2, 1, { over: true, snap: REPLAY.snap }));
+    assert.equal((await h.replay()).replay, null, "neither match whole yet");
+    assert.deepEqual((await h.push(one.keep)).json, { ok: true });
+    const first = await h.replay();
+    assert.equal(first.replay.n, 1);
+    assert.deepEqual(served(first.replay), served({ ...REPLAY, n: 1 }));
+    // match 2's keep is over the limit: taken, not kept, and match 1's replay stays
+    const big = REPLAY.log[0];
+    const long = keep(2, Array(LIMITS.logMax).fill(big), { at: T0 + 60_000 });
+    assert.equal((await h.push(long)).json.kept, false);
+    assert.deepEqual(await h.replay(), first);
+    // match 1's half is gone once its replay was made; its pushes again change nothing
+    const halves = [...(h.fake ?? h.store).items.keys()].filter((k) =>
+      k.includes("|half#"),
+    );
+    assert.deepEqual(halves, [
+      `pitch#${CODE}|half#${String(MADE).padStart(13, "0")}#0002`,
+    ]);
+    assert.deepEqual((await h.push(one.keep)).json, {
+      ok: true,
+      duplicate: true,
+    });
+    assert.deepEqual(await h.replay(), first);
+  });
+
 for (const kind of STORES)
   test(`${kind}: the code wiped and used again starts over; the old pitch's late pushes are ignored`, async () => {
     const h = harness(kind);

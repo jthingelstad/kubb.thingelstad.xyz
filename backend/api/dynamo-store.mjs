@@ -6,14 +6,16 @@
 //                         the pitch's latest match as far as its pushes go: z the latest
 //                         snapshot, gzipped. 48 hours after the last push while in play,
 //                         a year once over. What the pitch pages show.
-//   pitch#<code>  half    { made, n, v?, z?, s?, hash?, cpu?, level?, exp }
-//                         the latest finished match's replay as its two pushes come in,
-//                         in either order: z its kept replay (JSON text, from `keep`) and s
+//   pitch#<code>  half#<made>#<n>   { made, n, v?, z?, s?, hash?, cpu?, level?, exp }
+//                         one finished match's replay as its two pushes come in, in
+//                         either order: z its kept replay (JSON text, from `keep`) and s
 //                         its final snapshot (from the action that ended it), gzipped; v
-//                         the time it ended (epoch ms). A year.
+//                         the time it ended (epoch ms). One a match, so pushes of
+//                         matches in a row may cross; deleted once the replay item holds
+//                         its match or a later one. A year at most.
 //   pitch#<code>  replay  { made, n, v, z, s, hash, cpu?, level?, sealed?, exp }
 //                         the last finished match whose two halves are both in, copied
-//                         from `half` by whichever push brought the second: so a rematch's
+//                         from its half item by whichever push brought the second: so a rematch's
 //                         first half never hides the last match's replay. A year.
 //   pitch#<code>  reel    { v, tag, job, state, at, tries, tall?, wide?, edit?, seconds?,
 //                           done?, why?, exp }   the replay's highlight reel
@@ -35,7 +37,7 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { REEL_TRIES } from "../reels/tag.mjs";
-import { withSnap } from "./push.mjs";
+import { halfKey, withSnap } from "./push.mjs";
 
 const lost = (error) => error?.name === "ConditionalCheckFailedException";
 const refused = (error) =>
@@ -107,13 +109,13 @@ export function dynamoStore({ client, table, now = Date.now }) {
     }
   }
 
-  // The half item of match (made, n): `fields` set on it when it is this match's and
-  // `extra` holds (a condition on the item as it stands), else the whole item replaced
-  // when it is gone or an earlier match's. Twice round, because the two pushes of a new
-  // match can race to make its item: the loser finds the winner's item and sets its own
-  // fields on it. True when this call wrote.
-  async function patchHalf(code, { made, n }, fields, extra) {
-    const Key = { pk: `pitch#${code}`, sk: "half" };
+  // The half item of match (made, n), one a match: `fields` set on it when it is there
+  // and `extra` holds (a condition on the item as it stands), else made with them when it
+  // is gone. Twice round, because the two pushes of a match can race to make its item:
+  // the loser finds the winner's item and sets its own fields on it. True when this call
+  // wrote.
+  async function patchHalf(code, match, fields, extra) {
+    const Key = { pk: `pitch#${code}`, sk: halfKey(match) };
     const names = Object.keys(fields);
     for (let round = 0; round < 2; round++) {
       try {
@@ -123,18 +125,13 @@ export function dynamoStore({ client, table, now = Date.now }) {
             Key,
             UpdateExpression:
               "SET " + names.map((_, i) => `#f${i} = :f${i}`).join(", "),
-            ConditionExpression: `#made = :made AND #n = :n AND #exp > :now AND attribute_not_exists(#sealed) AND (${extra.condition})`,
+            ConditionExpression: `attribute_exists(pk) AND #exp > :now AND (${extra.condition})`,
             ExpressionAttributeNames: {
-              "#made": "made",
-              "#n": "n",
               "#exp": "exp",
-              "#sealed": "sealed",
               ...extra.names,
               ...Object.fromEntries(names.map((f, i) => [`#f${i}`, f])),
             },
             ExpressionAttributeValues: {
-              ":made": made,
-              ":n": n,
               ":now": seconds(),
               ...extra.values,
               ...Object.fromEntries(names.map((f, i) => [`:f${i}`, fields[f]])),
@@ -149,21 +146,10 @@ export function dynamoStore({ client, table, now = Date.now }) {
         await client.send(
           new PutCommand({
             TableName: table,
-            Item: { ...Key, made, n, ...fields },
-            ConditionExpression:
-              "attribute_not_exists(pk) OR #exp < :now OR " +
-              "(attribute_not_exists(#sealed) AND (#made < :made OR (#made = :made AND #n < :n)))",
-            ExpressionAttributeNames: {
-              "#exp": "exp",
-              "#sealed": "sealed",
-              "#made": "made",
-              "#n": "n",
-            },
-            ExpressionAttributeValues: {
-              ":now": seconds(),
-              ":made": made,
-              ":n": n,
-            },
+            Item: { ...Key, made: match.made, n: match.n, ...fields },
+            ConditionExpression: "attribute_not_exists(pk) OR #exp < :now",
+            ExpressionAttributeNames: { "#exp": "exp" },
+            ExpressionAttributeValues: { ":now": seconds() },
           }),
         );
         return true;
@@ -171,16 +157,19 @@ export function dynamoStore({ client, table, now = Date.now }) {
         if (!lost(error)) throw error;
       }
     }
-    return false; // this match's already, or a later one's
+    return false; // this match's half is in already
   }
 
-  // The replay of match (made, n), once both its halves are in, copied from the half item
-  // (read after this push's own write, so of two racing pushes the later sees both). Never
-  // over a later match, a sealed (shared) pitch, or the same replay kept later.
-  async function promote(code, { made, n }) {
-    const h = await get(`pitch#${code}`, "half");
-    if (!h || h.made !== made || h.n !== n || !h.v || !h.z || !h.s) return;
-    const { sk, ...fields } = h;
+  // The replay of match (made, n), once both its halves are in, copied from its half
+  // item (read after this push's own write, so of two racing pushes the later sees both).
+  // Never over a later match, a sealed (shared) pitch, or the same replay kept later.
+  // Then the half item goes: its match's replay is whole, or a later one is.
+  async function promote(code, match) {
+    const pk = `pitch#${code}`;
+    const sk = halfKey(match);
+    const h = await get(pk, sk);
+    if (!h || !h.v || !h.z || !h.s) return;
+    const { sk: _, ...fields } = h;
     try {
       await client.send(
         new PutCommand({
@@ -198,8 +187,8 @@ export function dynamoStore({ client, table, now = Date.now }) {
           },
           ExpressionAttributeValues: {
             ":now": seconds(),
-            ":made": made,
-            ":n": n,
+            ":made": match.made,
+            ":n": match.n,
             ":v": h.v,
           },
         }),
@@ -207,12 +196,28 @@ export function dynamoStore({ client, table, now = Date.now }) {
     } catch (error) {
       if (!lost(error)) throw error;
     }
+    await client.send(new DeleteCommand({ TableName: table, Key: { pk, sk } }));
+  }
+
+  // Whether the replay item already holds match (made, n) or a later one: a half for it
+  // is then not kept (a push sent again after its replay was made whole).
+  async function covered(code, { made, n }) {
+    const r = await get(`pitch#${code}`, "replay", [
+      "made",
+      "n",
+      "sealed",
+      "exp",
+    ]);
+    return (
+      !!r && (!!r.sealed || r.made > made || (r.made === made && r.n >= n))
+    );
   }
 
   // A half written (or found written: a push sent again), then the replay made whole if
   // it can be. The promotion runs on a duplicate too, in case the first try stopped
   // between the two writes.
   async function half(code, match, fields, extra) {
+    if (await covered(code, match)) return false;
     const wrote = await patchHalf(code, match, fields, extra);
     await promote(code, match);
     return wrote;

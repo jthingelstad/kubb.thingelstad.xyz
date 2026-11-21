@@ -4,7 +4,7 @@
 // and replays as text rather than gzipped).
 
 import { REEL_TRIES } from "../reels/tag.mjs";
-import { withSnap } from "./push.mjs";
+import { halfKey, withSnap } from "./push.mjs";
 
 export function memoryStore({ now = Date.now } = {}) {
   const items = new Map();
@@ -15,26 +15,36 @@ export function memoryStore({ now = Date.now } = {}) {
   const del = (pk, sk) => items.delete(`${pk}|${sk}`);
   const writes = { state: 0, replay: 0 };
 
-  // the half item for (made, n): fields set on this match's item when `ok(item)`, or
-  // a fresh item for a later match; nothing for an earlier match. Then the replay made
-  // whole from it when both halves are in (never over a later match, a sealed pitch or
-  // the same replay kept later).
+  // the half item of match (made, n), one a match (push.mjs halfKey): fields set
+  // on it when `ok(item)`, or a fresh item when there is none; nothing when the replay
+  // already holds this match or a later one. Then the replay made whole from it when
+  // both halves are in (never over a later match, a sealed pitch or the same replay kept
+  // later), and the half item dropped.
   function half(code, { made, n }, fields, ok) {
     const pk = `pitch#${code}`;
-    const had = get(pk, "half");
+    const sk = halfKey({ made, n });
+    const covering = get(pk, "replay");
+    if (
+      covering &&
+      (covering.sealed ||
+        covering.made > made ||
+        (covering.made === made && covering.n >= n))
+    )
+      return false;
+    const had = get(pk, sk);
     let wrote = false;
-    if (had && had.made === made && had.n === n) {
+    if (had) {
       if (ok(had)) {
-        put(pk, "half", { ...had, ...fields });
+        put(pk, sk, { ...had, ...fields });
         wrote = true;
       }
-    } else if (!had || had.made < made || (had.made === made && had.n < n)) {
-      put(pk, "half", { made, n, ...fields });
+    } else {
+      put(pk, sk, { made, n, ...fields });
       wrote = true;
     }
     if (wrote) writes.replay++;
-    const h = get(pk, "half");
-    if (h && h.made === made && h.n === n && h.v && h.z && h.s) {
+    const h = get(pk, sk);
+    if (h && h.v && h.z && h.s) {
       const r = get(pk, "replay");
       if (
         !r ||
@@ -43,6 +53,7 @@ export function memoryStore({ now = Date.now } = {}) {
             (r.made === made && (r.n < n || (r.n === n && r.v < h.v)))))
       )
         put(pk, "replay", { ...h });
+      del(pk, sk);
     }
     return wrote;
   }

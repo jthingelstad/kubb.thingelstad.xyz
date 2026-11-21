@@ -242,6 +242,11 @@ export function withSnap(text, snap) {
   return `{${body ? `${body},` : ""}"snap":${asciiJson(snap)}}`;
 }
 
+// The table key of a replay's half item: one a match, so a later match's pushes never drop one still being put
+// together: half#<made, 13 digits>#<n, 4 digits>.
+export const halfKey = ({ made, n }) =>
+  `half#${String(made).padStart(13, "0")}#${String(n).padStart(4, "0")}`;
+
 // The S3 key a recorded push is kept under, so a retried push lands on the same object:
 //   games/pitch/<code>/<made, 13 digits>/<n, 4 digits>-<seq, 6 digits>.json.gz
 // (a start is seq 0). "pitch" cannot be a pitch code (codes are 8 to 24 characters).
