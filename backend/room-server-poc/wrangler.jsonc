@@ -1,0 +1,20 @@
+{
+  // Throwaway proof of concept: Throwing Wood rooms relay on Durable Objects.
+  // workers.dev only: no routes, no custom domains, no other bindings.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "throwingwood-rooms-poc",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "durable_objects": {
+    "bindings": [{ "name": "ROOM", "class_name": "RoomDO" }],
+    // Only wrangler reads this file (dev and tests); `cf deploy` reads
+    // cloudflare.config.ts, which has no code_update_strategy, so the deployed
+    // Worker used Cloudflare's default deferred update (about 300 s).
+    "code_update_strategy": { "mode": "deferred", "max_delay": 60 },
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RoomDO"] }],
+  "vars": { "POC_VERSION": "1" },
+  "observability": { "enabled": false },
+}

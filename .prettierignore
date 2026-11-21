@@ -8,3 +8,8 @@ infra/deployment.json
 vendor/
 # captured from the engine (tests/fixtures), kept as written
 tests/fixtures/
+# the rooms proof of concept's local output, never in git
+backend/room-server-poc/results/
+backend/room-server-poc/.data/
+backend/room-server-poc/.wrangler/
+backend/room-server-poc/.cloudflare/
