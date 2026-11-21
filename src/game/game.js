@@ -754,9 +754,14 @@ export class Game {
     // sends nothing, so after `holdFeed` the same arm is fed again: the stop.
     let out;
     let fed = false; // the engine was fed with no arm: a press's end is judged
-    // the aim as it stood before this frame, for the release's own cast (onRelease)
+    // the aim as it stood before this frame, for the release's own cast (onRelease):
+    // on a dial or swipe frame, and on the frame after the finger lifted from the clock
+    // or the meter (nudgeEnd), which is the one that throws
     const pre =
-      this.onRelease && may && !paused && (input.arm != null || input.touch)
+      this.onRelease &&
+      may &&
+      !paused &&
+      (input.arm != null || input.touch || this.nudgeEnd)
         ? this.engine.aimState()
         : null;
     if (paused) out = { ...this.out, event: undefined };
