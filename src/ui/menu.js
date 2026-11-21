@@ -1,46 +1,58 @@
-// The menu, from the button in the top corner: resign, sound, level, meter
-// and its side, how to throw, the score sheet (in a match), send feedback, the rules and home; on
-// the practice pitch also the surface and the scene; watching the computer, the view. At its
-// foot, small, the release label (src/site/release.js): "0.2.0 (0.8.1)", and
-// "Also plays 0.7.4" under it when the page carries an older engine.
+// The menu, from the button in the top corner. Its top half is the device's
+// settings (src/ui/settings.js: your name, your level, the meter and its side, the
+// sound), the same rows as the /settings/ page; below them, on the practice pitch,
+// that pitch's own options (surface and scene), and watching the computer, the
+// view. Then the actions: how to throw, resign, the score sheet (in a match), send
+// feedback, the rules and home. At its foot, small, the release label
+// (src/site/release.js): "0.2.0 (0.8.1)", and "Also plays 0.7.4" under it when the
+// page carries an older engine. A match's own options are not here: they are set on
+// the solo card or in the lobby, and the raise panel's REST OF GAME hands the
+// raising over mid-match (src/ui/cards.js).
 import { h, button, clear } from "./dom.js";
-import { LEVEL_NOTE } from "../game/throw-level.js";
+import { deviceRows, seg } from "./settings.js";
 import { SCENE_ROW, sceneId } from "../render/scenes.js";
 
-const LEVELS = [
-  ["beginner", "Beginner"],
-  ["club", "Club"],
-  ["pro", "Pro"],
-];
 // watching the computer (src/main.js watchView)
 const VIEWS = [
   ["wide", "Wide"],
   ["thrower", "Thrower's"],
-];
-// the throw's meter (src/game/game.js setMeter)
-const METERS = [
-  ["clock", "Clock"],
-  ["linear", "Linear"],
-];
-// the screen edge the meter sits at (src/game/game.js setMeterSide)
-const SIDES = [
-  ["left", "Left"],
-  ["right", "Right"],
-];
-// raising kubbs for the rest of this match (src/game/auto-raise.js)
-const RAISING = [
-  ["hand", "By hand"],
-  ["auto", "Automatic"],
-];
-const SOUND = [
-  ["on", "On"],
-  ["off", "Off"],
 ];
 const SURFACES = [
   ["grass", "Grass"],
   ["sand", "Sand"],
   ["snow", "Snow"],
 ];
+
+// The device rows' view of a Game and its Sound.
+function gameDevice(game, sound) {
+  return {
+    name: game.playerName,
+    setName: (t) => game.setPlayerName(t),
+    level: game.level,
+    setLevel: (v) => game.setLevel(v),
+    meter: game.meter,
+    setMeter: (v) => game.setMeter(v),
+    meterSide: game.meterSide,
+    setMeterSide: (v) => game.setMeterSide(v),
+    muted: sound?.muted,
+    setMuted: sound
+      ? (on) => {
+          sound.unlock();
+          sound.setMuted(on);
+        }
+      : null,
+    // chosen, but this screen has not the height for it (layout.js)
+    meterNote:
+      game.meter === "linear" && game.L?.meter !== "linear"
+        ? "This screen is too short for the linear meter, so the clock is shown."
+        : null,
+    // a tall screen's clock is in the middle: the side is the linear meter's there
+    sideNote:
+      game.L?.tall && game.L?.meter !== "linear"
+        ? "On a screen held upright the clock stays in the middle; the side moves the linear meter."
+        : null,
+  };
+}
 
 export class Menu {
   // hooks: { game, sound, howto, home, resign?, surface?, scene?, sheet?, report?, view?, release?: { text, detail }, mode }
@@ -86,66 +98,7 @@ export class Menu {
       // DOM append writes a null as the text "null": leave the absent rows out
       const rows = [
         h("h2.display", "Menu"),
-        // the level this device throws at, in practice, against the computer and
-        // on a shared pitch alike (src/game/throw-level.js): set here only
-        h(
-          "div.opt",
-          { "data-test": "menu-level" },
-          h("span.opt-label", "Your level"),
-          seg(LEVELS, game.level, (v) => {
-            game.setLevel(v);
-            render();
-          }),
-          h("p.opt-note", LEVEL_NOTE),
-        ),
-        h(
-          "div.opt",
-          { "data-test": "menu-meter" },
-          h("span.opt-label", "Meter"),
-          seg(METERS, game.meter, (v) => {
-            game.setMeter(v);
-            render();
-          }),
-          // chosen, but this screen has not the height for it (layout.js)
-          game.meter === "linear" && game.L?.meter !== "linear"
-            ? h(
-                "p.opt-note",
-                { "data-test": "menu-meter-note" },
-                "This screen is too short for the linear meter, so the clock is shown.",
-              )
-            : null,
-        ),
-        h(
-          "div.opt",
-          { "data-test": "menu-side" },
-          h("span.opt-label", "Meter side"),
-          seg(SIDES, game.meterSide, (v) => {
-            game.setMeterSide(v);
-            render();
-          }),
-          // a tall screen's clock is in the middle: the side is the linear
-          // meter's there
-          game.L?.tall && game.L?.meter !== "linear"
-            ? h(
-                "p.opt-note",
-                { "data-test": "menu-side-note" },
-                "On a screen held upright the clock stays in the middle; the side moves the linear meter.",
-              )
-            : null,
-        ),
-        // shown once this browser has been asked to raise: a match whose own
-        // Raising option is Automatic never asks
-        game.mode === "match" && (game.autoRaise.seen || game.autoRaise.game)
-          ? h(
-              "div.opt",
-              { "data-test": "menu-raise" },
-              h("span.opt-label", "Raising"),
-              seg(RAISING, game.autoRaise.game ? "auto" : "hand", (v) => {
-                game.setRaise(v);
-                render();
-              }),
-            )
-          : null,
+        ...deviceRows(gameDevice(game, sound), render),
         this.hooks.view
           ? h(
               "div.opt",
@@ -157,9 +110,11 @@ export class Menu {
               }),
             )
           : null,
+        // the practice pitch's own options: its match-options place
         game.mode === "practice" && this.hooks.surface
           ? h(
               "div.opt",
+              { "data-test": "menu-surface" },
               h("span.opt-label", "Surface"),
               seg(SURFACES, game.viewData?.surface || "grass", (v) => {
                 this.hooks.surface(v);
@@ -181,20 +136,6 @@ export class Menu {
                 },
                 "scene",
               ),
-            )
-          : null,
-        // the sound as a choice that shows which it is, as every row above
-        // (it was one button, SOUND: ON, that read as its own state)
-        sound
-          ? h(
-              "div.opt",
-              { "data-test": "mute" },
-              h("span.opt-label", "Sound"),
-              seg(SOUND, sound.muted ? "off" : "on", (v) => {
-                sound.unlock();
-                sound.setMuted(v === "off");
-                render();
-              }),
             )
           : null,
         h(
@@ -281,24 +222,4 @@ export class Menu {
     this.btn.setAttribute("aria-expanded", "false");
     window.removeEventListener("keydown", this.esc);
   }
-}
-
-function seg(choices, value, onPick, key = null) {
-  return h(
-    "div.seg",
-    key ? { role: "radiogroup", "data-key": key } : { role: "radiogroup" },
-    choices.map(([v, label]) =>
-      h(
-        "button.seg-btn",
-        {
-          type: "button",
-          role: "radio",
-          "aria-checked": String(v === value),
-          "data-value": v,
-          onclick: () => onPick(v),
-        },
-        label,
-      ),
-    ),
-  );
 }

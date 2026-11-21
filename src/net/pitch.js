@@ -189,7 +189,8 @@ export class Pitch {
       });
       return;
     }
-    const name = cleanName(prefs.get("name", prefs.get("solo", {}).name));
+    // the device's name (src/game/player-name.js): typed once, kept on the device
+    const name = cleanName(game.playerName);
     this.name = name;
     // every engine this page can play, newest first (src/engine/registry.js)
     this.carries = this.engines?.newest ? this.engines.carried() : [ENGINE];
@@ -229,6 +230,8 @@ export class Pitch {
 
     // a change of level in MENU: the lobby says it, the room hears it
     this.stopLevel = game.onLevel((v) => this.levelChanged(v));
+    // and a change of name there (or the first one typed in the lobby): the room hears it
+    this.stopName = game.onPlayerName((v) => this.nameChanged(v));
 
     this.buildHud();
     game.seat = this.seatFor({ sides: [], cpu: false });
@@ -416,12 +419,20 @@ export class Pitch {
 
   // ---------- the lobby ----------
 
+  // A name typed in the lobby (only while this device keeps none): kept on the
+  // device, which tells nameChanged.
   setName(text) {
-    const name = cleanName(text);
+    if (text == null) return;
+    this.game.setPlayerName(text);
+  }
+
+  // The device's name changed (MENU, or typed in the lobby).
+  nameChanged(v) {
+    const name = cleanName(v);
+    this.lobby?.setName(name);
     if (name === this.name) return;
     this.name = name;
-    prefs.set("name", name);
-    this.room.setMe({ name });
+    this.room?.setMe({ name });
   }
 
   // The device's throw level changed (MENU). A match in play reads it from this
@@ -433,7 +444,7 @@ export class Pitch {
   }
 
   async pickTeam(side) {
-    this.setName(this.lobby.nameInput.value);
+    this.setName(this.lobby.typedName());
     const doc = this.room.doc;
     const full = side && lobbyOf(doc).teams[side].length >= 6;
     const r = await this.write((d) => joinTeam(d, this.you, side));
@@ -721,7 +732,7 @@ export class Pitch {
   async start(tries = 0) {
     const room = this.room;
     if (!room.isHost() || this.mode !== "lobby" || this.starting) return;
-    this.setName(this.lobby.nameInput.value);
+    this.setName(this.lobby.typedName());
     const doc = room.doc;
     const lu = lineup(doc, room.members);
     if (!lu) {

@@ -89,6 +89,7 @@ import {
 } from "./plan-sliders.js";
 import { standSpan, groundAt } from "./stand-pad.js";
 import { prefs } from "./prefs.js";
+import { loadName, saveName } from "./player-name.js";
 import { loadThrowLevel } from "./throw-level.js";
 import { NudgeTrigger, timeline, swingOf, captionFor } from "./nudge.js";
 import { coachFor, slowVerdict } from "./coach.js";
@@ -222,6 +223,10 @@ export class Game {
     // (the lobby, a shared pitch's presence) hear a change through onLevel
     this.level = loadThrowLevel(prefs);
     this.levelWatch = new Set();
+    // the player's name, this device's too (src/game/player-name.js): "" until
+    // typed once; the solo card and the lobby hear a change through onPlayerName
+    this.playerName = loadName(prefs);
+    this.nameWatch = new Set();
     // the throw's meter, this device's: the clock or the linear one (MENU)
     this.meter = prefs.get("meter", "clock") === "linear" ? "linear" : "clock";
     // and the screen edge it sits at (MENU, Side), for either hand
@@ -1095,7 +1100,7 @@ export class Game {
     return r;
   }
 
-  // MENU, Raising, and the panel's BY HAND and REST OF GAME: "auto" raises
+  // The raise panel's BY HAND and REST OF GAME: "auto" raises
   // every kubb of this match on the engine's choice (src/game/auto-raise.js).
   setRaise(v) {
     setGame(this.autoRaise, v === "auto");
@@ -1192,6 +1197,20 @@ export class Game {
   onLevel(f) {
     this.levelWatch.add(f);
     return () => this.levelWatch.delete(f);
+  }
+
+  // The device's name (Settings, or the first time a card asks for it).
+  setPlayerName(text) {
+    const name = saveName(prefs, text);
+    if (name === this.playerName) return;
+    this.playerName = name;
+    for (const f of this.nameWatch) f(name);
+  }
+
+  // f(name) on every change of the device's name; returns the way to stop.
+  onPlayerName(f) {
+    this.nameWatch.add(f);
+    return () => this.nameWatch.delete(f);
   }
 
   // The throw's meter: "clock" (the dial) or "linear" (the straight track).

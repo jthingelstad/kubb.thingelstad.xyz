@@ -379,12 +379,15 @@ browserTest(
     await nextFrame(page);
     assert.equal((await auto()).turn, false, "it ends with the turn");
 
-    // the next turn is by hand again; MENU's Raising makes it the match's
+    // the next turn is by hand again; REST OF GAME on the panel makes it the
+    // match's (raising is a match option: MENU has no Raising row)
     await page.evaluate(() => window.__stage(6, 2));
     await page.waitForSelector("[data-test=raise-auto]");
+    assert.ok(await has("raise-auto-game"), "REST OF GAME offered by hand");
     await page.click("[data-test=menu]");
-    await page.click("[data-test=menu-raise] >> text=Automatic");
+    assert.equal(await has("menu-raise"), false, "not in MENU");
     await page.keyboard.press("Escape");
+    await page.click("[data-test=raise-auto-game]");
     assert.match(
       await page.locator("[data-test=raise-note]").textContent(),
       /rest of the game/,
@@ -400,7 +403,7 @@ browserTest(
     await page.waitForTimeout(1000);
     assert.equal(await raised(), 5, "nothing is raised by hand's panel");
 
-    // REST OF GAME, offered once AUTO ALL is running
+    // REST OF GAME, offered while AUTO ALL is running too
     await page.click("[data-test=raise-auto-all]");
     await page.click("[data-test=raise-auto-game]");
     assert.equal((await auto()).game, true);

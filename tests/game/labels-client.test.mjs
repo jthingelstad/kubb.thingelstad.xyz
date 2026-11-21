@@ -99,13 +99,15 @@ browserTest("the menu's rows say what they set and show it", async () => {
       "[data-test=menu-card] .opt-label",
       (els) => els.map((e) => e.textContent),
     );
+    // the device's settings first (src/ui/settings.js), then the practice pitch's own
     assert.deepEqual(labels, [
+      "Your name",
       "Your level",
       "Meter",
       "Meter side",
+      "Sound",
       "Surface",
       "Scene",
-      "Sound",
     ]);
     const sound = () =>
       page.$$eval("[data-test=mute] [role=radio]", (els) =>

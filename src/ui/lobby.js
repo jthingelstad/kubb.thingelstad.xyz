@@ -1,5 +1,6 @@
-// The lobby on a pitch link (docs/MULTIPLAYER.md): your name, the level you throw
-// at (MENU's, never picked here), the two teams with who is on them, who is connected and who is host, who is
+// The lobby on a pitch link (docs/MULTIPLAYER.md): your name and the level you
+// throw at (both the device's, set in MENU; the name is typed here only while the
+// device keeps none), the two teams with who is on them, who is connected and who is host, who is
 // watching, the link to share, who can join (open or invite only), the host's
 // match options and START. Built
 // once; update(state) changes only what changed, so typing a name is never
@@ -41,30 +42,49 @@ export class Lobby {
     this.code = code;
     this.closeFn = null;
 
-    this.nameInput = h("input.name", {
-      type: "text",
-      maxlength: NAME_MAX,
-      value: name || "",
-      placeholder: "Your name",
-      autocomplete: "off",
-      spellcheck: "false",
-      enterkeyhint: "done",
-      "aria-label": "Your name",
-      "data-test": "lobby-name",
-    });
-    const sendName = () => hooks.name(this.nameInput.value);
-    this.nameInput.addEventListener("change", sendName);
-    this.nameInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        sendName();
-        this.nameInput.blur();
-      }
-    });
-    let timer = null;
-    this.nameInput.addEventListener("input", () => {
-      clearTimeout(timer);
-      timer = setTimeout(sendName, 600);
-    });
+    // your name is this device's (src/game/player-name.js): shown with CHANGE IN
+    // MENU once kept, as the level is; asked here only while there is none
+    this.nameInput = name
+      ? null
+      : h("input.name", {
+          type: "text",
+          maxlength: NAME_MAX,
+          value: "",
+          placeholder: "Your name",
+          autocomplete: "off",
+          spellcheck: "false",
+          enterkeyhint: "done",
+          "aria-label": "Your name",
+          "data-test": "lobby-name",
+        });
+    this.nameText = h("span.opt-value", name || "");
+    if (this.nameInput) {
+      const input = this.nameInput;
+      const sendName = () => hooks.name(input.value);
+      input.addEventListener("change", sendName);
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          sendName();
+          input.blur();
+        }
+      });
+      let timer = null;
+      input.addEventListener("input", () => {
+        clearTimeout(timer);
+        timer = setTimeout(sendName, 600);
+      });
+    }
+    this.nameRow = this.nameInput
+      ? h("label.opt", h("span.opt-label", "Your name"), this.nameInput)
+      : h(
+          "div.opt",
+          { "data-test": "lobby-name-row" },
+          h("span.opt-label", "Your name"),
+          this.nameText,
+          button("CHANGE IN MENU", () => hooks.menu?.(), "small", {
+            "data-test": "lobby-name-menu",
+          }),
+        );
 
     // the level you throw at is this device's, set in MENU (src/game/throw-level.js)
     this.levelText = h("span.opt-value", levelLine(level));
@@ -139,7 +159,7 @@ export class Lobby {
       { "data-test": "lobby" },
       h("p.kicker", `PITCH ${code}  `, this.status),
       h("h2.display", "Pick a side"),
-      h("label.opt", h("span.opt-label", "Your name"), this.nameInput),
+      this.nameRow,
       this.levelRow,
       h("div.teams", this.teams.A.el, this.teams.B.el),
       h("div.watch-row", this.watchList, this.sitOut),
@@ -342,6 +362,19 @@ export class Lobby {
           : st.status === "reconnecting"
             ? "· RECONNECTING"
             : "";
+  }
+
+  // What is typed in the name box, or null when the name is the device's kept one.
+  typedName() {
+    return this.nameInput ? this.nameInput.value : null;
+  }
+
+  // The device's name changed (in MENU, or typed here): the row says it. A name box
+  // stays a box while the lobby is up, so typing in it is never interrupted.
+  setName(v) {
+    this.nameText.textContent = v;
+    if (this.nameInput && document.activeElement !== this.nameInput)
+      this.nameInput.value = v;
   }
 
   // The device's throw level changed (in MENU).
