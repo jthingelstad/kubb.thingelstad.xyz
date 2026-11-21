@@ -146,6 +146,7 @@ export class Pitch {
     this.replayFrom = null; // the mode to go back to
     this.arrivedOver = null; // the match number this browser first saw finished
     this.lastReplay = null; // the pitch's kept replay, for the lobby
+    this.keptBefore = false; // the api kept a match from before the live pitch was wiped
     this.reel = null; // the highlight reel of the last finished match (src/ui/reel.js)
     this.local = { n: null, seq: 0 }; // the match and action this browser holds
     this.head = null; // { seq, h }: the newest action this browser knows was committed
@@ -325,6 +326,9 @@ export class Pitch {
         this.lobby?.hide();
         return this.showSealed();
       }
+      // a finished pitch left empty for 48 hours is wiped while the api keeps its
+      // replay a year: the lobby still offers that match (lookForReplay)
+      this.keptBefore = !!kept;
       const players = room.members.filter(
         (m) => m.connected && m.role !== "observer",
       );
@@ -356,8 +360,8 @@ export class Pitch {
   // (src/replay/fetch.js), once on arriving and after each match.
   async lookForReplay() {
     const doc = this.room?.doc;
-    if (this.mode !== "lobby" || !doc || lobbyOf(doc).n < 1 || !this.apiUrl)
-      return;
+    if (this.mode !== "lobby" || !doc || !this.apiUrl) return;
+    if (lobbyOf(doc).n < 1 && !this.keptBefore) return;
     const r = await fetchReplay({
       ...this.apiOpts(),
       code: this.code,

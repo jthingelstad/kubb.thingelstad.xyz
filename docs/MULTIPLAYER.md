@@ -310,7 +310,9 @@ A throw taken for an absent teammate says YOUR THROW FOR <NAME>.
   (`GET /api/replay`) for the reel, the embed and anyone who arrives later. Someone who
   arrives at a finished pitch gets the winner card with the teams and WATCH REPLAY as its
   lead, if the api kept one. After a rematch the lobby offers WATCH THE LAST MATCH until
-  the next one ends. A match in play is never offered.
+  the next one ends. A match in play is never offered. A pitch left empty for 48 hours
+  is wiped on the pitch server while the api keeps its replay a year: whoever opens the
+  link after that gets a new lobby that offers WATCH THE LAST MATCH.
 - **Watching a replay** (`Pitch.watch`): the pitch stays joined but news waits while the
   replay plays (`ReplayPlayer`, docs/CLIENT.md "Replays"); BACK TO THE PITCH returns to
   where it was and catches up with the pitch. The replay is read only: its seat may never
