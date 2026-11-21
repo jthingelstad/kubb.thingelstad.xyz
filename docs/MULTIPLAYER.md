@@ -222,6 +222,14 @@ A throw taken for an absent teammate says YOUR THROW FOR <NAME>.
 - **Late arrival**: a browser that arrives during a match adopts the snapshot at once,
   watches, and is told so for a few seconds ("THE MATCH IS UNDER WAY: YOU ARE WATCHING.
   PICK A SIDE FOR THE NEXT ONE."). It can pick a team in the lobby after the match.
+  A member with no side watches with the watcher's view: the wide view and the free
+  camera (docs/OBSERVER.md).
+- **Observers** (`/p/<code>?observe=1`, WATCH on the open games list): a member that
+  never takes a side, the computer or the host, never writes the document and has no
+  SHOUT; between matches it sees its own card, not the lobby. It is listed under
+  Watching like anyone on neither team. When the host has gone and an observer is first
+  in line, it leaves and joins again (last in line) so the next member claims. An
+  observer arriving at a pitch nobody is on leaves at once. docs/OBSERVER.md.
 - **Someone leaves**: their throws fall to a connected teammate, else the host.
 - **The host goes**: after the host has been away 16 s by this browser's clock (the room
   allows a claim after 15 s) or has left, the earliest-joined connected member claims,

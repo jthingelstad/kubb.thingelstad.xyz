@@ -265,8 +265,25 @@ behind Team A's baseline on a tall window) with the whole pitch filling the wind
 the whole match. The session keeps Team B's throws in its turned view frame; in the wide
 view the engine's `session/wide.lua` un-turns them into the world frame in Lua, so JS still never
 flips anything. THROWER'S VIEW / WIDE VIEW by MENU, MENU's View and the V key switch it
-(the `watchView` pref); a phone held upright falls back to the thrower's view. Played
-matches keep the thrower's view. docs/CLIENT.md "The wide view".
+(the `watchView` pref). A watcher may fly round it with the free camera (Observer mode,
+below), and a phone held upright keeps the wide view. Played matches keep the thrower's
+view. docs/CLIENT.md "The wide view".
+
+## Observer mode
+
+Anyone can watch a shared pitch without taking a seat (Jamie, 2026-11-20: "I want to
+allow an observer to view open games that people are playing ... In observer mode you
+should be able to fly around and position your view wherever you want to be."):
+`/p/<code>?observe=1`, WATCH beside JOIN on the open games list. It joins the room as a
+member (so the lobby's Watching line names it), is in step at once from the room's
+snapshot, and never acts, writes the document, shouts or hosts: first in line for host,
+it leaves and joins again last (`Room.rejoin`). Between matches it has its own card
+(`src/ui/watching.js`). Every watcher, an observer, a member with no side, watching the
+computer and a replay outside the embed, gets the free camera in the wide view (drag,
+wheel, two fingers, keys, RESET VIEW; `src/render/freecam.js`,
+`src/game/free-camera.js`, `src/ui/watch-view.js`). Players keep their view. No engine
+or room server change. Controls, limits, what it cannot do and the notes for the iPhone
+port: `docs/OBSERVER.md`.
 
 ## Open games
 
@@ -274,7 +291,8 @@ A host can make a pitch open (Jamie, 2026-11-16: "allow a game to be created ope
 can be joined by anyone ... Open and invite only are both supported"): the lobby's "Who
 can join" (Invite only, the default, or Open), or Open on the web game's page's start step
 (`?open=1`). That page (`/web/`) lists open games under "Open games" (`public/js/open-games.js`):
-counts, state and age only, never names, the 20 newest, refreshed every 30 s. The host's
+counts, state and age only, never names, the 20 newest, refreshed every 30 s, each with
+JOIN and WATCH (Observer mode). The host's
 browser tells the room server what to list (`docs/MULTIPLAYER.md`), and the server keeps
 it in the rooms table's `open` partition with a 15 minute TTL: no new AWS resources, no
 scans (`docs/ROOMS.md` section 9).
