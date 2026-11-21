@@ -1,5 +1,5 @@
 // The pitches stack (infra/pitches.json, throwing-wood-pitches): what it creates, the
-// api role's exact grants, the table and games bucket set as the rooms stack's are, the
+// api role's exact grants, the table and games bucket as the old rooms stack's were, the
 // cutover wiring in the site and delivery stacks, and the naming rule (AGENTS.md
 // "Hosting": everything new is throwing-wood-*, no new kubb-xyz name).
 import assert from "node:assert/strict";
@@ -10,7 +10,6 @@ import { gamesBucketOf, pulledPath } from "../../tools/games.mjs";
 
 const json = async (file) => JSON.parse(await fs.readFile(file, "utf8"));
 const pitches = await json("infra/pitches.json");
-const rooms = await json("infra/rooms.json");
 const R = pitches.Resources;
 
 test("the pitches stack: exactly these resources, named throwing-wood", () => {
@@ -47,31 +46,48 @@ test("the pitches stack: exactly these resources, named throwing-wood", () => {
   assert.doesNotMatch(JSON.stringify(pitches), /—|kubb-xyz/);
 });
 
-test("the pitches table and games bucket are set as the rooms stack's", () => {
-  assert.deepEqual(R.PitchesTable, rooms.Resources.RoomsTable);
-  assert.equal(
-    R.PitchesTable.Properties.PointInTimeRecoverySpecification,
-    undefined,
-  );
-  const mine = R.GamesBucket;
-  const old = rooms.Resources.GamesBucket;
-  assert.equal(mine.DeletionPolicy, old.DeletionPolicy);
-  assert.equal(mine.UpdateReplacePolicy, old.UpdateReplacePolicy);
-  for (const key of [
-    "BucketEncryption",
-    "PublicAccessBlockConfiguration",
-    "OwnershipControls",
-    "VersioningConfiguration",
-    "LifecycleConfiguration",
-  ])
-    assert.deepEqual(mine.Properties[key], old.Properties[key], key);
-  assert.deepEqual(
-    R.GamesBucketPolicy.Properties.PolicyDocument,
-    rooms.Resources.GamesBucketPolicy.Properties.PolicyDocument,
-  );
+// As the old rooms stack's table and bucket were (that stack was deleted on 2026-11-21):
+// on demand, TTL on `exp`, no point-in-time recovery, deleted with the stack; the bucket
+// kept when the stack goes, private, SSE-S3, owner enforced, TLS only, no versioning or
+// lifecycle.
+test("the pitches table and games bucket", () => {
+  const table = R.PitchesTable;
+  assert.equal(table.DeletionPolicy, undefined);
+  assert.equal(table.Properties.BillingMode, "PAY_PER_REQUEST");
+  assert.deepEqual(table.Properties.KeySchema, [
+    { AttributeName: "pk", KeyType: "HASH" },
+    { AttributeName: "sk", KeyType: "RANGE" },
+  ]);
+  assert.deepEqual(table.Properties.TimeToLiveSpecification, {
+    AttributeName: "exp",
+    Enabled: true,
+  });
+  assert.equal(table.Properties.PointInTimeRecoverySpecification, undefined);
+  const bucket = R.GamesBucket;
+  assert.equal(bucket.DeletionPolicy, "Retain");
+  assert.equal(bucket.UpdateReplacePolicy, "Retain");
+  assert.deepEqual(bucket.Properties.BucketEncryption, {
+    ServerSideEncryptionConfiguration: [
+      { ServerSideEncryptionByDefault: { SSEAlgorithm: "AES256" } },
+    ],
+  });
+  assert.deepEqual(bucket.Properties.PublicAccessBlockConfiguration, {
+    BlockPublicAcls: true,
+    BlockPublicPolicy: true,
+    IgnorePublicAcls: true,
+    RestrictPublicBuckets: true,
+  });
+  assert.deepEqual(bucket.Properties.OwnershipControls, {
+    Rules: [{ ObjectOwnership: "BucketOwnerEnforced" }],
+  });
+  assert.equal(bucket.Properties.VersioningConfiguration, undefined);
+  assert.equal(bucket.Properties.LifecycleConfiguration, undefined);
+  const [tls] = R.GamesBucketPolicy.Properties.PolicyDocument.Statement;
+  assert.equal(tls.Effect, "Deny");
+  assert.deepEqual(tls.Condition, { Bool: { "aws:SecureTransport": "false" } });
   assert.equal(
     pitches.Parameters.AllowedOrigins.Default,
-    rooms.Parameters.AllowedOrigins.Default,
+    "https://throwingwood.com,https://app.throwingwood.com,http://localhost,http://127.0.0.1",
   );
 });
 
@@ -123,9 +139,16 @@ test("the api role: exactly its grants, no wildcard resource", () => {
   assert.deepEqual(env.PUSH_SECRET_ARN, { Ref: "PushSecret" });
 });
 
-test("the rooms stack is back to what is deployed: no api in it", () => {
-  const text = JSON.stringify(rooms);
-  assert.doesNotMatch(text, /ApiCodeKey|ApiFunction|PushSecret|HasApi/);
+test("the old rooms stack is gone from the repository and the deployment record", async () => {
+  await assert.rejects(fs.access("infra/rooms.json"));
+  const deployment = await json("infra/deployment.json");
+  assert.ok(!("rooms" in deployment));
+  assert.ok(!("rooms" in deployment.stacks));
+  assert.ok(!("wsRoute" in deployment));
+  const site = await json("infra/site.json");
+  assert.doesNotMatch(JSON.stringify(site), /RoomsApiDomain|HasRooms|"\/ws"/);
+  const delivery = await json("infra/delivery.json");
+  assert.doesNotMatch(JSON.stringify(delivery), /RoomsFunctionName|rooms\/\*/);
 });
 
 test("on since 2026-11-21; the site and delivery stacks take the pitches stack's names", async () => {
@@ -165,13 +188,12 @@ test("on since 2026-11-21; the site and delivery stacks take the pitches stack's
   );
 });
 
-// The naming rule: kubb-xyz lives on only in the three live stacks' templates and the
+// The naming rule: kubb-xyz lives on only in the two live stacks' templates and the
 // deployment record of what is live. Anything else under infra/, the tools and the api
 // function names nothing kubb-xyz.
 test("no new kubb-xyz names outside the live stacks", async () => {
   const LIVE = new Set([
     "infra/site.json",
-    "infra/rooms.json",
     "infra/delivery.json",
     "infra/deployment.json",
   ]);
@@ -195,25 +217,16 @@ test("no new kubb-xyz names outside the live stacks", async () => {
 });
 
 test("the pull tools: the pitches games bucket once it is on, its push layout", () => {
-  const rooms = { gamesBucket: "old" };
-  assert.equal(gamesBucketOf({ rooms }), "old");
+  assert.equal(gamesBucketOf({}), null);
   assert.equal(
-    gamesBucketOf({
-      rooms,
-      pitchesStack: false,
-      pitches: { gamesBucket: "new" },
-    }),
-    "old",
+    gamesBucketOf({ pitchesStack: false, pitches: { gamesBucket: "new" } }),
+    null,
   );
   assert.equal(
-    gamesBucketOf({
-      rooms,
-      pitchesStack: true,
-      pitches: { gamesBucket: "new" },
-    }),
+    gamesBucketOf({ pitchesStack: true, pitches: { gamesBucket: "new" } }),
     "new",
   );
-  assert.equal(gamesBucketOf({ rooms, pitchesStack: true }), "old");
+  assert.equal(gamesBucketOf({ pitchesStack: true }), null);
   const push = "games/pitch/abcdefgh/1763700000000/0001-000002.json.gz";
   assert.deepEqual(pulledPath(push), [
     "pitch",
@@ -226,12 +239,9 @@ test("the pull tools: the pitches games bucket once it is on, its push layout", 
   const browser = "games/browser/2026-11-21/1763700000000-abcd2345.json.gz";
   assert.equal(pulledPath(browser).length, 3);
   assert.equal(pulledPath(browser, { room: "abcdefgh" }), null);
-  const room = "games/abcdefgh/1763700000000-000002.json.gz";
-  assert.deepEqual(pulledPath(room, { room: "abcdefgh" }), [
-    "abcdefgh",
-    "1763700000000-000002.json.gz",
-  ]);
   for (const bad of [
+    "games/abcdefgh/1763700000000-000002.json.gz", // the old rooms server's
+
     "games/pitch/abcdefgh/1763700000000/x.json.gz",
     "games/pitch/ABC/1763700000000/0001-000002.json.gz",
     "reports/2026-11-21/1763700000000-abcd2345.json.gz",

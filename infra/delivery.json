@@ -1,6 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "kubb.thingelstad.xyz GitHub OIDC publication from main only: the site files and the rooms function code",
+  "Description": "kubb.thingelstad.xyz GitHub OIDC publication from main only: the site files and the api function code",
   "Parameters": {
     "SiteBucket": {
       "Type": "String",
@@ -13,13 +13,7 @@
     "CodeBucket": {
       "Type": "String",
       "AllowedPattern": "[a-z0-9.-]+",
-      "Description": "The site stack's bucket for the rooms function's code bundles"
-    },
-    "RoomsFunctionName": {
-      "Type": "String",
-      "Default": "kubb-xyz-rooms-rooms",
-      "AllowedPattern": "[A-Za-z0-9_-]+",
-      "Description": "The rooms Lambda function (stack kubb-xyz-rooms names it <stack>-rooms)"
+      "Description": "The site stack's bucket for the functions' code bundles"
     },
     "RepositoryId": {
       "Type": "String",
@@ -55,7 +49,7 @@
     "DeploymentRole": {
       "Type": "AWS::IAM::Role",
       "Properties": {
-        "Description": "Publishes the verified main build of kubb.thingelstad.xyz and its rooms function code",
+        "Description": "Publishes the verified main build of kubb.thingelstad.xyz and its api function code",
         "MaxSessionDuration": 3600,
         "AssumeRolePolicyDocument": {
           "Version": "2012-10-17",
@@ -128,32 +122,6 @@
                   ],
                   "Resource": {
                     "Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${DistributionId}"
-                  }
-                }
-              ]
-            }
-          },
-          {
-            "PolicyName": "RoomsCodeDelivery",
-            "PolicyDocument": {
-              "Version": "2012-10-17",
-              "Statement": [
-                {
-                  "Effect": "Allow",
-                  "Action": ["s3:GetObject", "s3:PutObject"],
-                  "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:s3:::${CodeBucket}/rooms/*"
-                  }
-                },
-                {
-                  "Effect": "Allow",
-                  "Action": [
-                    "lambda:GetFunction",
-                    "lambda:GetFunctionConfiguration",
-                    "lambda:UpdateFunctionCode"
-                  ],
-                  "Resource": {
-                    "Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${RoomsFunctionName}"
                   }
                 }
               ]

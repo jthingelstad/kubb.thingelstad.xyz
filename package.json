@@ -1,6 +1,6 @@
 {
   "name": "kubb.thingelstad.xyz",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "private": true,
   "type": "module",
   "description": "Kubb: Throwing Wood on the web, the multiplayer game at throwingwood.com.",
@@ -20,7 +20,6 @@
     "preview": "node tools/preview.mjs",
     "dev": "node tools/dev.mjs",
     "images": "node tools/render-images.mjs",
-    "rooms:bundle": "node tools/rooms-bundle.mjs",
     "api:bundle": "node tools/api-bundle.mjs",
     "pages:bundle": "node tools/pages-bundle.mjs",
     "reels:bundle": "node tools/reels-bundle.mjs",

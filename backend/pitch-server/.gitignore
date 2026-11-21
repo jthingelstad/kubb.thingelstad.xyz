@@ -2,7 +2,9 @@ node_modules/
 .wrangler/
 .dev.vars
 .dev.vars.*
+!.dev.vars.tpl
 results/
 .cloudflare/
 .prod.vars
 .prod.vars.*
+!.prod.vars.tpl

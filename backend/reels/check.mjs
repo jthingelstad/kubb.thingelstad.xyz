@@ -1,8 +1,8 @@
 // The renderer's check of a shared match against the computer (docs/REEL.md "Sharing a
-// match against the computer", docs/ROOMS.md section 13). The rooms function invokes the
+// match against the computer", backend/api/API.md "share"). The api function invokes the
 // reel function synchronously with { check: g } and waits; this plays the match through
-// the engine it was played on, when the function carries that engine, and answers. It writes nothing: the rooms function keeps what
-// comes back.
+// the engine it was played on, when the function carries that engine, and answers. It
+// writes nothing: the api function keeps what comes back.
 //
 //   checkShare({ g, carried, engines }) ->     carried: backend/reels/carried.mjs's set
 //   checkShare({ g, sources, engine, engines })  (one engine: a set of one) ->
@@ -36,11 +36,12 @@
 // It logs nothing itself: the caller logs the step and the engine, never a name.
 import { Engine } from "../../src/engine/index.js";
 import { replayOf, useRoomEngine } from "../../src/net/lobby.js";
-import { asciiJson } from "../rooms/core.mjs";
+import { asciiJson } from "../api/checks.mjs";
 import { majorMinor } from "./tag.mjs";
 import { carriedLookup } from "./carried.mjs";
 
-// As backend/rooms/core.mjs LIMITS: what the room keeps.
+// What a shared match may keep, as the old rooms server held it (the api keeps the
+// replay under its own LIMITS.replayBytes, backend/api/checks.mjs, the same size).
 export const SHARE_KEEP = Object.freeze({
   docBytes: 256 * 1024,
   replayBytes: 256 * 1024,

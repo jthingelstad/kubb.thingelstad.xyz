@@ -23,7 +23,7 @@ import { apiCall, asciiJson } from "./api.js";
 import { CLIENT } from "./sync.js";
 import { LOG_BUDGET } from "./lobby.js";
 
-// As backend/rooms/core.mjs LIMITS and backend/reels/check.mjs (the share test checks).
+// As backend/api/checks.mjs LIMITS and backend/reels/check.mjs (the share test checks).
 export const SHARE_LIMITS = Object.freeze({
   bytes: 256 * 1024, // the whole message, as ASCII JSON
   actions: 1000,

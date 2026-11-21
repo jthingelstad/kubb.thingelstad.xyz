@@ -170,8 +170,7 @@ always has:
   `docs/REEL-RUNBOOK.md` "Adding or dropping an engine".
 - **The tools** (`tools/engines.mjs`): `games:replay` and `reports:replay` play each
   match or report on its own engine where the checkout carries it (`--engine <mm>` plays
-  all on one: after a new minor, the throws it changes); `backfill-replay` plays each
-  match on its own; `replay-fixture --engine <mm>` writes an older engine's kept replay,
+  all on one: after a new minor, the throws it changes); `replay-fixture --engine <mm>` writes an older engine's kept replay,
   `tests/fixtures/replay-north-south-<mm>.json`.
 - **Tests**: every carried engine plays its own golden corpus and its own kept replay
   (`tests/engine/`). The two-engine paths are tested with a second engine made at test

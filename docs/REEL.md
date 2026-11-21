@@ -9,11 +9,11 @@ on the iPhone in particular (Jamie, 2026-11-19: "So if you just play versus the 
 I definitely want to make sure you can then submit that and create a highlight reel to
 share with friends.").
 
-The keys below are the old rooms function's `room#<code>` items. The pitch server
-migration moves the renderer and the pitch pages to the api function's
-`pitch#<code>` items (`backend/api/API.md` "Records"; the reel item keeps its fields).
-That code is merged but goes live only with the site apply at the cutover
-(`docs/PITCH-SERVER.md` section 12); until then the deployed renderer reads `room#`.
+The keys and calls below were written for the old rooms function's `room#<code>` items.
+Since the cutover on 2026-11-21 the renderer, the pitch pages and the api function use
+`pitch#<code>` items (`backend/api/API.md` "Records"; the reel item keeps its fields),
+and the old rooms stack is deleted (`docs/PITCH-SERVER.md` section 12). Read "the rooms
+function" below as the api function.
 
 This is the design for the real feature. **Built (2026-11-19): the server side for
 finished online pitches** ("The server" below says what was built and where it changed
@@ -453,7 +453,7 @@ already are:
 ```
 
 `start` and `log` are what the web's trail and the iPhone's report trail already hold
-(the replay's `start` form, as `tools/backfill-replay.mjs` uses). Before sending, the
+(the replay's `start` form). Before sending, the
 device writes the name from the share card into the start in place of the typed one
 (an engine call, below), so the typed name never leaves it. Names change no throw: the
 prototype's renamed match played the same to its end, on other hashes. So the device
@@ -598,7 +598,7 @@ below has it for a device that has just shared): the server needs no join for ei
    later request reads the item and answers its state (`rendering`, `done` with the
    paths, or `failed`). The device asks again every 5 s while it renders.
 
-**Built**, with these details (`backend/rooms/core.mjs` `reel`):
+**Built**, with these details (first in the rooms server, now `backend/api/core.mjs`):
 
 - Step 2 also reads the replay's `engine` and answers `{ reel: null, why: "engine" }`
   when the renderer does not carry its major.minor (below), and a rooms function with no
@@ -674,7 +674,7 @@ every older minor kept with `vendor:sync --keep`. Today that is one, 0.7.4.
   about 0.7 MB unzipped and 0.2 MB zipped.
 - **`REEL_ENGINES`** is the same set, by major.minor and newest first (`reelEngines()`
   in `tools/reels-bundle.mjs`): `0.7` today, `0.8,0.7` once 0.8 is vendored with
-  `--keep`. `tools/infra.mjs` passes it to the site stack, and the rooms stack takes it
+  `--keep`. `tools/infra.mjs` passes it to the site stack, and the pitches stack takes it
   from the site stack's `ReelEngines` output, so the two always name what the deployed
   package holds. Both templates already took a list.
 - **A render** (`backend/reels/job.mjs`) reads the replay's `engine`, and renders only

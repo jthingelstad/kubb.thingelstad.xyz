@@ -1,7 +1,6 @@
 // What the api function accepts from players: the shapes and limits of a report, a
-// recorded one-device match and a share, as the old rooms function held them
-// (backend/rooms/core.mjs, which the cutover removes; these are its rules, moved here
-// unchanged). Pure: no AWS. The contract is backend/api/API.md.
+// recorded one-device match and a share, as the old rooms function held them (its
+// rules, moved here unchanged when it was retired on 2026-11-21). Pure: no AWS. The contract is backend/api/API.md.
 
 import { createHash } from "node:crypto";
 

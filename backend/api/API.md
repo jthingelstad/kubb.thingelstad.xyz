@@ -159,7 +159,7 @@ The pitches stack's table (`pk`, `sk`, TTL on `exp` in seconds; nothing else is 
 
 The pitch pages (`backend/pages/`) read `state`, `replay` and `reel` with `GetItem`; the
 renderer (`backend/reels/`) reads `replay` and writes `reel`. The old rooms table and
-its `room#` items are not read by anything new.
+its `room#` items were deleted on 2026-11-21.
 
 The pitches stack's private games bucket (`throwing-wood-pitches-games-<account>`): the
 pushes above, `games/browser/` and `reports/` as the rooms function wrote them. Nothing

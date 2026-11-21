@@ -1,5 +1,5 @@
-// Every match is recorded (AGENTS.md "Recorded games"). A shared pitch's room records
-// itself on the server (backend/rooms/recorder.mjs). A match played in this browser alone,
+// Every match is recorded (AGENTS.md "Recorded games"). A shared pitch is recorded on
+// the server (the pitch server's pushes, backend/api/API.md). A match played in this browser alone,
 // against the computer (?solo=1) or the computer against itself (?watch=1), has no room:
 // when it ends, the browser sends it whole, once, over HTTPS (backend/api/API.md "game"),
 // and the api function keeps it beside the pitches' records.
@@ -23,7 +23,7 @@ import { apiCall, asciiJson } from "./api.js";
 import { CLIENT } from "./sync.js";
 import { luaFor } from "../site/config.js";
 
-// Kept in step with backend/rooms/core.mjs LIMITS (tests/net/record.test.mjs checks).
+// Kept in step with backend/api/checks.mjs LIMITS (tests/net/record.test.mjs checks).
 export const GAME_LIMITS = Object.freeze({
   bytes: 256 * 1024,
   actions: 4000,

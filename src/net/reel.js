@@ -15,7 +15,7 @@
 //   reelView(s)  // { label, title, line, text, bar, video, retry, ask }
 //
 // Asking is starting: the first `reel` request for a kept replay starts its render
-// (backend/rooms/core.mjs `reel`). So the page never sends one on load. It knows a reel
+// (backend/api/API.md "reel"). So the page never sends one on load. It knows a reel
 // is done only from the pitch page's own `og:video` tag, which the pages function writes
 // when the reel item is done beside this match's own kept replay (reelFromPage).
 import { apiCall } from "./api.js";

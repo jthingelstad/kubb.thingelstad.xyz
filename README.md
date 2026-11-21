@@ -19,7 +19,7 @@ npm ci
 npm run check          # vendor and shared checks, tests, build, site checks
 npm run format:check   # prettier
 npm run preview        # dist/ on http://127.0.0.1:4322, /p/<code> as live
-npm run dev            # rebuild on change, plus the local rooms on ws://127.0.0.1:8788
+npm run dev            # rebuild on change, plus the local pitch server on ws://127.0.0.1:8797
 ```
 
 | Path         | What                                                                                 |
@@ -44,13 +44,12 @@ captures in `public/landing/` (WebP; each `<img>` takes its size from the file).
 
 Merging to `main` deploys from GitHub Actions: `KUBB_PRODUCTION=true npm run build`, then
 `npm run deploy` as the delivery role (uploads, invalidates, compares the live bytes, and
-updates the rooms function's code when it changed). Infrastructure changes run by hand as
-the `cloud-engineer` profile:
+updates the api function's code when it changed). Infrastructure changes run by hand as
+the `cloud-engineer` profile, one named stack at a time:
 
 ```sh
-AWS_PROFILE=cloud-engineer npm run infra:plan
-AWS_PROFILE=cloud-engineer npm run infra:apply             # site and delivery (and rooms once it exists)
-AWS_PROFILE=cloud-engineer npm run infra:apply -- rooms    # create or update the rooms stack
+AWS_PROFILE=cloud-engineer npm run infra:plan -- site
+AWS_PROFILE=cloud-engineer npm run infra:apply -- site      # or pitches, or delivery
 ```
 
 For iPhone pitch links the deploy build reads the plain repository variable
@@ -63,7 +62,7 @@ Other files, including old hashed assets used by open tabs, are retained.
 | Piece       | Where                                                                                            |
 | ----------- | ------------------------------------------------------------------------------------------------ |
 | Site        | S3 + CloudFront, stack `kubb-xyz-site`, `us-east-1`                                              |
-| Rooms       | API Gateway WebSocket + Lambda + DynamoDB, stack `kubb-xyz-rooms`                                |
+| Live play   | Cloudflare pitch server (`backend/pitch-server`), and the api, stack `throwing-wood-pitches`     |
 | Deploy role | GitHub OIDC, stack `kubb-xyz-delivery`                                                           |
 | DNS         | `throwingwood.com` zone (and the old name in `thingelstad.xyz`), records owned by the site stack |
 | AWS account | `<account>`                                                                                      |
@@ -71,7 +70,7 @@ Other files, including old hashed assets used by open tabs, are retained.
 
 ## Licence
 
-The browser game and rooms backend are under the [MIT licence](LICENSE). The
+The browser game and its backend are under the [MIT licence](LICENSE). The
 vendored [Kubb Engine](vendor/engine/LICENSE) also uses MIT. The fonts use the SIL
 Open Font License 1.1. See the notices for [Londrina Solid](public/fonts/OFL-LondrinaSolid.txt),
 [Inter](public/shared/fonts/OFL-Inter.txt) and [Inter Tight](public/shared/fonts/OFL-InterTight.txt).

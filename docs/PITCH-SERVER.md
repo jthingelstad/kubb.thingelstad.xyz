@@ -1,14 +1,13 @@
 # The pitch server
 
-The plan for the next live multiplayer server. It replaces the rooms server in
-`docs/ROOMS.md` (API Gateway WebSocket, one Lambda invoke a message, DynamoDB). That
-server is still the live one until the cutover below. Built so far: the pitch core
-(build step 1, `backend/pitch-server/core.mjs`, its wire protocol in
-`backend/pitch-server/PROTOCOL.md`), the Worker with `PitchDO` and `LobbyDO` (build step
-2, `backend/pitch-server/src/`, deployed to dev as `throwingwood-pitches-dev`; deploying
-and operating it: `backend/pitch-server/README.md`), and a throwaway proof of concept in
-`backend/room-server-poc/`. The web client is moved onto them in its cutover pull
-request (build step 4, docs/MULTIPLAYER.md); until that merges no live client uses them.
+The live multiplayer server since 2026-11-21. It replaced the rooms server in
+`docs/ROOMS.md` (API Gateway WebSocket, one Lambda invoke a message, DynamoDB), whose
+stack and stored games were deleted the same day (section 12). The parts: the pitch core
+(`backend/pitch-server/core.mjs`, its wire protocol in
+`backend/pitch-server/PROTOCOL.md`), the Worker with `PitchDO` and `LobbyDO`
+(`backend/pitch-server/src/`, production `throwingwood-pitches` and dev
+`throwingwood-pitches-dev`; deploying and operating it: `backend/pitch-server/README.md`),
+and the AWS api it pushes to (`backend/api/`, stack `throwing-wood-pitches`).
 
 This is a working document. It holds what was decided, what was measured and what is
 still open, so the build can start on any machine without the conversation that led to
@@ -102,7 +101,7 @@ At Cloudflare:
 In AWS, unchanged: the site and CloudFront, the pitch pages function and the reels
 function. New, in the `throwing-wood-pitches` stack: the api function, its own table
 (kept replays, shares, reels) and its own private games bucket. The rooms stack, with
-its table and games bucket, goes at cutover.
+its table and games bucket, was deleted at cutover (2026-11-21).
 
 Between them:
 
@@ -110,7 +109,7 @@ Between them:
   new Lambda function URL (`throwing-wood-api`, `backend/api/`). Each request is signed with an
   HMAC over the body using a shared secret. No AWS keys live at Cloudflare.
 - The function writes the recorder's objects to its games bucket and the kept replay to
-  its table, as the rooms function does to the old ones today.
+  its table, as the rooms function did to the old ones.
 - Messages that are not live play become plain HTTPS calls to that function: `report`,
   `game`, `replay`, `reel`, `share`.
 
@@ -280,16 +279,16 @@ Each step is its own pull request.
    `backend/pitch-server/src/`, tests in `backend/pitch-server/test/` (CI runs them) and
    `tests/pitch-server/edge.test.mjs`; deployed to dev.
 3. The AWS function the pitch reports to: HMAC check, records, kept replay, and the
-   HTTPS calls (`report`, `game`, `replay`, `reel`, `share`). Built, not deployed:
+   HTTPS calls (`report`, `game`, `replay`, `reel`, `share`). Built and live:
    `backend/api/` (its contract `backend/api/API.md`), tests in `tests/api/`, the
    function `throwing-wood-api` in its own stack (`infra/pitches.json`) and `/api/*` in
-   `infra/site.json`, off behind `"pitchesStack"` (section 12). The pitch pages and the
-   reels read its `pitch#` records.
-4. The web client: built in its cutover pull request, `tools/pitch-dev.mjs` and
-   `wrangler dev` for local play. Merging it is the cutover.
-5. The iPhone client.
-6. Cutover, then delete the whole old rooms stack (section 12, "What cutover deletes").
-   Deleting old stored games is the owner's own named step here.
+   `infra/site.json` (section 12). The pitch pages and the reels read its `pitch#`
+   records.
+4. The web client: `tools/pitch-dev.mjs` and `wrangler dev` for local play. Merged and
+   live on 2026-11-21 (web 0.9.0): the cutover.
+5. The iPhone client: on `main` of `throwingwood-ios`.
+6. Cutover, then delete the whole old rooms stack: done on 2026-11-21 (section 12,
+   "What cutover deleted"), with the old stored games, on the owner's approval.
 
 ## 11. The owner's calls
 
@@ -307,7 +306,6 @@ Still open:
 
 - The cap on observers: 20 or 100 (the core's `limits.observers`, 20 by default).
 - Deploys only in quiet hours, or a "reconnecting" state the apps show.
-- A line on the privacy page that names Cloudflare.
 - A CI token for deploys.
 - How long an unconfirmed push is retried. Today: for as long as the pitch lives, at
   most every 5 minutes, and a pitch with pending pushes is never wiped.
@@ -317,13 +315,13 @@ Still open:
 
 ## 12. Step 3: turning it on
 
-Steps 1 to 3 of the order below were done on 2026-11-21: the pitches stack is up, the
-delivery role may update `throwing-wood-api`, and `"pitchesStack"` is on. The site stack
-is not applied, so nothing players reach points at it yet. Before that the api function
-was in the repository and off, and merging it changed nothing live:
-`tools/deploy.mjs` updates its code only once a pitches apply has created it and
-`"pitchesStack"` is on, and the pitch pages and reels code that read `pitch#` records
-goes live only with a site apply.
+Every step of the order below was done on 2026-11-21: the pitches stack is up, the
+delivery role may update `throwing-wood-api`, `"pitchesStack"` is on, the production
+Worker pushes to the api, and the site stack is applied (`/api/*`, and the pitch pages
+and reels read the pitches table). The web client moved to the pitch server the same day
+(web 0.9.0), and the old rooms stack and its stored games were then deleted ("What
+cutover deleted", below). The privacy page says that live online play passes through
+Cloudflare.
 
 ### What turning it on creates
 
@@ -367,13 +365,19 @@ table's `pitch#` keys. The delivery stack lets `main` update `throwing-wood-api`
 ### The secret: the owner's steps
 
 The simplest scheme: one secret, made in AWS, copied once into the Worker. Claude never
-reads, prints or moves its value.
+reads, prints or moves its value. AWS Secrets Manager's `throwing-wood/push-secret` is
+the authority; the 1Password item `Pitch Server Push Secret - throwing-wood` (vault
+`Otto`) must hold the same value, and the Worker's secrets files are rendered from it.
 
 1. After the pitches apply, open Secrets Manager in the console (us-east-1),
-   `throwing-wood/push-secret`, "Retrieve secret value", and copy it.
-2. In `backend/pitch-server/`, add the line `PUSH_SECRET=<value>` to `.dev.vars`
-   (gitignored, beside `DEV_KEY`) and deploy the Worker with
-   `npx cf deploy --secrets-file .dev.vars </dev/null` (its README.md "Deploy").
+   `throwing-wood/push-secret`, "Retrieve secret value", and copy it into the 1Password
+   item's `credential` field.
+2. In `backend/pitch-server/`, render the secrets file from the committed template and
+   deploy the Worker (its README.md "Deploy"):
+   `op inject -i .prod.vars.tpl -o .prod.vars && chmod 600 .prod.vars`, then
+   `npx cf deploy --mode production --secrets-file .prod.vars </dev/null` (the dev Worker
+   the same with `.dev.vars.tpl` and `.dev.vars`, no `--mode`). The rendered files are
+   gitignored; `cf` cannot read a process substitution, so it gets a real file.
 3. Set the Worker's plain variable `PUSH_URL` (`env` in `cloudflare.config.ts`) to the
    pitches stack's `ApiUrl` output followed by `push` (the output ends in `/`, so
    `https://<id>.lambda-url.us-east-1.on.aws/push`), in a pull request, and deploy
@@ -381,7 +385,8 @@ reads, prints or moves its value.
    Done for the dev Worker on 2026-11-21 (`dev-3`), with a synthetic match's pushes,
    objects, `state` and `replay` items and served replay all checked.
 4. To rotate: "Rotate secret immediately" is not set up (no rotation function); instead
-   put a new value in the console ("Edit"), then repeat step 2. Pushes signed with the
+   put a new value in the console ("Edit"), copy it to the 1Password item, then repeat
+   step 2 for each Worker. Pushes signed with the
    old value fail with 401 until the Worker has the new one and are retried, so nothing
    is lost; the function reads the new value within 5 minutes of the first failure.
 
@@ -398,35 +403,30 @@ without a change set, and every change set it makes is deleted once printed.
    `throwing-wood-api`'s code. Commit the rewritten `infra/deployment.json` only after
    this (a deploy from `main` with the `pitches` block and no delivery grant fails).
 4. The secret's steps above.
-5. At cutover only: `npm run infra:plan -- site`, then `infra:apply -- site`. This adds
-   `/api/*` and points the pitch pages and reels at the pitches table, so every pitch
-   played on the old rooms server loses its preview, replay embed card and reel. Do it
-   with step 4 of the build order (the web client), not before. Until then, name the
-   stacks on every apply: with the flag on and the stack there, a bare `infra:apply`
-   includes site.
+5. At cutover: `npm run infra:plan -- site`, then `infra:apply -- site`. This added
+   `/api/*` and pointed the pitch pages and reels at the pitches table. Done on
+   2026-11-21 with the web client. Name the stacks on every apply still.
 
-`npm run games:pull` and `reports:pull` read the pitches games bucket once
-`"pitchesStack"` is on and the stack is there (pushes land in
-`build/games/pitch/<code>/<made>/`; `games:replay` does not play them yet), the rooms
-games bucket before.
+`npm run games:pull` and `reports:pull` read the pitches games bucket (pushes land in
+`build/games/pitch/<code>/<made>/`; `games:replay` does not play them yet).
 
-Roll back by setting `"pitchesStack": false` and applying site and delivery (the site
-goes back to the rooms table and loses `/api/*`). The stack itself stays until the
-owner deletes it (`aws cloudformation delete-stack --stack-name throwing-wood-pitches`:
+There is no rolling back to the rooms server: it is deleted. The pitches stack stays until
+the owner deletes it (`aws cloudformation delete-stack --stack-name throwing-wood-pitches`:
 the function, URL, role, logs, table and secret go, Secrets Manager keeping a deleted
 secret 7 to 30 days; the games bucket stays and is emptied and deleted by hand).
 
-### What cutover deletes
+### What cutover deleted
 
-The owner's own named step, once the web and iPhone clients are on the pitch server and
-nothing reaches `/ws`: `"wsRoute": false`, `infra:apply -- site` (the `/ws` route goes),
-then delete the whole `kubb-xyz-rooms` stack (`aws cloudformation delete-stack
---stack-name kubb-xyz-rooms`): the WebSocket API, `kubb-xyz-rooms-rooms`, its role and
-log group, and the rooms table with every old room, kept replay, share and reel in it.
-Its games bucket, `kubb-xyz-rooms-games-<account>`, is kept by its `Retain` policy:
-deleting the old recorded games and reports is emptying and deleting that bucket by
-hand, a separate named step. Then drop `rooms` from `infra/deployment.json` and the
-delivery stack's rooms grant (`RoomsFunctionName`) in a pull request.
+Done on 2026-11-21, on the owner's approval, once the web client was live on the pitch
+server. One pull request removed the `/ws` route and its origin from the site stack, the
+rooms function's grant from the delivery stack, `rooms` from `infra/deployment.json`, and
+the rooms server's code, template and tools from the repository; the site and delivery
+stacks were applied before it merged. Then the `kubb-xyz-rooms` stack was deleted: the
+WebSocket API, `kubb-xyz-rooms-rooms`, its role and log group, and the rooms table with
+every old room, kept replay, share and reel in it. Its games bucket,
+`kubb-xyz-rooms-games-<account>` (kept by its `Retain` policy), was emptied and deleted
+with every old recorded game and report. Pitches played on the old server have no
+preview, replay or reel any more.
 
 ### Owner's calls for step 3
 

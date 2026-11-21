@@ -35,7 +35,7 @@ import { apiCall, asciiJson } from "./api.js";
 import { CLIENT } from "./sync.js";
 import { luaFor } from "../site/config.js";
 
-// Kept in step with backend/rooms/core.mjs LIMITS (tests/net/report.test.mjs checks).
+// Kept in step with backend/api/checks.mjs LIMITS (tests/net/report.test.mjs checks).
 export const REPORT_LIMITS = Object.freeze({
   bytes: 64 * 1024,
   chars: 1000,

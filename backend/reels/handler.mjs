@@ -1,7 +1,7 @@
 // The reel function on AWS (kubb-xyz-site-reels): one render a call, invoked
-// asynchronously by the rooms function with { room, v, tag }, or one check of a shared
+// asynchronously by the api function with { room, v, tag }, or one check of a shared
 // match against the computer, invoked synchronously with { check: g } (docs/REEL.md,
-// docs/ROOMS.md sections 12 and 13). The work is job.mjs and check.mjs; this file is the
+// backend/api/API.md). The work is job.mjs and check.mjs; this file is the
 // adapters and the package's own files. A check reads and writes nothing: it answers.
 //
 //   TABLE         the pitches table: GetItem on the kept replay, UpdateItem on the reel item
@@ -67,7 +67,7 @@ export function packageAssets() {
   };
 }
 
-// A check, answered to the rooms function that waits for it. Logged: the step that
+// A check, answered to the api function that waits for it. Logged: the step that
 // failed, the engine and the size, never a name.
 export async function checkHandler(
   event,

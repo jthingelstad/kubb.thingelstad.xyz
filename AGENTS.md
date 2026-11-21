@@ -128,7 +128,7 @@ address or home path in `dist/`, no account id in Markdown).
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `0.9.0 (0.9.0)`, at the foot of
+the full version of the newest engine the site carries, `0.9.1 (0.9.0)`, at the foot of
 every reading page and of MENU, with "Also plays 0.8.2 and 0.7.4" under it in MENU while older
 engines are carried (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
@@ -157,55 +157,46 @@ of a live resource. A site check holds new templates and tools to it.
   repository, stacks and buckets keep their kubb-xyz names. Never edit those records in the
   console.
   Access logs go to `/kubb-xyz/web-access`, IP-free, kept 731 days. The viewer request
-  function serves `/pitch/index.html` for every `/p/<code>` (codes as the rooms accept
+  function serves `/pitch/index.html` for every `/p/<code>` (codes as the api accepts
   them: 8 to 24 of `abcdefghjkmnpqrstuvwxyz23456789`). It also owns the bucket for the
-  rooms function's code, and, with `"wsRoute": true` in `infra/deployment.json`, the `/ws`
-  route that sends the WebSocket on to the rooms API under the same web ACL.
+  functions' code, and the `/api/*` route to `throwing-wood-api` under the same web ACL.
 - The site stack also holds the pitch pages function, `kubb-xyz-site-pages` (a Lambda
   Web Function, `backend/pages/`): CloudFront sends `/p/*`, `/e/*` and `/og/*` to it, after
   the viewer request function has turned them into `/pitch/index.html`,
-  `/embed/index.html` and `/share/kubb.png` with `?pitch=<code>`. It reads one room's
-  document (and its kept replay) from the rooms table with `GetItem`, nothing else, and
+  `/embed/index.html` and `/share/kubb.png` with `?pitch=<code>`. It reads one pitch's
+  records (and its kept replay) from the pitches table with `GetItem`, nothing else, and
   writes that pitch's share tags into the page or draws its share image. The bucket is the
   origin group's second member: when the function fails, or the stack has no function,
   the static page and image are served as before. `npm run infra:apply -- site` bundles it
-  (`tools/pages-bundle.mjs`, `pages/<sha256>.zip` in the code bucket) and passes the rooms
-  table's name (the pitches table's from the cutover); `tools/deploy.mjs` only says when
-  the live bundle is behind (`docs/ROOMS.md` section 11).
-- `infra/rooms.json` (stack `kubb-xyz-rooms`): the WebSocket API, its function and table,
-  and the private games bucket (below).
-  It is still the live server. Its planned replacement, live pitches on Cloudflare Durable
-  Objects with everything else kept in AWS, is `docs/PITCH-SERVER.md`. Built so far: the
-  pitch core, pure logic with no Cloudflare APIs (`backend/pitch-server/core.mjs`, its
-  wire protocol `backend/pitch-server/PROTOCOL.md`, tests in `tests/pitch-server/`), and
-  the Worker with `PitchDO` and `LobbyDO` over it (`backend/pitch-server/src/`, its
-  Workers-pool tests in `backend/pitch-server/test/`, run by the `check` job; deployed
-  only to the dev Worker `throwingwood-pitches-dev`; `backend/pitch-server/README.md`);
-  the throwaway proof of concept is `backend/room-server-poc/`; and the AWS function the
-  pitch server pushes to and the apps call over HTTPS, `throwing-wood-api`
-  (`backend/api/`, contract `backend/api/API.md`, tests in `tests/api/`).
-  `npm run infra:apply -- rooms` bundles `backend/rooms/handler.mjs` (esbuild, one ESM
-  file, AWS SDK left out), zips it the same way every time and uploads it as
-  `rooms/<sha256>.zip`.
+  (`tools/pages-bundle.mjs`, `pages/<sha256>.zip` in the code bucket) and passes the
+  pitches table's name; `tools/deploy.mjs` only says when the live bundle is behind.
+- Live play (since 2026-11-21) is the pitch server on Cloudflare Durable Objects, with
+  everything else kept in AWS (`docs/PITCH-SERVER.md`): the pitch core, pure logic with
+  no Cloudflare APIs (`backend/pitch-server/core.mjs`, its wire protocol
+  `backend/pitch-server/PROTOCOL.md`, tests in `tests/pitch-server/`), and the Worker with
+  `PitchDO` and `LobbyDO` over it (`backend/pitch-server/src/`, its Workers-pool tests in
+  `backend/pitch-server/test/`, run by the `check` job; production Worker
+  `throwingwood-pitches`, dev `throwingwood-pitches-dev`, deployed by hand:
+  `backend/pitch-server/README.md`). Its secrets files are rendered from the committed
+  `.dev.vars.tpl` and `.prod.vars.tpl` with 1Password (`op inject`); the rendered files
+  are gitignored and never committed. The AWS function the pitch server pushes to and
+  the apps call over HTTPS is `throwing-wood-api` (`backend/api/`, contract
+  `backend/api/API.md`, tests in `tests/api/`).
 - `infra/pitches.json` (stack `throwing-wood-pitches`, created 2026-11-21): that function,
   its URL, role, logs and push secret, and its own table and private games bucket, behind
-  `"pitchesStack"` in `infra/deployment.json`, on since 2026-11-21 (pitches and delivery
-  applied; the site stack not yet, so nothing points at it until the cutover)
-  (`docs/PITCH-SERVER.md` section 12: never apply the site stack with it on before the
-  cutover; that moves the pitch pages and reels to its table). At cutover the whole
-  rooms stack goes.
+  `"pitchesStack"` in `infra/deployment.json` (on). The old WebSocket rooms stack, its
+  table and its games bucket were deleted on 2026-11-21 with every old stored game
+  (`docs/PITCH-SERVER.md` section 12); `docs/ROOMS.md` is kept as the record.
 - `infra/delivery.json` (stack `kubb-xyz-delivery`): the GitHub OIDC role `main` deploys
-  with: the site bucket, invalidations, and the rooms function's code (and
-  `throwing-wood-api`'s, once it exists).
+  with: the site bucket, invalidations, and `throwing-wood-api`'s code.
 - Change infrastructure with `npm run infra:plan` then `npm run infra:apply` as the
   `cloud-engineer` profile (`AWS_PROFILE=cloud-engineer`); both run through change sets and
-  rewrite `infra/deployment.json`. Name stacks to limit a run (`-- site`, `-- rooms`,
-  `-- pitches`). A plan leaves nothing behind.
+  rewrite `infra/deployment.json`. Name the stack on every run (`-- site`, `-- pitches`,
+  `-- delivery`). A plan leaves nothing behind.
 - Changes to `main` require a pull request with a passing `check` job on an up-to-date branch.
   Merging to `main` deploys: CI builds with `KUBB_PRODUCTION=true` (the production
   pitch server and api addresses, analytics), `tools/deploy.mjs` uploads, invalidates, compares the live bytes and
-  the wasm content type, and updates the rooms function's code and `throwing-wood-api`'s
-  when their bundles changed.
+  the wasm content type, and updates `throwing-wood-api`'s code when its bundle changed.
   Roll back by reverting. The same script publishes by hand as `cloud-engineer`.
 
 ## Recorded games
@@ -255,9 +246,8 @@ writes one gzipped object to the private games bucket
 under `reports/<yyyy-mm-dd>/`, kept for good like the games.
 
 - Limits: 64 KB a report as ASCII JSON (history, then pieces, then the snapshot after
-  are dropped to fit; what was typed, the snapshot before and the last action never), 3
-  reports a connection of either kind (best effort, per Lambda instance), the stage
-  throttle.
+  are dropped to fit; what was typed, the snapshot before and the last action never),
+  and the api function's 10 concurrent runs.
 - `npm run reports:pull` (as `cloud-engineer`; `--since <date>`) copies new reports to
   `build/reports/` (never in git) and prints each: when, kind, mode, the two answers or
   the feedback's text, where the replayable state is. `npm run reports:show` prints those
@@ -268,7 +258,6 @@ under `reports/<yyyy-mm-dd>/`, kept for good like the games.
   picks one) (and the whole match from its start when the
   report carries it; practice from its options and steps), says whether it ends where the
   player's browser did, and prints the last throw's result and where the pieces lie.
-- `npm run dev`'s local rooms server keeps reports as files in `build/reports-dev/`.
 
 ## Watch the computer
 
@@ -347,10 +336,7 @@ engine after a physics change) is noted and it plays on.
 - Anyone can fetch a kept replay by its code without joining (`GET /api/replay`,
   `src/replay/fetch.js`); `startReplay({ code, game, root })` needs nothing of the pitch
   page, so an embed or a share image can build on the two.
-- Replays are never served from the private games bucket. A match from before replays
-  can be given one from its records, one room at a time and only with Jamie's go:
-  `node tools/backfill-replay.mjs --room <code>` (dry run, the hash agreement) and
-  `--write` (as `cloud-engineer`); `docs/ROOMS.md` section 10.
+- Replays are never served from the private games bucket.
 
 ## Embed
 
@@ -404,12 +390,12 @@ A finished online pitch can have a highlight reel: a short video of its best thr
 tall (1080x1920) and wide (1920x1080), made on the server from the kept replay with this
 engine. Jamie, 2026-11-19: "Approved: build the highlight reel feature as designed in
 docs/REEL.md, including its AWS resources in the throwingwood.com web stack". The design
-is `docs/REEL.md`, the protocol `docs/ROOMS.md` section 12, deploying, checking and
+is `docs/REEL.md`, the calls `backend/api/API.md`, deploying, checking and
 rolling back `docs/REEL-RUNBOOK.md`. The browser's button and card for online pitches
 are `src/ui/reel.js` over `src/net/reel.js` (docs/CLIENT.md "Highlight reels"), and the
 web game's and privacy pages say what a reel shows. A match against the computer gets one once
 shared: the server side (`share`, the renderer's `{ check: g }` in
-`backend/reels/check.mjs`, sealed rooms; `docs/ROOMS.md` section 13), and the browser's
+`backend/reels/check.mjs`; `backend/api/API.md`), and the browser's
 share card on the solo winner card and a sealed pitch's page (`src/ui/share.js` over
 `src/net/share.js`, `Pitch.showSealed`; docs/CLIENT.md "Sharing a match"). The share
 card's words are a contract with the iPhone (docs/REEL.md "The share card"). The iPhone
@@ -421,14 +407,14 @@ sends the same `reel` and `share` messages.
   render, upload, mark done), its AWS adapters (`aws.mjs`) and the Lambda entry
   (`handler.mjs`). `tools/reel/render.mjs` is the same renderer from the command line,
   with contact sheets.
-- The rooms function answers `{ t: "reel", room }` from anyone and starts at most one
-  render a kept replay (`room#<code> | reel`, a conditional put), invoking
+- The api function answers `POST /api/reel` `{ pitch }` from anyone and starts at most
+  one render a kept replay (`pitch#<code> | reel`, a conditional put), invoking
   `kubb-xyz-site-reels` asynchronously. It renders a match, and checks a shared one,
   only on the match's own engine: its major.minor must be one the function carries
   (`REEL_ENGINES`: every engine the site carries, newest first, one Lua bundle each in
-  the package; `docs/REEL.md` "Engines"). Adding an engine is site stack, then rooms
+  the package; `docs/REEL.md` "Engines"). Adding an engine is site stack, then pitches
   (`docs/REEL-RUNBOOK.md` "Adding or dropping an engine").
-- Caps: 3 renders started a connection, 200 a UTC day for the whole site (a counter
+- Caps: 200 renders a UTC day for the whole site (a counter
   item), a render left `rendering` 25 minutes may be started again, keeping its tries:
   a job renders twice at most in all, Lambda's retry included; `failed` is final for
   that version. A match with no throw, or no moment to show, is `failed` with
@@ -438,7 +424,7 @@ sends the same `reel` and `share` messages.
   (`npm run reels:bundle`) from `infra/reels-pins.json`: a static ffmpeg 7.0.2 (GPL v3,
   its licence in the layer) and `@napi-rs/canvas`'s Linux arm64 binary, each checked
   against its pinned digest. `"reelRenderer": true` in `infra/deployment.json` turns it
-  on; `infra:apply -- site`, then `-- rooms`. Its role reads only the replay's
+  on; `infra:apply -- site`, then `-- pitches`. Its role reads only the replay's
   attributes and updates only the reel item's, and puts only under `reels/` in the
   site bucket. `tools/deploy.mjs` never writes there; a lifecycle rule expires it after
   366 days.

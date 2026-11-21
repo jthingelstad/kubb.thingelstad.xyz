@@ -3,12 +3,10 @@
   "region": "us-east-1",
   "stacks": {
     "site": "kubb-xyz-site",
-    "rooms": "kubb-xyz-rooms",
     "delivery": "kubb-xyz-delivery",
     "pitches": "throwing-wood-pitches"
   },
   "productionUrl": "https://throwingwood.com/",
-  "wsRoute": true,
   "reelRenderer": true,
   "pitchesStack": true,
   "githubRepositoryId": "1459352238",
@@ -18,14 +16,6 @@
   "cloudfrontDomain": "dijxvf6kipkda.cloudfront.net",
   "certificateArn": "arn:aws:acm:us-east-1:999153317627:certificate/bf22f820-2176-41b4-8d9b-c7ed734ff984",
   "deploymentRoleArn": "arn:aws:iam::999153317627:role/kubb-xyz-delivery-DeploymentRole-CbBWWX2vhgqG",
-  "rooms": {
-    "functionName": "kubb-xyz-rooms-rooms",
-    "gamesBucket": "kubb-xyz-rooms-games-999153317627",
-    "webSocketUrl": "wss://x3wdf2kum4.execute-api.us-east-1.amazonaws.com/prod",
-    "apiDomain": "x3wdf2kum4.execute-api.us-east-1.amazonaws.com",
-    "stage": "prod",
-    "codeKey": "rooms/6aaecb149a1df6becb968bab2d91d5a0933c11c835e826a7517f5a10e012c988.zip"
-  },
   "stackTags": {
     "Application": "Thingelstad",
     "Project": "kubb-xyz",

@@ -1,4 +1,4 @@
-// What names a highlight reel, shared by the rooms function (which takes the request),
+// What names a highlight reel, shared by the api function (which takes the request),
 // the reel function (which renders it) and the pages function (which links it).
 // Pure: no engine, no AWS. docs/REEL.md "Render once, cache for good".
 //
@@ -54,7 +54,7 @@ export function reelPaths(code, v, tag) {
   return { tall: `/${k.tall}`, wide: `/${k.wide}`, edit: `/${k.edit}` };
 }
 
-// One render's identity on the reel item: the rooms function writes it, the reel
+// One render's identity on the reel item: the api function writes it, the reel
 // function only updates an item that still carries it.
 export const reelJob = (v, tag) => `${v}-${tag}`;
 

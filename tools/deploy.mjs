@@ -1,5 +1,5 @@
 // Publish dist/ to the site bucket, refresh CloudFront, check the live bytes,
-// and bring the rooms function's code (and throwing-wood-api's, once it runs) up to date.
+// and bring throwing-wood-api's code up to date.
 //
 //   KUBB_PRODUCTION=true npm run build && npm run deploy
 //
@@ -39,7 +39,6 @@ import {
 } from "./delivery-plan.mjs";
 import { bundleApi } from "./api-bundle.mjs";
 import { bundlePages } from "./pages-bundle.mjs";
-import { bundleRooms } from "./rooms-bundle.mjs";
 
 const REPOSITORY = "jthingelstad/kubb.thingelstad.xyz";
 const LOCAL_ROLE = ":assumed-role/ProjectsCloudEngineer/";
@@ -184,43 +183,8 @@ await waitUntilInvalidationCompleted(
   { DistributionId: config.distributionId, Id: invalidation.Invalidation.Id },
 );
 
-// The rooms function's code, when the rooms stack exists and its bundle
-// changed since the last deploy (or infra:apply rooms).
-let rooms = "not deployed";
-if (config.rooms?.functionName) {
-  const lambda = new LambdaClient(settings);
-  const bundle = await bundleRooms();
-  const live = await lambda.send(
-    new GetFunctionCommand({ FunctionName: config.rooms.functionName }),
-  );
-  if (live.Configuration.CodeSha256 === bundle.codeSha256) rooms = "unchanged";
-  else {
-    await assertCurrentHead();
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: config.codeBucket,
-        Key: bundle.key,
-        Body: bundle.zip,
-        ContentType: "application/zip",
-      }),
-    );
-    await lambda.send(
-      new UpdateFunctionCodeCommand({
-        FunctionName: config.rooms.functionName,
-        S3Bucket: config.codeBucket,
-        S3Key: bundle.key,
-      }),
-    );
-    await waitUntilFunctionUpdatedV2(
-      { client: lambda, maxWaitTime: 300 },
-      { FunctionName: config.rooms.functionName },
-    );
-    rooms = `updated to ${bundle.key}`;
-  }
-}
-
-// The api function's code (throwing-wood-api), the same way, once the pitches stack
-// runs it ("pitchesStack").
+// The api function's code (throwing-wood-api), when its bundle changed since the last
+// deploy (or infra:apply pitches), once the pitches stack runs it ("pitchesStack").
 let api = "not deployed";
 const apiFunction = config.pitchesStack ? config.pitches?.functionName : null;
 if (apiFunction) {
@@ -335,7 +299,6 @@ console.log(
     unchanged,
     url: config.productionUrl,
     invalidation: invalidation.Invalidation.Id,
-    rooms,
     api,
     pages,
   }),

@@ -6,8 +6,8 @@
 // flight, never a guess. Frames go to ffmpeg (libx264) as raw RGBA; the game's sounds
 // are mixed offline (audio.mjs) and muxed after. No browser.
 //
-// The one renderer of the reel function (handler.mjs, on Lambda), the local rooms
-// server (tools/rooms-dev.mjs) and the command line (tools/reel/render.mjs).
+// The one renderer of the reel function (handler.mjs, on Lambda) and the command line
+// (tools/reel/render.mjs).
 //
 //   const { files, edit } = await renderReel({ replay, code, out, sources })
 //
@@ -59,7 +59,7 @@ export function loadFonts(assets = repoAssets()) {
 // ffmpeg: FFMPEG, else the one on the PATH (the function's layer puts it in /opt/bin).
 export const ffmpegPath = () => process.env.FFMPEG || "ffmpeg";
 
-// A pitch code for a sample reel (codes as the rooms accept them).
+// A pitch code for a sample reel (codes as the api accepts them).
 export function sampleCode(name) {
   const A = "abcdefghjkmnpqrstuvwxyz23456789";
   let h = 2166136261;
