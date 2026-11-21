@@ -7,7 +7,8 @@
 // browser that only watches gets a WATCH button and the card closes itself.
 import { h, button, clear } from "./dom.js";
 import { prefs } from "../game/prefs.js";
-import { levelLine, soloOptions } from "../game/throw-level.js";
+import { soloOptions } from "../game/throw-level.js";
+import { youRow } from "./settings.js";
 import { NAME_MAX, PLACEHOLDER, tidyName } from "../game/player-name.js";
 import { drawMinimap } from "../render/minimap.js";
 import { teamOf } from "../game/scenes.js";
@@ -229,24 +230,12 @@ export class Cards {
           "data-test": "solo-name",
         });
     let current = kept;
-    const nameText = h("span.opt-value", kept);
+    // one "You" row: the name (or its box) and the level, one CHANGE IN MENU
+    const you = youRow("solo", { name: kept, level, input: name, menu });
     const stopName = onName?.((v) => {
       current = v;
-      nameText.textContent = v;
+      you.setName(v);
     });
-    const nameRow = name
-      ? h("label.opt", h("span.opt-label", "Your name"), name)
-      : h(
-          "div.opt",
-          { "data-test": "solo-name-row" },
-          h("span.opt-label", "Your name"),
-          nameText,
-          menu
-            ? button("CHANGE IN MENU", () => menu(), "small", {
-                "data-test": "solo-name-menu",
-              })
-            : null,
-        );
     const groups = {};
     const rows = OPTION_ROWS.map(([key, label, choices]) => {
       const seg = segmented(
@@ -263,21 +252,7 @@ export class Cards {
         seg.el,
       );
     });
-    const levelText = h("span.opt-value", levelLine(level));
-    const stopLevel = onLevel?.((v) => (levelText.textContent = levelLine(v)));
-    const levelRow = level
-      ? h(
-          "div.opt",
-          { "data-test": "solo-level" },
-          h("span.opt-label", "Your level"),
-          levelText,
-          menu
-            ? button("CHANGE IN MENU", () => menu(), "small", {
-                "data-test": "solo-level-menu",
-              })
-            : null,
-        )
-      : null;
+    const stopLevel = onLevel?.((v) => you.setLevel(v));
     const start = () => {
       if (name && tidyName(name.value)) {
         setName?.(name.value);
@@ -294,8 +269,7 @@ export class Cards {
       "div.card.options",
       { "data-test": "options" },
       h("h2.display", "Play the computer"),
-      nameRow,
-      levelRow,
+      you.el,
       rows,
       h(
         "div.row.start-row",

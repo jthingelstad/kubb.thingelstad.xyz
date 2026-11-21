@@ -536,9 +536,10 @@ labels are plain words.
   device keeps none) and changed in Settings. docs/CLIENT.md "Settings".
 - **Two levels** (Jamie, 2026-11-20, as the iPhone has them). The level you throw at is
   the device's, set in MENU only, with "A change applies from your next throw."; the
-  solo card and the lobby show it ("Throwing at Club.") with CHANGE IN MENU, never a
-  picker. The computer's level is a match option, Computer level, on the solo card and,
-  set by the host, in the lobby of a 0.9 pitch. `src/game/throw-level.js` moves a
+  solo card and the lobby show it beside your name in one You row ("Birch · Throwing
+  at Club.") with one CHANGE IN MENU, never a picker. The computer's level is a match
+  option, Computer level, on the solo card and, set by the host, in the lobby of a 0.9
+  pitch. `src/game/throw-level.js` moves a
   device's older choice across so nobody's level resets.
 - **Sliders, not step buttons** (Jamie: "the finger must not cover the control; teach on
   the control"). On engine 0.9 ARC, TILT and SPIN take any value in `aim.controls`'

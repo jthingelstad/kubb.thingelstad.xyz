@@ -159,7 +159,7 @@ browserTest(
 );
 
 browserTest(
-  "the solo card asks a new device's name once, then shows it with CHANGE IN MENU",
+  "the solo card asks a new device's name once, then one You row with CHANGE IN MENU",
   async () => {
     const page = await open(
       env,
@@ -171,6 +171,23 @@ browserTest(
     );
     try {
       await page.waitForSelector("[data-test=solo-name]");
+      // the box and the level line share the one You row, with one button
+      assert.equal(
+        await page
+          .locator("[data-test=solo-you] [data-test=solo-name]")
+          .count(),
+        1,
+      );
+      assert.equal(
+        await page.textContent("[data-test=solo-you] .opt-value"),
+        "Throwing at Club.",
+      );
+      assert.equal(
+        await page
+          .locator("[data-test=options] button:has-text('CHANGE IN MENU')")
+          .count(),
+        1,
+      );
       await page.fill("[data-test=solo-name]", "  Birch  ");
       await page.click("[data-test=start]");
       await page.waitForFunction(() => window.__kubb.game.mode === "match");
@@ -186,18 +203,40 @@ browserTest(
       await page.evaluate(() => window.__kubb.game.resign("A"));
       await page.waitForSelector("[data-test=rematch]");
       await page.click("[data-test=rematch]");
-      await page.waitForSelector("[data-test=solo-name-row]");
+      await page.waitForSelector("[data-test=solo-you]");
       assert.equal(await has(page, "solo-name"), false, "asked once");
-      assert.equal(
-        await page.textContent("[data-test=solo-name-row] .opt-value"),
-        "Birch",
+      // seen as "Birch · Throwing at Club.", heard as "Birch, Throwing at Club."
+      const parts = await page.$$eval(
+        "[data-test=solo-you] .opt-value > span",
+        (els) =>
+          els.map((e) => [
+            e.className,
+            e.textContent,
+            e.getAttribute("aria-hidden"),
+          ]),
       );
-      await page.click("[data-test=solo-name-menu]");
+      assert.deepEqual(parts, [
+        ["you-name", "Birch", null],
+        ["you-dot", " · ", "true"],
+        ["visually-hidden", ", ", null],
+        ["you-level", "Throwing at Club.", null],
+      ]);
+      assert.equal(
+        await page.getAttribute("[data-test=solo-you-menu]", "aria-label"),
+        "Change in MENU: your name and level",
+      );
+      assert.equal(
+        await page
+          .locator("[data-test=options] button:has-text('CHANGE IN MENU')")
+          .count(),
+        1,
+      );
+      await page.click("[data-test=solo-you-menu]");
       await page.fill("[data-test=settings-name]", "Elm");
       await page.press("[data-test=settings-name]", "Enter");
       await page.keyboard.press("Escape");
       assert.equal(
-        await page.textContent("[data-test=solo-name-row] .opt-value"),
+        await page.textContent("[data-test=solo-you] .you-name"),
         "Elm",
       );
       assert.equal(await pref(page, "name"), "Elm");
@@ -209,7 +248,7 @@ browserTest(
 );
 
 browserTest(
-  "the lobby shows a kept name with CHANGE IN MENU, and the room hears a change",
+  "the lobby's You row shows a kept name with CHANGE IN MENU, and the room hears a change",
   async () => {
     const code = makeRoomCode();
     const url = `/p/${code}?nohowto=1&rooms=${encodeURIComponent(rooms.url)}`;
@@ -217,8 +256,14 @@ browserTest(
       prefs: { name: "Birch", howtoSeen: true },
     });
     try {
-      await page.waitForSelector("[data-test=lobby-name-row]");
+      await page.waitForSelector("[data-test=lobby-you]");
       assert.equal(await has(page, "lobby-name"), false);
+      assert.equal(
+        await page
+          .locator("[data-test=lobby] button:has-text('CHANGE IN MENU')")
+          .count(),
+        1,
+      );
       await page.waitForFunction(
         () => window.__kubb.pitch?.state().status === "open",
       );
@@ -228,12 +273,12 @@ browserTest(
         await page.textContent("[data-test=team-A] .member-name"),
         "Birch",
       );
-      await page.click("[data-test=lobby-name-menu]");
+      await page.click("[data-test=lobby-you-menu]");
       await page.fill("[data-test=settings-name]", "Elm");
       await page.press("[data-test=settings-name]", "Enter");
       await page.keyboard.press("Escape");
       assert.equal(
-        await page.textContent("[data-test=lobby-name-row] .opt-value"),
+        await page.textContent("[data-test=lobby-you] .you-name"),
         "Elm",
       );
       await page.waitForFunction(
