@@ -36,9 +36,14 @@ An observer:
 - never writes the room's options on arrival, even on a new room;
 - never becomes host (the host runs the computer and keeps the open listing). When the
   host has gone and the observer is first in line, it leaves and joins again, last in
-  line (`Room.rejoin`, at most every 20 s, and only when someone else is connected), and
-  the next member claims as before. A race is harmless: the room server decides who is
-  first, and the observer looks again on its next tick;
+  line (`Room.rejoin`, only when someone else is connected), and the next member claims
+  as before. A race is harmless: the room server decides who is first, and the observer
+  looks again on its next tick. While nobody takes host (only observers left on an
+  abandoned pitch) it backs off: the first step back at once, then 20 s, 40 s, 80 s,
+  doubling to 5 minutes (`src/net/step-back.js`). It starts from the first again when a
+  host is connected, or when a member it has never seen connects, so a player who
+  arrives is not kept behind an observer. Observers keep their member id when they
+  rejoin, so their own step backs never count as an arrival. Nothing new on the wire;
 - has no SHOUT;
 - may ask the room to keep a finished match's replay, as every browser that watched the
   end does (it is not an action);
@@ -99,8 +104,10 @@ On while a watcher sees the wide view and no card is over the pitch.
 
 - Same rules: an observer is a member with no seat, never acts, never writes the document
   (no options on arrival, no commits), never claims host and steps back (leave, then join
-  again) when first in line with another member connected. No room server change is
-  needed: `leave` then `join` puts a member last.
+  again) when first in line with another member connected, with the same back-off
+  (at once, then 20 s doubling to 5 minutes; again from the first when a host is
+  connected or a member never seen before connects). Keep the member id across the
+  rejoin. No room server change is needed: `leave` then `join` puts a member last.
 - Same view: start at the engine's wide camera untouched; orbit with the limits above;
   lens unchanged; RESET VIEW eases 0.45 s, or at once with Reduce Motion. The gestures
   map one to one: one finger turns, two fingers pinch, twist and slide.

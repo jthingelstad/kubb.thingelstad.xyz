@@ -56,6 +56,7 @@ import { reelFromPage } from "./reel.js";
 import { majorMinor, withEngineFor } from "../engine/registry.js";
 import { openSheet } from "../ui/sheet.js";
 import { SCENE_ROW } from "../render/scenes.js";
+import { StepBack } from "./step-back.js";
 
 export const tune = {
   tickMs: 200, // the controller's clock: aim casts (5 a second), drain, host check
@@ -66,9 +67,11 @@ export const tune = {
   stuckMs: 8000, // still not connected after this: say so
   watchNoteMs: 7000,
   openEveryMs: 5 * 60 * 1000, // an open pitch's host says so again this often (listing TTL 15 min)
-  // an observer first in line for host steps back (rejoins, last in line) at most
-  // this often, so a player can take over (docs/OBSERVER.md)
+  // an observer first in line for host steps back (rejoins, last in line) so a player
+  // can take over; while nobody does, the wait doubles from this to the cap
+  // (src/net/step-back.js, docs/OBSERVER.md)
   stepBackMs: 20000,
+  stepBackMaxMs: 5 * 60 * 1000,
 };
 
 export const SHOUTS = ["NICE!", "OOH!", "TOK!", "UNLUCKY"];
@@ -164,7 +167,7 @@ export class Pitch {
     this.lastClaim = 0;
     this.watchNoteUntil = 0;
     this.observe = !!env.observe;
-    this.lastStepBack = 0;
+    this.stepping = new StepBack(tune);
     this.view = null; // the watcher's view (src/ui/watch-view.js), made when first needed
     this.log = []; // what happened, for the test hook and debugging
   }
@@ -1532,9 +1535,14 @@ export class Pitch {
   checkHost() {
     const room = this.room;
     if (room.status !== "open" || room.isHost()) return;
+    if (this.observe)
+      this.stepping.see(
+        room.members.filter((m) => m.connected).map((m) => m.id),
+      );
     const host = room.members.find((m) => m.id === room.host);
     if (host && host.connected) {
       this.hostGoneAt = null;
+      this.stepping.reset();
       return;
     }
     const now = Date.now();
@@ -1550,14 +1558,14 @@ export class Pitch {
 
   // An observer never hosts (the host runs the computer and opens the game), so when it
   // is first in line it leaves and joins again, last in line, and the next member
-  // claims as before. Only when someone else is here to take over; at most every
-  // tune.stepBackMs. A race (two step at once, or a claim meanwhile) is harmless: the
+  // claims as before. Only when someone else is here to take over, and backing off
+  // while nobody takes host (src/net/step-back.js). A race (two step at once, or a claim meanwhile) is harmless: the
   // room server decides who is first, and this is asked again on the next tick.
   stepBack(now = Date.now()) {
     const room = this.room;
     if (!room.members.some((m) => m.connected && m.id !== room.you)) return;
-    if (now - this.lastStepBack < tune.stepBackMs) return;
-    this.lastStepBack = now;
+    if (!this.stepping.due(now)) return;
+    this.stepping.took(now);
     this.note("step-back");
     room.rejoin();
   }
@@ -1684,6 +1692,7 @@ export class Pitch {
       observing: g.observing,
       wide: g.viewName,
       camMoved: g.freeCam?.moved ?? false,
+      stepBacks: this.stepping.steps,
     };
   }
 }

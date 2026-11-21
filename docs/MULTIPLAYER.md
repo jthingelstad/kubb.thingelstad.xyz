@@ -228,7 +228,8 @@ A throw taken for an absent teammate says YOUR THROW FOR <NAME>.
   never takes a side, the computer or the host, never writes the document and has no
   SHOUT; between matches it sees its own card, not the lobby. It is listed under
   Watching like anyone on neither team. When the host has gone and an observer is first
-  in line, it leaves and joins again (last in line) so the next member claims. An
+  in line, it leaves and joins again (last in line) so the next member claims, backing
+  off from 20 s to 5 minutes while nobody does. An
   observer arriving at a pitch nobody is on leaves at once. docs/OBSERVER.md.
 - **Someone leaves**: their throws fall to a connected teammate, else the host.
 - **The host goes**: after the host has been away 16 s by this browser's clock (the room
