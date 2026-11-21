@@ -367,6 +367,8 @@ export class PitchDO extends DurableObject {
     } finally {
       clearTimeout(timer);
     }
+    // Answered: from here its retry time counts for the alarm again (syncAlarm below).
+    this.inflight.delete(e.k);
     if (this.wiping) await this.wiping;
     // A push from an earlier life of this code (wiped since) confirms nothing now.
     if (!this.state || e.made !== this.made) return;
@@ -394,12 +396,14 @@ export class PitchDO extends DurableObject {
     this.syncAlarm();
   }
 
-  // One alarm for the core's deadline and the earliest push retry.
+  // One alarm for the core's deadline and the earliest push retry. A push on its way
+  // is left out: its due time has passed, and an alarm set in the past fires at once,
+  // again and again while a slow receiver answers. Its answer calls this again.
   syncAlarm() {
     let at = this.coreAlarm ?? null;
     if (this.pushConfigured())
-      for (const r of this.retry.values())
-        if (at === null || r.due < at) at = r.due;
+      for (const [k, r] of this.retry)
+        if (!this.inflight.has(k) && (at === null || r.due < at)) at = r.due;
     if (at === this.alarmSet) return;
     this.alarmSet = at;
     const p =
