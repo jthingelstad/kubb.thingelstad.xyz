@@ -66,6 +66,8 @@ aim({ x, y, arm });
 - `memberId(storage = localStorage, key = 'kubb.member')`: this browser's member id,
   created once (16 characters of `A-Za-z0-9_-`) and kept, so a refresh or a reconnect
   is the same member. Works without storage (a new id each call).
+- `observerId(storage = sessionStorage)`: an observer's member id, its own and kept for
+  the tab (`kubb.observer`), never the player id (docs/OBSERVER.md).
 - `throttle(fn, ms)`: calls `fn` at most once every `ms`; the latest arguments in between
   are sent at the end of the wait. `.cancel()` drops a pending call.
 

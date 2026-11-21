@@ -47,6 +47,16 @@ export function memberId(
   return id;
 }
 
+/**
+ * An observer's member id (docs/OBSERVER.md): its own, kept for the tab, never this
+ * browser's player id. A host or player who opens WATCH on their own pitch must not
+ * take over their playing connection: the room server gives a join with a known id
+ * that member's place, and an observer holding the host's place would stall the pitch.
+ */
+export function observerId(storage = globalThis.sessionStorage) {
+  return memberId(storage, "kubb.observer");
+}
+
 /** fn at most once every `ms`; the latest call in between is sent at the end of the wait. */
 export function throttle(fn, ms) {
   let last = 0;

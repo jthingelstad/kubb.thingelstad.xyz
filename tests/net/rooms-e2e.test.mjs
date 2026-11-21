@@ -7,6 +7,7 @@ import {
   connect,
   makeRoomCode,
   memberId,
+  observerId,
   throttle,
 } from "../../src/net/room.js";
 import { WebSocket as NodeWs } from "ws";
@@ -72,6 +73,12 @@ test("helpers: room codes and member ids", () => {
   assert.match(id, /^[A-Za-z0-9_-]{16}$/);
   assert.equal(memberId(storage), id);
   assert.match(memberId(null), /^[A-Za-z0-9_-]{16}$/);
+  // an observer's id is its own: kept too, and never the player's, even in one store
+  const watching = observerId(storage);
+  assert.match(watching, /^[A-Za-z0-9_-]{16}$/);
+  assert.notEqual(watching, id);
+  assert.equal(observerId(storage), watching);
+  assert.equal(memberId(storage), id);
 });
 
 test("three clients: presence, me, update races, 100 KB documents, casts, reconnect", async () => {
