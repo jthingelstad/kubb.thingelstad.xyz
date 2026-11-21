@@ -155,3 +155,28 @@ test("replaced: another tab took over, so this one stops for good", async () => 
   assert.equal(room.status, "replaced");
   assert.equal(sockets.length, 1);
 });
+
+test("rejoin: the leave goes first, then a new socket joins (an observer steps back)", async () => {
+  const { room, sockets } = setup();
+  await until(() => sockets[0]?.sent.length === 1);
+  sockets[0].serve(joined({ v: 2, doc: { n: 2 } }));
+  await room.ready;
+  assert.equal(room.rejoin({ settleMs: 5, againMs: 5 }), true);
+  assert.equal(sockets[0].sent.at(-1).t, "leave");
+  assert.equal(room.status, "reconnecting");
+  // nothing more is written meanwhile, and a second ask is refused
+  assert.equal(room.rejoin(), false);
+  assert.equal(room.claimHost(), false);
+  // the old socket's late news is not taken
+  sockets[0].serve({ t: "host", host: "member-two", rev: 9 });
+  assert.equal(room.host, "member-one");
+  await until(() => sockets[0].readyState === 3);
+  await until(() => sockets[1]?.sent.length === 1);
+  assert.equal(sockets[1].sent[0].t, "join");
+  assert.equal(sockets[1].sent[0].member, "member-one");
+  sockets[1].serve(joined({ rev: 3, v: 2, doc: { n: 2 } }));
+  await until(() => room.status === "open");
+  // closed rooms do not rejoin
+  room.close();
+  assert.equal(room.rejoin(), false);
+});
