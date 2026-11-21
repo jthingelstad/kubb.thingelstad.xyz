@@ -205,11 +205,13 @@ did is lost or doubled:
   whole match with its snapshot (`match.full: true`) when it cannot. Resumed actions that
   are this browser's own in-flight ids count as their `ok`; every other one plays as it
   would have live. Then the actions still in flight are sent again (a duplicate is
-  answered `dup`), in turns so a long backlog stays under the server's message limit:
-  at most 20 out unanswered, 20 at once and then 15 a second. Told `rate` all the same,
-  the client sends what is out unanswered again a second later. When the full snapshot
-  lacks this browser's own unanswered actions, which follow on from its head, the page
-  keeps them played rather than taking the snapshot (`Pitch.ownAhead`).
+  answered `dup`). Live or after a drop, this browser's actions go one at a time: each
+  waits for the answer to the one before, so none goes on top of a predecessor the
+  pitch refuses (someone else committed that seq first), and a long backlog stays
+  under the server's message limit (at most 15 a second after the first 20). Told
+  `rate` all the same, the client sends the one out again a second later. When the
+  full snapshot lacks this browser's own unanswered actions, which follow on from its
+  head, the page keeps them played rather than taking the snapshot (`Pitch.ownAhead`).
 - **Gaps**: every stamped frame moves the pitch's sequence `s` on by one; a jump (a frame
   missed) sends `resync` and waits for the whole pitch (`state`).
 - **What a player sees**: RECONNECTING under the status pill (and in the lobby and the
