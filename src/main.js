@@ -3,6 +3,7 @@
 // Lua load, then routes:
 //
 //   /practice/         the open practice pitch
+//   /settings/         the device's settings, from the web game's page
 //   /p/<code>?solo=1   a match against the computer on this pitch
 //   /p/<code>?watch=1  the computer against itself, match after match
 //   /p/<code>          a shared pitch: the lobby, then a match with friends
@@ -19,6 +20,7 @@ import { Sound } from "./game/sound.js";
 import { prefs } from "./game/prefs.js";
 import { Cards, soloSaved } from "./ui/cards.js";
 import { Menu } from "./ui/menu.js";
+import { openSettingsPage } from "./ui/settings.js";
 import { showHowto, shouldShowHowto } from "./ui/howto.js";
 import { h, button } from "./ui/dom.js";
 import { startPitch } from "./net/pitch.js";
@@ -133,8 +135,18 @@ async function bootEmbed() {
   document.body.dataset.ready = "1";
 }
 
+// /settings/: the device's settings (src/ui/settings.js) from the web game's page,
+// the same rows as MENU's. No engine, no game: nothing to load but this card.
+function bootSettings() {
+  loading.remove();
+  openSettingsPage(ui, { home });
+  if (testing) window.__kubb = { config };
+  document.body.dataset.ready = "1";
+}
+
 async function boot() {
   if (config.mode === "embed") return bootEmbed();
+  if (config.mode === "settings") return bootSettings();
   const engine = await makeEngine();
   const sound = new Sound(config.sounds || "/sounds/");
   const cards = new Cards(ui);
@@ -345,6 +357,10 @@ function startSolo(game, cards, { sheet, record, menu, asked }) {
       level: game.level,
       onLevel: (f) => game.onLevel(f),
       menu: () => menu.open(),
+      // and your name, this device's too: asked here only while none is kept
+      name: game.playerName,
+      setName: (t) => game.setPlayerName(t),
+      onName: (f) => game.onPlayerName(f),
       // the Scene row: ?scene= over the saved one; the pitch behind shows the pick
       scene: asked,
       onScene: (id) => game.showScene(id),

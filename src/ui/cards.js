@@ -8,6 +8,7 @@
 import { h, button, clear } from "./dom.js";
 import { prefs } from "../game/prefs.js";
 import { levelLine, soloOptions } from "../game/throw-level.js";
+import { NAME_MAX, PLACEHOLDER, tidyName } from "../game/player-name.js";
 import { drawMinimap } from "../render/minimap.js";
 import { teamOf } from "../game/scenes.js";
 import { SCENE_ROW, sceneId } from "../render/scenes.js";
@@ -192,9 +193,11 @@ export class Cards {
 
   // level: the device's throw level, shown, not picked (MENU sets it: menu() opens
   // it over this card, onLevel(f) hears a change); the Computer level row is the
-  // computer's, a match option. scene: the Scene row's value when the address
-  // names one (?scene=), else the saved one; onScene(id) hears it picked, so the
-  // pitch behind the card can show it.
+  // computer's, a match option. name: the device's name (src/game/player-name.js),
+  // shown the same way once kept; while there is none the card asks for it once and
+  // setName(t) keeps it on the device; onName(f) hears a change made in MENU.
+  // scene: the Scene row's value when the address names one (?scene=), else the
+  // saved one; onScene(id) hears it picked, so the pitch behind the card can show it.
   options(
     onStart,
     {
@@ -202,6 +205,9 @@ export class Cards {
       level = null,
       menu = null,
       onLevel = null,
+      name: kept = "",
+      setName = null,
+      onName = null,
       scene = null,
       onScene = null,
     },
@@ -209,14 +215,38 @@ export class Cards {
     const saved = soloSaved();
     if (scene) saved.scene = sceneId(scene);
     onScene?.(saved.scene);
-    const name = h("input.name", {
-      type: "text",
-      maxlength: 16,
-      value: saved.name,
-      autocomplete: "off",
-      spellcheck: "false",
-      "aria-label": "Your name",
+    // no name on this device yet: typed here, once
+    const name = kept
+      ? null
+      : h("input.name", {
+          type: "text",
+          maxlength: NAME_MAX,
+          value: "",
+          placeholder: PLACEHOLDER,
+          autocomplete: "off",
+          spellcheck: "false",
+          "aria-label": "Your name",
+          "data-test": "solo-name",
+        });
+    let current = kept;
+    const nameText = h("span.opt-value", kept);
+    const stopName = onName?.((v) => {
+      current = v;
+      nameText.textContent = v;
     });
+    const nameRow = name
+      ? h("label.opt", h("span.opt-label", "Your name"), name)
+      : h(
+          "div.opt",
+          { "data-test": "solo-name-row" },
+          h("span.opt-label", "Your name"),
+          nameText,
+          menu
+            ? button("CHANGE IN MENU", () => menu(), "small", {
+                "data-test": "solo-name-menu",
+              })
+            : null,
+        );
     const groups = {};
     const rows = OPTION_ROWS.map(([key, label, choices]) => {
       const seg = segmented(
@@ -249,17 +279,22 @@ export class Cards {
         )
       : null;
     const start = () => {
-      const o = { name: name.value.trim().slice(0, 16) || "You" };
+      if (name && tidyName(name.value)) {
+        setName?.(name.value);
+        current = tidyName(name.value);
+      }
+      const o = {};
       for (const k of Object.keys(groups)) o[k] = groups[k].value();
+      // the match options are kept for the next card; the name is the device's
       prefs.set("solo", o);
       close();
-      onStart(o);
+      onStart({ ...o, name: current || PLACEHOLDER });
     };
     const el = h(
       "div.card.options",
       { "data-test": "options" },
       h("h2.display", "Play the computer"),
-      h("label.opt", h("span.opt-label", "Your name"), name),
+      nameRow,
       levelRow,
       rows,
       h(
@@ -271,10 +306,15 @@ export class Cards {
         button("HOME", home),
       ),
     );
-    name.addEventListener("keydown", (e) => {
+    name?.addEventListener("keydown", (e) => {
       if (e.key === "Enter") start();
     });
-    const close = this.show(el, null, { onClose: () => stopLevel?.() });
+    const close = this.show(el, null, {
+      onClose: () => {
+        stopLevel?.();
+        stopName?.();
+      },
+    });
     return close;
   }
 
@@ -342,14 +382,15 @@ export const tune = {
 
 // The solo card's options as last saved (prefs "solo"), the computer's level moved
 // across from the card's older Level row (src/game/throw-level.js).
+// The name is the device's now (src/game/player-name.js moves an older card's across).
 export const soloSaved = () => {
   const o = { ...SOLO_DEFAULTS, ...soloOptions(prefs.get("solo", {})) };
+  delete o.name;
   o.scene = sceneId(o.scene); // one this copy does not draw: the day
   return o;
 };
 
 export const SOLO_DEFAULTS = {
-  name: "You",
   computer: "club",
   surface: "grass",
   opening: "2-4-6",
@@ -564,11 +605,12 @@ function settle(c, done) {
   );
 }
 
-// Raising: an end for this kubb, AUTO (the engine's choice for this one) or
-// AUTO ALL (for every kubb still to raise this turn). While the raising is
-// automatic (AUTO ALL; MENU's Raising or REST OF GAME for the whole match)
-// the panel only says so, with BY HAND to take it back
-// (src/game/auto-raise.js).
+// Raising: an end for this kubb, AUTO (the engine's choice for this one), AUTO
+// ALL (for every kubb still to raise this turn) or REST OF GAME (every raise from
+// now to the end of the match). Raising is a match option (the solo card's and the
+// lobby's Raising), so the part-way choice is here on the raise controls, not in
+// MENU. While the raising is automatic the panel only says so, with BY HAND to
+// take it back (src/game/auto-raise.js).
 function raisePanel(n, game) {
   const kicker = h("p.kicker", `${n.team || ""}  RAISE ${n.n} OF ${n.of}`);
   const ar = game.autoRaise;
@@ -614,10 +656,10 @@ function raisePanel(n, game) {
     h(
       "p.panel-text",
       { "data-test": "raise-text" },
-      // two lines on a 390 px phone, the MENU, Raising sentence kept
+      // two lines on a 390 px phone
       game.coarse
-        ? "Touch the kubb or drag it to the end to stand it on. MENU, Raising for the rest of the game."
-        : "Click the kubb to stand it up, nearer the end it should stand on. MENU, Raising does it for the rest of the game.",
+        ? "Touch the kubb or drag it to the end to stand it on."
+        : "Click the kubb to stand it up, nearer the end it should stand on.",
     ),
     h(
       "div.row",
@@ -630,6 +672,9 @@ function raisePanel(n, game) {
             "data-test": "raise-auto-all",
           })
         : null,
+      button("REST OF GAME", () => game.setRaise("auto"), "small", {
+        "data-test": "raise-auto-game",
+      }),
     ),
   );
 }
