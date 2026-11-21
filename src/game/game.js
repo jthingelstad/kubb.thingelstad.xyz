@@ -51,6 +51,8 @@ import {
   project,
 } from "./draw.js";
 import { Stage } from "../render/scenes.js";
+import { viewFit } from "../render/camera.js";
+import { FreeCamera } from "./free-camera.js";
 import {
   layoutFor,
   meterRoom,
@@ -136,6 +138,9 @@ export const tune = {
   hiddenEvery: 1, // s between steps of an unattended game in a hidden tab
   hiddenCatchUp: 90, // s of missed time one such step makes up, at most
   wideMinPx: 6, // CSS px: the wide view only where its smallest base kubb is this tall
+  // a watcher's (Game.observing): lower, because the free camera can come closer
+  // (a phone held upright gets the wide view and its free camera; docs/OBSERVER.md)
+  observeMinPx: 2,
   wideBurst: 0.16, // the wide view's bursts, of the window's short side (else 0.3)
 };
 
@@ -277,6 +282,13 @@ export class Game {
     this.wide = null;
     this.engineWide = false; // the engine hands out the wide camera
     this.onWide = null; // () => void: main's control follows what is shown
+    // A watcher's free camera (docs/OBSERVER.md): `observing` is set by whoever runs a
+    // watched match (watching the computer, a watcher on a shared pitch, a replay);
+    // while it is on and the wide view shows, the canvas's pointers, the wheel and the
+    // camera keys move the view, and the pitch is drawn through freeCam.camera().
+    this.observing = false;
+    this.wideCam = null; // the engine's wide camera, the free camera's lens
+    this.freeCam = new FreeCamera({ reduced: this.reducedMotion });
     // A replay (src/replay/player.js) drives the Game from outside: the time it
     // runs at, frozen while paused, no engine cards, and its own step each tick.
     this.timeScale = 1;
@@ -369,7 +381,9 @@ export class Game {
       const r = this.engine.setWide(box);
       this.engineWide = true;
       // a window too small for it (a phone held upright) keeps the thrower's
-      if (r.farPx * box.k >= tune.wideMinPx) next = { kind: r.kind, key };
+      const min = this.observing ? tune.observeMinPx : tune.wideMinPx;
+      if (r.farPx * box.k >= min)
+        next = { kind: r.kind, key, camera: r.camera };
     }
     if (!next && this.engineWide) {
       this.engine.setWide(null);
@@ -377,9 +391,33 @@ export class Game {
     }
     const was = this.wide;
     this.wide = next;
+    this.freeCam.setLens(next?.camera ?? null);
     if (was?.key !== next?.key) this.refetch();
     this.placeRoom();
     this.onWide?.(this);
+  }
+
+  // A watched match (docs/OBSERVER.md): the free camera may move the wide view. The
+  // gate for the wide view is lower for a watcher, so it is asked again.
+  setObserving(on) {
+    on = !!on;
+    if (this.observing === on) return;
+    this.observing = on;
+    if (!on) this.freeCam.cancel();
+    this.wide = null; // the gate changed: applyWide decides afresh
+    this.applyWide();
+  }
+
+  // The free camera takes the pointers and keys: a watcher, in the wide view, with no
+  // card over the pitch.
+  freeOn() {
+    return this.observing && !!this.wide && !this.modal;
+  }
+
+  // The camera the pitch is drawn through: the free camera's while a watcher has moved
+  // it in the wide view, else the one given (the engine's).
+  viewCam(c) {
+    return this.observing && this.wide ? this.freeCam.camera(c) : c;
   }
 
   // What is shown now, the wide view or the thrower's: "wide" | "thrower".
@@ -664,6 +702,11 @@ export class Game {
 
   tick(dt, now) {
     if (!this.quiet) this.resizeIfNeeded();
+    if (!this.quiet && this.observing) {
+      // real time: a paused or sped-up replay's camera moves as the viewer does
+      this.freeCam.k = viewFit(this.view).k;
+      this.freeCam.tick(dt);
+    }
     dt = this.frozen ? 0 : dt * this.timeScale;
     if (this.phase !== "play") this.stage.tick(dt);
     if (this.phase === "aim") this.aimFrame(dt, now);
@@ -1445,6 +1488,7 @@ export class Game {
   // The pitch through a camera in the match's scene: the day is exactly
   // drawWorld's picture (tests/render/scene-day.test.mjs).
   world(camera, scene) {
+    camera = this.viewCam(camera);
     if (!this.pinnedLook)
       this.stage.use(this.shownScene ?? this.viewData?.scene);
     this.stage.draw(
@@ -1601,7 +1645,7 @@ export class Game {
       if (!(b.realAt > 0)) continue;
       const pt = projectView(
         this.view,
-        s.camera,
+        this.viewCam(s.camera),
         b.anchor.x,
         b.anchor.y,
         b.anchor.z,
@@ -1710,6 +1754,8 @@ export class Game {
   // The ends' numbers beside their footprints on the raise screen; `lit`
   // the end drawn chosen (a drag past half way, or the allowed end's hint).
   drawEndLabels(n, lit = this.raiseSel) {
+    // a watcher's moved camera shows the whole pitch, not the close-up they label
+    if (this.viewCam(null) !== null) return;
     const ctx = this.ctx;
     this.endPoints().forEach((q, i) => {
       const e = n.ends[i];
@@ -1801,8 +1847,12 @@ export class Game {
       if (this.ptr && this.ptr.id === e.pointerId) this.up(e, true);
     });
     this.listen(c, "contextmenu", (e) => e.preventDefault());
+    this.listen(c, "wheel", (e) => this.wheel(e), { passive: false });
     this.listen(window, "keydown", (e) => this.keyDown(e));
-    this.listen(window, "keyup", (e) => this.keys.delete(e.code));
+    this.listen(window, "keyup", (e) => {
+      this.keys.delete(e.code);
+      this.freeCam.key(e.code, false);
+    });
     this.listen(window, "blur", () => this.releaseAll());
     this.listen(window, "resize", () => this.resize());
     this.listen(window, "orientationchange", () => this.resize());
@@ -1817,6 +1867,28 @@ export class Game {
     this.sound?.unlock();
     if (this.modal || this.ptr) return;
     const { x, y } = this.pos(e);
+    // a watcher's free camera takes every press on the pitch (docs/OBSERVER.md)
+    if (this.freeOn()) {
+      const mouse = e.pointerType === "mouse";
+      if (
+        this.freeCam.down({
+          id: e.pointerId,
+          x,
+          y,
+          button: e.button,
+          shift: e.shiftKey,
+          mouse,
+        })
+      ) {
+        e.preventDefault();
+        try {
+          this.canvas.setPointerCapture(e.pointerId);
+        } catch {
+          /* a synthetic pointer has nothing to capture */
+        }
+        return;
+      }
+    }
     const touch = e.pointerType !== "mouse";
     let kind = null;
     let grab = 0;
@@ -1966,6 +2038,12 @@ export class Game {
   }
 
   move(e) {
+    if (this.freeCam.pointers.has(e.pointerId)) {
+      const { x, y } = this.pos(e);
+      if (this.freeOn()) this.freeCam.move({ id: e.pointerId, x, y });
+      e.preventDefault();
+      return;
+    }
     const p = this.ptr;
     if (!p || p.id !== e.pointerId) return;
     if (p.kind === "swipe") {
@@ -2037,6 +2115,7 @@ export class Game {
   }
 
   up(e, cancelled) {
+    if (this.freeCam.up({ id: e.pointerId })) return;
     const p = this.ptr;
     if (!p || p.id !== e.pointerId) return;
     if (p.kind === "swipe") {
@@ -2107,7 +2186,15 @@ export class Game {
     }
   }
 
+  // The wheel over the pitch: the free camera's closer and farther, and nothing else.
+  wheel(e) {
+    if (!this.freeOn()) return;
+    e.preventDefault();
+    this.freeCam.wheel(e.deltaY, e.deltaMode);
+  }
+
   releaseAll() {
+    this.freeCam.cancel();
     this.cancelSwipe();
     this.keys.clear();
     this.planHeld = false;
@@ -2122,6 +2209,11 @@ export class Game {
   keyDown(e) {
     if (this.modal || e.metaKey || e.ctrlKey || e.altKey) return;
     const code = e.code;
+    // a watcher's camera keys (docs/OBSERVER.md); never while typing
+    if (this.freeOn() && !isTyping(e.target) && this.freeCam.key(code, true)) {
+      e.preventDefault();
+      return;
+    }
     const aimKeys = [
       "ArrowLeft",
       "ArrowRight",
@@ -2167,4 +2259,10 @@ export class Game {
       this.planToggle = !this.planToggle;
     });
   }
+}
+
+// A key pressed in a text box is the text's, not the camera's.
+function isTyping(t) {
+  const tag = t?.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || !!t?.isContentEditable;
 }
