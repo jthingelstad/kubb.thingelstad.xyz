@@ -596,6 +596,36 @@ export class Room {
     this.close();
   }
 
+  /**
+   * Leave and join again as a new member, last in line for host (an observer that
+   * must not be next: docs/OBSERVER.md). The leave goes first and is given a moment to
+   * land before the socket closes, so the room forgets this member rather than
+   * marking it away; the join after it is a new member's. Nothing waits on it.
+   */
+  rejoin({ settleMs = 600, againMs = 900 } = {}) {
+    if (!this._joined || this._closed) return false;
+    const ws = this._socket;
+    this._sendNow({ t: "leave" });
+    this._socket = null;
+    this._joined = false;
+    clearInterval(this._pinger);
+    clearTimeout(this._pongTimer);
+    this._parts.clear();
+    for (const w of this._waiting.values()) w.lost = true;
+    this._setStatus("reconnecting");
+    clearTimeout(this._retryTimer);
+    this._retryTimer = setTimeout(() => {
+      try {
+        ws?.close();
+      } catch {
+        // already closed
+      }
+      if (this._closed) return;
+      this._retryTimer = setTimeout(() => this._open(), againMs);
+    }, settleMs);
+    return true;
+  }
+
   /** Close the connection without leaving: the member shows as disconnected. */
   close() {
     this._closed = true;
