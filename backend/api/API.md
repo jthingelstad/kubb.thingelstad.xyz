@@ -137,22 +137,24 @@ Every push that was taken answers `200 { "ok": true }`; one already had adds
 - the state is folded by `(made, n, seq)`: a later `made` (the code wiped and opened
   again) or `n` (a rematch) starts it afresh, an older push changes nothing, a late
   `start` fills the names, `cpu` and `level`;
-- the replay's halves meet in a `half` item; the one that comes second makes the
+- the replay's halves meet in a half item of their own match (`half#<made>#<n>`, so
+  the pushes of matches in a row may cross); the one that comes second makes the
   `replay` item whole, never over a later match's, the same match kept later, or a
-  sealed pitch.
+  sealed pitch, and the half item goes. A half for a match the replay already holds,
+  or one older, is not kept.
 
 ## Records
 
 The rooms table (`pk`, `sk`, TTL on `exp` in seconds):
 
-| pk                            | sk       | What                                                                                                                                                                               |
-| ----------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pitch#<code>`                | `state`  | the latest match: `rev`, `made`, `n`, `seq`, `over`, `z` (the last snapshot, gzipped), `hash`, `names`, `cpu`, `level`, `sealed`? ; 48 hours after the last push, a year once over |
-| `pitch#<code>`                | `half`   | the replay being put together: `made`, `n`, `v`, `z`, `s`, `hash`, `cpu`, `level`                                                                                                  |
-| `pitch#<code>`                | `replay` | the last whole replay, the same fields; a year from its end                                                                                                                        |
-| `pitch#<code>`                | `reel`   | the highlight reel, as `room#<code> \| reel` was                                                                                                                                   |
-| `share#<hash>`                | `share`  | a shared match's code                                                                                                                                                              |
-| `reels#<day>`, `shares#<day>` | `count`  | the day's counters                                                                                                                                                                 |
+| pk                            | sk                | What                                                                                                                                                                               |
+| ----------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pitch#<code>`                | `state`           | the latest match: `rev`, `made`, `n`, `seq`, `over`, `z` (the last snapshot, gzipped), `hash`, `names`, `cpu`, `level`, `sealed`? ; 48 hours after the last push, a year once over |
+| `pitch#<code>`                | `half#<made>#<n>` | one match's replay being put together: `made`, `n`, `v`, `z`, `s`, `hash`, `cpu`, `level`; gone once whole                                                                         |
+| `pitch#<code>`                | `replay`          | the last whole replay, the same fields; a year from its end                                                                                                                        |
+| `pitch#<code>`                | `reel`            | the highlight reel, as `room#<code> \| reel` was                                                                                                                                   |
+| `share#<hash>`                | `share`           | a shared match's code                                                                                                                                                              |
+| `reels#<day>`, `shares#<day>` | `count`           | the day's counters                                                                                                                                                                 |
 
 The pitch pages (`backend/pages/`) read `state`, `replay` and `reel` with `GetItem`; the
 renderer (`backend/reels/`) reads `replay` and writes `reel`. The old `room#` items are
