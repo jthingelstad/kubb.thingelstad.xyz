@@ -38,6 +38,12 @@ export const pitchTune = {
   retryMs: 1000, // ... then this, doubled each time ...
   retryMaxMs: 10000, // ... up to this, each with a quarter of jitter either way
   answerMs: 10000, // a lobby write with no answer by then: connect again to find out
+  // A long backlog of our own actions after a drop goes in turns: the server takes a
+  // burst of 60 messages a connection, then 30 a second (PROTOCOL.md section 9)
+  actWindow: 20, // sent and not answered at once, at most ...
+  actBurst: 20, // ... and sent at once after a quiet spell, at most ...
+  actRate: 15, // ... then this many a second
+  rateRetryMs: 1000, // told "too many messages": what is out unanswered goes again
 };
 
 // The frames that move `s` on by one (PROTOCOL.md section 2).
@@ -339,6 +345,9 @@ export class PitchClient {
 
   stop() {
     clearTimeout(this.retryTimer);
+    clearTimeout(this.actTimer);
+    clearTimeout(this.rateTimer);
+    this.actTimer = this.rateTimer = null;
     clearInterval(this.pingTimer);
     this.retryTimer = null;
     globalThis.removeEventListener?.("online", this.onOnline);
@@ -483,11 +492,12 @@ export class PitchClient {
     this.role = m.role ?? this.role;
     this.limits = m.limits ?? this.limits;
     this.setStatus("open");
+    // what was not answered before the drop goes again, in order and a window at a
+    // time (flushActs): an action the pitch already holds is answered `ok` with `dup`
+    for (const p of this.pending) p.sent = false;
     this.whole(m);
     if (first) this.readyResolve(this);
-    // what was not answered before the drop goes again, in order: an action the pitch
-    // already holds is answered `ok` with `dup`
-    for (const p of this.pending) this.sendRaw(p.msg);
+    this.flushActs();
   }
 
   onState(m) {
@@ -581,6 +591,7 @@ export class PitchClient {
     const i = this.pending.findIndex((p) => p.id === id);
     if (i < 0) return false;
     const [p] = this.pending.splice(i, 1);
+    this.flushActs();
     if (this.at.n === n && seq > this.at.seq) this.at = { n, seq };
     if (this.match && this.match.n === n && seq > this.match.seq) {
       this.match.seq = seq;
@@ -646,6 +657,7 @@ export class PitchClient {
     if (i < 0) return;
     // this one and every later one of ours: each follows the refused one
     this.pending.splice(i);
+    this.flushActs();
     this.emit("refused", {
       id: m.id,
       n: m.n,
@@ -671,6 +683,8 @@ export class PitchClient {
       clearTimeout(w.timer);
       w.reject(new PitchError(m.code, m.message || "Refused."));
     }
+    if (m.code === "rate" && m.re == null && this.pending.length)
+      this.rateLimited();
     this.emit("error", { code: m.code, message: m.message, re: m.re });
   }
 
@@ -759,9 +773,50 @@ export class PitchClient {
     const id = this.nextId("a");
     const msg = { t: "act", id, n, seq, a, h, snap, c };
     if (over) msg.over = true;
-    this.pending.push({ id, n, seq, msg });
-    if (this.joined) this.sendRaw(msg);
+    this.pending.push({ id, n, seq, msg, sent: false });
+    this.flushActs();
     return id;
+  }
+
+  // Our pending actions not yet sent on this connection go, in order, while fewer than
+  // actWindow are out unanswered and at most actRate a second after a burst of
+  // actBurst; each answer lets the next go. One action a throw never waits.
+  flushActs() {
+    if (!this.joined) return;
+    const T = this.tune;
+    const t = this.now();
+    const b = this.actBucket ?? { tokens: T.actBurst, at: t };
+    b.tokens = Math.min(T.actBurst, b.tokens + ((t - b.at) * T.actRate) / 1000);
+    b.at = t;
+    this.actBucket = b;
+    let out = this.pending.filter((p) => p.sent).length;
+    for (const p of this.pending) {
+      if (out >= T.actWindow) break;
+      if (p.sent) continue;
+      if (b.tokens < 1) {
+        if (!this.actTimer)
+          this.actTimer = setTimeout(() => {
+            this.actTimer = null;
+            this.flushActs();
+          }, 1000 / T.actRate);
+        break;
+      }
+      b.tokens--;
+      p.sent = true;
+      out++;
+      this.sendRaw(p.msg);
+    }
+  }
+
+  // The server dropped messages for their rate: which is not said, so every action out
+  // unanswered goes again a little later (one the pitch holds is answered dup).
+  rateLimited() {
+    if (this.rateTimer) return;
+    this.rateTimer = setTimeout(() => {
+      this.rateTimer = null;
+      for (const p of this.pending) p.sent = false;
+      this.flushActs();
+    }, this.tune.rateRetryMs);
   }
 
   /** The member's own fields, merged (a null value removes one). */
