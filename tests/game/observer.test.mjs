@@ -121,6 +121,27 @@ async function throwOnce(page) {
   );
 }
 
+// One committed throw: a swing that made no throw (a loaded machine can drop the flick's
+// speed under the meter's floor) is swung again, at most three times.
+async function throwCommitted(page) {
+  const from = (await pst(page)).docSeq;
+  for (let i = 0; i < 3; i++) {
+    await myThrow(page);
+    await throwOnce(page);
+    try {
+      await page.waitForFunction(
+        (n) => window.__kubb.pitch.state().docSeq > n,
+        from,
+        { timeout: 8000, polling: 50 },
+      );
+      return;
+    } catch {
+      // not thrown: swing again
+    }
+  }
+  throw new Error(`no throw committed after docSeq ${from}`);
+}
+
 async function inStep(pages, ms = 20000) {
   const deadline = Date.now() + ms;
   let last;
@@ -165,9 +186,7 @@ browserTest(
     await waitFor(host, () => window.__kubb.pitch.state().side === "A");
     await host.click("[data-test=lobby-start]");
     await waitFor(host, () => window.__kubb.pitch.state().mode === "match");
-    await myThrow(host);
-    await throwOnce(host);
-    await waitFor(host, () => window.__kubb.pitch.state().docSeq >= 1);
+    await throwCommitted(host);
 
     // the web game's page: the row has JOIN and WATCH
     const home = await open(`${env.base}/web/?${roomsQ()}`, "desktop", "Olive");
@@ -316,8 +335,7 @@ browserTest(
     await waitFor(obs, () => window.__kubb.pitch.state().wide === "wide");
 
     // the match goes on: the observer plays the same throws, still not acting
-    await myThrow(host);
-    await throwOnce(host);
+    await throwCommitted(host);
     await inStep([host, obs]);
     assert.equal((await pst(obs)).mayAct, false);
     assert.equal((await pst(obs)).pending, 0, "the observer wrote nothing");
