@@ -273,10 +273,11 @@ A throw taken for an absent teammate says YOUR THROW FOR <NAME>.
   itself after 2.5 s. It says the same as the card did (whose turn, the bases, WATCH).
 - **Pace** (`src/game/pacing.js`, one tune): the pitch rests 0.8 s after a throw lands
   (`restAfterThrow`) and an automatic raise waits 0.7 s per kubb (`autoRaiseWait`). These
-  are the values from before the pitch server; whether online play should be quicker is
-  open (the owner's call).
+  are the values from before the pitch server, and online play keeps them (the owner,
+  2026-11-21).
 - **Shouts**: SHOUT opens NICE!, OOH!, TOK!, UNLUCKY; each is a cast `{ t: "shout", w }`
-  (at most one each 0.7 s from a browser) and shows for 2.6 s under the rail as the
+  with `all: true`, so the observer feed's thinning never drops it (at most one each
+  0.7 s from a browser) and shows for 2.6 s under the rail as the
   sender's name and the word, on every screen including the sender's. Observers cannot
   cast.
 

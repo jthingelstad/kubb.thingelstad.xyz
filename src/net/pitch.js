@@ -1120,8 +1120,7 @@ export class Pitch {
         const behind = this.local.seq !== match.seq + own.length;
         let differs = false;
         try {
-          differs =
-            this.game.engine.hash().hash !== (own.at(-1)?.h ?? match.h);
+          differs = this.game.engine.hash().hash !== (own.at(-1)?.h ?? match.h);
         } catch {
           differs = true;
         }
@@ -1795,7 +1794,8 @@ export class Pitch {
     if (now - this.lastShout < tune.shoutGapMs) return;
     this.lastShout = now;
     this.aimOut.spend(performance.now());
-    this.room.cast({ t: "shout", w });
+    // all: a shout is never thinned from the observer feed as an aim sample can be
+    this.room.cast({ t: "shout", w }, true);
     this.showShout(this.you, w);
   }
 
