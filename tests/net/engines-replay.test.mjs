@@ -115,19 +115,7 @@ test("the tools' engines: each carried engine of a vendor folder, made once", as
 
 test("the engine a record says played it", () => {
   assert.equal(matchEngineOf({ engine: "0.6.9" }), "0.6.9");
-  const at = (match, w) => ({ doc: { started: true, match }, with: w });
-  assert.equal(
-    matchEngineOf({
-      start: at({ seq: 0, engine: "0.6" }),
-      steps: [at({ seq: 1 }, { e: "0.9.0" })],
-    }),
-    "0.6",
-  );
-  assert.equal(
-    matchEngineOf({ start: null, steps: [at({ seq: 1 }, { e: "0.6.9" })] }),
-    "0.6.9",
-  );
-  assert.equal(matchEngineOf({ start: null, steps: [] }), null);
+  assert.equal(matchEngineOf({}), null);
 });
 
 test("games:replay plays each match on its own engine, or the newest, or --engine", async () => {
@@ -137,7 +125,6 @@ test("games:replay plays each match on its own engine, or the newest, or --engin
   const said = [];
   const log = (s) => said.push(s);
   const r = await replayRecords({
-    matches: [],
     browser: [old, unknown],
     engines,
     log,
@@ -158,7 +145,6 @@ test("games:replay plays each match on its own engine, or the newest, or --engin
 
   said.length = 0;
   await replayRecords({
-    matches: [],
     browser: [old],
     engines,
     only: "0.9",

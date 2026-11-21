@@ -1,11 +1,11 @@
-// The reel function's job (backend/reels/job.mjs) over the memory store with a stand-in
+// The reel function's job (backend/reels/job.mjs) over a memory store with a stand-in
 // renderer, and its AWS adapters (backend/reels/aws.mjs) against fakes: what it reads,
 // what it writes and where, and how a failure ends.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { test } from "node:test";
 import { gzipSync } from "node:zlib";
-import { memoryStore } from "../../backend/rooms/memory-store.mjs";
+import { memoryReels } from "./memory-reels.mjs";
 import {
   REEL_FIELDS,
   reelStore,
@@ -27,7 +27,7 @@ const REPLAY = {
 const JOB = "4-r1-0.7";
 
 async function setup({ replay = REPLAY, v = 4 } = {}) {
-  const store = memoryStore({ now: () => T0 });
+  const store = memoryReels({ now: () => T0 });
   const exp = T0 / 1000 + 3600;
   await store.putReplay(ROOM, { v, t: T0, data: JSON.stringify(replay), exp });
   await store.putReel(

@@ -1,16 +1,23 @@
 # Highlight reels: deploy, check, roll back
 
-The reel function is in the site stack and the rooms function invokes it (`docs/REEL.md`,
-`docs/ROOMS.md` section 12). Approved by Jamie on 2026-11-19: "Approved: build the
+The reel function is in the site stack and the api function (`throwing-wood-api`, in the
+pitches stack) invokes it (`docs/REEL.md`, `docs/PITCH-SERVER.md`). Approved by Jamie on 2026-11-19: "Approved: build the
 highlight reel feature as designed in docs/REEL.md, including its AWS resources in the
 throwingwood.com web stack". Run everything here as `cloud-engineer` in `us-east-1`
 (`AWS_PROFILE=cloud-engineer`), from a clean checkout of `main` with the branch merged.
+
+Until 2026-11-21 the old WebSocket rooms function invoked it. That stack was deleted on
+2026-11-21 (`docs/ROOMS.md`, `docs/PITCH-SERVER.md` section 12). The first deploy
+("Deploy" steps 4 and 5), the sharing apply and the change that brought engines to the
+renderer were run against it and are kept below as the record of what was done. Today
+the second stack is the pitches stack: `npm run infra:plan -- pitches`, its `ApiFunction`
+and `ApiRole`.
 
 ## Before
 
 - `npm ci`, then `npm run check`.
 - `"reelRenderer": true` is in `infra/deployment.json`. With it false, or missing, the
-  site stack has no reel function and the rooms stack no permission: every `reel`
+  site stack has no reel function and the pitches stack no permission: every `reel`
   request answers `why: "unavailable"`.
 - The function takes 2 of the account's Lambda concurrency as reserved. Lambda refuses
   that when it would leave the account under 100 unreserved; check the account's limit
@@ -76,7 +83,7 @@ throwingwood.com web stack". Run everything here as `cloud-engineer` in `us-east
 - `aws lambda get-function-event-invoke-config --function-name kubb-xyz-site-reels`:
   one retry, 900 s.
 - `aws lambda get-function-concurrency --function-name kubb-xyz-site-reels`: 2.
-- `aws lambda get-function-configuration --function-name kubb-xyz-rooms-rooms`:
+- `aws lambda get-function-configuration --function-name throwing-wood-api`:
   `REELS_FUNCTION` is the ARN above.
 - `aws s3api get-bucket-lifecycle-configuration --bucket kubb-xyz-site-web-<account>`:
   `ExpireReels`, prefix `reels/`, 366 days, beside the existing rules.
@@ -92,7 +99,7 @@ real duration and memory, which are guesses until then.
 
 - Set `"reelRenderer": false` in `infra/deployment.json`, then
   `npm run infra:apply -- site` (deletes the function, layer version, role and log
-  group; the lifecycle rule stays, harmlessly) and then `npm run infra:apply -- rooms`
+  group; the lifecycle rule stays, harmlessly) and then `npm run infra:apply -- pitches`
   (removes the permission and the environment). Between the two, a `reel` request that
   would start a render answers `failed`; one that only asks still answers.
 - Or revert the merge and run the same two applies.
@@ -100,10 +107,13 @@ real duration and memory, which are guesses until then.
   `done` reel item keeps its pitch's `og:video` until then. To take them down at once,
   delete `reels/` in the site bucket by hand (Jamie's call: it changes what shared links
   show).
-- The rooms function without `REELS_FUNCTION` answers `why: "unavailable"`; nothing
-  else in the rooms changes.
+- The api function without `REELS_FUNCTION` answers `why: "unavailable"`; nothing
+  else in play changes.
 
 ## Sharing
+
+Applied on 2026-11-19 against the old rooms stack; kept as the record. Sharing now runs
+through the api function, which has the same check and the same 30 s timeout.
 
 Sharing a match against the computer (`docs/ROOMS.md` section 13) needs no new resource
 and no IAM change: the rooms role already has the whole table and
@@ -172,14 +182,16 @@ it. Then, still reading only:
 The reel function carries one Lua bundle per engine the site carries, and
 `REEL_ENGINES` names them, newest first (`docs/REEL.md` "Engines", `docs/ENGINES.md`).
 Both come from `vendor/`: `tools/infra.mjs` packages the bundles and sets the site
-stack's `ReelEngines`, and the rooms stack takes `ReelEngines` from the site stack's
+stack's `ReelEngines`, and the pitches stack takes `ReelEngines` from the site stack's
 output. Nothing is set by hand.
 
-**The rule: the rooms function never names an engine the renderer lacks.** A render it
+**The rule: the api function never names an engine the renderer lacks.** A render it
 starts for such an engine fails with `why: "engine"`, and `failed` is final for that
 version and look. So the site stack goes first when an engine is added.
 
 ### The change that brought engines to the renderer (one engine)
+
+Run against the old rooms stack; kept as the record.
 
 With one engine carried, two things change: the package's layout (`engines/0.7.json`
 where `lua-sources.json` was), and the rooms function's code, which now answers a done
@@ -217,25 +229,25 @@ reel before it checks the engine:
    changed. The same evaluated-again list as in "Deploy" step 2. Anything added, an IAM
    change, or another replacement is a stop.
 4. `AWS_PROFILE=cloud-engineer npm run infra:apply -- site`
-5. `AWS_PROFILE=cloud-engineer npm run infra:plan -- rooms`: **Modify** `RoomsFunction`
-   (environment `REEL_ENGINES` the same list, and new code only if its bundle changed),
-   with `RoomsIntegration` listed beside it as before. No change to `RoomsRole`.
-6. `AWS_PROFILE=cloud-engineer npm run infra:apply -- rooms`
+5. `AWS_PROFILE=cloud-engineer npm run infra:plan -- pitches`: **Modify** `ApiFunction`
+   (environment `REEL_ENGINES` the same list, and new code only if its bundle changed).
+   No change to `ApiRole`.
+6. `AWS_PROFILE=cloud-engineer npm run infra:apply -- pitches`
 7. Commit the rewritten `infra/deployment.json` (`reels.engines`, `reels.codeKey`) in a
    pull request.
 
 Check it, read only:
 
 - `aws lambda get-function-configuration` on `kubb-xyz-site-reels` and on
-  `kubb-xyz-rooms-rooms`: the same `REEL_ENGINES` on both, newest first.
+  `throwing-wood-api`: the same `REEL_ENGINES` on both, newest first.
 - The reel function's log: each line names the `engine` a render or check ran on, so
   the first reel or share of each engine shows its version there
   (`aws logs tail /aws/lambda/kubb-xyz-site-reels --since 15m`).
 
 ### Dropping an engine (`node tools/vendor.mjs drop <mm>`, or `--drop`)
 
-The same steps, site then rooms, because the rooms stack reads the site stack's output.
-Run the two applies back to back. In the minutes between them, the rooms function still
+The same steps, site then pitches, because the pitches stack reads the site stack's
+output. Run the two applies back to back. In the minutes between them, the api function still
 names the dropped engine. A reel requested then for one of its pitches is started and
 fails with `why: "engine"`, final. A share of it is refused, as it is after.
 
@@ -262,6 +274,6 @@ monthly terabyte.
   twice, so a day of failing renders could double that.
 - The layer and code zips in the code bucket: about 37 MB a version, cents a year.
 - A share's check: the reel function at 3008 MB for 2 to 20 s, 6 to 59 GB-s, at most
-  about $0.0008; the rooms function waits at 256 MB, at most 5 GB-s, about $0.00007.
+  about $0.0008; the api function waits at 256 MB, at most 5 GB-s, about $0.00007.
   The daily cap of 200 checks bounds a bad day at about $0.17. Each shared match keeps
   a gzipped replay and a document of up to 256 KB in the table, a year.

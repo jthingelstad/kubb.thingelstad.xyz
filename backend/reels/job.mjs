@@ -1,7 +1,6 @@
 // One highlight reel render, start to end, over injected adapters, so the same code is
-// the reel function on AWS (handler.mjs: DynamoDB + S3) and the local server
-// (tools/rooms-dev.mjs: the memory store + files). docs/REEL.md, docs/ROOMS.md
-// section 12.
+// the reel function on AWS (handler.mjs: DynamoDB + S3) and the tests (a memory store
+// + files). docs/REEL.md, backend/api/API.md.
 //
 //   store   getReplay(code) -> { v, data, exp } | null        the kept replay (JSON text)
 //           attemptReel(code, job) -> { tries } | null   one more try of this very render,
@@ -39,7 +38,7 @@ import {
 import { carriedLookup } from "./carried.mjs";
 import { REEL_EMPTY } from "./highlights.mjs";
 
-const ROOM_CODE = /^[2-9a-hjkmnp-z]{8,24}$/; // as backend/rooms/core.mjs
+const ROOM_CODE = /^[2-9a-hjkmnp-z]{8,24}$/; // as PITCH_CODE in backend/api/checks.mjs
 
 // Whether a kept replay has a throw at all: one resigned before the first has none.
 export const anyThrow = (replay) =>

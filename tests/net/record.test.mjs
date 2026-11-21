@@ -1,21 +1,17 @@
 // Matches played in one browser (solo, watching the computer): what the browser sends
-// when one ends (src/net/record.js), the room server's `game` message and the object it
-// keeps (backend/rooms/recorder.mjs), and the replay (tools/games.mjs).
+// when one ends (src/net/record.js), the api function's `game` call and the object it
+// keeps (backend/api/core.mjs, backend/api/records.mjs), and the replay (tools/games.mjs).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { gzipSync } from "node:zlib";
+import { GAME_MODES, LIMITS, asciiJson } from "../../backend/api/checks.mjs";
+import { createApi } from "../../backend/api/core.mjs";
+import { memoryStore } from "../../backend/api/memory-store.mjs";
 import {
-  GAME_MODES,
-  LIMITS,
-  asciiJson,
-  createRooms,
-} from "../../backend/rooms/core.mjs";
-import { memoryStore } from "../../backend/rooms/memory-store.mjs";
-import {
-  browserGameKey,
-  browserGameText,
-  memoryGameRecorder,
-} from "../../backend/rooms/recorder.mjs";
+  gameKey,
+  gameText,
+  memoryRecords,
+} from "../../backend/api/records.mjs";
 import {
   GAME_LIMITS,
   GAME_MODES as CLIENT_MODES,
@@ -34,23 +30,28 @@ import {
 const sources = await bundleLua();
 const T0 = 1_763_300_000_000; // 2025-11-16
 
-function harness({ recordGame = memoryGameRecorder(), limits } = {}) {
-  let t = T0;
-  const inbox = new Map();
-  const rooms = createRooms({
-    store: memoryStore({ now: () => t }),
-    now: () => t,
-    recordGame,
+// The api function with only what `game` needs: POST /api/game { g } as the browser
+// sends it (src/net/record.js sendGame). `kept` is what was recorded, key -> text.
+function harness({ recordGame, limits } = {}) {
+  const records = memoryRecords();
+  const api = createApi({
+    store: memoryStore({ now: () => T0 }),
+    recordGame: recordGame === undefined ? records.recordGame : recordGame,
+    now: () => T0,
+    log: () => {},
     ...(limits ? { limits } : {}),
-    async send(conn, text) {
-      if (!inbox.has(conn)) inbox.set(conn, []);
-      inbox.get(conn).push(JSON.parse(text));
-      return true;
-    },
   });
-  const say = (conn, msg) => rooms.message(conn, asciiJson(msg));
-  const last = (conn) => inbox.get(conn)?.at(-1);
-  return { rooms, say, last, recordGame };
+  const post = async (g) => {
+    const res = await api.handle({
+      method: "POST",
+      path: "/api/game",
+      query: new URLSearchParams(),
+      headers: {},
+      body: Buffer.from(asciiJson(g === undefined ? {} : { g })),
+    });
+    return { status: res.status, json: JSON.parse(res.body) };
+  };
+  return { post, kept: records.kept };
 }
 
 // A short computer-against-computer match played to its end, with the Game's trail as
@@ -106,11 +107,7 @@ test("the limits and modes agree between the browser and the server", () => {
   assert.equal(GAME_LIMITS.bytes, LIMITS.gameBytes);
   assert.equal(GAME_LIMITS.actions, LIMITS.gameActions);
   assert.deepEqual([...CLIENT_MODES], [...GAME_MODES]);
-  assert.ok(LIMITS.gameBytes < LIMITS.messageBytes, "fits a whole message");
-  assert.ok(
-    Math.ceil(LIMITS.gameBytes / 30000) <= LIMITS.parts,
-    "fits the parts a message may be split into",
-  );
+  assert.ok(LIMITS.gameBytes < LIMITS.bodyBytes, "fits a whole request body");
 });
 
 test("a finished match is sent whole, kept under games/browser/ and replays", async () => {
@@ -135,16 +132,12 @@ test("a finished match is sent whole, kept under games/browser/ and replays", as
   const h = harness();
   const msg = gameMessage(record);
   assert.equal(msg.g.dropped, undefined, "a short match fits whole");
-  await h.say("c1", msg);
-  assert.deepEqual(h.last("c1"), { t: "recorded", id: 1 });
-  const [kept] = h.recordGame.kept;
-  assert.match(
-    kept.key,
-    /^games\/browser\/2025-11-16\/\d{13}-[2-9a-hjkmnp-z]{8}\.json\.gz$/,
-  );
-  assert.equal(kept.key.slice(25, 38), String(T0));
+  assert.deepEqual(await h.post(msg.g), { status: 200, json: { ok: true } });
+  const [[key, keptText]] = h.kept;
+  assert.match(key, /^games\/browser\/2025-11-16\/\d{13}-[a-z0-9]+\.json\.gz$/);
+  assert.equal(key.slice(25, 38), String(T0));
 
-  const m = browserMatch(parseRecord(gzipSync(kept.text)));
+  const m = browserMatch(parseRecord(gzipSync(keptText)));
   assert.equal(m.mode, "watch");
   const engine = await Engine.create({ sources });
   const r = replayBrowser(engine, m);
@@ -205,91 +198,58 @@ test("an oversized match drops the hashes, then the file, then its history", () 
 test("the server refuses what is not a recordable match", async () => {
   const h = harness();
   const g = { mode: "solo", start: "{}", actions: [{ type: "throw" }] };
-  const refused = async (msg, code) => {
-    await h.say("c1", msg);
-    const r = h.last("c1");
-    assert.equal(r.t, "error", JSON.stringify(msg));
-    assert.equal(r.code, code);
-    assert.equal(r.re, "game");
+  const refused = async (g, code) => {
+    const r = await h.post(g);
+    assert.equal(r.json.error, code, JSON.stringify(g));
   };
-  await refused(
-    { t: "game", id: 2, g: { ...g, mode: "practice" } },
-    "bad-message",
-  );
-  await refused(
-    { t: "game", id: 2, g: { ...g, mode: "pitch" } },
-    "bad-message",
-  );
-  await refused({ t: "game", id: 2, g: { ...g, start: "" } }, "bad-message");
-  await refused({ t: "game", id: 2, g: { ...g, actions: "x" } }, "bad-message");
-  await refused(
-    { t: "game", id: 2, g: { ...g, hashes: [1, 2] } },
-    "bad-message",
-  );
-  await refused({ t: "game", id: 2, g: { ...g, file: 3 } }, "bad-message");
-  await refused({ t: "game", id: 2 }, "bad-message");
-  assert.equal(h.recordGame.kept.length, 0);
+  await refused({ ...g, mode: "practice" }, "bad-message");
+  await refused({ ...g, mode: "pitch" }, "bad-message");
+  await refused({ ...g, start: "" }, "bad-message");
+  await refused({ ...g, actions: "x" }, "bad-message");
+  await refused({ ...g, hashes: [1, 2] }, "bad-message");
+  await refused({ ...g, file: 3 }, "bad-message");
+  await refused(undefined, "bad-message");
+  assert.equal(h.kept.size, 0);
 
   const tight = harness({ limits: { ...LIMITS, gameBytes: 100 } });
-  await tight.say("c1", {
-    t: "game",
-    id: 3,
-    g: { ...g, start: "x".repeat(200) },
-  });
-  assert.equal(tight.last("c1").code, "too-big");
+  assert.equal(
+    (await tight.post({ ...g, start: "x".repeat(200) })).json.error,
+    "too-big",
+  );
 
   const none = harness({ recordGame: null });
-  await none.say("c1", { t: "game", id: 4, g });
-  assert.equal(none.last("c1").code, "unavailable");
+  assert.equal((await none.post(g)).json.error, "unavailable");
 
-  // three a connection; another connection may send its own
-  for (let i = 0; i < LIMITS.gamesPerConn; i++) {
-    await h.say("c2", { t: "game", id: 10 + i, g });
-    assert.equal(h.last("c2").t, "recorded");
-  }
-  await h.say("c2", { t: "game", id: 20, g });
-  assert.equal(h.last("c2").code, "too-many");
-  await h.say("c3", { t: "game", id: 21, g });
-  assert.equal(h.last("c3").t, "recorded");
-
-  // a recorder that fails says so, and does not use up the connection's allowance
+  // a recorder that fails says so
   const broken = harness({
     recordGame: async () => {
       throw new Error("S3 is down");
     },
   });
-  const err = console.error;
-  console.error = () => {};
-  try {
-    await broken.say("c1", { t: "game", id: 5, g });
-  } finally {
-    console.error = err;
-  }
-  assert.equal(broken.last("c1").code, "failed");
+  const r = await broken.post(g);
+  assert.equal(r.status, 500);
+  assert.equal(r.json.error, "failed");
 });
 
 test("a match may say which client and engine played it; a bad tag is refused", async () => {
   const g = { mode: "solo", start: "{}", actions: [{ type: "throw" }] };
   const h = harness();
-  await h.say("c1", {
-    t: "game",
-    id: 1,
-    g: { ...g, client: "ios", engine: "1.2.0+core.c11f533" },
-  });
-  assert.equal(h.last("c1").t, "recorded");
-  const kept = JSON.parse(h.recordGame.kept[0].text);
+  assert.equal(
+    (await h.post({ ...g, client: "ios", engine: "1.2.0+core.c11f533" }))
+      .status,
+    200,
+  );
+  const kept = JSON.parse([...h.kept.values()][0]);
   assert.equal(kept.game.client, "ios");
   assert.equal(kept.game.engine, "1.2.0+core.c11f533");
   // absent (an older browser) is fine, and so is the longest tag
-  await h.say("c2", { t: "game", id: 2, g });
-  assert.equal(h.last("c2").t, "recorded");
-  await h.say("c3", {
-    t: "game",
-    id: 3,
-    g: { ...g, client: "a".repeat(32), engine: "1".repeat(64) },
-  });
-  assert.equal(h.last("c3").t, "recorded");
-  assert.equal(h.recordGame.kept.length, 3);
+  assert.equal((await h.post(g)).status, 200);
+  assert.equal(
+    (await h.post({ ...g, client: "a".repeat(32), engine: "1".repeat(64) }))
+      .status,
+    200,
+  );
+  assert.equal(h.kept.size, 3);
 
   const bad = harness();
   for (const [field, value] of [
@@ -306,14 +266,11 @@ test("a match may say which client and engine played it; a bad tag is refused", 
     ["engine", "1".repeat(65)],
     ["engine", { v: 1 }],
   ]) {
-    await bad.say("c1", { t: "game", id: 9, g: { ...g, [field]: value } });
-    const r = bad.last("c1");
-    assert.equal(r.t, "error", `${field} ${JSON.stringify(value)}`);
-    assert.equal(r.code, "bad-message");
-    assert.equal(r.re, "game");
-    assert.equal(r.id, 9);
+    const r = await bad.post({ ...g, [field]: value });
+    assert.equal(r.status, 400, `${field} ${JSON.stringify(value)}`);
+    assert.equal(r.json.error, "bad-message");
   }
-  assert.equal(bad.recordGame.kept.length, 0);
+  assert.equal(bad.kept.size, 0);
 });
 
 test("the web client says it is the web, and which engine played", async () => {
@@ -388,9 +345,9 @@ test("recordMatch sends once, never for practice, and never throws", async () =>
 
 test("keys and text of a kept match", () => {
   assert.equal(
-    browserGameKey({ t: T0, tail: "abcdefgh" }),
+    gameKey({ t: T0, tail: "abcdefgh" }),
     `games/browser/2025-11-16/${T0}-abcdefgh.json.gz`,
   );
-  const text = browserGameText({ t: T0, game: '{"mode":"solo"}' });
+  const text = gameText({ t: T0, game: '{"mode":"solo"}' });
   assert.deepEqual(JSON.parse(text), { t: T0, game: { mode: "solo" } });
 });

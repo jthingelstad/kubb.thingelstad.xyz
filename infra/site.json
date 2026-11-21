@@ -1,23 +1,11 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "Kubb: Throwing Wood at throwingwood.com, with www and the old kubb.thingelstad.xyz redirecting to it: private S3 origin, CloudFront, certificate, DNS records, access log, and the optional /ws route to the rooms WebSocket API",
+  "Description": "Kubb: Throwing Wood at throwingwood.com, with www and the old kubb.thingelstad.xyz redirecting to it: private S3 origin, CloudFront, certificate, DNS records and access log",
   "Parameters": {
     "HostedZoneId": {
       "Type": "String",
       "Default": "Z00131847XOTS27DSIZF",
       "Description": "The thingelstad.xyz hosted zone (stack dns-thingelstad-xyz in projects-sysadmin)"
-    },
-    "RoomsApiDomain": {
-      "Type": "String",
-      "Default": "",
-      "AllowedPattern": "^$|^[a-z0-9]+\\.execute-api\\.[a-z0-9-]+\\.amazonaws\\.com$",
-      "Description": "Domain of the rooms WebSocket API (stack kubb-xyz-rooms). Empty leaves the /ws route out."
-    },
-    "RoomsStage": {
-      "Type": "String",
-      "Default": "prod",
-      "AllowedPattern": "^[A-Za-z0-9_-]+$",
-      "Description": "Stage of the rooms WebSocket API; /ws is sent on to this path"
     },
     "PagesCodeKey": {
       "Type": "String",
@@ -29,7 +17,7 @@
       "Type": "String",
       "Default": "",
       "AllowedPattern": "^$|^[A-Za-z0-9_.-]+$",
-      "Description": "The table the pages and reel functions read: the pitches table (stack throwing-wood-pitches output TableName) once pitchesStack is on, the rooms table (stack kubb-xyz-rooms) before. Empty leaves both functions out."
+      "Description": "The table the pages and reel functions read: the pitches table (stack throwing-wood-pitches output TableName). Empty leaves both functions out."
     },
     "ReelsCodeKey": {
       "Type": "String",
@@ -57,9 +45,6 @@
     }
   },
   "Conditions": {
-    "HasRooms": {
-      "Fn::Not": [{ "Fn::Equals": [{ "Ref": "RoomsApiDomain" }, ""] }]
-    },
     "HasPages": {
       "Fn::And": [
         { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "PagesCodeKey" }, ""] }] },
@@ -264,7 +249,7 @@
           "Runtime": "cloudfront-js-2.0",
           "Comment": "A pitch at any code is the one game page; directory routes to index.html; extensionless paths 301 to the slash form"
         },
-        "FunctionCode": "// The site's viewer request function (CloudFront Functions, JavaScript\n// runtime 2.0). infra/site.json carries this file as its FunctionCode\n// (tools/infra.mjs copies it in before every plan; tests/site fails when the\n// two differ), and the preview server runs this same file.\n//\n//   /p/<code>        any code serves the one game page, /pitch/index.html\n//   /e/<code>        the embed of that pitch, /embed/index.html\n//   /og/<code>.png   that pitch's share image; the static one, /share/kubb.png,\n//                    is what it falls back to\n//   /p, /p/          302 to a pitch with a new code (for a browser without scripts)\n//   /x/         /x/index.html\n//   /x          301 to /x/, keeping the query\n//\n// The site's address is https://throwingwood.com (since 2026-11-17). The\n// old address and www answer every route here with a 301 to the same path\n// and query there, so links and embeds already shared keep working. /ws has\n// its own behaviour without this function, so an open page from the old\n// address still reaches the rooms. Any other host (the preview on\n// 127.0.0.1) is served as it is.\nvar HOME = \"https://throwingwood.com\";\nvar MOVED_HOSTS = {\n  \"kubb.thingelstad.xyz\": true,\n  \"www.throwingwood.com\": true,\n};\n\n// A code is 8 to 24 characters from the alphabet below, the rooms' own rule\n// (ROOM_CODE in backend/rooms/core.mjs); the home page makes 8. Any other\n// /p/ address is not a pitch and ends at the 404.\n//\n// The three pitch routes also carry the code as the query string `pitch`.\n// Their behaviours send them to the pages function (backend/pages, which\n// reads the room and writes that pitch's share tags and image) with the\n// static file as the failover origin, so the rewritten address is what the\n// bucket serves when the function cannot answer. Only `pitch` and `v` reach\n// the function or the cache key; the page's own query (?solo=1) stays in the\n// browser's address.\nvar PITCH_ROUTES = [\n  [/^\\/p\\/([2-9a-hjkmnp-z]{8,24})\\/?$/, \"/pitch/index.html\"],\n  [/^\\/e\\/([2-9a-hjkmnp-z]{8,24})\\/?$/, \"/embed/index.html\"],\n  [/^\\/og\\/([2-9a-hjkmnp-z]{8,24})\\.png$/, \"/share/kubb.png\"],\n];\n\nfunction handler(event) {\n  var request = event.request;\n  var uri = request.uri;\n  var query = Object.keys(request.querystring)\n    .map(function (k) {\n      var v = request.querystring[k];\n      return v.multiValue\n        ? v.multiValue\n            .map(function (m) {\n              return k + \"=\" + m.value;\n            })\n            .join(\"&\")\n        : k + \"=\" + v.value;\n    })\n    .join(\"&\");\n  var host =\n    request.headers && request.headers.host && request.headers.host.value;\n  if (MOVED_HOSTS[host])\n    return {\n      statusCode: 301,\n      statusDescription: \"Moved Permanently\",\n      headers: { location: { value: HOME + uri + (query ? \"?\" + query : \"\") } },\n    };\n  if (uri === \"/.well-known/apple-app-site-association\") return request;\n  if (uri === \"/p\" || uri === \"/p/\") {\n    var alphabet = \"abcdefghjkmnpqrstuvwxyz23456789\";\n    var code = \"\";\n    for (var i = 0; i < 8; i++)\n      code += alphabet.charAt(Math.floor(Math.random() * alphabet.length));\n    return {\n      statusCode: 302,\n      statusDescription: \"Found\",\n      headers: {\n        location: { value: \"/p/\" + code + (query ? \"?\" + query : \"\") },\n        \"cache-control\": { value: \"no-store\" },\n      },\n    };\n  }\n  for (var r = 0; r < PITCH_ROUTES.length; r++) {\n    var m = uri.match(PITCH_ROUTES[r][0]);\n    if (m) {\n      request.uri = PITCH_ROUTES[r][1];\n      request.querystring.pitch = { value: m[1] };\n      return request;\n    }\n  }\n  if (uri.endsWith(\"/\")) request.uri = uri + \"index.html\";\n  else if (uri.split(\"/\").pop().indexOf(\".\") === -1)\n    return {\n      statusCode: 301,\n      statusDescription: \"Moved Permanently\",\n      headers: { location: { value: uri + \"/\" + (query ? \"?\" + query : \"\") } },\n    };\n  return request;\n}\n"
+        "FunctionCode": "// The site's viewer request function (CloudFront Functions, JavaScript\n// runtime 2.0). infra/site.json carries this file as its FunctionCode\n// (tools/infra.mjs copies it in before every plan; tests/site fails when the\n// two differ), and the preview server runs this same file.\n//\n//   /p/<code>        any code serves the one game page, /pitch/index.html\n//   /e/<code>        the embed of that pitch, /embed/index.html\n//   /og/<code>.png   that pitch's share image; the static one, /share/kubb.png,\n//                    is what it falls back to\n//   /p, /p/          302 to a pitch with a new code (for a browser without scripts)\n//   /x/         /x/index.html\n//   /x          301 to /x/, keeping the query\n//\n// The site's address is https://throwingwood.com (since 2026-11-17). The\n// old address and www answer every route here with a 301 to the same path\n// and query there, so links and embeds already shared keep working. Any\n// other host (the preview on 127.0.0.1) is served as it is.\nvar HOME = \"https://throwingwood.com\";\nvar MOVED_HOSTS = {\n  \"kubb.thingelstad.xyz\": true,\n  \"www.throwingwood.com\": true,\n};\n\n// A code is 8 to 24 characters from the alphabet below, the pitch code's\n// own rule (PITCH_CODE in backend/api/checks.mjs); the home page makes 8. Any other\n// /p/ address is not a pitch and ends at the 404.\n//\n// The three pitch routes also carry the code as the query string `pitch`.\n// Their behaviours send them to the pages function (backend/pages, which\n// reads the pitch's records and writes its share tags and image) with the\n// static file as the failover origin, so the rewritten address is what the\n// bucket serves when the function cannot answer. Only `pitch` and `v` reach\n// the function or the cache key; the page's own query (?solo=1) stays in the\n// browser's address.\nvar PITCH_ROUTES = [\n  [/^\\/p\\/([2-9a-hjkmnp-z]{8,24})\\/?$/, \"/pitch/index.html\"],\n  [/^\\/e\\/([2-9a-hjkmnp-z]{8,24})\\/?$/, \"/embed/index.html\"],\n  [/^\\/og\\/([2-9a-hjkmnp-z]{8,24})\\.png$/, \"/share/kubb.png\"],\n];\n\nfunction handler(event) {\n  var request = event.request;\n  var uri = request.uri;\n  var query = Object.keys(request.querystring)\n    .map(function (k) {\n      var v = request.querystring[k];\n      return v.multiValue\n        ? v.multiValue\n            .map(function (m) {\n              return k + \"=\" + m.value;\n            })\n            .join(\"&\")\n        : k + \"=\" + v.value;\n    })\n    .join(\"&\");\n  var host =\n    request.headers && request.headers.host && request.headers.host.value;\n  if (MOVED_HOSTS[host])\n    return {\n      statusCode: 301,\n      statusDescription: \"Moved Permanently\",\n      headers: { location: { value: HOME + uri + (query ? \"?\" + query : \"\") } },\n    };\n  if (uri === \"/.well-known/apple-app-site-association\") return request;\n  if (uri === \"/p\" || uri === \"/p/\") {\n    var alphabet = \"abcdefghjkmnpqrstuvwxyz23456789\";\n    var code = \"\";\n    for (var i = 0; i < 8; i++)\n      code += alphabet.charAt(Math.floor(Math.random() * alphabet.length));\n    return {\n      statusCode: 302,\n      statusDescription: \"Found\",\n      headers: {\n        location: { value: \"/p/\" + code + (query ? \"?\" + query : \"\") },\n        \"cache-control\": { value: \"no-store\" },\n      },\n    };\n  }\n  for (var r = 0; r < PITCH_ROUTES.length; r++) {\n    var m = uri.match(PITCH_ROUTES[r][0]);\n    if (m) {\n      request.uri = PITCH_ROUTES[r][1];\n      request.querystring.pitch = { value: m[1] };\n      return request;\n    }\n  }\n  if (uri.endsWith(\"/\")) request.uri = uri + \"index.html\";\n  else if (uri.split(\"/\").pop().indexOf(\".\") === -1)\n    return {\n      statusCode: 301,\n      statusDescription: \"Moved Permanently\",\n      headers: { location: { value: uri + \"/\" + (query ? \"?\" + query : \"\") } },\n    };\n  return request;\n}\n"
       }
     },
     "Distribution": {
@@ -296,20 +281,6 @@
               },
               "OriginAccessControlId": { "Ref": "OriginAccess" },
               "S3OriginConfig": { "OriginAccessIdentity": "" }
-            },
-            {
-              "Fn::If": [
-                "HasRooms",
-                {
-                  "Id": "rooms",
-                  "DomainName": { "Ref": "RoomsApiDomain" },
-                  "CustomOriginConfig": {
-                    "OriginProtocolPolicy": "https-only",
-                    "OriginSSLProtocols": ["TLSv1.2"]
-                  }
-                },
-                { "Ref": "AWS::NoValue" }
-              ]
             },
             {
               "Fn::If": [
@@ -402,33 +373,6 @@
                   "Compress": true,
                   "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
                   "OriginRequestPolicyId": "b689b0a8-53d0-40ab-baf2-68738e2966ac"
-                },
-                { "Ref": "AWS::NoValue" }
-              ]
-            },
-            {
-              "Fn::If": [
-                "HasRooms",
-                {
-                  "PathPattern": "/ws",
-                  "TargetOriginId": "rooms",
-                  "ViewerProtocolPolicy": "https-only",
-                  "AllowedMethods": ["GET", "HEAD"],
-                  "CachedMethods": ["GET", "HEAD"],
-                  "Compress": false,
-                  "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
-                  "OriginRequestPolicyId": "b689b0a8-53d0-40ab-baf2-68738e2966ac",
-                  "FunctionAssociations": [
-                    {
-                      "EventType": "viewer-request",
-                      "FunctionARN": {
-                        "Fn::GetAtt": [
-                          "RoomsRequestFunction",
-                          "FunctionMetadata.FunctionARN"
-                        ]
-                      }
-                    }
-                  ]
                 },
                 { "Ref": "AWS::NoValue" }
               ]
@@ -745,21 +689,6 @@
               "Condition": { "Bool": { "aws:SecureTransport": "false" } }
             }
           ]
-        }
-      }
-    },
-    "RoomsRequestFunction": {
-      "Type": "AWS::CloudFront::Function",
-      "Condition": "HasRooms",
-      "Properties": {
-        "Name": { "Fn::Sub": "${AWS::StackName}-rooms-request" },
-        "AutoPublish": true,
-        "FunctionConfig": {
-          "Runtime": "cloudfront-js-2.0",
-          "Comment": "The WebSocket API answers at its stage path, so /ws is sent on as /<stage>, keeping the query"
-        },
-        "FunctionCode": {
-          "Fn::Sub": "function handler(event) {\n  var request = event.request;\n  request.uri = \"/${RoomsStage}\";\n  return request;\n}\n"
         }
       }
     },
@@ -1140,11 +1069,7 @@
     },
     "CodeBucket": {
       "Value": { "Ref": "CodeBucket" },
-      "Description": "Private bucket for the rooms function's code bundles"
-    },
-    "RoomsRoute": {
-      "Value": { "Fn::If": ["HasRooms", "wss://throwingwood.com/ws", ""] },
-      "Description": "The rooms WebSocket through this hostname, empty while the /ws route is off"
+      "Description": "Private bucket for the functions' code bundles"
     },
     "PagesEndpoint": {
       "Value": {
@@ -1170,7 +1095,7 @@
       "Value": {
         "Fn::If": ["HasReels", { "Fn::GetAtt": ["ReelsFunction", "Arn"] }, ""]
       },
-      "Description": "The highlight reel function the api function (and the rooms function until it goes) invokes; empty while it is off"
+      "Description": "The highlight reel function the api function invokes; empty while it is off"
     },
     "ReelEngines": {
       "Value": { "Fn::If": ["HasReels", { "Ref": "ReelEngines" }, ""] },

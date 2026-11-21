@@ -4,9 +4,9 @@ The wire protocol of a live pitch, as built in `core.mjs` beside this file. The 
 iPhone clients are written from it. The design and the reasons are
 [`docs/PITCH-SERVER.md`](../../docs/PITCH-SERVER.md); where the two differ, this file is
 what the server does. The Cloudflare Worker and Durable Objects that serve it are
-`src/` beside this file (deploying and operating them: [`README.md`](README.md)); a dev
-Worker runs it, but no client uses it yet: the rooms server (`docs/ROOMS.md`) is still
-the live one until the cutover.
+`src/` beside this file (deploying and operating them: [`README.md`](README.md)). It is
+the live server since 2026-11-21; the rooms server it replaced (`docs/ROOMS.md`) is
+deleted.
 
 The pitch knows no Kubb. It keeps who is on the pitch, the host, one lobby document,
 the current match's head and its action log, and relays casts. It never runs the

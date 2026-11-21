@@ -59,11 +59,12 @@ src/engine/      loads wasmoon and the engine's bundle; a small typed JS API ove
 src/render/      canvas renderer: the pitch and pieces through the core's camera, in color
 src/game/        the client: frame loop, input (the dial, the pitch, keys, touch), HUD,
                  playback, sound, bursts
-src/net/         the room client (WebSocket), and how a match is shared
+src/net/         the pitch client (WebSocket to the pitch server), and how a match is shared
 src/ui/          home, lobby, cards (hand-off, winner), options, how to throw
-backend/rooms/   the room server (one Lambda behind an API Gateway WebSocket API)
-infra/           CloudFormation: site (S3, CloudFront, certificate, DNS), rooms, delivery
-tools/           build, preview, local room server, vendor, deploy
+backend/         pitch-server/ (Cloudflare Durable Objects: live pitches), api/ (the
+                 HTTPS api: records, replays, shares), reels/, pages/
+infra/           CloudFormation: site (S3, CloudFront, certificate, DNS), pitches, delivery
+tools/           build, preview, local pitch server, vendor, deploy
 ```
 
 Rules that keep it honest:
@@ -160,7 +161,8 @@ recording back; the session supplies the camera for any shown time.
   action being watched). The lobby (teams, options, started or not) and the match
   snapshot both live in the shared document. Rooms expire.
 
-The wire protocol is written down in `docs/ROOMS.md` by the rooms work.
+The wire protocol is written down in `docs/PITCH-SERVER.md`. The first room server
+(`docs/ROOMS.md`) was retired on 2026-11-21.
 
 ## 5. The throw without a crank
 

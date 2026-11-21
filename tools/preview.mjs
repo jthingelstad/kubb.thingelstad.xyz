@@ -58,8 +58,8 @@ const EMBED_CSP = embedSecurityPolicy(CONNECT);
 
 // page(html, { uri, url }): a test's stand-in for the pages function, which
 // writes a pitch's preview and state into /p/ and /e/ (backend/pages).
-// /reels/... (highlight reels) come from `reels`, where the local room server renders
-// them (tools/reels-dev.mjs), as CloudFront serves the bucket's reels/.
+// /reels/... (highlight reels) come from `reels` (a reel rendered by hand with
+// tools/reel/render.mjs can be put there), as CloudFront serves the bucket's reels/.
 export async function startPreview({
   port = 4322,
   root = "dist",

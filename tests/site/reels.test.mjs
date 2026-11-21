@@ -123,20 +123,6 @@ test("the reel role: the replay's attributes, the reel item's, reels/ and its lo
   assert.ok(!JSON.stringify(st).includes('"*"'), "no wildcard resource");
 });
 
-test("the rooms function may invoke that one function, and runs without it", async () => {
-  const t = await json("infra/rooms.json");
-  const st =
-    t.Resources.RoomsRole.Properties.Policies[0].PolicyDocument.Statement;
-  const invoke = st.find((s) => s["Fn::If"])["Fn::If"];
-  assert.equal(invoke[0], "HasReels");
-  assert.equal(invoke[1].Action, "lambda:InvokeFunction");
-  assert.deepEqual(invoke[1].Resource, { Ref: "ReelsFunctionArn" });
-  assert.deepEqual(invoke[2], { Ref: "AWS::NoValue" });
-  assert.equal(t.Parameters.ReelsFunctionArn.Default, "");
-  const env = t.Resources.RoomsFunction.Properties.Environment.Variables;
-  assert.deepEqual(env.REELS_FUNCTION, { Ref: "ReelsFunctionArn" });
-});
-
 test("the pins: a sha256 for ffmpeg, an npm integrity for canvas, the same canvas as node_modules", async () => {
   const pins = await json("infra/reels-pins.json");
   assert.match(pins.ffmpeg.sha256, /^[0-9a-f]{64}$/);

@@ -1,5 +1,5 @@
 // The site's own pieces: the viewer request function, the pitch code, the
-// templates, the delivery plan and the rooms bundle.
+// templates, the delivery plan and the api bundle's zip.
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import test from "node:test";
@@ -7,7 +7,7 @@ import zlib from "node:zlib";
 import { loadViewerRequest, cloudfrontRequest } from "../../tools/preview.mjs";
 import { cacheControl, prepareObject } from "../../tools/delivery-plan.mjs";
 import { expectedTemplate } from "../../tools/site-template.mjs";
-import { zipOne } from "../../tools/rooms-bundle.mjs";
+import { zipOne } from "../../tools/api-bundle.mjs";
 import {
   PITCH_ORIGINS,
   PLAYDATE_SITE,
@@ -227,7 +227,7 @@ test("infra/site.json carries the viewer request function and the CSP", async ()
   }
 });
 
-test("the site stack: edge web ACL, logs, and the optional /ws route", async () => {
+test("the site stack: edge web ACL, logs, no /ws route, and /api/*", async () => {
   const site = await json("infra/site.json");
   const config = site.Resources.Distribution.Properties.DistributionConfig;
   assert.deepEqual(config.WebACLId, {
@@ -240,18 +240,12 @@ test("the site stack: edge web ACL, logs, and the optional /ws route", async () 
     config.CacheBehaviors.map((b) => b["Fn::If"]).find(
       (b) => b?.[1]?.PathPattern === path,
     );
-  const ws = behaviour("/ws");
-  assert.equal(ws[0], "HasRooms");
-  assert.equal(ws[1].PathPattern, "/ws");
-  // CachingDisabled and AllViewerExceptHostHeader (AWS managed policies).
-  assert.equal(ws[1].CachePolicyId, "4135ea2d-6df8-44a3-9df3-4b5a84be39ad");
-  assert.equal(
-    ws[1].OriginRequestPolicyId,
-    "b689b0a8-53d0-40ab-baf2-68738e2966ac",
-  );
-  assert.equal(site.Parameters.RoomsApiDomain.Default, "");
+  // The old rooms WebSocket's /ws went with its stack on 2026-11-21.
+  assert.equal(behaviour("/ws"), undefined);
+  assert.ok(!JSON.stringify(config.Origins).includes('"rooms"'));
   // The api function's /api/* (docs/PITCH-SERVER.md section 12): off by default, never
-  // cached, every viewer header but Host to the function URL.
+  // cached (CachingDisabled), every viewer header but Host to the function URL
+  // (AllViewerExceptHostHeader; AWS managed policies).
   const api = behaviour("/api/*");
   assert.equal(api[0], "HasApi");
   assert.equal(api[1].TargetOriginId, "api");
@@ -491,7 +485,7 @@ test("published files are typed and cached right", () => {
   );
 });
 
-test("the rooms zip is the same bytes every time and unzips", () => {
+test("the api zip is the same bytes every time and unzips", () => {
   const data = Buffer.from("export const handler = async () => ({});\n");
   const a = zipOne("index.mjs", data);
   assert.ok(a.equals(zipOne("index.mjs", data)));
@@ -522,14 +516,14 @@ test("the version label: package.json's version and the newest engine's, never t
   const sha = "a2659b744210e4c5baa5b69c672e11ec87f9bfab";
   const release = releaseOf(pkg.version, sha, carried);
   assert.equal(release.text, `${pkg.version} (${carried[0].version})`);
-  // this checkout: 0.9.0 on 0.9.0, also playing 0.8.2 and 0.7.4
-  assert.equal(release.text, "0.9.0 (0.9.0)");
+  // this checkout: 0.9.1 on 0.9.0, also playing 0.8.2 and 0.7.4
+  assert.equal(release.text, "0.9.1 (0.9.0)");
   assert.equal(release.detail, "Also plays 0.8.2 and 0.7.4");
   assert.equal(release.web, sha, "the commit stays the exact identity");
   // one engine carried: no detail
   assert.equal(releaseOf("0.2.0", sha, carried.slice(0, 1)).detail, null);
   const foot = footer(release.text);
-  assert.match(foot, /data-release>Version 0\.9\.0 \(0\.9\.0\)<\/p>/);
+  assert.match(foot, /data-release>Version 0\.9\.1 \(0\.9\.0\)<\/p>/);
   assert.ok(!foot.includes(sha.slice(0, 7)));
 });
 

@@ -1,7 +1,9 @@
 # Rooms: the multiplayer room service
 
-This is the live server. Its planned replacement is `docs/PITCH-SERVER.md` (live pitches
-on Cloudflare Durable Objects); until its cutover, everything below holds.
+**Retired on 2026-11-21.** Live play moved to the pitch server (`docs/PITCH-SERVER.md`,
+Cloudflare Durable Objects) and the HTTPS api (`backend/api`). The rooms stack, its
+table and its games bucket were deleted the same day, and the code is gone from the
+repository. This page is kept as the record of how the first server worked.
 
 A pitch is a link (`/p/<code>`). Everyone who opens it joins the same **room**. The room
 server knows no Kubb. It keeps:

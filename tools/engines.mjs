@@ -1,5 +1,5 @@
 // The engines this checkout carries, for the tools that look back at a match
-// (games:replay, reports:replay, backfill-replay, replay-fixture; docs/ENGINES.md): one
+// (games:replay, reports:replay, replay-fixture; docs/ENGINES.md): one
 // wasmoon engine per major.minor in vendor/ (tools/lua-bundle.mjs carriedEngines),
 // each made the first time it is asked for. The same registry as the browser's
 // (src/engine/registry.js).

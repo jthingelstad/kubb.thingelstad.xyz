@@ -10,8 +10,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { asciiJson, createRooms } from "../../backend/rooms/core.mjs";
-import { memoryStore } from "../../backend/rooms/memory-store.mjs";
+import { asciiJson } from "../../backend/api/checks.mjs";
+import { createApi } from "../../backend/api/core.mjs";
+import { memoryStore } from "../../backend/api/memory-store.mjs";
+import { memoryReels } from "./memory-reels.mjs";
 import { carriedLookup } from "../../backend/reels/carried.mjs";
 import { checkShare } from "../../backend/reels/check.mjs";
 import { packageEngines } from "../../backend/reels/handler.mjs";
@@ -123,7 +125,7 @@ test("carriedLookup: a set, a function, or one engine as a set of one", () => {
 });
 
 async function reelRun({ replay, tag, engines = ["0.7", "0.6"] }) {
-  const store = memoryStore({ now: () => T0 });
+  const store = memoryReels({ now: () => T0 });
   const exp = T0 / 1000 + 3600;
   await store.putReplay(ROOM, {
     v: 4,
@@ -214,12 +216,11 @@ test("a shared match is checked on the engine it names, and one not carried is r
     });
 });
 
-// The rooms function with the reel function's REEL_ENGINES: what it starts and asks.
-function roomsWith({ engines, store }) {
+// The api function with the reel function's REEL_ENGINES: what it starts and asks.
+function apiWith({ engines, store }) {
   const started = [];
   const checked = [];
-  const inbox = [];
-  const rooms = createRooms({
+  const api = createApi({
     store,
     now: () => T0,
     reelEngines: engines,
@@ -228,84 +229,97 @@ function roomsWith({ engines, store }) {
       checked.push(g.engine);
       return { ok: false, why: "does-not-replay" };
     },
-    async send(_conn, text) {
-      inbox.push(JSON.parse(text));
-      return true;
-    },
+    log: () => {},
   });
-  const say = async (msg) => {
-    await rooms.message("c1", asciiJson(msg));
-    return inbox.at(-1);
+  const post = async (path, body) =>
+    JSON.parse(
+      (
+        await api.handle({
+          method: "POST",
+          path,
+          query: new URLSearchParams(),
+          headers: {},
+          body: Buffer.from(asciiJson(body)),
+        })
+      ).body,
+    );
+  return {
+    started,
+    checked,
+    reel: (pitch) => post("/reel", { pitch }),
+    share: (g) => post("/share", { g }),
   };
-  return { started, checked, say };
 }
 
 test("after the site moves to 0.8: a 0.7 match keeps its r1-0.7 reel, a 0.8 match gets r1-0.8", async () => {
   const store = memoryStore({ now: () => T0 });
   const exp = T0 / 1000 + 3600;
-  const keep = (code, engine) =>
-    store.putReplay(code, {
-      v: 2,
-      t: T0,
+  const V = T0 - 1000;
+  // a kept replay as the api keeps one: the log's half and the final snapshot's half
+  const keep = async (code, engine) => {
+    await store.putKept(code, {
+      made: V,
+      n: 1,
+      v: V,
       data: JSON.stringify(replayOf(engine)),
       exp,
     });
+    await store.putFinal(code, { made: V, n: 1, snap: "{}", exp });
+  };
+  const finish = (code, fields) =>
+    Object.assign(store.items.get(`pitch#${code}|reel`), fields);
   await keep("seventhm", "0.7.4");
 
   // today: the 0.7 match's reel is asked for, rendered and done
-  const today = roomsWith({ engines: ["0.7"], store });
-  const first = await today.say({ t: "reel", id: 1, room: "seventhm" });
+  const today = apiWith({ engines: ["0.7"], store });
+  const first = await today.reel("seventhm");
   assert.equal(first.reel.tag, "r1-0.7");
-  assert.deepEqual(today.started, [{ room: "seventhm", v: 2, tag: "r1-0.7" }]);
-  await store.finishReel("seventhm", "2-r1-0.7", {
+  assert.deepEqual(today.started, [{ room: "seventhm", v: V, tag: "r1-0.7" }]);
+  finish("seventhm", {
     state: "done",
-    wide: "/reels/seventhm/2-r1-0.7/wide.mp4",
-    tall: "/reels/seventhm/2-r1-0.7/tall.mp4",
-    edit: "/reels/seventhm/2-r1-0.7/edit.json",
+    wide: `/reels/seventhm/${V}-r1-0.7/wide.mp4`,
+    tall: `/reels/seventhm/${V}-r1-0.7/tall.mp4`,
+    edit: `/reels/seventhm/${V}-r1-0.7/edit.json`,
     seconds: 30,
     done: T0,
   });
 
   // the site carries 0.8 and keeps 0.7: the same reel, nothing rendered again
-  const later = roomsWith({ engines: ["0.8", "0.7"], store });
-  const again = await later.say({ t: "reel", id: 2, room: "seventhm" });
+  const later = apiWith({ engines: ["0.8", "0.7"], store });
+  const again = await later.reel("seventhm");
   assert.equal(again.reel.state, "done");
   assert.equal(again.reel.tag, "r1-0.7");
   assert.equal(later.started.length, 0);
 
   await keep("aughtmmm", "0.8.1");
-  const eighth = await later.say({ t: "reel", id: 3, room: "aughtmmm" });
+  const eighth = await later.reel("aughtmmm");
   assert.equal(eighth.reel.tag, "r1-0.8");
-  assert.deepEqual(later.started, [{ room: "aughtmmm", v: 2, tag: "r1-0.8" }]);
+  assert.deepEqual(later.started, [{ room: "aughtmmm", v: V, tag: "r1-0.8" }]);
 
   // a 0.7 share from an iPhone build still on 0.7 goes on to the check
   const share = {
-    t: "share",
-    id: 4,
-    g: {
-      engine: "0.7.4",
-      start: "{}",
-      log: [],
-      end: { winner: "A", throws: 1 },
-    },
+    engine: "0.7.4",
+    start: "{}",
+    log: [],
+    end: { winner: "A", throws: 1 },
   };
-  const asked = await later.say(share);
+  const asked = await later.share(share);
   assert.deepEqual(later.checked, ["0.7.4"]);
   assert.equal(asked.why, "does-not-replay");
 
   // once 0.7 is dropped: a share is refused before the check, as any engine not
   // carried is, but the reel already made is still answered
-  const dropped = roomsWith({ engines: ["0.8"], store });
-  assert.equal((await dropped.say({ ...share, id: 5 })).why, "engine");
+  const dropped = apiWith({ engines: ["0.8"], store });
+  assert.equal((await dropped.share(share)).why, "engine");
   assert.deepEqual(dropped.checked, []);
-  const kept = await dropped.say({ t: "reel", id: 6, room: "seventhm" });
+  const kept = await dropped.reel("seventhm");
   assert.equal(kept.reel.state, "done");
-  assert.equal(kept.reel.wide, "/reels/seventhm/2-r1-0.7/wide.mp4");
+  assert.equal(kept.reel.wide, `/reels/seventhm/${V}-r1-0.7/wide.mp4`);
   assert.equal(dropped.started.length, 0);
 
   // a 0.7 match with no reel made yet: refused, and nothing is started or written
   await keep("sxthmmmm", "0.7.4");
-  const none = await dropped.say({ t: "reel", id: 7, room: "sxthmmmm" });
+  const none = await dropped.reel("sxthmmmm");
   assert.equal(none.reel, null);
   assert.equal(none.why, "engine");
   assert.equal(dropped.started.length, 0);
@@ -314,10 +328,10 @@ test("after the site moves to 0.8: a 0.7 match keeps its r1-0.7 reel, a 0.8 matc
   await keep("ffthmmmm", "0.7.4");
   await store.putReel(
     "ffthmmmm",
-    { v: 2, tag: "r1-0.7", job: "2-r1-0.7", at: T0, exp },
+    { v: V, tag: "r1-0.7", job: `${V}-r1-0.7`, at: T0, exp },
     { staleBefore: 0 },
   );
-  const rendering = await dropped.say({ t: "reel", id: 8, room: "ffthmmmm" });
+  const rendering = await dropped.reel("ffthmmmm");
   assert.equal(rendering.why, "engine");
   assert.equal(dropped.started.length, 0);
 });

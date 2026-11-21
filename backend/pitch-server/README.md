@@ -1,8 +1,8 @@
 # The pitch server
 
 Live pitches on Cloudflare Durable Objects (the plan: `docs/PITCH-SERVER.md`; the wire
-protocol: [`PROTOCOL.md`](PROTOCOL.md)). Not live yet: the rooms server in
-`docs/ROOMS.md` still serves throwingwood.com.
+protocol: [`PROTOCOL.md`](PROTOCOL.md)). Live for throwingwood.com since 2026-11-21; the
+rooms server it replaced (`docs/ROOMS.md`) is deleted.
 
 | File                   | What it is                                                                       |
 | ---------------------- | -------------------------------------------------------------------------------- |
@@ -48,19 +48,26 @@ Plain variables (`env` in `cloudflare.config.ts`, `vars` in `wrangler.jsonc`;
 | `OBSERVERS_MAX`          | the cap on observers a pitch (the core's default is 20)                            |
 
 Secrets (`cf deploy --secrets-file .dev.vars`; `.dev.vars` is gitignored and is also
-what `wrangler dev` reads):
+what `wrangler dev` reads). They live in 1Password (vault `Otto`); the committed
+templates `.dev.vars.tpl` (both) and `.prod.vars.tpl` (`PUSH_SECRET` only) name the
+items, and `op inject` renders the gitignored files from them. AWS Secrets Manager's
+`throwing-wood/push-secret` is the authority for `PUSH_SECRET`; the 1Password item
+`Pitch Server Push Secret - throwing-wood` must hold the same value
+(`docs/PITCH-SERVER.md` section 12, "The secret").
 
 | Name          | Meaning                                                     |
 | ------------- | ----------------------------------------------------------- |
 | `PUSH_SECRET` | the HMAC key shared with the AWS receiver; unset, no pushes |
 | `DEV_KEY`     | the bearer key for `/dev/pitch`; dev only                   |
 
-Make a dev key with `printf 'DEV_KEY=%s\n' "$(openssl rand -hex 24)" > .dev.vars`.
+A new dev key is `openssl rand -hex 24`, saved in the 1Password item
+`Pitch Server Dev Key - throwing-wood`.
 
 ## Deploy
 
 ```sh
 npm ci
+op inject -i .dev.vars.tpl -o .dev.vars && chmod 600 .dev.vars
 npx cf deploy --secrets-file .dev.vars </dev/null
 ```
 
@@ -74,12 +81,13 @@ localhost entries, no `DEV_WRITE_FIRST_PREFIX`, and a secrets file with `PUSH_SE
 so `/dev/pitch` answers 404 there:
 
 ```sh
-printf 'PUSH_SECRET=%s\n' '<the value from Secrets Manager>' > .prod.vars  # gitignored, mode 600
+op inject -i .prod.vars.tpl -o .prod.vars && chmod 600 .prod.vars  # gitignored
 npx cf deploy --mode production --secrets-file .prod.vars </dev/null
 ```
 
-Any other mode is refused. Production is not deployed yet, and is also on workers.dev
-only: a route or custom domain for it is a later step. The first deploy creates both Durable Object classes with
+`cf` cannot read a process substitution (`<(op inject ...)`), so it gets a real file;
+delete it after if you like. Any other mode is refused. Production is live since
+2026-11-21, on workers.dev only: a route or custom domain for it is a later step. The first deploy creates both Durable Object classes with
 SQLite storage; a class is never renamed or removed without a migration.
 
 A deploy reaches new requests at once. A pitch busy at the time keeps its old code until

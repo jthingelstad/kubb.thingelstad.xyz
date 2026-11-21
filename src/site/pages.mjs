@@ -211,7 +211,7 @@ function privacy({ tinylytics, config = {} }) {
 </section>
 <section class="frame prose" aria-labelledby="pitch">
   <h2 class="display" id="pitch">Playing a match</h2>
-  <p>A match on a pitch runs through the game’s own server. It gets what the match needs: the name you type, your team, your throws, the score, and that random number. Everyone on the pitch sees your name and team. Any name will do, so use a nickname if you like.</p>
+  <p>A match on a pitch runs through the game’s own server. It gets what the match needs: the name you type, your team, your throws, the score, and that random number. Everyone on the pitch sees your name and team. Any name will do, so use a nickname if you like. Live online play passes through Cloudflare on its way between players.</p>
   <p>Matches are recorded to help make the game better. A record holds the throws and the names players typed. I keep records privately. They are never published or shared. Practice is not recorded.</p>
   <p>When a match ends, its replay is kept for a year, and anyone with the pitch’s link can watch it, names included. An open game’s place in the list on the web game’s page shows only how many are on the pitch and whether the match has started, never names.</p>
   <p>Anyone with a finished pitch’s link can ask for a highlight reel: a short video of the match’s best throws, made on the game’s server from the kept replay. A reel shows the team names, which for a player alone on a side is the name they typed, as the replay does; nothing else typed in the lobby. Reels are stored with the website, anyone with the link can watch or download them, and they are deleted a year after the match. A video downloaded or posted elsewhere is out of my hands.</p>
@@ -237,7 +237,7 @@ function privacy({ tinylytics, config = {} }) {
   <h2 class="display" id="ask">Questions, or taking your name out</h2>
   <p>If you want your name taken out of the records, or have a question, <a href="https://www.thingelstad.com/contact/">get in touch</a>. Send the pitch’s link if you have it, and I’ll remove the records that carry your name.</p>
   <p>If the game starts keeping something new, this page will say so first.</p>
-  <p class="foot__small">Last updated 20 November 2026.</p>
+  <p class="foot__small">Last updated 21 November 2026.</p>
 </section>`;
   return page({
     path: "/privacy/",
