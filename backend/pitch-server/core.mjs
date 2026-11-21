@@ -134,6 +134,7 @@ function blank(code, now, opts) {
     listing: { entry: null, at: null },
     alarmAt: null,
     thin: new Map(), // sender member -> the time its next cast may reach observers
+    outbox: new Map(), // k -> { k, topic, body }: pushes not yet confirmed delivered
   };
 }
 
@@ -195,7 +196,9 @@ function context(st, now) {
     },
     acts: [],
     clearActs: false,
-    pushes: [],
+    pushes: [], // new pushes: persisted to the outbox, then sent
+    resend: [], // pending pushes from the outbox, sent again on waking
+    unbox: [],
     listing: null,
     wipe: false,
   };
@@ -227,6 +230,7 @@ export function step(st, event) {
   const cx = context(st, now);
   if (event.type === "frame") onFrame(cx, event.conn, event.text);
   else if (event.type === "close") onClose(cx, event.conn);
+  else if (event.type === "pushed") onPushed(cx, event.k);
   else if (event.type === "tick") {
     // nothing but what settle does
   } else throw new TypeError(`unknown event ${event.type}`);
@@ -766,20 +770,16 @@ function onStart(cx, conn, who, msg) {
     n,
     ...t,
   });
-  cx.pushes.push({
-    kind: "push",
-    topic: "start",
-    body: {
-      pitch: st.code,
-      n,
-      m: who.id,
-      ts: now,
-      v: st.doc.v,
-      doc: st.doc.value,
-      meta,
-      h0: msg.h,
-      snap: msg.snap,
-    },
+  queuePush(cx, `start:${n}`, "start", {
+    pitch: st.code,
+    n,
+    m: who.id,
+    ts: now,
+    v: st.doc.v,
+    doc: st.doc.value,
+    meta,
+    h0: msg.h,
+    snap: msg.snap,
   });
 }
 
@@ -821,7 +821,7 @@ function onAct(cx, conn, who, msg) {
 
   const M = st.match;
   // Already stored: ack again with its stored place, whatever it claims now.
-  const known = M ? M.ids.get(msg.id) : undefined;
+  const known = M && msg.n === M.n ? M.ids.get(msg.id) : undefined;
   if (known !== undefined) {
     const r = M.acts[known];
     return send(cx, conn, {
@@ -886,17 +886,39 @@ function onAct(cx, conn, who, msg) {
     seq: r.seq,
     ...t,
   });
-  cx.pushes.push({
-    kind: "push",
-    topic: "act",
-    body: { pitch: st.code, n: M.n, ...r, snap: msg.snap },
+  queuePush(cx, `act:${M.n}:${r.seq}`, "act", {
+    pitch: st.code,
+    n: M.n,
+    ...r,
+    snap: msg.snap,
   });
-  if (r.over)
-    cx.pushes.push({
-      kind: "push",
-      topic: "keep",
-      body: keptReplay(st, now),
-    });
+  if (r.over) queuePush(cx, `keep:${M.n}`, "keep", keptReplay(st, now));
+}
+
+// ---------- pushes to AWS, through an outbox ----------
+//
+// A push is written to the outbox in the same persist as the change it reports, and
+// stays there until the object confirms delivery with a `pushed` event. A pitch that
+// restarts between its write and its push sends every pending push again on waking, so
+// the receiver must take a push idempotently by (pitch, made, k).
+
+function queuePush(cx, k, topic, body) {
+  const entry = { k, topic, body };
+  cx.st.outbox.set(k, entry);
+  cx.pushes.push(entry);
+}
+
+const pushEffect = (st, e) => ({
+  kind: "push",
+  k: e.k,
+  made: st.made,
+  topic: e.topic,
+  body: e.body,
+});
+
+function onPushed(cx, k) {
+  if (!cx.st.outbox.delete(k)) return;
+  cx.unbox.push(k);
 }
 
 // The kept replay of a finished match, built from the pitch's own log: the start info
@@ -1019,6 +1041,8 @@ function settle(cx) {
     !st.fresh &&
     !anyoneOn(st) &&
     now - st.touched >= L.idleMs &&
+    st.outbox.size === 0 &&
+    !cx.unbox.length &&
     !Object.values(cx.dirty).some(Boolean)
   )
     cx.wipe = true;
@@ -1034,7 +1058,8 @@ function nextAlarm(st, now) {
     if (at > now) due.push(at);
   }
   if (st.listing.entry) due.push(st.listing.at + L.listRefreshMs);
-  if (!st.fresh && !anyoneOn(st)) due.push(st.touched + L.idleMs);
+  if (!st.fresh && !anyoneOn(st) && st.outbox.size === 0)
+    due.push(st.touched + L.idleMs);
   return due.length ? Math.min(...due) : null;
 }
 
@@ -1072,7 +1097,7 @@ function finish(cx) {
       : persist
         ? [...cx.out, persist]
         : [...cx.out];
-  effects.push(...cx.pushes);
+  for (const e of [...cx.resend, ...cx.pushes]) effects.push(pushEffect(st, e));
   if (cx.listing) effects.push(cx.listing);
   if (alarmEffect) effects.push(alarmEffect);
   return effects;
@@ -1088,6 +1113,7 @@ function finish(cx) {
 //   match    { n, meta, h0, at }                     the current match's start
 //   head     { n, seq, h, snap, over }               where it stands
 //   act      { n, seq, id, m, a, h, s, ts, over, c? }  one per committed action
+//   outbox   { k, topic, body }                   one per push until `pushed` (unbox: [k])
 
 const pitchRecord = (st) => ({
   code: st.code,
@@ -1144,6 +1170,8 @@ function buildPersist(cx) {
       over: st.match.over,
     });
   if (cx.clearActs) put("clearActs", true);
+  if (cx.pushes.length) put("outbox", cx.pushes);
+  if (cx.unbox.length) put("unbox", cx.unbox);
   if (cx.acts.length) put("acts", cx.acts);
   return any ? p : null;
 }
@@ -1190,6 +1218,10 @@ export function rebuildPitch({ code, stored, conns = [], now, options } = {}) {
       conn: null,
     });
     if (r.on) wasOn.push(r.id);
+  }
+  for (const e of stored.outbox ?? []) {
+    st.outbox.set(e.k, e);
+    cx.resend.push(e); // it may never have gone
   }
   if (stored.match && stored.head && stored.head.n === stored.match.n) {
     const acts = (stored.acts ?? [])

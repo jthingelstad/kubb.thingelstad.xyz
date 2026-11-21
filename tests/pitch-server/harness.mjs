@@ -23,6 +23,7 @@ export class Harness {
     this.listings = [];
     this.alarm = null;
     this.wiped = 0;
+    this.deliver = true;
     this.effects = [];
     const r = rebuildPitch({ code, stored: null, conns: [], now, options });
     this.state = r.state;
@@ -30,9 +31,11 @@ export class Harness {
   }
 
   // Carry out effects in order. `stopAt` drops everything from the first effect of
-  // that kind on (the object died there).
-  apply(effects, { stopAt = null } = {}) {
-    this.effects = effects;
+  // that kind on (the object died there). Pushes are delivered at once and confirmed
+  // with a `pushed` event, unless `deliver` is false (AWS did not answer).
+  apply(effects, { stopAt = null, top = true } = {}) {
+    if (top) this.effects = effects;
+    const delivered = [];
     for (const e of effects) {
       if (e.kind === stopAt) return;
       switch (e.kind) {
@@ -57,10 +60,20 @@ export class Harness {
           if (e.clearActs) this.store.acts = [];
           if (e.acts)
             this.store.acts = [...(this.store.acts ?? []), ...clone(e.acts)];
+          if (e.outbox)
+            this.store.outbox = [
+              ...(this.store.outbox ?? []),
+              ...clone(e.outbox),
+            ];
+          if (e.unbox)
+            this.store.outbox = (this.store.outbox ?? []).filter(
+              (x) => !e.unbox.includes(x.k),
+            );
           break;
         }
         case "push":
           this.pushes.push(clone(e));
+          if (this.deliver) delivered.push(e.k);
           break;
         case "listing":
           this.listings.push(clone(e));
@@ -75,6 +88,10 @@ export class Harness {
         default:
           throw new Error(`unknown effect ${e.kind}`);
       }
+    }
+    for (const k of delivered) {
+      const r = step(this.state, { type: "pushed", k, now: this.now });
+      this.apply(r.effects, { top: false });
     }
   }
 

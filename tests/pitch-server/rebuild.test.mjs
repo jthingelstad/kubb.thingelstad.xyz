@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Harness, act, id, start } from "./harness.mjs";
-import { LIMITS } from "../../backend/pitch-server/core.mjs";
+import { LIMITS, step } from "../../backend/pitch-server/core.mjs";
 
 // A match under way: two players, an observer, some actions, the pitch open.
 const before = [
@@ -187,8 +187,63 @@ test("persisted records carry no snapshot copies beyond the head and stay small"
     "head",
     "match",
     "members",
+    "outbox",
     "pitch",
   ]);
+  assert.deepEqual(h.store.outbox, [], "every push confirmed");
   for (const a of h.store.acts) assert.equal("snap" in a, false);
   assert.ok(JSON.stringify(h.store.pitch).length < 600);
+});
+
+test("a push not confirmed before a restart is sent again on waking", () => {
+  const h = new Harness({ options: { commitOrder: "write-first" } });
+  run(h, before.slice(0, 7), 10);
+  assert.deepEqual(h.store.outbox, [], "delivered pushes leave the outbox");
+  const sent = h.pushes.length;
+  // the ending action is written, then the object dies before anything else
+  h.send("b", act(2, { over: true }), { stopAt: "send" });
+  assert.equal(h.pushes.length, sent, "nothing pushed");
+  assert.deepEqual(
+    h.store.outbox.map((e) => e.k),
+    ["act:1:2", "keep:1"],
+  );
+  const effects = h.wake({ dt: 500 });
+  const again = effects.filter((e) => e.kind === "push");
+  assert.deepEqual(
+    again.map((e) => [e.k, e.topic]),
+    [
+      ["act:1:2", "act"],
+      ["keep:1", "keep"],
+    ],
+  );
+  assert.equal(again[1].body.log.length, 2);
+  assert.equal(again[0].made, h.state.made);
+  assert.deepEqual(h.store.outbox, [], "confirmed this time");
+  // the resent action is only acked: no second record
+  h.send("b", act(2, { over: true }));
+  assert.equal(h.pushes.length, sent + 2);
+});
+
+test("pushes AWS has not confirmed stay pending and hold off the idle wipe", () => {
+  const h = new Harness();
+  h.join("a", "anna");
+  h.send("a", start(0));
+  h.deliver = false;
+  h.send("a", act(1));
+  h.close("a");
+  h.tick(LIMITS.hostGraceMs);
+  assert.equal(h.alarm, null, "no wipe is due while a push is pending");
+  h.tick(LIMITS.idleMs);
+  assert.equal(h.wiped, 0);
+  assert.deepEqual(
+    h.store.outbox.map((e) => e.k),
+    ["act:1:1"],
+  );
+  // confirmed late: the wipe is due again
+  h.deliver = true;
+  h.apply(step(h.state, { type: "pushed", k: "act:1:1", now: h.now }).effects);
+  assert.deepEqual(h.store.outbox, []);
+  assert.ok(h.alarm !== null);
+  h.tick(LIMITS.idleMs);
+  assert.equal(h.wiped, 1);
 });
