@@ -244,6 +244,34 @@ test("pitch client: an action whose ok was lost is sent again and answered dup, 
   closeAll();
 });
 
+test("pitch client: a long backlog after a drop goes a window at a time, all of it", async () => {
+  const code = makePitchCode();
+  const f = flakyWs();
+  const a = join(code, "hanna", { WebSocket: f.WebSocket });
+  await a.ready;
+  await a.start({
+    doc: { started: true },
+    n: 1,
+    h: "h0",
+    snap: "s0",
+    meta: {},
+  });
+  // the network goes: 80 actions are played here meanwhile (more than the server's
+  // burst of 60 messages), then it comes back
+  f.ctl.down = true;
+  a.ws.close();
+  await until(() => !a.joined, 2000, "dropped");
+  for (let seq = 1; seq <= 80; seq++) a.act(act(seq));
+  assert.equal(a.pending.length, 80);
+  f.ctl.down = false;
+  await until(() => a.pending.length === 0, 8000, "all answered");
+  assert.equal(
+    server.pitch(code).match?.seq ?? server.pitch(code).head?.seq,
+    80,
+  );
+  closeAll();
+});
+
 test("pitch client: the same action sent twice on one connection is answered dup", async () => {
   const code = makePitchCode();
   const a = join(code, "hanna");
