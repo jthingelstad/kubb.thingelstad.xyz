@@ -161,6 +161,7 @@ export class Harness {
       conns: live,
       now: this.now,
       options: this.options,
+      alarm: this.alarm,
     });
     this.state = r.state;
     this.apply(r.effects);

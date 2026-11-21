@@ -319,12 +319,16 @@ which happens only after it has been idle longer than any of their windows.
 
 `core.mjs` exports:
 
-- `rebuildPitch({ code, stored, conns, now, options }) -> { state, effects }`: build the
-  pitch from storage (in the constructor, inside `blockConcurrencyWhile`). `stored` is
-  the six records below (all absent for a new code); `conns` is
-  `ctx.getWebSockets()` as `{ conn, member, role }` from each socket's attachment.
-  A member written as connected whose socket is gone is marked away and the others are
-  told, so carry out the effects.
+- `rebuildPitch({ code, stored, conns, now, options, alarm }) -> { state, effects }`:
+  build the pitch from storage (in the constructor, inside `blockConcurrencyWhile`).
+  `stored` is the six records below (all absent for a new code); `conns` is
+  `ctx.getWebSockets()` as `{ conn, member, role }` from each socket's attachment;
+  `alarm` is `await ctx.storage.getAlarm()` (null for none). The saved `alarmAt` can be
+  ahead of the real alarm when the object died between a persist and its alarm effect,
+  so the core compares the deadline it needs with the real one and returns an `alarm`
+  effect when they differ; left out, it always returns one. A member written as
+  connected whose socket is gone is marked away and the others are told, so carry out
+  the effects.
 - `step(state, event) -> { state, effects }`, with `event` one of
   `{ type: "frame", conn, text, now }` (`webSocketMessage`),
   `{ type: "close", conn, now }` (`webSocketClose` and `webSocketError`),
