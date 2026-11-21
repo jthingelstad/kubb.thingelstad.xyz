@@ -287,3 +287,37 @@ test("waking without the real alarm always sets it again", () => {
     [{ kind: "alarm", at: want }],
   );
 });
+
+test("a host back on a socket whose rejoin was never written keeps hosting after a restart", () => {
+  const h = new Harness(); // relay-first: the rejoin is relayed and attached before the write
+  run(h, before, 10);
+  h.close("a", { dt: 10 });
+  assert.equal(h.store.pitch.hostAway, h.now);
+  h.send(
+    "a",
+    { t: "join", member: id("anna"), n: 1, seq: 3 },
+    {
+      dt: 10,
+      stopAt: "persist",
+    },
+  );
+  assert.deepEqual(h.attached.get("a"), { member: id("anna"), role: "player" });
+  assert.notEqual(h.store.pitch.hostAway, null, "the return was never written");
+  for (const c of ["a", "b", "o"]) h.take(c);
+  // the object restarts after the old grace deadline would have run out
+  h.wake({ dt: LIMITS.hostGraceMs + 1000 });
+  assert.equal(h.state.host, id("anna"));
+  assert.equal(h.state.hostAway, null);
+  assert.equal(h.store.pitch.hostAway, null, "written now");
+  assert.equal(
+    h.store.members.find((m) => m.id === id("anna")).on,
+    true,
+    "the members record follows the socket",
+  );
+  h.tick(LIMITS.hostGraceMs);
+  assert.equal(h.state.host, id("anna"), "no late hand-over");
+  assert.deepEqual(
+    h.take("b").filter((f) => f.t === "host"),
+    [],
+  );
+});
