@@ -13,7 +13,7 @@ sliders take any value, keeps a kubb's spin for the turn and lets the computer t
 a kubb a step away, so a 0.8 match plays differently on 0.9. iPhone testers' builds
 carry 0.8 and 0.7, so a pitch with one of them plays 0.8.
 
-The version label a player sees names only the newest: `0.7.0 (0.9.0)`, with "Also plays
+The version label a player sees names only the newest: `0.7.1 (0.9.0)`, with "Also plays
 0.8.2 and 0.7.4" where detail is shown (docs/CLIENT.md "Version and freshness"). A match names its
 own engine, never the app's version.
 
