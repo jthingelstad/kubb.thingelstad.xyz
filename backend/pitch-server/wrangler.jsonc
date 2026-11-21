@@ -1,0 +1,24 @@
+{
+  // The pitch server, for `wrangler dev` and the Workers test pool only. Deploys use
+  // `cf deploy`, which reads cloudflare.config.ts and not this file: keep the two alike.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "throwingwood-pitches-dev",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "durable_objects": {
+    "bindings": [
+      { "name": "PITCH", "class_name": "PitchDO" },
+      { "name": "LOBBY", "class_name": "LobbyDO" },
+    ],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PitchDO", "LobbyDO"] }],
+  "vars": {
+    "VERSION": "dev",
+    // Pitch codes starting with this play write-first (dev only; see cloudflare.config.ts).
+    "DEV_WRITE_FIRST_PREFIX": "wf",
+    "ALLOWED_ORIGINS": "https://throwingwood.com,https://app.throwingwood.com,http://localhost,http://127.0.0.1",
+  },
+  "observability": { "enabled": false },
+}

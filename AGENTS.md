@@ -168,8 +168,11 @@ request.
   It is still the live server. Its planned replacement, live pitches on Cloudflare Durable
   Objects with everything else kept in AWS, is `docs/PITCH-SERVER.md`. Built so far: the
   pitch core, pure logic with no Cloudflare APIs (`backend/pitch-server/core.mjs`, its
-  wire protocol `backend/pitch-server/PROTOCOL.md`, tests in `tests/pitch-server/`); the
-  throwaway proof of concept is `backend/room-server-poc/`.
+  wire protocol `backend/pitch-server/PROTOCOL.md`, tests in `tests/pitch-server/`), and
+  the Worker with `PitchDO` and `LobbyDO` over it (`backend/pitch-server/src/`, its
+  Workers-pool tests in `backend/pitch-server/test/`, run by the `check` job; deployed
+  only to the dev Worker `throwingwood-pitches-dev`; `backend/pitch-server/README.md`);
+  the throwaway proof of concept is `backend/room-server-poc/`.
   `npm run infra:apply -- rooms` bundles `backend/rooms/handler.mjs` (esbuild, one ESM
   file, AWS SDK left out), zips it the same way every time and uploads it as
   `rooms/<sha256>.zip`.

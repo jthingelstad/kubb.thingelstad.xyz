@@ -3,9 +3,11 @@
 The plan for the next live multiplayer server. It replaces the rooms server in
 `docs/ROOMS.md` (API Gateway WebSocket, one Lambda invoke a message, DynamoDB). That
 server is still the live one until the cutover below. Built so far: the pitch core
-(build step 1, `backend/pitch-server/`, its wire protocol in
-`backend/pitch-server/PROTOCOL.md`), and a throwaway proof of concept in
-`backend/room-server-poc/`. Nothing live uses either.
+(build step 1, `backend/pitch-server/core.mjs`, its wire protocol in
+`backend/pitch-server/PROTOCOL.md`), the Worker with `PitchDO` and `LobbyDO` (build step
+2, `backend/pitch-server/src/`, deployed to dev as `throwingwood-pitches-dev`; deploying
+and operating it: `backend/pitch-server/README.md`), and a throwaway proof of concept in
+`backend/room-server-poc/`. No client uses any of them yet.
 
 This is a working document. It holds what was decided, what was measured and what is
 still open, so the build can start on any machine without the conversation that led to
@@ -204,6 +206,39 @@ Times are median / p95 / p99 in ms.
   sockets at once. All were back in under half a second, and nothing was lost.
 - The whole session used an estimated 2 to 3% of the free plan's daily limits.
 
+### The real server (build step 2)
+
+2026-11-21, the same Mac, against `throwingwood-pitches-dev` on workers.dev, with the
+driver in `backend/pitch-server/driver/` (synthetic data only: casts padded to 300 B,
+actions with 12 KB snapshots). Round trip to the Worker's `/health`: 30 ms median, 97 ms
+p95. Times are median / p95 / p99 in ms, 12 players and 20 observers.
+
+| Measure                        | relay first        | write first        |
+| ------------------------------ | ------------------ | ------------------ |
+| Aim relay to players           | 22.2 / 28.8 / 33.2 | 22.5 / 34.8 / 45.7 |
+| Aim relay to observers         | 22.1 / 29.2 / 33.9 | 24.0 / 38.0 / 48.3 |
+| Action commit to other players | 25.8 / 32.0 / 35.0 | 48.5 / 71.9 / 76.7 |
+| Action commit to observers     | 24.9 / 32.4 / 36.5 | 49.4 / 73.2 / 77.4 |
+| `ok` back to the actor         | 24.7 / 35.2        | 47.6 / 77.9        |
+
+- Three minutes of 6 v 6 with 20 observers (55 actions): aim 20.5 / 25.8 / 28.9,
+  actions 23.1 / 28.6 / 33.4, ten aim frames of about 9 400 over 250 ms (the worst 383),
+  none over 1 s. Joining took about 120 ms.
+- Observers got 10.2 aim frames a second from 15 Hz, never two closer than 53 ms (the
+  target was 10; the proof of concept gave 7.5).
+- The action log was identical on all 32 clients in every run, with no jump in `s`.
+- Simultaneous actions: one stored and the same log everywhere, 10 times of 10.
+- Resume: three dropped players each got back exactly the 4 actions they missed.
+- Hibernation: the object slept and was rebuilt from storage in both 30 s idle gaps,
+  with literal pings and without; the first aim after a wake took 23 to 25 ms.
+- A deploy 30 s into a two minute match (`dev-1` to `dev-2`) dropped nothing: no socket
+  closed, the busy pitch kept running the old code to the end, new requests got the
+  new one at once.
+- The SQLite store held about 15 KB an action at these sizes (the head's snapshot and
+  the outbox's copies; nothing was pushed, there is no receiver yet).
+- Every run, the tests included, used well under 1% of the free plan's daily Durable
+  Object requests (about 700 billed requests in all).
+
 Against the old server: 36 ms inside Lambda alone for an aim frame, 250 to 700 ms a
 commit, stalls of about 2 s.
 
@@ -214,8 +249,10 @@ commit, stalls of about 2 s.
 - Durable Objects are declared in `cloudflare.config.ts` as
   `exports: { X: exports.durableObject({ storage: "sqlite" }) }`, with a binding in
   `env` (`bindings.durableObject({ worker, exportName })`).
-- There is no setting for how fast a deploy reaches a busy object. Expect about 300 s
-  and a drop of every socket.
+- There is no setting for how fast a deploy reaches a busy object. The proof of
+  concept saw about 300 s and a drop of every socket; step 2's two minute run saw no
+  drop at all. Clients must handle both.
+- `cf deploy` with `</dev/null` never prompts; it printed no question in any deploy.
 - Secrets go with `cf deploy --secrets-file <file>`.
 - Sign in: `cf auth login --scopes challenge-widgets.write workers-scripts.write
 workers-scripts.read workers-tail.read` (a device code the account owner enters).
@@ -230,7 +267,9 @@ Each step is its own pull request.
 1. Pitch core as pure, tested logic: the protocol, sequencing, duplicates, resume,
    lobby compare-and-set, observer thinning. No Workers APIs. Built:
    `backend/pitch-server/core.mjs`, tests in `tests/pitch-server/`.
-2. `PitchDO`, the Worker and `LobbyDO`, with tests in the Workers pool.
+2. `PitchDO`, the Worker and `LobbyDO`, with tests in the Workers pool. Built:
+   `backend/pitch-server/src/`, tests in `backend/pitch-server/test/` (CI runs them) and
+   `tests/pitch-server/edge.test.mjs`; deployed to dev.
 3. The AWS function the pitch reports to (`kubb-xyz-api`): HMAC check, records, kept
    replay, and the HTTPS calls (`report`, `game`, `replay`, `reel`, `share`).
 4. The web client.
@@ -253,3 +292,8 @@ Each step is its own pull request.
 - A line on the privacy page that names Cloudflare.
 - A CI token for deploys.
 - The hand-off card and online pacing (0.8 s rest, 0.7 s per auto-raise).
+- How long an unconfirmed push is retried. Today: for as long as the pitch lives, at
+  most every 5 minutes, and a pitch with pending pushes is never wiped.
+- Rate limits beyond each connection's own (section 9 of the protocol) and the 5 s cache
+  on `/open`: per address at the Worker, if abuse ever shows.
+- The Worker's name for production (`throwingwood-pitches`?) and whether dev stays.

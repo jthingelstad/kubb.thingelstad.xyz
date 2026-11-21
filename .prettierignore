@@ -13,3 +13,7 @@ backend/room-server-poc/results/
 backend/room-server-poc/.data/
 backend/room-server-poc/.wrangler/
 backend/room-server-poc/.cloudflare/
+# the pitch server's local output, never in git
+backend/pitch-server/results/
+backend/pitch-server/.wrangler/
+backend/pitch-server/.cloudflare/

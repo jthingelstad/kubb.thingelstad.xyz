@@ -25,6 +25,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run format:check && npm run check
+      # The pitch server's Durable Object tests, in workerd (backend/pitch-server/README.md).
+      - run: npm ci --prefix backend/pitch-server
+      - run: npm run test:do --prefix backend/pitch-server
       - run: pipx run --spec cfn-lint==1.57.2 cfn-lint infra/site.json infra/delivery.json infra/rooms.json
       - run: npm audit --audit-level=high
   deploy:
