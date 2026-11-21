@@ -2,7 +2,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Harness, act, id, start } from "./harness.mjs";
-import { LIMITS, step } from "../../backend/pitch-server/core.mjs";
+import {
+  LIMITS,
+  rebuildPitch,
+  step,
+} from "../../backend/pitch-server/core.mjs";
 
 // A match under way: two players, an observer, some actions, the pitch open.
 const before = [
@@ -246,4 +250,40 @@ test("pushes AWS has not confirmed stay pending and hold off the idle wipe", () 
   assert.ok(h.alarm !== null);
   h.tick(LIMITS.idleMs);
   assert.equal(h.wiped, 1);
+});
+
+test("an alarm saved but never set before a restart is set on waking", () => {
+  const h = new Harness();
+  run(h, before, 10);
+  for (const c of ["a", "b", "o"]) h.take(c);
+  // the host leaves; the grace deadline is written, then the object dies
+  h.open.delete("a");
+  const r = step(h.state, { type: "close", conn: "a", now: h.now });
+  h.apply(r.effects, { stopAt: "alarm" });
+  const due = h.now + LIMITS.hostGraceMs;
+  assert.equal(h.store.pitch.alarmAt, due, "the deadline was saved");
+  assert.ok(h.alarm > due, "but the alarm still waits for the listing refresh");
+  const effects = h.wake({ dt: 1000 });
+  assert.deepEqual(
+    effects.filter((e) => e.kind === "alarm"),
+    [{ kind: "alarm", at: due }],
+  );
+  h.tick(LIMITS.hostGraceMs);
+  assert.equal(h.state.host, id("bert"), "the host passes on as it would have");
+});
+
+test("waking without the real alarm always sets it again", () => {
+  const h = new Harness();
+  run(h, before, 10);
+  const want = h.alarm;
+  const r = rebuildPitch({
+    code: h.code,
+    stored: JSON.parse(JSON.stringify(h.store)),
+    conns: [...h.open].map((conn) => ({ conn, ...h.attached.get(conn) })),
+    now: h.now,
+  });
+  assert.deepEqual(
+    r.effects.filter((e) => e.kind === "alarm"),
+    [{ kind: "alarm", at: want }],
+  );
 });

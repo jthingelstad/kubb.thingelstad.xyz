@@ -1180,8 +1180,19 @@ function buildPersist(cx) {
 // `stored` is { pitch, doc, members, match, head, acts } as the persist effects left
 // them (all absent for a pitch never joined); `conns` is the sockets still open, each
 // { conn, member, role } from its attachment. A member written as connected whose
-// socket is gone is marked away now and the others are told.
-export function rebuildPitch({ code, stored, conns = [], now, options } = {}) {
+// socket is gone is marked away now and the others are told. `alarm` is the alarm
+// actually scheduled (the object's getAlarm(), null for none): the saved `alarmAt`
+// can be ahead of it when the object died between the persist and the alarm effect,
+// so the core compares against the real one and sets it again when they differ.
+// Left out, the alarm is unknown and is always set again.
+export function rebuildPitch({
+  code,
+  stored,
+  conns = [],
+  now,
+  options,
+  alarm,
+} = {}) {
   if (typeof code !== "string" || !PITCH_CODE.test(code))
     throw new TypeError("not a pitch code");
   const st = blank(code, now, resolveOptions(options));
@@ -1198,7 +1209,8 @@ export function rebuildPitch({ code, stored, conns = [], now, options } = {}) {
     hostAway: P.hostAway,
     open: P.open,
     listing: P.listing ?? { entry: null, at: null },
-    alarmAt: P.alarmAt ?? null,
+    // undefined (unknown) differs from any deadline, so finish() always sets it
+    alarmAt: alarm === undefined ? undefined : alarm,
     touched: P.touched ?? now,
   });
   if (stored.doc)
