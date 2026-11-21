@@ -136,7 +136,7 @@ export function captureReport({
   if (pitch?.room) {
     // the pitch's code (API.md `pitch`; older clients sent `room`), its lobby document's
     // version, and the match's head as the pitch client holds it
-    r.pitch = pitch.room.code ?? null;
+    r.pitch = pitch.room.pitch ?? null; // PitchClient keeps the code as `pitch`
     r.v = pitch.room.v ?? null;
     const m = pitch.room.match;
     if (m) r.match = { n: m.n, seq: m.seq };
