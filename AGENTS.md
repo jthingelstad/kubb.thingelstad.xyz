@@ -483,8 +483,9 @@ A player can hand the raising to the engine mid-match (Jamie, 2026-11-19: "When 
 kubbs we have three options today including an auto, we should also add an "auto all". In
 fact I could see players wanting to shift to auto raise kubbs for the rest of the game.").
 The raise panel has END 1, END 2, AUTO (this kubb) and AUTO ALL (the rest of this turn's);
-MENU, Raising, or REST OF GAME on the panel, makes every raise automatic for the rest of
-the match, and BY HAND takes it back. It is the player's own choice on a match that raises
+REST OF GAME on the panel makes every raise automatic for the rest of the match, and BY
+HAND takes it back (raising is a match option, so the part-way choice is on the raise
+panel, not in MENU). It is the player's own choice on a match that raises
 by hand, kept only for that match: `src/game/auto-raise.js`, docs/CLIENT.md "Match flow".
 
 By hand, the player touches the kubb itself (Jamie, 2026-11-19: "similar to on the
@@ -522,8 +523,17 @@ labels are plain words.
 - Practice's tray is BATONS | KUBBS, the one in use pressed (it was one button naming the
   other mode). The rail counts in words ("5 BASE KUBBS", "TARGET 2.3 M"), not the
   engine's Playdate "BASE 5" (`railCount` in `src/game/hud.js`).
-- MENU's rows say what they set and show their value: Your level, Meter, Meter side,
-  Raising, View, Surface and Scene (practice), Sound (On/Off, once a SOUND: ON button).
+- MENU's rows say what they set and show their value: Your name, Your level, Meter,
+  Meter side, Sound (On/Off, once a SOUND: ON button), View (watching), Surface and Scene
+  (practice).
+- **Settings by scope** (the owner's settings sheet, 2026-11-20). Device settings (your
+  name, your level, meter, meter side, sound) are one set of rows (`src/ui/settings.js`)
+  at the top of MENU in every mode and on `/settings/`, linked from the web game's page;
+  never asked per match. Game settings (Computer level, surface, opening, raising, wind,
+  kubb set, scene, who can join) are on the solo card, the practice MENU (surface,
+  scene) and the lobby only. Turn and throw settings (stand, spin; arc, tilt) are on the
+  throw controls. Your name is typed once (the solo card or the lobby ask only while the
+  device keeps none) and changed in Settings. docs/CLIENT.md "Settings".
 - **Two levels** (Jamie, 2026-11-20, as the iPhone has them). The level you throw at is
   the device's, set in MENU only, with "A change applies from your next throw."; the
   solo card and the lobby show it ("Throwing at Club.") with CHANGE IN MENU, never a

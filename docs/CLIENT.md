@@ -13,9 +13,10 @@ the engine's.
 | Page                | What it is                                                                                                                                                                                                                                                                                          |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/practice/`        | The open practice pitch: BATONS or KUBBS (the drill), surface, reset and level.                                                                                                                                                                                                                     |
-| `/p/<code>?solo=1`  | A match against the computer. The options card first (name, the level you throw at with CHANGE IN MENU, Computer level, surface, opening, raising, wind, kubb set, scene; remembered), then START.                                                                                                  |
+| `/settings/`        | The device's settings alone (your name, your level, meter, meter side, sound): the same rows as MENU's, from Settings on the web game's page, with DONE back to it. No engine is loaded.                                                                                                            |
+| `/p/<code>?solo=1`  | A match against the computer. The options card first (your name and the level you throw at, each with CHANGE IN MENU, Computer level, surface, opening, raising, wind, kubb set, scene; remembered), then START.                                                                                    |
 | `/p/<code>?watch=1` | The computer against itself, match after match: no options card, the solo card's saved options, North against South. The winner card stays up 10 s (NEXT MATCH, STOP, HOME), then the next match starts by itself, the other team first. Seen in the wide view by default ("The wide view", below). |
-| `/p/<code>`         | A shared pitch: the lobby (name, the level you throw at, Team A or B or watching, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md.                                                                                                                  |
+| `/p/<code>`         | A shared pitch: the lobby (your name and the level you throw at, Team A or B or watching, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md.                                                                                                          |
 | `/e/<code>`         | The embed: a kept replay alone, for a frame on another site ("The embed", below).                                                                                                                                                                                                                   |
 
 A failure to start shows a plain error card with RELOAD and HOME. HOME, on every card, is
@@ -32,7 +33,8 @@ the web game's page, `/web/` (`/` is the landing page for the whole game). The H
 | `src/game/plan-sliders.js`                    | The plan's ARC and TILT/SPIN sliders (`PlanSlider`, DOM) and their scales and words (pure, `tests/game/plan-sliders.test.mjs`).                                                  |
 | `src/game/layout.js`                          | Pure: where the dial (or the linear meter), the wide plan block and minimap go, the tall-canvas framing (`worldFit`, `stillFit`, `panFor`), and the wide view's box (`wideBox`). |
 | `src/game/scenes.js`                          | The client's own cameras for raising and punishment, and the pieces in them.                                                                                                     |
-| `src/game/auto-raise.js`                      | Pure: automatic raising for the turn (AUTO ALL) or the match (MENU, Raising).                                                                                                    |
+| `src/game/auto-raise.js`                      | Pure: automatic raising for the turn (AUTO ALL) or the match (REST OF GAME on the raise panel).                                                                                  |
+| `src/game/player-name.js`                     | Pure: the device's name (the `name` pref), tidied, and moved across once from the solo card's old `solo.name`.                                                                   |
 | `src/game/raise-touch.js`                     | Pure: raising by touch, where the drawn kubb is, which end a tap or drag means, its tilt.                                                                                        |
 | `src/game/sound.js`                           | `Sound`: the knocks and the king's chord through Web Audio; unlock on the first pointer down; mute remembered.                                                                   |
 | `src/game/nudge.js`, `src/render/nudge.js`    | The throw's nudge: when it shows and the ghost's throw (pure), and its drawing over the meter ("The nudge", below).                                                              |
@@ -44,7 +46,8 @@ the web game's page, `/web/` (`/` is the landing page for the whole game). The H
 | `src/net/lobby.js`, `seats.js`, `sync.js`     | Thin wrappers over kubb-engine's `room.*` rules; cached seat/actor reads keep these calls out of the render loop (docs/MULTIPLAYER.md).                                          |
 | `src/net/room.js`                             | The room client (docs/ROOMS.md).                                                                                                                                                 |
 | `src/game/stand-pad.js`                       | STAND: where the thrower stands, the plate's map to the ground and back and its words (pure), and `StandPad`, its DOM and pointer ("Standing", below).                           |
-| `src/ui/menu.js`                              | `Menu`: Your level, Meter, Meter side, Raising, View, Surface, Sound (each a row that shows its value), how to throw, resign, feedback, rules, home.                             |
+| `src/ui/settings.js`                          | The device's settings rows (Your name, Your level, Meter, Meter side, Sound), shared by MENU and the `/settings/` page ("Settings", below).                                      |
+| `src/ui/menu.js`                              | `Menu`: the device's rows (`src/ui/settings.js`), View when watching, Surface and Scene in practice, then how to throw, resign, feedback, rules, home.                           |
 | `src/ui/report.js`, `src/net/report.js`       | The report card, and what a report carries and how it is sent (below, and docs/ROOMS.md section 8).                                                                              |
 | `src/ui/sheet.js`                             | The score sheet card (below).                                                                                                                                                    |
 | `src/net/record.js`, `src/net/ask.js`         | What a solo or watch match's record carries and how it is sent; `ask`, the one-message socket reports and records share.                                                         |
@@ -636,9 +639,10 @@ throws he took for perfect had been judged long.
   (`src/game/raise-touch.js`, pure; `Game.raisePick`, `Game.raiseDragTo`). AUTO is the
   engine's choice for this kubb. With more than one kubb still
   to raise the panel also has AUTO ALL: the rest of this turn's are stood on the engine's
-  choice, one every 0.7 s so each is seen. MENU, Raising (By hand or Automatic; the row
-  appears once this browser has been asked to raise) and REST OF GAME, beside BY HAND
-  while AUTO ALL runs, do that for every kubb for the rest of the match. While it is
+  choice, one every 0.7 s so each is seen. REST OF GAME, on the panel by hand and beside
+  BY HAND while AUTO ALL runs, does that for every kubb for the rest of the match (it was
+  also MENU's Raising row until the settings restructure: raising is a match option, so
+  the part-way choice is on the raise controls, not in the device's settings). While it is
   automatic the panel only says so, with BY HAND to take it back. It is this player's
   choice, never sent or recorded apart from the raises themselves, never for the other
   team, held while a card or the menu is open, and given back to the player if the
@@ -659,11 +663,28 @@ throws he took for perfect had been judged long.
   who acts; the others see the status pill and no panel, as before.
 - **The winner**: REMATCH (back to the options; on a shared pitch the host's only, back to
   the lobby with the same teams), SCORE SHEET and HOME.
-- **The menu**: its rows (Your level, the player's own throw tolerance, with "A change
-  applies from your next throw."; Meter; Meter side;
-  Raising in a match; View when watching; Surface and Scene in practice; Sound) each show their
-  value as a choice. Then how to throw, score sheet (a match), resign, send feedback,
-  rules, home; Escape closes it. It opens over a card too, from CHANGE IN MENU.
+- **The menu**: the device's settings first ("Settings", below: Your name, Your level
+  with "A change applies from your next throw.", Meter, Meter side, Sound), then View
+  when watching, and on the practice pitch that pitch's own options, Surface and Scene.
+  Each row shows its value as a choice. Then how to throw, score sheet (a match), resign,
+  send feedback, rules, home; Escape closes it. It opens over a card too, from CHANGE IN
+  MENU. A match's options are never in it.
+- **Settings** (the owner's settings sheet, 2026-11-20: each setting lives where its
+  scope says). Device settings are kept on the device and never asked per match: your
+  name (prefs `name`, `src/game/player-name.js`), your level (`level`), the meter
+  (`meter`), its side (`meterSide`) and the sound (`muted`). They are one set of rows,
+  `deviceRows` in `src/ui/settings.js`, shown at the top of MENU in every mode and as the
+  `/settings/` page, linked as Settings on the web game's page (`prefsDevice` reads and
+  writes the same prefs there, with no engine loaded). Game settings (Computer level,
+  surface, opening, raising, wind, kubb set, scene, and online who can join) live on the
+  match options only: the solo card, the practice MENU (surface and scene) and the lobby.
+  Turn and throw settings (stand, spin; arc, tilt) live on the throw controls and the
+  engine keeps their scope. The solo card and the lobby show your name as they show your
+  level, with CHANGE IN MENU; while the device keeps no name yet they ask for it once (a
+  box), and what is typed becomes the device's (`Game.setPlayerName`, heard through
+  `Game.onPlayerName`; the pitch sends it to the room). A device's older name moves
+  across once: `name`, else the solo card's `solo.name` unless it is the "You"
+  placeholder. The solo card no longer saves a name in `solo`.
 - **Two levels** (Jamie, 2026-11-20; `src/game/throw-level.js`), as the iPhone app has
   them. The level you throw at is this device's setting, set in MENU only (prefs
   `level`): practice, a match against the computer and a shared pitch all throw at it,
@@ -1059,6 +1080,13 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
   the meter, the minimap nor MENU, a wide screen's block is the size `layout.js` plans
   for (`tune.planW`, `planH`) and on a phone on its side at the far edge, and each
   slider's hit area, and STAND's, is at least 44 px across its drag.
+- `tests/game/settings-client.test.mjs` (Playwright): `/settings/` from the web game's
+  page shows a device's older name and level, has no match option, and what it sets is
+  what the game reads; MENU has the device's rows in practice and in a match, the
+  practice pitch's Surface and Scene only in practice, and no Raising; the solo card asks
+  a new device's name once, the match carries it, the next card shows it and MENU changes
+  it; the lobby shows a kept name with CHANGE IN MENU and the room hears a change.
+  `tests/game/player-name.test.mjs` is the move across and `prefsDevice`.
 - `tests/game/levels-client.test.mjs` (Playwright): a device from before keeps its
   level; the solo card's Computer level sets the computer on 0.9 while you throw at MENU's
   level, changed from the card's CHANGE IN MENU; on a pitch the host sets the computer's
