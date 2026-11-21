@@ -22,8 +22,9 @@ Arriving on the link joins the room (`config.roomsUrl`) under this browser's mem
 (`kubb.member` in localStorage) with `me = { name, level, engine }`. `engine` is the
 vendored engine's major.minor (`"0.3"`), read from `room.constants`. The lobby card shows:
 
-- **Your name** and **your level**, both this device's (`kubb:name`, `kubb:level`), each
-  shown with CHANGE IN MENU. A device with no name yet gets a box here once; what is typed
+- **You**: your name and your level, both this device's (`kubb:name`, `kubb:level`), in
+  one row ("Birch · Throwing at Club.") with one CHANGE IN MENU. A device with no name
+  yet gets a box here once, the level line under it; what is typed
   is kept as the device's name and sent as you type. A change in MENU is sent too. Each
   player's throw level is their own.
 - **Team A** (marigold) and **Team B** (violet), up to six a side, in throwing order, each

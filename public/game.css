@@ -1490,6 +1490,13 @@ body.game {
   grid-column: 2;
   justify-self: start;
 }
+/* the solo card's and the lobby's one "You" row (src/ui/settings.js youRow): with
+   the name box, the level line and the button sit under the box */
+.opt.you .name ~ .opt-value,
+.opt.you > button {
+  grid-column: 2;
+  justify-self: start;
+}
 .access-note {
   margin: 4px 0 10px;
   font-size: 14px;

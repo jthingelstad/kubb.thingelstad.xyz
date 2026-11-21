@@ -7,8 +7,57 @@
 // MENU and the lobby.
 import { h, button } from "./dom.js";
 import { prefs } from "../game/prefs.js";
-import { LEVEL_NOTE, loadThrowLevel } from "../game/throw-level.js";
+import { LEVEL_NOTE, levelLine, loadThrowLevel } from "../game/throw-level.js";
 import { loadName, saveName, NAME_MAX } from "../game/player-name.js";
+
+// The solo card's and the lobby's one "You" row: the device's name and the level
+// it throws at, with one CHANGE IN MENU, never a picker ("Birch · Throwing at
+// Club."). While the device keeps no name yet, `input` (the card's name box) takes
+// the name's place and the level line sits under it. A screen reader hears "You,
+// Birch, Throwing at Club.": the dot is drawn only. `key` names the row for tests
+// (`<key>-you`, its button `<key>-you-menu`).
+export function youRow(
+  key,
+  { name = "", level = null, input = null, menu = null },
+) {
+  const nameText = h("span.you-name", name);
+  const levelText = h("span.you-level", level ? levelLine(level) : "");
+  const dot = h("span.you-dot", { "aria-hidden": "true" }, " · ");
+  const comma = h("span.visually-hidden", ", ");
+  const value = input
+    ? h("span.opt-value", levelText)
+    : h("span.opt-value", nameText, dot, comma, levelText);
+  const sync = () => {
+    const both = Boolean(nameText.textContent && levelText.textContent);
+    dot.hidden = comma.hidden = !both;
+    value.hidden = !value.textContent.trim();
+  };
+  sync();
+  const el = h(
+    "div.opt.you",
+    { "data-test": `${key}-you` },
+    h("span.opt-label", "You"),
+    input,
+    value,
+    menu
+      ? button("CHANGE IN MENU", () => menu(), "small", {
+          "aria-label": "Change in MENU: your name and level",
+          "data-test": `${key}-you-menu`,
+        })
+      : null,
+  );
+  return {
+    el,
+    setName(v) {
+      nameText.textContent = v;
+      sync();
+    },
+    setLevel(v) {
+      levelText.textContent = v ? levelLine(v) : "";
+      sync();
+    },
+  };
+}
 
 export const LEVELS = [
   ["beginner", "Beginner"],

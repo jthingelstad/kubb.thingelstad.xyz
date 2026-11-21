@@ -50,7 +50,7 @@ browserTest(
       // nobody's level resets: the old choice is the device's and the computer's
       assert.equal(await page.evaluate(() => window.__kubb.game.level), "pro");
       assert.equal(
-        await page.textContent("[data-test=solo-level] .opt-value"),
+        await page.textContent("[data-test=solo-you] .you-level"),
         "Throwing at Pro.",
       );
       const checked = (key) =>
@@ -64,7 +64,7 @@ browserTest(
         "Computer level",
       );
       // MENU, opened from the card, changes the device's level; the card follows
-      await page.click("[data-test=solo-level-menu]");
+      await page.click("[data-test=solo-you-menu]");
       await page.waitForSelector("[data-test=menu-card]");
       assert.equal(
         await page.textContent("[data-test=menu-level] .opt-note"),
@@ -73,7 +73,7 @@ browserTest(
       await page.click("[data-test=menu-level] .seg-btn:has-text('Club')");
       await page.keyboard.press("Escape");
       assert.equal(
-        await page.textContent("[data-test=solo-level] .opt-value"),
+        await page.textContent("[data-test=solo-you] .you-level"),
         "Throwing at Club.",
       );
       await page.click("[data-test=solo-opt-computer] [data-value=beginner]");
@@ -137,13 +137,10 @@ browserTest(
     try {
       // no level picker in the lobby: the line says MENU's
       assert.equal(
-        await host.textContent("[data-test=lobby-level] .opt-value"),
+        await host.textContent("[data-test=lobby-you] .you-level"),
         "Throwing at Beginner.",
       );
-      assert.equal(
-        await host.locator("[data-test=lobby-level] .seg").count(),
-        0,
-      );
+      assert.equal(await host.locator("[data-test=lobby-you] .seg").count(), 0);
       await host.click("[data-test=join-A]");
       await host.waitForSelector("[data-test=lobby-opt-computer] .seg");
       await host.click("[data-test=lobby-opt-computer] [data-value=pro]");

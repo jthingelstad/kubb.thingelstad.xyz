@@ -16,7 +16,7 @@ import {
   NAME_MAX,
 } from "../net/lobby.js";
 import { roomEngine } from "../net/room-engine.js";
-import { levelLine } from "../game/throw-level.js";
+import { youRow } from "./settings.js";
 import { SCENE_ROW, sceneId, takesScene } from "../render/scenes.js";
 
 // "Computer level", as the iPhone app and the solo card say it (the engine's label
@@ -42,8 +42,8 @@ export class Lobby {
     this.code = code;
     this.closeFn = null;
 
-    // your name is this device's (src/game/player-name.js): shown with CHANGE IN
-    // MENU once kept, as the level is; asked here only while there is none
+    // your name is this device's (src/game/player-name.js): asked here only while
+    // there is none
     this.nameInput = name
       ? null
       : h("input.name", {
@@ -57,7 +57,6 @@ export class Lobby {
           "aria-label": "Your name",
           "data-test": "lobby-name",
         });
-    this.nameText = h("span.opt-value", name || "");
     if (this.nameInput) {
       const input = this.nameInput;
       const sendName = () => hooks.name(input.value);
@@ -74,29 +73,14 @@ export class Lobby {
         timer = setTimeout(sendName, 600);
       });
     }
-    this.nameRow = this.nameInput
-      ? h("label.opt", h("span.opt-label", "Your name"), this.nameInput)
-      : h(
-          "div.opt",
-          { "data-test": "lobby-name-row" },
-          h("span.opt-label", "Your name"),
-          this.nameText,
-          button("CHANGE IN MENU", () => hooks.menu?.(), "small", {
-            "data-test": "lobby-name-menu",
-          }),
-        );
-
-    // the level you throw at is this device's, set in MENU (src/game/throw-level.js)
-    this.levelText = h("span.opt-value", levelLine(level));
-    this.levelRow = h(
-      "div.opt",
-      { "data-test": "lobby-level" },
-      h("span.opt-label", "Your level"),
-      this.levelText,
-      button("CHANGE IN MENU", () => hooks.menu?.(), "small", {
-        "data-test": "lobby-level-menu",
-      }),
-    );
+    // one "You" row: the name (or its box) and the level you throw at, which is this
+    // device's too, set in MENU (src/game/throw-level.js); one CHANGE IN MENU
+    this.you = youRow("lobby", {
+      name: name || "",
+      level,
+      input: this.nameInput,
+      menu: () => hooks.menu?.(),
+    });
 
     this.teams = {};
     for (const side of ["A", "B"]) {
@@ -159,8 +143,7 @@ export class Lobby {
       { "data-test": "lobby" },
       h("p.kicker", `PITCH ${code}  `, this.status),
       h("h2.display", "Pick a side"),
-      this.nameRow,
-      this.levelRow,
+      this.you.el,
       h("div.teams", this.teams.A.el, this.teams.B.el),
       h("div.watch-row", this.watchList, this.sitOut),
       h("div.share-row", this.shareBtn, this.linkText, this.replayBtn),
@@ -372,14 +355,14 @@ export class Lobby {
   // The device's name changed (in MENU, or typed here): the row says it. A name box
   // stays a box while the lobby is up, so typing in it is never interrupted.
   setName(v) {
-    this.nameText.textContent = v;
+    this.you.setName(v);
     if (this.nameInput && document.activeElement !== this.nameInput)
       this.nameInput.value = v;
   }
 
   // The device's throw level changed (in MENU).
   setLevel(v) {
-    this.levelText.textContent = levelLine(v);
+    this.you.setLevel(v);
   }
 }
 
