@@ -9,6 +9,7 @@
   "productionUrl": "https://throwingwood.com/",
   "wsRoute": true,
   "reelRenderer": true,
+  "pitchApi": false,
   "githubRepositoryId": "1459352238",
   "siteBucket": "kubb-xyz-site-web-999153317627",
   "codeBucket": "kubb-xyz-site-code-999153317627",

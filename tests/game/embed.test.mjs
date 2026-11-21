@@ -39,33 +39,29 @@ const CODES = {
   over: "vvvvvvvv", // finished, its replay not kept
   none: "nnnnnnnn",
 };
-const doc = (d) => ({ v: 5, doc: JSON.stringify(d) });
+// The pitch's records as the pages function reads them (backend/pages/pitch.mjs
+// readPitch): the state of its latest match and the kept replay of the last finished one.
+const M = 1_763_700_000_000;
+const R = JSON.parse(REPLAY);
+const KEPT = { v: M + 1000, made: M, n: R.n, snap: R.snap, hash: R.hash };
+const state = (fields) => ({ v: 5, made: M, n: 1, seq: 1, ...fields });
+// No record says "waiting" any more (the pitch server pushes no lobby), but the embed
+// still has its card for a state that says so.
+const WAITING = { state: "waiting", v: 5 };
 const STATES = {
-  [CODES.replay]: pitchState({ doc: null, replay: REPLAY }),
+  [CODES.replay]: pitchState({ kept: KEPT }),
   [CODES.playing]: pitchState({
-    doc: doc({ started: true, match: { snap: IN_PLAY, setup: {} } }),
+    state: state({ over: false, snap: IN_PLAY }),
   }),
-  [CODES.waiting]: pitchState({ doc: doc({ started: false }) }),
-  [CODES.rematch]: pitchState({ doc: doc({ started: false }) }),
+  [CODES.waiting]: WAITING,
+  [CODES.rematch]: WAITING,
   [CODES.older]: pitchState({
-    doc: doc({
-      started: true,
-      match: {
-        over: true,
-        n: JSON.parse(REPLAY).n + 1,
-        snap: JSON.parse(REPLAY).snap,
-        hash: JSON.parse(REPLAY).hash,
-        setup: {},
-      },
-    }),
-    kept: REPLAY,
+    state: state({ over: true, n: R.n + 1, snap: R.snap, hash: R.hash }),
+    kept: KEPT,
   }),
   [CODES.over]: pitchState({
-    doc: doc({
-      started: true,
-      match: { over: true, snap: JSON.parse(REPLAY).snap, setup: {} },
-    }),
-    kept: false,
+    state: state({ over: true, snap: R.snap }),
+    kept: null,
   }),
   [CODES.none]: pitchState({}),
 };

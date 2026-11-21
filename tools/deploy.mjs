@@ -1,5 +1,5 @@
 // Publish dist/ to the site bucket, refresh CloudFront, check the live bytes,
-// and bring the rooms function's code up to date.
+// and bring the rooms function's code (and the api function's, once it runs) up to date.
 //
 //   KUBB_PRODUCTION=true npm run build && npm run deploy
 //
@@ -37,6 +37,7 @@ import {
   prepareObject,
   publicationOrder,
 } from "./delivery-plan.mjs";
+import { bundleApi } from "./api-bundle.mjs";
 import { bundlePages } from "./pages-bundle.mjs";
 import { bundleRooms } from "./rooms-bundle.mjs";
 
@@ -218,6 +219,40 @@ if (config.rooms?.functionName) {
   }
 }
 
+// The api function's code, the same way, when the rooms stack runs it ("pitchApi").
+let api = "not deployed";
+if (config.api?.functionName) {
+  const lambda = new LambdaClient(settings);
+  const bundle = await bundleApi();
+  const live = await lambda.send(
+    new GetFunctionCommand({ FunctionName: config.api.functionName }),
+  );
+  if (live.Configuration.CodeSha256 === bundle.codeSha256) api = "unchanged";
+  else {
+    await assertCurrentHead();
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: config.codeBucket,
+        Key: bundle.key,
+        Body: bundle.zip,
+        ContentType: "application/zip",
+      }),
+    );
+    await lambda.send(
+      new UpdateFunctionCodeCommand({
+        FunctionName: config.api.functionName,
+        S3Bucket: config.codeBucket,
+        S3Key: bundle.key,
+      }),
+    );
+    await waitUntilFunctionUpdatedV2(
+      { client: lambda, maxWaitTime: 300 },
+      { FunctionName: config.api.functionName },
+    );
+    api = `updated to ${bundle.key}`;
+  }
+}
+
 // The pitch pages function is the site stack's (a web function revision names its
 // package), so a deploy only says when its code has moved on: the delivery role
 // never changes infrastructure, and npm run infra:apply -- site brings it live.
@@ -299,6 +334,7 @@ console.log(
     url: config.productionUrl,
     invalidation: invalidation.Invalidation.Id,
     rooms,
+    api,
     pages,
   }),
 );

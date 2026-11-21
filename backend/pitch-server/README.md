@@ -92,6 +92,9 @@ What `PitchDO` sends is in PROTOCOL.md, "On the wire to AWS": one signed `POST` 
 push, keyed `<pitch>:<made>:<k>`, retried until a 2xx. `test/receiver.mjs` is a working
 stand-in: it checks the signature and the key exactly as the real one must.
 
+The real one is `backend/api/` (its contract `backend/api/API.md`), built and not yet
+deployed. Its secret and `PUSH_URL` steps are `docs/PITCH-SERVER.md` section 12.
+
 ## Test
 
 ```sh

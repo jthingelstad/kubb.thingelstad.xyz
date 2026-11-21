@@ -103,20 +103,20 @@ test("the reel role: the replay's attributes, the reel item's, reels/ and its lo
   for (const s of [by.ReadKeptReplay, by.UpdateReelItem])
     assert.deepEqual(
       s.Condition["ForAllValues:StringLike"]["dynamodb:LeadingKeys"],
-      ["room#*"],
+      ["pitch#*"],
     );
   assert.deepEqual(
     by.ReadKeptReplay.Condition["ForAllValues:StringEquals"][
       "dynamodb:Attributes"
     ].sort(),
-    ["exp", "pk", "sk", "v", "z"],
+    ["exp", "pk", "s", "sk", "v", "z"],
   );
-  // the reel item's own attributes: none is on a room, doc, replay or conn item
+  // the reel item's own attributes: none is on a state, half or replay item
   const reelAttrs =
     by.UpdateReelItem.Condition["ForAllValues:StringEquals"][
       "dynamodb:Attributes"
     ];
-  for (const other of ["rev", "json", "doc", "by", "sid", "z", "exp", "v"])
+  for (const other of ["rev", "json", "doc", "by", "sid", "z", "s", "exp", "v"])
     assert.ok(!reelAttrs.includes(other), other);
   assert.equal(by.WriteReels.Action, "s3:PutObject");
   assert.match(by.WriteReels.Resource["Fn::Sub"], /\/reels\/\*$/);

@@ -165,7 +165,12 @@ class ConditionalCheckFailedException extends Error {
 
 test("the AWS store asks for exactly the replay's attributes and updates only the reel item's", async () => {
   const calls = [];
-  const reel = { pk: `room#${ROOM}`, sk: "reel", job: JOB, state: "rendering" };
+  const reel = {
+    pk: `pitch#${ROOM}`,
+    sk: "reel",
+    job: JOB,
+    state: "rendering",
+  };
   const client = {
     async send(cmd) {
       const i = cmd.input;
@@ -174,7 +179,8 @@ test("the AWS store asks for exactly the replay's attributes and updates only th
         return {
           Item: {
             v: 4,
-            z: gzipSync(JSON.stringify(REPLAY)),
+            z: gzipSync(JSON.stringify({ ...REPLAY, snap: undefined })),
+            s: gzipSync('{"final":true}'),
             exp: T0 / 1000 + 10,
           },
         };
@@ -194,10 +200,13 @@ test("the AWS store asks for exactly the replay's attributes and updates only th
   const kept = await store.getReplay(ROOM);
   assert.equal(kept.v, 4);
   assert.equal(JSON.parse(kept.data).engine, "0.7.1");
+  // the final snapshot is put on the kept replay, as the api function serves it
+  assert.equal(JSON.parse(kept.data).snap, '{"final":true}');
   const get = calls[0][1];
-  assert.deepEqual(get.Key, { pk: `room#${ROOM}`, sk: "replay" });
+  assert.deepEqual(get.Key, { pk: `pitch#${ROOM}`, sk: "replay" });
   assert.deepEqual(Object.values(get.ExpressionAttributeNames).sort(), [
     "exp",
+    "s",
     "v",
     "z",
   ]);

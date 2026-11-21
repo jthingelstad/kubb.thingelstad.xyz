@@ -9,6 +9,12 @@ on the iPhone in particular (Jamie, 2026-11-19: "So if you just play versus the 
 I definitely want to make sure you can then submit that and create a highlight reel to
 share with friends.").
 
+The keys below are the old rooms function's `room#<code>` items. The pitch server
+migration moves the renderer and the pitch pages to the api function's
+`pitch#<code>` items (`backend/api/API.md` "Records"; the reel item keeps its fields).
+That code is merged but goes live only with the site apply at the cutover
+(`docs/PITCH-SERVER.md` section 12); until then the deployed renderer reads `room#`.
+
 This is the design for the real feature. **Built (2026-11-19): the server side for
 finished online pitches** ("The server" below says what was built and where it changed
 from the design; deploying it is `docs/REEL-RUNBOOK.md`), and the browser's buttons, cards

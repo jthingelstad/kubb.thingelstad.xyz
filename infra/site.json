@@ -48,6 +48,12 @@
       "Default": "",
       "AllowedPattern": "^$|^[0-9]{1,4}\\.[0-9]{1,4}(,[0-9]{1,4}\\.[0-9]{1,4})*$",
       "Description": "The engine major.minors the reel function renders (its packaged engine's). Empty leaves the reel function out."
+    },
+    "ApiDomain": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^[a-z0-9]+\\.lambda-url\\.[a-z0-9-]+\\.on\\.aws$",
+      "Description": "The api function URL's host (stack kubb-xyz-rooms output ApiUrl). Empty: no /api/* route."
     }
   },
   "Conditions": {
@@ -67,7 +73,8 @@
         { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "ReelEngines" }, ""] }] },
         { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "RoomsTable" }, ""] }] }
       ]
-    }
+    },
+    "HasApi": { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "ApiDomain" }, ""] }] }
   },
   "Resources": {
     "Certificate": {
@@ -322,6 +329,22 @@
                 },
                 { "Ref": "AWS::NoValue" }
               ]
+            },
+            {
+              "Fn::If": [
+                "HasApi",
+                {
+                  "Id": "api",
+                  "DomainName": { "Ref": "ApiDomain" },
+                  "CustomOriginConfig": {
+                    "HTTPSPort": 443,
+                    "OriginProtocolPolicy": "https-only",
+                    "OriginSSLProtocols": ["TLSv1.2"],
+                    "OriginReadTimeout": 30
+                  }
+                },
+                { "Ref": "AWS::NoValue" }
+              ]
             }
           ],
           "DefaultCacheBehavior": {
@@ -359,6 +382,30 @@
             }
           ],
           "CacheBehaviors": [
+            {
+              "Fn::If": [
+                "HasApi",
+                {
+                  "PathPattern": "/api/*",
+                  "TargetOriginId": "api",
+                  "ViewerProtocolPolicy": "https-only",
+                  "AllowedMethods": [
+                    "GET",
+                    "HEAD",
+                    "OPTIONS",
+                    "PUT",
+                    "PATCH",
+                    "POST",
+                    "DELETE"
+                  ],
+                  "CachedMethods": ["GET", "HEAD"],
+                  "Compress": true,
+                  "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+                  "OriginRequestPolicyId": "b689b0a8-53d0-40ab-baf2-68738e2966ac"
+                },
+                { "Ref": "AWS::NoValue" }
+              ]
+            },
             {
               "Fn::If": [
                 "HasRooms",
@@ -951,10 +998,10 @@
                   },
                   "Condition": {
                     "ForAllValues:StringLike": {
-                      "dynamodb:LeadingKeys": ["room#*"]
+                      "dynamodb:LeadingKeys": ["pitch#*"]
                     },
                     "ForAllValues:StringEquals": {
-                      "dynamodb:Attributes": ["pk", "sk", "v", "z", "exp"]
+                      "dynamodb:Attributes": ["pk", "sk", "v", "z", "s", "exp"]
                     },
                     "StringEqualsIfExists": {
                       "dynamodb:Select": "SPECIFIC_ATTRIBUTES"
@@ -970,7 +1017,7 @@
                   },
                   "Condition": {
                     "ForAllValues:StringLike": {
-                      "dynamodb:LeadingKeys": ["room#*"]
+                      "dynamodb:LeadingKeys": ["pitch#*"]
                     },
                     "ForAllValues:StringEquals": {
                       "dynamodb:Attributes": [
@@ -1123,6 +1170,11 @@
     "ReelEngines": {
       "Value": { "Fn::If": ["HasReels", { "Ref": "ReelEngines" }, ""] },
       "Description": "The engine major.minors the reel function renders; empty while it is off"
+    },
+    "ApiRoute": {
+      "Condition": "HasApi",
+      "Description": "The api function behind the site",
+      "Value": "/api/*"
     }
   }
 }
