@@ -491,8 +491,10 @@ export class Game {
   }
 
   // (A match's snapshot: the seam is for matches.)
+  // A snapshot the pitch hands over goes through the engine's strict door: one whose
+  // names the game did not make throws a NamesRefused and changes nothing.
   adopt(snapshotText) {
-    this.engine.restore(snapshotText);
+    this.engine.restoreChecked(snapshotText);
     this.mode = "match";
     this.engine.setControl(this.seat);
     this.startTrail(snapshotText);

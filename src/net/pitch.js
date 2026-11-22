@@ -46,7 +46,13 @@ import { WatchCard } from "../ui/watching.js";
 import { WatchView } from "../ui/watch-view.js";
 import { prefs } from "../game/prefs.js";
 import { h, button } from "../ui/dom.js";
-import { ReplayPlayer, problemText, replayProblem } from "../replay/player.js";
+import {
+  NAMES_REPLAY,
+  ReplayPlayer,
+  problemText,
+  replayProblem,
+} from "../replay/player.js";
+import { NamesRefused } from "../engine/index.js";
 import { fetchReplay, askReplay } from "../replay/fetch.js";
 import { openEmbed, EMBED_ORIGIN } from "../ui/embed.js";
 import { Reel } from "../ui/reel.js";
@@ -54,13 +60,7 @@ import { reelFromPage } from "./reel.js";
 import { majorMinor, withEngineFor } from "../engine/registry.js";
 import { openSheet } from "../ui/sheet.js";
 import { SCENE_ROW } from "../render/scenes.js";
-import {
-  apartNames,
-  badNames,
-  playerDefault,
-  setupOfSnapshot,
-  teamDefault,
-} from "../game/names.js";
+import { apartNames, playerDefault, teamDefault } from "../game/names.js";
 
 export const tune = {
   tickMs: 200, // the controller's clock: drain, seats, the open listing
@@ -540,7 +540,7 @@ export class Pitch {
       if (this.mode === "sealed" && need?.kind === "over")
         this.sealedCard(need);
     };
-    this.game.adopt(r.snap);
+    this.adoptSnap(r.snap, r.n);
   }
 
   sealedCard(need) {
@@ -554,7 +554,8 @@ export class Pitch {
       embed: () => this.showEmbed(),
       reel: this.reelFor(r),
       first: true,
-      teams: teamsLine(r.players, this.names),
+      // the kept replay passed names.check whole (replayIssue above)
+      teams: teamsLine(r.players, (_, k, name) => name ?? playerDefault(k + 1)),
     });
   }
 
@@ -677,6 +678,33 @@ export class Pitch {
     return this.shownNames().apart.get(id) ?? "Someone";
   }
 
+  // The engine's verdict on the pitch's document and members (names.check, since
+  // 0.13.4): the places of every name that passes (a generated name or a default),
+  // kept per document and members. Its places are the engine's paths
+  // (`members[i].me.name`, `teamNames.A`, `match.players.A[k].name`); a name that is
+  // not among them is shown as the default for its place.
+  docNames() {
+    const r = this.room;
+    const members = r?.members ?? [];
+    const doc = r?.doc ?? null;
+    const c = this.docCheck;
+    if (c && c.members === members && c.doc === doc) return c.passing;
+    const passing = new Set();
+    try {
+      const out = this.game.engine.call("names.check", {
+        document: doc ?? {},
+        members: members.map((m) => ({ id: m.id, me: m.me ?? {} })),
+      });
+      const refused = new Set((out.refused ?? []).map((x) => x.from));
+      for (const n of out.names ?? [])
+        if ((n.ok || n.default) && !refused.has(n.from)) passing.add(n.from);
+    } catch {
+      // nothing passes: every name shows its default
+    }
+    this.docCheck = { members, doc, passing };
+    return passing;
+  }
+
   shownNames() {
     const r = this.room;
     const members = r?.members ?? [];
@@ -684,6 +712,7 @@ export class Pitch {
     const c = this.shownCache;
     if (c && c.members === members && c.doc === doc && c.match === this.match)
       return c;
+    const passing = this.docNames();
     const teams = doc ? lobbyOf(doc).teams : { A: [], B: [] };
     const placeOf = (id, i) => {
       for (const s of ["A", "B"]) {
@@ -695,29 +724,38 @@ export class Pitch {
     const plain = new Map();
     members.forEach((m, i) => {
       const n = m?.me?.name;
-      if (typeof n === "string" && n && this.names.passes("player", n))
+      if (typeof n === "string" && n && passing.has(`members[${i}].me.name`))
         plain.set(m.id, n);
       else plain.set(m.id, playerDefault(placeOf(m.id, i)));
     });
-    // a player of the match who has left: the match's own name for them, checked
+    // a player of the match who has left: the match's own name for them, as checked
     for (const s of ["A", "B"])
       (this.match?.players?.[s] ?? []).forEach((p, k) => {
         if (p?.id && !plain.has(p.id))
-          plain.set(
-            p.id,
-            this.names.shown("player", p.name, playerDefault(k + 1)),
-          );
+          plain.set(p.id, this.headerName(s, k, p.name));
       });
     const apart = apartNames([...plain].map(([id, name]) => ({ id, name })));
     this.shownCache = { members, doc, match: this.match, plain, apart };
     return this.shownCache;
   }
 
-  // A side's team name as the lobby shows it: the document's when it is a generated
-  // team name, else "Team A" / "Team B".
+  // A player of the match header as shown: the document's verdict on it when the
+  // header is the document's, else its default ("Player n").
+  headerName(side, k, name) {
+    const header = this.room?.doc?.match;
+    const ok =
+      header?.players?.[side]?.[k]?.name === name &&
+      this.docNames().has(`match.players.${side}[${k}].name`);
+    return ok ? name : playerDefault(k + 1);
+  }
+
+  // A side's team name as the lobby shows it: the document's when the engine passes
+  // it (a generated team name), else "Team A" / "Team B".
   teamNameOf(side) {
     const t = this.room?.doc?.teamNames?.[side];
-    return this.names.shown("team", t, teamDefault(side));
+    return typeof t === "string" && this.docNames().has(`teamNames.${side}`)
+      ? t
+      : teamDefault(side);
   }
 
   // The host picks a side's team name in the lobby (a side of several plays under it).
@@ -1392,24 +1430,12 @@ export class Pitch {
     const carried = reg ? reg.has(mm) : mm === ENGINE;
     const failed = this.engineFailed === mm;
     if (carried && reg && !failed && !reg.loaded(mm)) return this.waitFor(mm);
-    // a match whose names are not all generated names or defaults (a forged start: an
-    // honest host checks them, and so does the pitch server) is not shown: its
-    // snapshot is hashed, so its names cannot be put right here
-    if (carried && badNames(this.names, setupOfSnapshot(m.snap)).length) {
-      if (this.namesRefused !== m.n) {
-        this.namesRefused = m.n;
-        this.note("names-refused", m.n);
-        this.lobby?.hide();
-        this.cards.notice({
-          kicker: `PITCH ${this.code}`,
-          title: "Cannot show this match",
-          text: "This match has a name the game did not make, so it cannot be shown.",
-          actions: [["HOME", this.home, "go"]],
-          test: "names-refused",
-        });
-      }
-      return;
-    }
+    // a match whose snapshot holds a name or line the game did not make (a forged
+    // start: an honest host checks its names, and so does the pitch server, but the
+    // snapshot is opaque to the server) is not shown: the engine judges the whole
+    // snapshot (names.check, since 0.13.4), and every adopt below goes through its
+    // strict door too
+    if (carried && !this.snapAllowed(m.snap, mm)) return this.refuseNames(m.n);
     this.mode = "match";
     this.arrivedOver = m.over ? m.n : null;
     this.match = {
@@ -1454,7 +1480,7 @@ export class Pitch {
     // says why it is not played; one it cannot read is not drawn at all
     if (!carried) {
       try {
-        this.game.adopt(m.snap);
+        this.game.adopt(m.snap); // the strict door: a refusal is not drawn either
       } catch (err) {
         this.note("adopt-refused", mm, String(err?.message || err));
       }
@@ -1463,7 +1489,7 @@ export class Pitch {
       this.afterEnter();
       return;
     }
-    this.game.adopt(m.snap);
+    if (!this.adoptSnap(m.snap, m.n)) return;
     // a match that ended with no `over` on its last action: the engine says so, after
     // the winner card went up, so it goes up again as an arrival's
     if (!m.over && this.game.engine.need().kind === "over") {
@@ -1519,7 +1545,50 @@ export class Pitch {
     // the log here is no longer whole: the replay comes from the api
     this.acts = null;
     if (m.over) this.overSnap = m.snap;
-    this.game.adopt(m.snap);
+    this.adoptSnap(m.snap, m.n);
+  }
+
+  // Is a pitch's snapshot one the engine would show? names.check on the match's own
+  // engine (the newest when it is not loaded): every name and line in it, both copies.
+  snapAllowed(snap, mm) {
+    const e =
+      this.engines?.loaded?.(mm) ?? this.newestEngine ?? this.game.engine;
+    try {
+      return e.call("names.check", { snap }).allowed === true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Every snapshot from outside is adopted through the engine's strict door
+  // (Game.adopt, restoreChecked). A refusal changes nothing in the Game, and the page
+  // says the match cannot be shown. Returns whether it was adopted.
+  adoptSnap(snap, n = this.local?.n ?? null) {
+    try {
+      this.game.adopt(snap);
+      return true;
+    } catch (err) {
+      if (!(err instanceof NamesRefused)) throw err;
+      this.refuseNames(n);
+      return false;
+    }
+  }
+
+  // A match whose names the game did not make: not shown. The engine's places are for
+  // a developer's log only; the player sees one sentence.
+  refuseNames(n) {
+    if (this.namesRefused === n) return;
+    this.namesRefused = n;
+    this.note("names-refused", n);
+    if (this.mode === "match") this.mode = "gone";
+    this.lobby?.hide();
+    this.cards.notice({
+      kicker: `PITCH ${this.code}`,
+      title: "Cannot show this match",
+      text: NAMES_REPLAY,
+      actions: [["HOME", this.home, "go"]],
+      test: "names-refused",
+    });
   }
 
   toLobby() {
@@ -1618,7 +1687,9 @@ export class Pitch {
       // a highlight reel of it (docs/REEL.md): with its replay only
       reel: data ? this.reelFor(m) : null,
       first: arrived,
-      teams: arrived ? teamsLine(m.players, this.names) : null,
+      teams: arrived
+        ? teamsLine(m.players, (s, k, name) => this.headerName(s, k, name))
+        : null,
     });
   }
 
@@ -1746,7 +1817,7 @@ export class Pitch {
         this.mode === mode &&
         (mode === "sealed" ? this.sealed === m : this.local.n === m.n);
       if (!still) return this.sheet?.();
-      engine.restore(m.snap);
+      engine.restoreChecked(m.snap);
       return openSheet(this.ui, { game: this.game, engine });
     });
   }
@@ -1786,7 +1857,7 @@ export class Pitch {
     const from = this.replayFrom;
     this.mode = from;
     if (from === "sealed") {
-      this.game.adopt(this.sealed.snap); // the winner card again (sealedCard)
+      this.adoptSnap(this.sealed.snap, this.sealed.n); // the winner card again (sealedCard)
       return;
     }
     if (from === "match") {
@@ -1794,7 +1865,7 @@ export class Pitch {
       // replay played on it), then the pitch as it is now
       this.shoutBar.hidden = this.observe;
       this.syncView();
-      if (this.overSnap) this.game.adopt(this.overSnap);
+      if (this.overSnap) this.adoptSnap(this.overSnap);
       this.catchUp(true);
       return;
     }
@@ -2079,14 +2150,13 @@ export class Pitch {
 }
 
 // "Mighty Maple, Lucky Larch  v  Brave Birch" for the winner card of a match this
-// browser arrived at after its end, each name checked (a generated name or a default,
-// else "Player n").
-function teamsLine(players, names) {
+// browser arrived at after its end, each name as `shown(side, k, name)` gives it: the
+// engine's verdict on the document's header (Pitch.headerName), or a kept replay's
+// names, which replayProblem's names.check has passed whole.
+function teamsLine(players, shown) {
   if (!players) return null;
   const side = (s) =>
-    (players[s] || [])
-      .map((p, k) => names.shown("player", p?.name, playerDefault(k + 1)))
-      .join(", ");
+    (players[s] || []).map((p, k) => shown(s, k, p?.name)).join(", ");
   const a = side("A") || "The computer";
   const b = side("B") || "The computer";
   return `${a}  v  ${b}`;

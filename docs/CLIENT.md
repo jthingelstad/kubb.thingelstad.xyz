@@ -39,7 +39,7 @@ the web game's page, `/web/` (`/` is the landing page for the whole game). The H
 | `src/game/scenes.js`                          | The client's own cameras for raising and punishment, and the pieces in them.                                                                                                     |
 | `src/game/auto-raise.js`                      | Pure: automatic raising for the turn (AUTO ALL) or the match (REST OF GAME on the raise panel).                                                                                  |
 | `src/game/player-name.js`                     | Pure: the device's name (the `name` pref), a generated one: rolled on the first run, a typed name from before replaced on load ("Names").                                        |
-| `src/game/names.js`                           | The engine's `names.*` door: roll, step, choices, the display check (`passes`, `shown`, `badNames`), the lobby's "II" (`apartNames`) ("Names").                                  |
+| `src/game/names.js`                           | The engine's `names.*` door: roll, step, choices, the single-name check (`passes`, `shown`), the lobby's "II" (`apartNames`) ("Names").                                          |
 | `src/ui/name-row.js`                          | The name row: the name, SHUFFLE, a picker and KEEP per word, `NAME_FIT` ("Names").                                                                                               |
 | `src/game/raise-touch.js`                     | Pure: raising by touch, where the drawn kubb is, which end a tap or drag means, its tilt.                                                                                        |
 | `src/game/sound.js`                           | `Sound`: the knocks and the king's chord through Web Audio; unlock on the first pointer down; mute remembered.                                                                   |
@@ -780,20 +780,33 @@ and sent as its text.
 - **Two members with one name** are told apart in the lobby only: the second shows
   "Mighty Maple II", the third "III" (`apartNames`, by the order the pitch lists members).
   Never by changing a name: the wire, the device and the match keep the name as it is.
-- **The display check** (a client is not proof: docs/MULTIPLAYER.md "Names"). A name that
-  arrives from outside is shown only when `names.valid` says `ok` or `default`
-  (`Names.passes`); otherwise the default for its place: "Player n" for a member (n their
-  place on their side, as the engine's lineup numbers a player with no name; a watcher,
-  their place on the pitch), "Team A" / "Team B" for a team. Where: the lobby and the
-  watching card (`Pitch.nameOf`, `lobbyNameOf`), the status pill and shouts, the winner
-  card's "who played" (`teamsLine`), the lobby's team names (`Pitch.teamNameOf`), the
-  share card's starting name (`nameFromMatch`). The host checks the lineup before START
-  (`checkedLineup`), so an honest host never starts a match with a name that fails.
-  Names drawn by the engine come from the match's snapshot, which is hashed, so they
-  cannot be put right on the page: a live match (`Pitch.enterMatch`) or a kept replay
-  (`replayProblem`) whose snapshot or setup holds a name that fails is not shown, with
-  "This match has a name the game did not make, so it cannot be shown." Stored
-  documents and replays are never rewritten.
+- **The display check** (a client is not proof: docs/MULTIPLAYER.md "Names"). The web
+  reads no snapshot's fields to judge names: the engine does (`names.check` and its
+  strict doors, since 0.13.4; the engine's docs/SESSION.md "Names"). A name not passed
+  is shown as the default for its place: "Player n" for a member (n their place on their
+  side, as the engine's lineup numbers a player with no name; a watcher, their place on
+  the pitch), "Team A" / "Team B" for a team.
+  - **The lobby** (`Pitch.docNames`): `names.check({ document, members })` on every new
+    document or members list; the members' names (`nameOf`, `lobbyNameOf`, the status
+    pill, shouts, the watching card), the document's `teamNames` (`teamNameOf`) and the
+    match header's players (`headerName`, the winner card's "who played") are shown
+    only at the places it passes.
+  - **A pitch's snapshot** (entering, joining part way, every resync, the sealed page,
+    back from a replay): `Pitch.enterMatch` asks `names.check({ snap })` first, and
+    every adopt goes through `Pitch.adoptSnap`, which is `Game.adopt` over
+    `Engine.restoreChecked` (`restore` with `{ snap, names: "check" }`): a refusal
+    (`NamesRefused`) changes nothing and the page shows "Cannot show this match" with
+    "This match has a name the game did not make, so it cannot be shown." and HOME. The
+    score sheet of a finished pitch match restores through the same door.
+  - **A kept replay** (watch, the sealed page, the embed): `replayProblem` asks
+    `names.check({ replay })` with the whole kept replay, and `Engine.replayLoad` always
+    passes `names: "check"`, so a replay that skipped it is refused too.
+  - The engine's refusals carry `from` (the raw path, which a forged snapshot can fill
+    with its own text) and `place`; neither is shown to a player.
+  - `names.valid` stays the check for a single name: the name row, the share card's
+    starting name (`nameFromMatch`), the host's own lineup before START
+    (`checkedLineup`). This browser's own snapshots (none kept on the web) would use the
+    plain `restore`. Stored documents and replays are never rewritten.
 - Watching the computer keeps its North and South: that match never leaves the device
   but as a private record.
 
@@ -1138,7 +1151,7 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
 - **The label** (`src/site/release.js`): every app shows its own version with the Kubb
   Engine's beside it, `<app version> (<engine version>)` (Jamie, 2026-11-20). On the web
   that is `package.json`'s version and the full version of the newest engine the page
-  carries: `0.11.0 (0.13.3)`. Nothing but that engine's version is in the parentheses: an
+  carries: `0.11.0 (0.13.4)`. Nothing but that engine's version is in the parentheses: an
   older engine the page still plays would be only in the detail, `Also plays ...` (none
   today: the site carries the newest alone, `docs/ENGINES.md`), and the
   web commit never shows. The release is `{ version, web, engine, also, text, detail }`
@@ -1146,7 +1159,7 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
   `releaseOf`) reads the version from `package.json`, the web commit from `GITHUB_SHA` in
   CI or `git rev-parse HEAD`, and the engines from the vendored set; it puts the release
   in the game pages' config (`config.release`) and writes it as `/version.json`.
-- **Shown** small, in the shared type tokens: "Version 0.11.0 (0.13.3)" at the foot of
+- **Shown** small, in the shared type tokens: "Version 0.11.0 (0.13.4)" at the foot of
   every reading page (beside the link to the engine page), and the label at the foot of
   MENU in the game, with "Also plays ..." under it only while an older engine is carried.
 - **Exact identity** is the web commit: freshness (below) compares it, and a feedback

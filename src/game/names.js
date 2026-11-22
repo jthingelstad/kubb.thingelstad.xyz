@@ -110,32 +110,9 @@ export class Names {
   }
 }
 
-// The names in a match's options ({ teams: { A: { name, players: [{ name }] } } }, as in
-// a snapshot's or a replay's `opts`/`setup`) that do not pass: [] when every one does. A
-// match whose names do not pass is not shown (its snapshot is hashed, so its names
-// cannot be put right here): src/net/pitch.js, src/replay/player.js.
-export function badNames(names, setup) {
-  const out = [];
-  for (const side of ["A", "B"]) {
-    const t = setup?.teams?.[side];
-    if (!t) continue;
-    const players = Array.isArray(t.players) ? t.players : [];
-    if (!names.teamPasses(t.name, players.length)) out.push(t.name);
-    for (const p of players)
-      if (!names.passes("player", p?.name)) out.push(p?.name);
-  }
-  return out;
-}
-
-// The options inside a snapshot's text, read only (never written back: the text is
-// hashed). null when it is not one.
-export function setupOfSnapshot(text) {
-  try {
-    return JSON.parse(text)?.opts ?? null;
-  } catch {
-    return null;
-  }
-}
+// A match from outside (a pitch's snapshot, a kept replay, a pitch's document) is not
+// judged here field by field: the engine's names.check and its strict doors do that
+// (restoreChecked, replayLoad; src/net/pitch.js, src/replay/player.js).
 
 // Telling two members with one name apart in a lobby (docs/NAMES.md section 8): the
 // second shows "II", the third "III", by the order given. Never changes a name.

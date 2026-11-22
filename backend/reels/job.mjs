@@ -23,6 +23,7 @@
 // any other engine fails with why "engine". It logs the step, the engine and the
 // outcome, never a name: the replay's team and player names stay in the reel and the
 // edit list.
+import { NamesRefused } from "../../src/engine/index.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -139,6 +140,9 @@ export async function runReel({
   } catch (error) {
     // the renderer found no moment to show: final, and no retry
     if (error?.code === REEL_EMPTY) return await fail("empty");
+    // a kept replay holding a name or line the game did not make (the engine's strict
+    // replayLoad, names.check): final, never rendered, nothing of it logged
+    if (error instanceof NamesRefused) return await fail("names");
     say("error", {
       tries: tried.tries,
       error: error?.name,

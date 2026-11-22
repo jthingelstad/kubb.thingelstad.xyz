@@ -20,7 +20,7 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
   not because it was once released** (the owner, 2026-11-21: "We should only support
   engines that we decide are worth supporting not just ones that have published so that
   we can push players to the new engines."). Today that is the newest alone, 0.13
-  (0.13.3); 0.9, 0.8 and 0.7 were dropped on 2026-11-21, so a client on one of them (an
+  (0.13.4); 0.9, 0.8 and 0.7 were dropped on 2026-11-21, so a client on one of them (an
   iPhone build on 0.9) cannot share a pitch with the web and is told to update, and a
   kept match of one says it can no longer be replayed (`docs/ENGINES.md`). The supported
   set is written in one place, `vendor/engine.json` (the newest and `older`, empty
@@ -132,7 +132,7 @@ address or home path in `dist/`, no account id in Markdown).
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `0.11.0 (0.13.3)`, at the foot of
+the full version of the newest engine the site carries, `0.11.0 (0.13.4)`, at the foot of
 every reading page and of MENU, with "Also plays ..." under it in MENU only while older
 engines are carried (none today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
@@ -226,15 +226,21 @@ the details.
   (the document's top-level `teamNames`, `setTeamName` in `src/net/lobby.js`); a side of
   one plays under its player's name. Two members with one name are told apart in the
   lobby only ("Mighty Maple II", `apartNames`).
-- **The checks** (a client is not proof): the page shows a name from a pitch, a kept
-  match, a replay or a share only when the engine's `names.valid` says `ok` or `default`,
-  else the default for its place ("Player n", "Team A"/"Team B"); a live match or a
-  replay whose snapshot holds another is not shown at all (the snapshot is hashed). The
-  pitch server (`backend/pitch-server/names.mjs`, from `names-words.json`, which
+- **The checks** (a client is not proof): a page never reads a snapshot's fields to
+  judge names; the engine does (since 0.13.4). The lobby shows a name from the pitch's
+  document and members only where `names.check({ document, members })` passes it, else
+  the default for its place ("Player n", "Team A"/"Team B"); every snapshot from outside
+  is adopted through the strict `restore` (`{ snap, names: "check" }`,
+  `Engine.restoreChecked`, `Pitch.adoptSnap`) and every replay loaded with
+  `names: "check"`, so a forged match or replay is not shown ("This match has a name the
+  game did not make, so it cannot be shown."). The pitch server
+  (`backend/pitch-server/names.mjs`, from `names-words.json`, which
   `tools/names-words.mjs` writes from the engine and `npm run check` holds to it) drops
   a failing `me.name` (never refusing the member) and refuses a lobby write or start
-  that names one (`bad-name`); the share check refuses `why: "name"`; the pitch pages
-  leave a failing team name off.
+  that names one (`bad-name`); it cannot see into a snapshot, which is why the pages
+  check. The share check runs `names.check` on the shared start and refuses
+  `why: "name"`; a reel of a kept replay that fails is `failed`, `why: "names"`; the
+  pitch pages leave a failing team name off.
 
 ## Recorded games
 
