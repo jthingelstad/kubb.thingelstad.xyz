@@ -54,6 +54,7 @@ import { Stage } from "../render/scenes.js";
 import {
   Neighbours,
   neighboursWanted,
+  pitchFrameOf,
   tune as neighboursTune,
 } from "./neighbours.js";
 import { optionRows } from "../net/lobby.js";
@@ -195,13 +196,14 @@ export class Game {
     // The Tournament's live neighbours (src/game/neighbours.js): { workerUrl, luaUrl,
     // wasmUrl } where the page can run them, else null (the still pitches). `nb` is
     // the field while one is live, `nbSeed` the match's seed it is opened with (null:
-    // read it again), `nbSide` the side whose frame the pitch is drawn in.
+    // read it again), `lastThrower` the side of the last throw set up (the frame the
+    // pitch stands in between throws: pitchFrame).
     this.nbOpts =
       neighbours?.workerUrl && typeof Worker === "function" ? neighbours : null;
     this.nb = null;
     this.nbFailed = false;
     this.nbSeed = null;
-    this.nbSide = "A";
+    this.lastThrower = "A";
     // the scenes draw where pieces strike the ground (src/render/impacts.js)
     engine?.setImpacts?.(true);
     // the match's scene (src/render/scenes.js), from its view's `scene`;
@@ -539,9 +541,11 @@ export class Game {
     this.engine.restoreChecked(snapshotText);
     this.mode = "match";
     this.nbSeed = null;
-    this.nbSide = null; // a restored pitch's frame is read from its pieces
     try {
-      const r = JSON.parse(snapshotText)?.opts?.raising;
+      const snap = JSON.parse(snapshotText);
+      // the frame a restored pitch stands in until its next throw (Session.frameSide)
+      this.lastThrower = snap?.side === "B" ? "B" : "A";
+      const r = snap?.opts?.raising;
       if (r) this.matchRaising = r === "auto" ? "auto" : "hand";
     } catch {
       // the snapshot was checked by the engine; a raising it does not say is by hand
@@ -618,10 +622,8 @@ export class Game {
     this.dialNext = null;
     this.cancelSwipe();
     const n = this.need;
-    // the frame the pitch is in: the last throw's thrower's (the engine's
-    // Session.frameSide), Team A's for practice
-    if (this.mode !== "match") this.nbSide = "A";
-    else if (n.kind === "throw" && n.side) this.nbSide = n.side;
+    // the last throw set up: the pitch's frame between throws (pitchFrame)
+    if (n.kind === "throw" && n.side) this.lastThrower = n.side;
     if (n.kind === "throw") {
       this.phase = "aim";
       this.nudge.aimBegan();
@@ -1682,11 +1684,10 @@ export class Game {
     camera = this.viewCam(camera);
     if (!this.pinnedLook)
       this.stage.use(this.shownScene ?? this.viewData?.scene);
-    // the live neighbours, turned with the pitch while it is in Team B's frame (the
-    // wide view is always in the world frame: session/wide.lua)
+    // the live neighbours, turned with the pitch while it is in Team B's frame
     const field =
       this.nb && this.stage.id === "tournament"
-        ? this.nb.field(!this.wide && this.frameSide() === "B")
+        ? this.nb.field(this.pitchFrame() === "B")
         : null;
     if (field) scene = { ...scene, neighbours: field };
     this.nbDrawn = field ? { camera, field } : null;
@@ -1768,19 +1769,15 @@ export class Game {
     return 1;
   }
 
-  // The side whose frame the pitch is drawn in. A restored match's (adopt) is read
-  // from its base kubbs, once: Team A's stand at y = 0 in Team A's frame.
-  frameSide() {
-    if (this.nbSide) return this.nbSide;
-    let a = 0,
-      b = 0;
-    for (const it of this.items || []) {
-      if (it.kind !== "kubb" || !/^a/.test(it.id ?? "")) continue;
-      if (Math.abs(it.y) < 0.6) a++;
-      else if (Math.abs(it.y - 8) < 0.6) b++;
-    }
-    this.nbSide = b > a ? "B" : "A";
-    return this.nbSide;
+  // The frame the pitch is drawn in now, "A" or "B": one decision for every drawing
+  // path (pitchFrameOf in src/game/neighbours.js says which is which).
+  pitchFrame() {
+    return pitchFrameOf({
+      need: this.need,
+      wide: !!this.wide,
+      mode: this.mode,
+      thrower: this.lastThrower,
+    });
   }
 
   begin() {

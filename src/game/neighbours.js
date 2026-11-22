@@ -103,6 +103,35 @@ export function neighboursWanted({
 
 const other = (side) => (side === "A" ? "B" : "A");
 
+// The frame the pitch is drawn in now, Team A's or Team B's, so the neighbours' field
+// is drawn in the same (fieldFor turns it for "B"). One decision for every drawing
+// path the Game has:
+// - the raise and punishment screens (Game.drawStill over a `raise` or `punish`
+//   need, whoever acts, the hand-off and a watcher's wait included): the defender's,
+//   `need.side`, in every view: the engine gives their poses in the defender's frame
+//   (Session:raiseInfo, punishInfo) and the wide view leaves a need as it is;
+// - everything else in the wide view: the world frame, Team A's (session/wide.lua
+//   un-turns the pitch, the aim and the playback);
+// - a throw being aimed or played back (its hand-off over it): its thrower's,
+//   `need.side` (the need stays the throw's while it plays);
+// - between throws (the winner card over the pitch, a restored match before its next
+//   throw): the last throw's thrower's, `thrower` (the engine's Session.frameSide; an
+//   adopted snapshot's own `side`);
+// - practice: Team A's.
+export function pitchFrameOf({
+  need = null,
+  wide = false,
+  mode = "match",
+  thrower = "A",
+} = {}) {
+  const B = (side) => (side === "B" ? "B" : "A");
+  if (mode !== "match") return "A";
+  if (need?.kind === "raise" || need?.kind === "punish") return B(need.side);
+  if (wide) return "A";
+  if (need?.kind === "throw" && need.side) return B(need.side);
+  return B(thrower);
+}
+
 // ---------- the field, kept from the events ----------
 
 // The model of one opening: each pitch's items as the events leave them (the

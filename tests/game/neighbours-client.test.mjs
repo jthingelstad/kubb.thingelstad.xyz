@@ -103,7 +103,13 @@ browserTest(
           const p = nb.fieldData.pitches.find(
             (q) => q.rec && nb.clock - q.recAt < 0.3,
           );
-          if (p) return { id: p.id, at: p.recAt, clock: nb.clock };
+          if (p)
+            return {
+              id: p.id,
+              proj: p.rec.projectile.id,
+              at: p.recAt,
+              clock: nb.clock,
+            };
           if (nb.clock < 30 && !nb.fieldData.pitches.some((q) => q.rec))
             nb.clock += 0.25;
           return null;
@@ -113,19 +119,21 @@ browserTest(
       assert.ok(seen, "a neighbour threw");
       assert.ok(seen.at <= 30, `its first throw at ${seen.at} s of clock`);
       // the drawn field: the thrown piece in two frames, somewhere else
+      // (by its id in the pitch's pieces as drawn: still in the air, or come to rest
+      // if a slow machine's frames outlast its flight)
       const where = () =>
-        page.evaluate((id) => {
+        page.evaluate(({ id, proj }) => {
           const g = window.__kubb.game;
           const nbp = g.nb.fieldData.byId.get(id);
           const pitch = g.nbDrawn?.field.find((p) => p.id === id);
-          if (!nbp?.rec || !pitch) return null;
-          const proj = nbp.rec.projectile.id;
+          if (!nbp || !pitch) return null;
           const i = g.nb.fieldData
             .itemsAt(nbp, g.nb.clock)
             .findIndex((it) => it.id === proj);
           const q = pitch.pieces[i];
           return q ? [q.x, q.y, q.z] : null;
-        }, seen.id);
+        }, seen);
+      await frames(page, 1);
       const a = await where();
       await page.waitForTimeout(150);
       await frames(page, 1);

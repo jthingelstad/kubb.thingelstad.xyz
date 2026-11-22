@@ -181,12 +181,21 @@ snapshot or its hashes.
   behind the far kubbs (they loomed over the target in a Kid match, the thrower 2 m
   forward), and the still pitches ahead have no people either. The canopy stands
   beyond the grid's far row (y = 26).
-- **The frame.** Each pitch is drawn at its `offset`. While the player's pitch is in
-  Team B's frame (the thrower's view of Team B's throws: the last throw's side, the
-  engine's `Session.frameSide`; read from the base kubbs once for a restored match) the
-  whole field turns half about (0, 4): `(ox + x, oy + y)` is drawn at
-  `(-(ox + x), 8 - (oy + y))`, axes turned with it (`fieldFor`). The wide view is in
-  the world frame (session/wide.lua), so it never turns.
+- **The frame.** Each pitch is drawn at its `offset`, in the frame of whatever the Game
+  is drawing, decided in one place (`pitchFrameOf` in `src/game/neighbours.js`,
+  `Game.pitchFrame`): the raise and punishment screens are the defender's frame
+  (`need.side`) in every view, the engine giving their poses that way
+  (`Session:raiseInfo`, `punishInfo`) and the wide view leaving a need as it is;
+  otherwise the wide view is the world frame (session/wide.lua) and never turns; a throw
+  being aimed or played back, with its hand-off, is its thrower's (`need.side`); between
+  throws (the winner card over the pitch) it is the last throw's thrower's (the
+  engine's `Session.frameSide`), which an adopted snapshot gives as its own `side`;
+  practice is Team A's. Replays and watching go through the same function. In Team B's
+  frame the whole field turns half about (0, 4): `(ox + x, oy + y)` is drawn at
+  `(-(ox + x), 8 - (oy + y))`, axes turned with it (`fieldFor`).
+  `tests/engine/pitch-frame.test.mjs` walks a match through both sides' throws and
+  playbacks, raises, punishment kubbs, the end and a restored raise, in the thrower's
+  view and the wide view, and checks the frame against the engine's own poses at each.
 - **Far detail.** A live piece is its long axis drawn as a thick stroke in the wood's
   colour over a thin ink one, with the USA set's head on a kubb and the crown on the
   king (`posedPiece` in `src/render/tournament.js`): three strokes at most, no shadow,
