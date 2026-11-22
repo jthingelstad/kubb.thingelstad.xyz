@@ -5,6 +5,7 @@
 // takes the pitch's snapshot when this browser is out of step. The rules of who acts and
 // the lobby document's reducers are the engine's (vendor/engine/room/), through
 // src/net/seats.js and lobby.js.
+import { startStamp } from "../game/clock.js";
 import { connect, memberId, observerId, PitchError } from "./pitch-client.js";
 import { AimSender, AimBuffer, aimTune } from "./aim.js";
 import {
@@ -1127,13 +1128,7 @@ export class Pitch {
       lu,
       {
         seed: Math.floor(Math.random() * 2 ** 31),
-        start: {
-          year: now.getFullYear(),
-          month: now.getMonth() + 1,
-          day: now.getDate(),
-          hour: now.getHours(),
-          min: now.getMinutes(),
-        },
+        start: startStamp(now),
       },
       mm,
     );

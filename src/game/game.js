@@ -31,6 +31,7 @@
 // Solo is only this: the local seat owns team A and runs the computer, B.
 // The computer against itself: the seat owns no side and runs the computer,
 // and `unattended` is set, so the match goes on in a hidden tab too.
+import { stampOn } from "./clock.js";
 import {
   drawDial,
   drawMinimap,
@@ -757,6 +758,15 @@ export class Game {
   // the engine's strict door (adopt), and its trail from the match's own start, so the
   // record it sends when it ends is the whole match. Throws when the snapshot is refused
   // or does not end on the kept hash; the caller drops the save then.
+  // The match's start table (its first snapshot's opts.start), or null.
+  matchStart() {
+    try {
+      return JSON.parse(this.trail?.start ?? "null")?.opts?.start ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   resumeMatch(save) {
     this.shownCards.clear();
     this.result = null;
@@ -1544,12 +1554,15 @@ export class Game {
     return r;
   }
 
-  // A resign carries the clock (`at`, the match's start's shape): the engine takes it as
-  // the finish, so a match ended by RESIGN has its length on the winner card and the
-  // score sheet, and every browser on a pitch applies the same stamp (it is part of the
-  // action). A person's throw is made inside the engine's frame and cannot carry one yet.
+  // A resign carries the clock (`at`): the sender's UTC clock on the match's start's
+  // basis (src/game/clock.js stampOn: the host's offset at the start, which the start
+  // carries), so the length is right whoever resigns and wherever they are; a start
+  // without that offset, or a stamp that cannot be true, sends none. The engine takes it
+  // as the finish, and every browser on a pitch applies the same stamp (it is part of
+  // the action). A person's throw is made inside the engine's frame and cannot carry one.
   resign(side) {
-    const action = { type: "resign", side, at: clockStamp() };
+    const at = stampOn(this.matchStart());
+    const action = at ? { type: "resign", side, at } : { type: "resign", side };
     const r = this.engine.apply(action);
     if (r.ok === false) return r;
     this.emit(action);
@@ -2904,17 +2917,6 @@ export class Game {
     else return;
     e.preventDefault();
   }
-}
-
-// The device's clock to the minute, as the engine takes a match's start and finish.
-export function clockStamp(d = new Date()) {
-  return {
-    year: d.getFullYear(),
-    month: d.getMonth() + 1,
-    day: d.getDate(),
-    hour: d.getHours(),
-    min: d.getMinutes(),
-  };
 }
 
 // The throw's distance as the meter shows it beside the prompt (the 1.0

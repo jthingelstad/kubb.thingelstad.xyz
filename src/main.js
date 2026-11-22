@@ -49,6 +49,7 @@ import {
   takesScene,
   SCENE_NAMES,
 } from "./render/scenes.js";
+import { startStamp } from "./game/clock.js";
 import {
   saveOf,
   writeSave,
@@ -462,13 +463,7 @@ function startSolo(game, cards, { sheet, record, recording, menu, asked }) {
       wind: o.wind,
       surface: o.surface,
       set: o.set,
-      start: {
-        year: now.getFullYear(),
-        month: now.getMonth() + 1,
-        day: now.getDate(),
-        hour: now.getHours(),
-        min: now.getMinutes(),
-      },
+      start: startStamp(now),
     });
     keep();
   };
@@ -614,13 +609,7 @@ function startWatch(game, cards, { sheet, record, menu, asked }) {
       // the solo card's Scene, or the address's
       ...sceneOpt(asked ?? o.scene),
       maxTurns: watchTune.maxTurns,
-      start: {
-        year: now.getFullYear(),
-        month: now.getMonth() + 1,
-        day: now.getDate(),
-        hour: now.getHours(),
-        min: now.getMinutes(),
-      },
+      start: startStamp(now),
     });
     first = first === "A" ? "B" : "A";
   };
