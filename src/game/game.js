@@ -760,11 +760,26 @@ export class Game {
   // or does not end on the kept hash; the caller drops the save then.
   // The match's start table (its first snapshot's opts.start), or null.
   matchStart() {
+    const text = this.trail?.start ?? null;
+    if (this.startOf?.text === text) return this.startOf.start;
+    let start = null;
     try {
-      return JSON.parse(this.trail?.start ?? "null")?.opts?.start ?? null;
+      start = JSON.parse(text ?? "null")?.opts?.start ?? null;
     } catch {
-      return null;
+      start = null;
     }
+    this.startOf = { text, start };
+    return start;
+  }
+
+  // The stamp an action made now carries (engine 0.18.0, its docs/SESSION.md "Actions"
+  // `at`): the sender's UTC clock on the start's basis (clock.js stampOn), or undefined
+  // where none can be true (practice, a start with no offset). Every frame passes it, so
+  // the throws the engine makes (a person's, the computer's) carry it; the raise, punish
+  // and resign actions the page makes carry it themselves. One place: here.
+  stamp() {
+    if (this.mode !== "match") return undefined;
+    return stampOn(this.matchStart()) ?? undefined;
   }
 
   resumeMatch(save) {
@@ -1023,7 +1038,11 @@ export class Game {
     else if (input.arm != null) {
       this.dialAcc += dt;
       if (this.dialFresh || this.dialAcc >= tune.holdFeed) {
-        out = this.engine.frame({ ...input, dt: this.dialAcc });
+        out = this.engine.frame({
+          ...input,
+          dt: this.dialAcc,
+          at: this.stamp(),
+        });
         this.dialAcc = 0;
         this.dialFresh = false;
         // a stroke's press was fed at 0: now where the finger is
@@ -1035,7 +1054,7 @@ export class Game {
       } else out = { ...this.out, event: undefined };
     } else {
       this.dialAcc = 0;
-      out = this.engine.frame(input);
+      out = this.engine.frame({ ...input, at: this.stamp() });
       fed = true;
     }
     if (out.event === "release" && out.action) {
@@ -1486,6 +1505,8 @@ export class Game {
       const ci = (n.choices || []).findIndex((c) => c.which === end.which);
       action = { type: "raise", choice: ci >= 0 ? ci + 1 : undefined };
     }
+    const at = this.stamp();
+    if (at) action.at = at;
     const r = this.engine.apply(action);
     if (r.ok === false) return r;
     this.emit(action);
@@ -1543,7 +1564,8 @@ export class Game {
   punish() {
     if (this.phase !== "punish" || !this.punishAt) return;
     const { x, y } = this.punishAt;
-    const action = { type: "punish", x, y };
+    const at = this.stamp();
+    const action = at ? { type: "punish", x, y, at } : { type: "punish", x, y };
     const r = this.engine.apply(action);
     if (r.ok === false) {
       this.punishCheck = r;
@@ -1559,9 +1581,10 @@ export class Game {
   // carries), so the length is right whoever resigns and wherever they are; a start
   // without that offset, or a stamp that cannot be true, sends none. The engine takes it
   // as the finish, and every browser on a pitch applies the same stamp (it is part of
-  // the action). A person's throw is made inside the engine's frame and cannot carry one.
+  // the action). Since engine 0.18.0 the throws the engine makes carry one too, from the
+  // `at` every frame passes (Game.stamp).
   resign(side) {
-    const at = stampOn(this.matchStart());
+    const at = this.stamp();
     const action = at ? { type: "resign", side, at } : { type: "resign", side };
     const r = this.engine.apply(action);
     if (r.ok === false) return r;

@@ -188,9 +188,10 @@ export class Cards {
         "data-test": "watch-replay",
       });
     const stats = [`${w.turns} ${w.turns === 1 ? "turn" : "turns"}`];
-    // the length only when it is known: the engine gives 0 when no action carried the
-    // clock (a person's throw cannot yet), and "under a min" was then said of every match
-    // and never one that cannot be true (a stamp from a clock gone wrong)
+    // the length only when it is known: since engine 0.18.0 `minutes` is nil when no
+    // action carried the clock (every action made here is stamped: Game.stamp), and
+    // never one that cannot be true (a stamp from a clock gone wrong). A match from
+    // before kept 0 for "no stamp", so 0 says nothing either.
     if (w.minutes >= 1 && w.minutes <= MAX_MINUTES)
       stats.push(`${w.minutes} min`);
     if (w.thrown)

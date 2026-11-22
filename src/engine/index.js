@@ -184,6 +184,8 @@ export class Engine {
     if (input.plan) a.plan = true;
     if (input.move) a.move = input.move;
     if (input.walk) a.walk = input.walk;
+    // the stamp on the action this frame makes (engine 0.18.0: a match's length)
+    if (input.at) a.at = input.at;
     return this.call("frame", a);
   }
   showAt(t) {
