@@ -128,6 +128,10 @@ for (const kind of ["portrait", "desktop"])
         );
         await page.goto(env.base + "/");
         await page.click("[data-test=play-now]");
+        // the first match is still in progress, kept on the device: PLAY NOW offers
+        // it back (src/game/solo-save.js); NEW MATCH opens the card
+        await page.waitForSelector("[data-test=resume]", { timeout: 30000 });
+        await page.click("[data-test=resume-new]");
         await page.waitForSelector("[data-test=options]", { timeout: 30000 });
         assert.equal(
           await page.getAttribute(
