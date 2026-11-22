@@ -310,6 +310,13 @@ COMPUTER THROWS, YOUR RAISE, TEAM B PLACES A KUBB and so on, and the hand-off ca
 line, docs/CLIENT.md "Match flow"). A card for someone else's turn has a WATCH button and
 closes itself.
 A throw taken for an absent teammate says YOUR THROW FOR <NAME>.
+When the member whose turn it is has gone (QA, 2026-11-22), everyone else's line under
+the status pill says so and what happens next, from the same seats (`Pitch.awayLine`,
+its words `AWAY_WORDS`): "HAPPY HAZEL IS AWAY. WAITING FOR THEM TO COME BACK." while
+nobody connected may act for them (the host is away too; the pitch hands the host on
+after 15 s), "HAPPY HAZEL IS AWAY. GENTLE GINKGO THROWS FOR THEM." (RAISES, PLACES for a
+raise or a punishment kubb), or "... YOU THROW FOR THEM." to the one who stands in. It
+clears when they are back; RECONNECTING, a browser's own drop, comes first.
 
 ## Being there
 

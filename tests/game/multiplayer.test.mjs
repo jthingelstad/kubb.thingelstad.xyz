@@ -809,3 +809,64 @@ browserTest("a bad pitch code and a missing pitch server say so", async () => {
   );
   await ctx.close();
 });
+
+// QA, 2026-11-22: when the member whose turn it was dropped, everyone else's screen
+// went on saying it was their throw. The line under the status pill now says they are
+// away and what happens: waiting, or who throws for them (the engine's seats: a
+// teammate, else the host, and the pitch hands the host on after 15 s). It clears
+// when they come back.
+browserTest(
+  "the others are told when the player whose turn it is goes away, and when they are back",
+  async () => {
+    const code = makePitchCode();
+    const host = await join(code, "Happy Hazel");
+    const guest = await join(code, "Gentle Ginkgo");
+    try {
+      await host.click("[data-test=join-A]");
+      await guest.click("[data-test=join-B]");
+      await waitFor(host, () =>
+        document
+          .querySelector("[data-test=team-B]")
+          ?.textContent.includes("Gentle Ginkgo"),
+      );
+      await host.click("[data-test=lobby-start]");
+      await waitFor(guest, () => window.__kubb.pitch.state().mode === "match");
+      // the host's turn: the host's socket goes and stays gone
+      await waitFor(guest, () => window.__kubb.game.need?.kind === "throw");
+      const net = (p) =>
+        p.evaluate(() => document.querySelector(".hud.net")?.textContent ?? "");
+      assert.equal(await net(guest), "");
+      await host.context().setOffline(true);
+      await host.evaluate(() => window.__kubb.pitch.room.ws?.close());
+      await waitFor(
+        guest,
+        () =>
+          document.querySelector(".hud.net")?.textContent ===
+          "HAPPY HAZEL IS AWAY. WAITING FOR THEM TO COME BACK.",
+        null,
+        10000,
+      );
+      // past the host's grace the host is the guest's, who throws for them
+      await waitFor(
+        guest,
+        () =>
+          document.querySelector(".hud.net")?.textContent ===
+          "HAPPY HAZEL IS AWAY. YOU THROW FOR THEM.",
+        null,
+        30000,
+      );
+      // back: the line clears
+      await host.context().setOffline(false);
+      await waitFor(
+        guest,
+        () => document.querySelector(".hud.net")?.textContent === "",
+        null,
+        30000,
+      );
+      assert.deepEqual(guest.errors, []);
+    } finally {
+      await host.context().close();
+      await guest.context().close();
+    }
+  },
+);
