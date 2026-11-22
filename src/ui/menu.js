@@ -347,5 +347,8 @@ export class Menu {
     this.hooks.game.modal = Math.max(0, this.hooks.game.modal - 1);
     this.btn.setAttribute("aria-expanded", "false");
     window.removeEventListener("keydown", this.esc);
+    // the keyboard goes back to MENU (a card the menu opens takes it from there, and
+    // gives it back to MENU when it closes)
+    if (this.btn.isConnected) this.btn.focus({ preventScroll: true });
   }
 }

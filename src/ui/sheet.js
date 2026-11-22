@@ -25,6 +25,8 @@ export function openSheet(root, opts) {
     console.warn("No score sheet:", err);
   }
   if (!sheet || typeof sheet.text !== "string") return null;
+  // where the keyboard was (MENU, or the winner card's SCORE SHEET), to go back to
+  const opener = document.activeElement;
   const lines = sheet.text.replace(/\n$/, "").split("\n");
   const shown = Array.isArray(sheet.shown) ? sheet.shown : lines;
   let positions = false;
@@ -83,7 +85,7 @@ export function openSheet(root, opts) {
 
   const body = h(
     "div.card.sheet",
-    { "data-test": "sheet-card" },
+    { "data-test": "sheet-card", role: "dialog", "aria-label": "Score sheet" },
     h("h2.display", "Score sheet"),
     h(
       "p.sheet-note",
@@ -131,6 +133,8 @@ export function openSheet(root, opts) {
     for (const el of quieted) el.inert = false;
     window.removeEventListener("keydown", esc);
     game.modal = Math.max(0, game.modal - 1);
+    if (opener && opener !== document.body && opener.isConnected)
+      opener.focus({ preventScroll: true });
   }
   fill();
   root.append(scrim);

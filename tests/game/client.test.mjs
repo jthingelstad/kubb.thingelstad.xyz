@@ -2316,3 +2316,63 @@ browserTest(
     }
   },
 );
+
+// QA, 2026-11-22: closing the menu, or a card it opened (the score sheet, Send
+// feedback), left the keyboard's focus on the page, so a keyboard player had to Tab
+// round from the top. Each now gives it back to MENU; the cards are named dialogs.
+browserTest(
+  "the menu, the score sheet and Send feedback give the focus back to MENU",
+  async () => {
+    const rooms = await startPitchServer();
+    try {
+      const page = await open(
+        env,
+        `/p/abcdefgh?solo=1&nohowto=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
+      );
+      await page.click("[data-test=start]");
+      await page.waitForSelector("[data-test=handoff]");
+      await page.click("[data-test=handoff-go]");
+      await waitPhase(page, "aim", 10000);
+      const focused = () =>
+        page.evaluate(() => document.activeElement?.dataset?.test ?? null);
+      const backOnMenu = () =>
+        page.waitForFunction(
+          () => document.activeElement?.dataset?.test === "menu",
+          null,
+          { timeout: 2000 },
+        );
+      await page.focus("[data-test=menu]");
+      await page.keyboard.press("Enter");
+      await page.waitForSelector("[data-test=menu-card]");
+      await page.keyboard.press("Escape");
+      await backOnMenu();
+      for (const [open, card, name] of [
+        ["menu-sheet", "sheet-card", "Score sheet"],
+        ["report", "report-card", "Send feedback"],
+      ]) {
+        await page.keyboard.press("Enter");
+        await page.waitForSelector("[data-test=menu-card]");
+        await page.click(`[data-test=${open}]`);
+        await page.waitForSelector(`[data-test=${card}]`);
+        assert.equal(
+          await page.getAttribute(`[data-test=${card}]`, "role"),
+          "dialog",
+        );
+        assert.equal(
+          await page.getAttribute(`[data-test=${card}]`, "aria-label"),
+          name,
+        );
+        await page.keyboard.press("Escape");
+        await page.waitForSelector(`[data-test=${card}]`, {
+          state: "detached",
+        });
+        await backOnMenu();
+      }
+      assert.equal(await focused(), "menu");
+      assert.deepEqual(page.errors, []);
+      await page.context().close();
+    } finally {
+      await rooms.close();
+    }
+  },
+);
