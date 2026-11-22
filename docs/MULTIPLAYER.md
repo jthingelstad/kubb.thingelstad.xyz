@@ -527,7 +527,9 @@ keep these the same, or the two disagree on screen:
   The lobby: a seat added, re-levelled (said once; the keyboard kept), moved across and
   removed, six a team, START with no person, two full teams on a phone upright, Kid with
   seats; and the pitch server's refusal of a typed seat name.
-  `KUBB_SEAT_SHOTS=<dir>` saves the screenshots.
+  `KUBB_SEAT_SHOTS=<dir>` saves the screenshots; `KUBB_E2E_PITCH=ws://127.0.0.1:8797
+KUBB_E2E_API=http://127.0.0.1:8798/api` runs them against `npm run dev` (the Worker in
+  workerd, whose host passes on after 15 s).
 - `tests/game/room-engines.test.mjs` and `tests/net/room-engines.test.mjs`: one engine
   carried; a player on an older client is told on both sides and START stays off.
 

@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
 import {
+  assertLocal,
   assertLocalPath,
   serve,
   sweep,
@@ -42,9 +43,20 @@ let env, rooms;
 before(async () => {
   if (!available) return;
   // the host passes on a second after it goes (15 s live)
-  rooms = await startPitchServer({
-    options: { limits: { hostGraceMs: 1000 } },
-  });
+  // KUBB_E2E_PITCH=ws://127.0.0.1:8797 KUBB_E2E_API=http://127.0.0.1:8798/api runs them
+  // against `npm run dev` (the Worker in workerd; its host passes on after 15 s)
+  if (process.env.KUBB_E2E_PITCH) {
+    assertLocal(process.env.KUBB_E2E_PITCH, "pitch server");
+    assertLocal(process.env.KUBB_E2E_API, "api");
+    rooms = {
+      url: process.env.KUBB_E2E_PITCH,
+      apiUrl: process.env.KUBB_E2E_API,
+      close: async () => {},
+    };
+  } else
+    rooms = await startPitchServer({
+      options: { limits: { hostGraceMs: 1000 } },
+    });
   // three or four people's pages each draw and throw: none behind the others may stop
   // drawing frames (Chromium backgrounds a page it thinks hidden)
   env = await serve({
