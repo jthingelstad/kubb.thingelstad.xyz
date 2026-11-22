@@ -19,8 +19,10 @@ import {
   SCENES,
 } from "../../src/render/scenes.js";
 
+// Re-pinned on 2026-11-21 for the Throwing Wood 1.0 system's one ink (#16130f, it was
+// #17140f in src/render/palette.js INK): the same picture a shade warmer.
 const PINNED =
-  "51df1e91be684ad39e286ec1b5db6a243ad7f327ac377a6614040210b2d58c0a";
+  "798a384b737d8a8758752695132fc0d89a3b83347867886393a3a20f726654e4";
 
 // A context that writes every call and every property set as a line.
 function recorder() {

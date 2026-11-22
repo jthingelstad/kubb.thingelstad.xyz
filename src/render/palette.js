@@ -5,7 +5,7 @@
 // The rest of the client (HUD, cards, lobby) takes its colours from here
 // too, so a team or a target is the same colour everywhere.
 
-export const INK = "#17140f"; // outlines, shadows, the type's edge (a warm near-black)
+export const INK = "#16130f"; // outlines, shadows, the type's edge: the 1.0 system's one ink (it was #17140f)
 export const PAPER = "#fbf6ea"; // plates, the dial's face, the type's fill on ink
 
 // The two teams' accents. Not the sites' colours (#1a5eb6, #b3123f,
@@ -132,7 +132,7 @@ export const AIM = {
   markerEdge: INK,
   arc: "#ffffff", // the planned throw, dashed
   arcEdge: INK,
-  track: "rgba(23, 20, 15, 0.28)", // the arc's trace on the ground
+  track: "rgba(22, 19, 15, 0.28)", // the arc's trace on the ground
   thrower: "#ffffff",
   footAllowed: "#ffffff",
   footChosen: "#fff6c8",

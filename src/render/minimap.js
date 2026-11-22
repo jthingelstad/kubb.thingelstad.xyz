@@ -123,7 +123,7 @@ export function drawMinimap(ctx, rect, st) {
     ctx.lineWidth = Math.max(1, Math.min(lw, r * 0.4));
     ctx.strokeStyle = UI.ink;
     if (p.toppled) {
-      ctx.fillStyle = "rgba(23, 20, 15, 0.25)";
+      ctx.fillStyle = "rgba(22, 19, 15, 0.25)";
       ctx.fillRect(x - r * 1.4, yy - r * 0.7, r * 2.8, r * 1.4);
       ctx.strokeRect(x - r * 1.4, yy - r * 0.7, r * 2.8, r * 1.4);
     } else {

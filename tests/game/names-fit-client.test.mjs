@@ -2,9 +2,10 @@
 // section 8: "Each client measures its widest name in its own font"). In a real browser
 // with the game's own fonts loaded, every name the engine can make (names.all, players
 // and teams) is measured in the type of: the name row's text (NAME_FIT.text), each
-// word's picker (NAME_FIT.word), the lobby's team title, and the HUD rail, whose name
-// breaks between words, so its widest word must fit the narrowest rail (a phone held
-// upright). The longest name in characters is not the widest, so all are measured.
+// word in its Settings stepper (NAME_FIT.word), the lobby's team title, and the
+// header, whose name breaks between words, so its widest word must fit the narrowest
+// header's name (a phone held upright, beside the two numbers and MENU). The longest
+// name in characters is not the widest, so all are measured.
 // Skipped with a notice when Playwright's Chromium is not installed.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -78,18 +79,22 @@ browserTest(
         for (const s of [...all.player, ...all.team])
           for (const w of s.split(" ")) words.add(w);
         const rail = probe(
-          '<div class="hud hud-rail"><div class="rail-name">X</div></div>',
+          '<div class="hud hud-rail"><div class="rail-what">TURN 12 · BATON 6 OF 6</div><div class="rail-name">X</div><div class="rail-score"><span class="rail-n team-a">10</span><span class="rail-n team-b">10</span></div><div class="rail-menu"><button class="btn small menu-btn">MENU</button></div></div>',
         );
+        const railEl = rail.firstChild;
         const railName = rail.querySelector(".rail-name");
-        const rc = getComputedStyle(rail.firstChild);
-        // the rail's room for its name on this screen: its max width less padding
-        // and border
+        const rc = getComputedStyle(railEl);
+        // the header's room for its name on this screen: its max width less padding,
+        // border, the two numbers, MENU and the gaps between them
         const railRoom =
           parseFloat(rc.maxWidth) -
           parseFloat(rc.paddingLeft) -
           parseFloat(rc.paddingRight) -
           parseFloat(rc.borderLeftWidth) -
-          parseFloat(rc.borderRightWidth);
+          parseFloat(rc.borderRightWidth) -
+          rail.querySelector(".rail-score").getBoundingClientRect().width -
+          rail.querySelector(".rail-menu").getBoundingClientRect().width -
+          2 * parseFloat(rc.columnGap);
         const title = probe('<p class="team-title">X</p>').firstChild;
         const pc = getComputedStyle(pick);
         return {
@@ -104,7 +109,7 @@ browserTest(
             parseFloat(pc.borderRightWidth),
           pickMin: parseFloat(pc.minWidth),
           team: widest(fontOf(title), all.team),
-          railWord: widest(fontOf(railName), [...words], true),
+          railWord: widest(fontOf(railName), [...words]),
           railRoom,
           textMin: parseFloat(getComputedStyle(text).minWidth),
           rowWidth: document
@@ -124,12 +129,12 @@ browserTest(
       assert.ok(m.name.w <= NAME_FIT.text, JSON.stringify(m.name));
       assert.equal(m.textMin, NAME_FIT.text);
       assert.ok(m.rowWidth >= NAME_FIT.text, `row ${m.rowWidth}`);
-      // a picker shows its widest word with its arrow's room
+      // a stepper's word box shows its widest word with its padding
       assert.ok(m.word.w + m.pickPad <= NAME_FIT.word, JSON.stringify(m.word));
-      assert.ok(m.pickMin >= m.word.w + m.pickPad, `picker ${m.pickMin}`);
+      assert.ok(m.pickMin >= m.word.w + m.pickPad, `stepper ${m.pickMin}`);
       // the lobby's team title fits a team's column on a phone
       assert.ok(m.team.w <= m.rowWidth, JSON.stringify(m.team));
-      // the rail breaks between words: each word fits the narrowest rail
+      // the header breaks the name between words: each word fits the narrowest one
       assert.ok(m.railWord.w <= m.railRoom, JSON.stringify(m.railWord));
       assert.deepEqual(page.errors, []);
     } finally {
