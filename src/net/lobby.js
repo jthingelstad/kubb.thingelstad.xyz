@@ -39,6 +39,9 @@ export let NAME_MAX;
 export let OPTION_DEFAULTS;
 export let MATCH_OPTIONS; // [key, label, [[value, label], ...]], as on the solo card
 export let LEVELS;
+// The levels a computer seat may have (engine 0.17: Beginner, Club, Pro): Kid is the
+// match's, the Computer setting, never a seat's.
+export let SEAT_LEVELS = ["beginner", "club", "pro"];
 export let LOG_BUDGET;
 export let REPLAY_VERSION;
 // The newest engine's major.minor ("0.3"): what a member sends as me.engine and what
@@ -74,6 +77,7 @@ export function useRoomEngine(engine) {
     REPLAY_VERSION,
     ENGINE,
   } = k);
+  if (Array.isArray(k.SEAT_LEVELS)) SEAT_LEVELS = k.SEAT_LEVELS;
   return k;
 }
 
@@ -134,6 +138,42 @@ export const setAccess = (doc, open) => write("setAccess", { doc, open });
 export const pruneTeams = (doc, present) =>
   write("pruneTeams", { doc, present });
 
+// ---------- computer seats (engine 0.17, its docs/PITCH.md "Computer seats") ----------
+// A team's computer player sits in its list in its place in the throwing order, by a
+// seat id no member can have ("cpu:1"), its record in the document's top-level
+// `computers` ({ level, name }). The host's four reducers; each undefined when nothing
+// changes (a full side, a bad level, a match running).
+
+// Is `id` a computer seat's id? The engine's own test, kept (it is asked for every row).
+const seatIds = new Map();
+export function isSeat(id) {
+  if (typeof id !== "string") return false;
+  let v = seatIds.get(id);
+  if (v === undefined) {
+    v = !!roomCall("isSeat", { id });
+    if (seatIds.size > 256) seatIds.clear();
+    seatIds.set(id, v);
+  }
+  return v;
+}
+
+// A seat on `side` at `level`, last in its order, named from the host's own `seed` (a
+// whole number) unlike every other seat, or `name` when it is a generated player name.
+export const addComputer = (doc, side, level, { seed, name } = {}) =>
+  write("addComputer", {
+    doc,
+    side,
+    level,
+    ...(seed == null ? {} : { seed }),
+    ...(name == null ? {} : { name }),
+  });
+export const setComputerLevel = (doc, id, level) =>
+  write("setComputerLevel", { doc, id, level });
+// To `side` at place `index` in its throwing order (0 first; null: last).
+export const moveComputer = (doc, id, side, index = null) =>
+  write("moveComputer", { doc, id, side, ...(index == null ? {} : { index }) });
+export const removeComputer = (doc, id) => write("removeComputer", { doc, id });
+
 // A side's team name, picked by the host (docs/MULTIPLAYER.md "Names"): kept in the
 // document's own top-level `teamNames` ({ A, B }), which the engine's reducers keep as
 // they keep any key they do not know. The engine has no reducer for it yet, so this
@@ -176,14 +216,31 @@ export const matchOptions = (doc, lineup, { seed, start }, mm) =>
 // engine null when none is carried by the host and every player. `me` (this browser's
 // member id) counts this browser too, with `carries` (what it carries) while its own
 // presence is still on its way.
+//
+// Engine 0.17.0's engineFor counts a computer seat in the lineup as a player who names
+// no engine (it is in `unknown` and `missing`, and `engine` is null), so a pitch with a
+// seat could never start. A seat has no engine to carry (startCheck skips it): the
+// seats are taken out of the document's teams before the engine is asked. When the
+// engine skips them itself this does nothing.
 export const roomEngineFor = (doc, members, host, me, carries) =>
   roomCall("engineFor", {
-    doc,
+    doc: withoutSeats(doc),
     members,
     host: host ?? null,
     ...(me == null ? {} : { me }),
     ...(carries ? { carries } : {}),
   });
+
+function withoutSeats(doc) {
+  const t = doc?.teams;
+  if (!t || typeof t !== "object") return doc;
+  const has = (list) => Array.isArray(list) && list.some((id) => isSeat(id));
+  if (!has(t.A) && !has(t.B)) return doc;
+  const teams = { ...t };
+  for (const s of ["A", "B"])
+    if (Array.isArray(t[s])) teams[s] = t[s].filter((id) => !isSeat(id));
+  return { ...doc, teams };
+}
 
 // The major.minors a member's presence says it carries, newest first.
 export const carriedBy = (me) => roomCall("carried", { me: me ?? null });
@@ -201,7 +258,9 @@ export const speakAs = (members, engine) =>
 // not one.
 export const compareEngines = (a, b) => roomCall("compareEngines", { a, b });
 
-// May START go ahead on engine `mm`? { ok, engine, differ: [ids], unknown: [ids] }.
+// May START go ahead on engine `mm`? { ok, engine, differ: [ids], unknown: [ids] }, and
+// since 0.17 `why` ("size", "level", "person") and `text`, a sentence to show, when the
+// lineup itself is refused.
 export const startCheck = (players, members, host, mm) =>
   roomCall(
     "startCheck",

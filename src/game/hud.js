@@ -117,14 +117,25 @@ export function headerLine({
   n = null,
   of = null,
   count = "",
+  cpu = null,
 } = {}) {
   const parts = [];
   if (turn) parts.push(`Turn ${turn}`);
   if (kind) parts.push(n && of ? `${kind} ${n} of ${of}` : kind);
   if (count) parts.push(count);
+  // a computer player throws (engine 0.17, need.setup.thrower.cpu): "· computer · Pro"
+  if (cpu) parts.push("computer", cpu);
   const t = parts.join(" · ").toLowerCase();
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
+
+// A computer player's level as the header says it (the engine's words).
+const LEVEL_WORDS = {
+  kid: "Kid",
+  beginner: "Beginner",
+  club: "Club",
+  pro: "Pro",
+};
 
 // Whose throw it is, in sentence case: the engine's rail says it in capitals
 // ("MIGHTY MAPLE", "GOLDEN KUBBLETS: PLUCKY PLUM"), so the name is the team's (and
@@ -330,12 +341,15 @@ export class Hud {
       const at = /^(FIELD \d+|KING)$/.test(rail.r1 || "")
         ? railCount(rail.r1)
         : "";
+      const th = need?.kind === "throw" ? need.setup?.thrower : null;
       line = headerLine({
         turn: need?.turn,
-        kind: rail.kind || aim.projectile || "",
+        // a kubb rethrown (engine 0.17.0): counted among the rethrows, "rethrow 1 of 1"
+        kind: rail.rethrow ? "Rethrow" : rail.kind || aim.projectile || "",
         n: rail.n,
         of: rail.of,
         count: at,
+        cpu: th?.cpu ? (LEVEL_WORDS[th.level] ?? th.level ?? "") : null,
       });
     }
     this.text(what, line);

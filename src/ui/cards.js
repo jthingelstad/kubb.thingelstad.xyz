@@ -14,7 +14,12 @@ import { segBar } from "./seg.js";
 import { sceneId } from "../render/scenes.js";
 import { optionRows } from "../net/lobby.js";
 import { sceneTiles } from "./scene-tiles.js";
-import { handoffKid, handoffLine, handoffTitle } from "./handoff-words.js";
+import {
+  handoffCpu,
+  handoffKid,
+  handoffLine,
+  handoffTitle,
+} from "./handoff-words.js";
 
 export class Cards {
   constructor(root) {
@@ -97,6 +102,7 @@ export class Cards {
         done,
         "handoff",
         handoffKid(need),
+        handoffCpu(c),
       );
     else if (card.kind === "settle")
       el = shortCard(
@@ -667,7 +673,7 @@ export function openShareCard(
 // button; no turn number and no map (the header says the turn, the minimap the
 // pitch). Also the settle card's, before a raise or punishment by hand. line:
 // handoffLine's { state, text }.
-function shortCard(name, mine, line, go, done, kind, kid = null) {
+function shortCard(name, mine, line, go, done, kind, kid = null, cpu = null) {
   return h(
     `div.card.handoff.short`,
     { "data-test": kind, "data-line": line.state || "" },
@@ -677,6 +683,8 @@ function shortCard(name, mine, line, go, done, kind, kid = null) {
     line.text
       ? h("p.handoff-line", { "data-test": `${kind}-line` }, line.text)
       : null,
+    // the turn opens with a computer player (engine 0.17)
+    cpu ? h("p.handoff-cpu", { "data-test": `${kind}-cpu` }, cpu) : null,
     h(
       "div.row",
       button(go, done, "go wide", {
