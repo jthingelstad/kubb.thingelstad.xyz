@@ -109,6 +109,13 @@ import { loadThrowLevel } from "./throw-level.js";
 import { NudgeTrigger, timeline, swingOf, captionFor } from "./nudge.js";
 import { coachFor, slowVerdict } from "./coach.js";
 import {
+  actionClip,
+  settledClips,
+  liftPace,
+  otherSide,
+  tune as liftTune,
+} from "./lift.js";
+import {
   newAutoRaise,
   setGame,
   restOfTurn,
@@ -318,6 +325,11 @@ export class Game {
     this.raiseDrag = null;
     this.raiseHint = null;
     this.autoRaise = newAutoRaise(); // src/game/auto-raise.js
+    // a raise being watched (src/game/lift.js): { clips, k, t, lead, beat, then }
+    // while the phase is "lift"; liftSkip: the player skipped it, so the rest of this
+    // turn's automatic raises stand at once
+    this.liftState = null;
+    this.liftSkip = false;
     this.punishAt = null;
     this.running = false;
     this.zen = null; // a calm pace for watching (main's watchTune.zen), or null
@@ -536,17 +548,123 @@ export class Game {
   }
 
   applyRemote(action) {
-    if (this.phase === "play") {
+    if (this.phase === "play" || this.phase === "lift") {
       this.queue.push(action);
       return;
     }
+    const before = this.need;
     const r = this.engine.apply(action);
     if (r && r.ok === false) return r;
     this.track(action);
     this.remote = null;
     if (r.recording) this.startPlayback(r.recording, false);
-    else this.enter(this.engine.view());
+    else this.showAction(before, action, this.engine.view());
     return r;
+  }
+
+  // ---------- watching a raise (src/game/lift.js) ----------
+
+  // Whether a raise is shown being made: in a match that is drawn (not a hidden tab's
+  // quiet steps), unless the player skipped this turn's.
+  watchLifts() {
+    return this.mode === "match" && !this.quiet && !this.liftSkip;
+  }
+
+  get reduced() {
+    return !!this.reducedMotion?.matches;
+  }
+
+  // After an action that did not throw: a raise is watched, one kubb tipped up, then
+  // `view` is entered; anything else enters `view` at once.
+  showAction(before, action, view, { lead = 0 } = {}) {
+    if (
+      action?.type === "raise" &&
+      before?.kind === "raise" &&
+      this.watchLifts()
+    ) {
+      const clip = actionClip(before, action, { reduced: this.reduced });
+      if (clip) {
+        const { beat } = liftPace(before.of);
+        return this.startLifts([clip], { lead, beat }, view);
+      }
+    }
+    this.enter(view);
+  }
+
+  startLifts(clips, { lead = 0, beat }, then) {
+    this.liftState = { clips, k: 0, t: 0, lead, beat, then };
+    this.phase = "lift";
+    this.raiseDrag = null;
+    this.raiseSel = null;
+    this.cards?.tick?.(this);
+  }
+
+  // One frame of a raise being watched: the lead, then each kubb's beat; a hidden tab
+  // ends it at once. Actions waiting behind it hurry it (lift.js tune.catchUp), so a
+  // shared pitch never falls behind the browser that raised.
+  liftFrame(dt) {
+    const L = this.liftState;
+    if (!L) return;
+    if (this.quiet) return this.finishLifts();
+    const k = 1 + liftTune.catchUp * this.queue.length;
+    let step = dt * k;
+    if (L.lead > 0) {
+      const used = Math.min(L.lead, step);
+      L.lead -= used;
+      step -= used;
+    }
+    L.t += step;
+    while (L.t >= L.beat) {
+      L.t -= L.beat;
+      L.k += 1;
+      if (L.k >= L.clips.length) return this.finishLifts();
+    }
+    this.drawLift(L.clips[L.k], L.lead > 0 ? 0 : L.t / L.beat);
+  }
+
+  drawLift(clip, u) {
+    if (this.quiet) return;
+    const v = this.viewData || {};
+    this.fit = stillFit(this.W, this.H, tune.raiseZoom);
+    this.begin();
+    this.world(raiseCamera(clip.need), {
+      surface: v.surface,
+      set: v.set,
+      items: clip.items(u),
+      footprints: clip.footprints,
+    });
+    this.css();
+    this.cards?.tick?.(this);
+    this.hud.update({
+      aim: null,
+      need: this.need,
+      watching: false,
+      practice: false,
+      layout: this.L,
+      who: null,
+      wide: !!this.wide,
+    });
+  }
+
+  // The watched raise is over (or skipped): the view after it, and any actions that
+  // came in meanwhile.
+  finishLifts() {
+    const L = this.liftState;
+    this.liftState = null;
+    if (!L) return;
+    this.phase = "idle";
+    this.enter(L.then || this.engine.view());
+    while (this.queue.length && this.phase !== "play" && this.phase !== "lift")
+      this.applyRemote(this.queue.shift());
+  }
+
+  // A tap or a key while a raise is watched: to its end, and the rest of this turn's
+  // automatic raises at once.
+  skipLifts() {
+    if (this.phase !== "lift") return false;
+    this.liftSkip = true;
+    this.finishLifts();
+    return true;
   }
 
   // (A match's snapshot: the seam is for matches.)
@@ -624,6 +742,7 @@ export class Game {
 
   // Take the engine's view and go where its need says.
   enter(view) {
+    this.liftState = null;
     this.viewData = view;
     this.need = view.need;
     this.items = view.items || [];
@@ -637,6 +756,7 @@ export class Game {
     this.dialNext = null;
     this.cancelSwipe();
     const n = this.need;
+    if (n.kind !== "raise") this.liftSkip = false;
     // the last throw set up: the pitch's frame between throws (pitchFrame)
     if (n.kind === "throw" && n.side) this.lastThrower = n.side;
     // where its aim camera puts the far baseline (frame y), so a tall canvas fits
@@ -798,6 +918,7 @@ export class Game {
     if (this.phase !== "play") this.stage.tick(dt);
     if (this.phase === "aim") this.aimFrame(dt, now);
     else if (this.phase === "play") this.playFrame(dt, now);
+    else if (this.phase === "lift") this.liftFrame(dt);
     else this.drawStill();
     this.autoRaiseTick(dt);
     if (this.result) this.result.age += dt;
@@ -1089,6 +1210,7 @@ export class Game {
   // ---------- playback ----------
 
   startPlayback(rec, local, out = null) {
+    this.liftState = null;
     const tl = rec.timeline || {};
     const pid = rec.projectile && rec.projectile.id;
     this.play = {
@@ -1173,14 +1295,43 @@ export class Game {
   }
 
   endPlayback() {
+    const p = this.play;
     this.play = null;
     this.phase = "idle";
     const v = this.engine.view();
+    // the kubbs the engine raised itself before the next throw (Raising: Automatic, the
+    // computer's own raises, watching the computer) are watched being raised
+    const clips = this.settledLifts(p, v);
+    if (clips.length) {
+      this.startLifts(clips, liftPace(clips.length), v);
+      return;
+    }
     this.enter(v);
     // actions that came in while the throw played
     while (this.queue.length && this.phase !== "play") {
       this.applyRemote(this.queue.shift());
     }
+  }
+
+  // The engine's own raises between the throw just played and the next: clips on the
+  // raise view in the raiser's frame (lift.js settledClips), or []. The engine raises
+  // between a turn's last kubb thrown in and its first baton, so only there. (The
+  // engine's throw need carries `setup.settled` for this, but engine 0.15.1 never fills
+  // it: core/match keeps it on the match, not the setup. The pieces say it instead.)
+  settledLifts(p, v) {
+    const n = v?.need;
+    const was = this.need;
+    if (!p?.last?.items || n?.kind !== "throw" || was?.kind !== "throw")
+      return [];
+    if (was.setup?.kind !== "toss" || n.setup?.kind === "toss") return [];
+    if (!this.watchLifts() || !n.side || !was.side) return [];
+    const wide = !!this.wide;
+    return settledClips(p.last.items, v.items || [], {
+      fromSide: wide ? "A" : was.side,
+      toSide: wide ? "A" : n.side,
+      raiser: otherSide(n.side),
+      reduced: this.reduced,
+    });
   }
 
   // ---------- raise and punishment ----------
@@ -1257,7 +1408,7 @@ export class Game {
 
   // Stand the kubb on end i (an index into need.ends), or the engine's own
   // choice with null.
-  raise(i) {
+  raise(i, { watch = false, lead = 0 } = {}) {
     const n = this.need;
     if (this.phase !== "raise") return;
     let action;
@@ -1271,8 +1422,15 @@ export class Game {
     const r = this.engine.apply(action);
     if (r.ok === false) return r;
     this.emit(action);
-    this.enter(this.engine.view());
+    // an automatic raise is watched (lift.js); one by hand was already seen
+    if (watch) this.showAction(n, action, this.engine.view(), { lead });
+    else this.enter(this.engine.view());
     return r;
+  }
+
+  // The raise panel's AUTO: this kubb, on the engine's choice, watched.
+  raiseAuto() {
+    return this.raise(null, { watch: true });
   }
 
   // The raise panel's BY HAND and REST OF GAME: "auto" raises
@@ -1290,9 +1448,14 @@ export class Game {
   }
 
   autoRaiseTick(dt) {
-    const st = { phase: this.phase, need: this.need, modal: this.modal };
+    const st = {
+      phase: this.phase,
+      need: this.need,
+      modal: this.modal,
+      rush: this.liftSkip || this.quiet,
+    };
     if (!stepAutoRaise(this.autoRaise, dt, st)) return;
-    const r = this.raise(null);
+    const r = this.raise(null, { watch: true });
     if (r && r.ok === false) {
       refused(this.autoRaise);
       this.cards?.clearPanel?.();
@@ -1792,7 +1955,10 @@ export class Game {
   // path (pitchFrameOf in src/game/neighbours.js says which is which).
   pitchFrame() {
     return pitchFrameOf({
-      need: this.need,
+      need:
+        this.phase === "lift" && this.liftState
+          ? this.liftState.clips[this.liftState.k]?.need || this.need
+          : this.need,
       wide: !!this.wide,
       mode: this.mode,
       thrower: this.lastThrower,
@@ -2207,6 +2373,12 @@ export class Game {
   down(e) {
     this.sound?.unlock();
     if (this.modal || this.ptr) return;
+    // a watched raise: a tap skips to its end
+    if (this.phase === "lift" && !this.freeOn()) {
+      e.preventDefault();
+      this.skipLifts();
+      return;
+    }
     this.aimInput();
     const { x, y } = this.pos(e);
     // a watcher's free camera takes every press on the pitch (docs/OBSERVER.md)
@@ -2551,6 +2723,18 @@ export class Game {
   keyDown(e) {
     if (this.modal || e.metaKey || e.ctrlKey || e.altKey) return;
     const code = e.code;
+    // a watched raise: a key skips to its end
+    if (
+      this.phase === "lift" &&
+      !isTyping(e.target) &&
+      !e.repeat &&
+      !["Tab", "ShiftLeft", "ShiftRight"].includes(code)
+    ) {
+      if (this.skipLifts()) {
+        e.preventDefault();
+        return;
+      }
+    }
     // a watcher's camera keys (docs/OBSERVER.md); never while typing
     if (this.freeOn() && !isTyping(e.target) && this.freeCam.key(code, true)) {
       e.preventDefault();

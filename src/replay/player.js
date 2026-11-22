@@ -493,7 +493,9 @@ export class ReplayPlayer {
   // From the Game's tick, with its dt (already at the replay's speed, 0 when paused).
   drive(dt) {
     const g = this.game;
-    if (this.ended || g.phase === "play" || g.modal) return;
+    // a throw playing back, or a raise being watched (src/game/lift.js), holds the log
+    if (this.ended || g.phase === "play" || g.phase === "lift" || g.modal)
+      return;
     if (!this.playing && !this.single) return;
     if (this.info.done) {
       this.wait -= dt;
@@ -510,12 +512,16 @@ export class ReplayPlayer {
   // The next action in the log.
   step() {
     const g = this.game;
+    const before = g.need;
+    const action = this.data.log[this.info.i]?.a;
     const r = g.engine.replayStep();
     this.info = r.replay;
     if (r.recording) {
       g.startPlayback(r.recording, false);
       this.render();
-    } else g.enter(g.engine.view());
+    } else if (this.rushing) g.enter(g.engine.view());
+    // a raise is watched being made, as it was in the match (src/game/lift.js)
+    else g.showAction(before, action, g.engine.view());
   }
 
   // NEXT THROW: the throw playing now to its end, then the next throw (with any raise
@@ -527,10 +533,17 @@ export class ReplayPlayer {
       g.skip();
       g.endPlayback();
     }
-    while (!this.info.done) {
-      const e = this.data.log[this.info.i];
-      this.step();
-      if (e.a.type === "throw" || this.ended) break;
+    // NEXT THROW goes straight on: no raise is watched on the way
+    if (g.phase === "lift") g.finishLifts();
+    this.rushing = true;
+    try {
+      while (!this.info.done) {
+        const e = this.data.log[this.info.i];
+        this.step();
+        if (e.a.type === "throw" || this.ended) break;
+      }
+    } finally {
+      this.rushing = false;
     }
     if (!this.playing && g.phase === "play") {
       this.single = true;

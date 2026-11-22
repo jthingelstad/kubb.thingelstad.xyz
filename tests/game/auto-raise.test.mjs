@@ -31,12 +31,13 @@ test("by hand nothing is raised, and the menu row waits for a first raise", () =
   assert.equal(isOn(s), false);
 });
 
-test("AUTO ALL raises each of the turn's kubbs once, tune.wait apart, then ends", () => {
+test("AUTO ALL raises each of the turn's kubbs once, the first after tune.wait and the rest at once (each is watched for its beat), then ends", () => {
   const s = newAutoRaise();
   restOfTurn(s);
   for (const n of [1, 2, 3]) {
     const f = framesUntil(s, raise(n));
-    assert.ok(Math.abs(f / 60 - tune.wait) < 0.06, `kubb ${n}: ${f} frames`);
+    const want = n === 1 ? tune.wait : tune.next;
+    assert.ok(Math.abs(f / 60 - want) < 0.06, `kubb ${n}: ${f} frames`);
     // the same kubb is not raised twice while the engine has yet to move on
     assert.equal(framesUntil(s, raise(n), 30), -1);
   }
@@ -73,7 +74,7 @@ test("an open card or menu holds it, and the wait starts over for a new kubb", (
   setGame(s, true);
   const held = { ...raise(1), modal: 1 };
   assert.equal(framesUntil(s, held, 120), -1);
-  assert.ok(framesUntil(s, raise(1)) > 30);
+  assert.ok(framesUntil(s, raise(1)) >= tune.wait * 60 - 2);
 });
 
 test("a raise the engine refuses goes back to the player", () => {
@@ -83,4 +84,21 @@ test("a raise the engine refuses goes back to the player", () => {
   refused(s);
   assert.equal(isOn(s), false);
   assert.equal(framesUntil(s, raise(1)), -1);
+});
+
+test("a skipped watched raise (rush) stands the rest of the turn's kubbs with no wait", () => {
+  const s = newAutoRaise();
+  restOfTurn(s);
+  assert.equal(framesUntil(s, { ...raise(1), rush: true }), 1);
+  assert.equal(framesUntil(s, { ...raise(2), rush: true }), 1);
+});
+
+test("the next turn's first kubb waits again", () => {
+  const s = newAutoRaise();
+  setGame(s, true);
+  framesUntil(s, raise(1, 2, 4));
+  framesUntil(s, raise(2, 2, 4));
+  step(s, 1 / 60, { phase: "aim", need: { kind: "throw" }, modal: 0 });
+  const f = framesUntil(s, raise(1, 2, 6));
+  assert.ok(Math.abs(f / 60 - tune.wait) < 0.06, `${f} frames`);
 });
