@@ -106,15 +106,9 @@ test("the engine's golden corpus, every hash, under this wasmoon", async () => {
   const played = [];
   for (const { dir, version } of carried)
     played.push([version, await playGolden(dir)]);
-  // 0.13.0's corpus: 15 matches, 579 actions; 0.9.0 wrote a new corpus: 523
-  // actions; 0.8.0 added short batons under 2 m to its corpus: 505 actions; 0.7
-  // plays 437
-  assert.deepEqual(played, [
-    [manifest.version, 579],
-    ["0.9.0", 523],
-    ["0.8.2", 505],
-    ["0.7.4", 437],
-  ]);
+  // 0.13.0's corpus: 15 matches, 579 actions. The site carries the newest engine
+  // alone (docs/ENGINES.md): 0.9, 0.8 and 0.7 were dropped on 2026-11-21.
+  assert.deepEqual(played, [[manifest.version, 579]]);
 });
 
 test("with two engines carried, each plays its own corpus", async (t) => {

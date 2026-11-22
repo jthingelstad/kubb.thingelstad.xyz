@@ -19,7 +19,12 @@
 // a JSON block (backend/pages/pitch.mjs embedState). A page without one (the
 // static page, when the function is away) still plays a kept replay.
 import { h } from "../ui/dom.js";
-import { ReplayPlayer } from "../replay/player.js";
+import {
+  OLD_REPLAY,
+  ReplayPlayer,
+  problemText,
+  replayProblem,
+} from "../replay/player.js";
 import { fetchReplay } from "../replay/fetch.js";
 import { isReplay } from "../net/lobby.js";
 import { engineFor } from "../engine/registry.js";
@@ -120,11 +125,21 @@ export async function startEmbed({
     return quiet("No match here", null, "none");
   }
 
+  // a match made on an engine the site no longer carries: one sentence, and the link
+  // to the pitch (docs/ENGINES.md)
+  const title = s?.state === "over" && s.final ? s.final : "A finished match";
+  if (engines?.newest && replayProblem(data, { engines }) === "old")
+    return quiet(title, OLD_REPLAY, "old");
   const game = await makeGame();
   if (!isReplay(data)) {
     game.stop?.();
     if (s?.state === "over" && s.final) return quiet(s.final, null, "over");
     return quiet("No match here", null, "none");
+  }
+  const problem = replayProblem(data, { engines, engine: game.engine });
+  if (problem) {
+    game.stop?.();
+    return quiet(title, problemText(problem), problem);
   }
   // the match's own engine when the site carries it (docs/ENGINES.md)
   const engine = await engineFor(engines, data.engine, game.engine);

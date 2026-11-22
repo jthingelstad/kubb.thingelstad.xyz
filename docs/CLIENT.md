@@ -13,10 +13,10 @@ the engine's.
 | Page                | What it is                                                                                                                                                                                                                                                                                          |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/practice/`        | The open practice pitch: BATONS or KUBBS (the drill), surface and reset.                                                                                                                                                                                                                            |
-| `/settings/`        | The device's settings alone (your name, meter, meter side, sound): the same rows as MENU's, from Settings on the web game's page, with DONE back to it. No engine is loaded.                                                                                                                        |
-| `/p/<code>?solo=1`  | A match against the computer. The options card first (You: your name in one row with one CHANGE IN MENU; Computer level, surface, opening, raising, wind, kubb set, scene; remembered), then START.                                                                                                 |
+| `/settings/`        | The device's settings alone (your name in its name row, meter, meter side, sound): the same rows as MENU's, from Settings on the web game's page, with DONE back to it. The engine is loaded for the names only.                                                                                    |
+| `/p/<code>?solo=1`  | A match against the computer. The options card first (You: your name in its name row; Computer level, surface, opening, raising, wind, kubb set, scene; remembered), then START.                                                                                                                    |
 | `/p/<code>?watch=1` | The computer against itself, match after match: no options card, the solo card's saved options, North against South. The winner card stays up 10 s (NEXT MATCH, STOP, HOME), then the next match starts by itself, the other team first. Seen in the wide view by default ("The wide view", below). |
-| `/p/<code>`         | A shared pitch: the lobby (your name, Team A or B or watching, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md.                                                                                                                                     |
+| `/p/<code>`         | A shared pitch: the lobby (your name, Team A or B or watching, a side of several's team name, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md.                                                                                                      |
 | `/e/<code>`         | The embed: a kept replay alone, for a frame on another site ("The embed", below).                                                                                                                                                                                                                   |
 
 `/p/<code>?observe=1` is a shared pitch watched without a seat (WATCH on the open games
@@ -38,7 +38,9 @@ the web game's page, `/web/` (`/` is the landing page for the whole game). The H
 | `src/game/layout.js`                          | Pure: where the dial (or the linear meter), the wide plan block and minimap go, the tall-canvas framing (`worldFit`, `stillFit`, `panFor`), and the wide view's box (`wideBox`). |
 | `src/game/scenes.js`                          | The client's own cameras for raising and punishment, and the pieces in them.                                                                                                     |
 | `src/game/auto-raise.js`                      | Pure: automatic raising for the turn (AUTO ALL) or the match (REST OF GAME on the raise panel).                                                                                  |
-| `src/game/player-name.js`                     | Pure: the device's name (the `name` pref), tidied, and moved across once from the solo card's old `solo.name`.                                                                   |
+| `src/game/player-name.js`                     | Pure: the device's name (the `name` pref), a generated one: rolled on the first run, a typed name from before replaced on load ("Names").                                        |
+| `src/game/names.js`                           | The engine's `names.*` door: roll, step, choices, the display check (`passes`, `shown`, `badNames`), the lobby's "II" (`apartNames`) ("Names").                                  |
+| `src/ui/name-row.js`                          | The name row: the name, SHUFFLE, a picker and KEEP per word, `NAME_FIT` ("Names").                                                                                               |
 | `src/game/raise-touch.js`                     | Pure: raising by touch, where the drawn kubb is, which end a tap or drag means, its tilt.                                                                                        |
 | `src/game/sound.js`                           | `Sound`: the knocks and the king's chord through Web Audio; unlock on the first pointer down; mute remembered.                                                                   |
 | `src/game/nudge.js`, `src/render/nudge.js`    | The throw's nudge: when it shows and the ghost's throw (pure), and its drawing over the meter ("The nudge", below).                                                              |
@@ -688,33 +690,30 @@ throws he took for perfect had been judged long.
   side, Sound), then View
   when watching, and on the practice pitch that pitch's own options, Surface and Scene.
   Each row shows its value as a choice. Then how to throw, score sheet (a match), resign,
-  send feedback, rules, home; Escape closes it. It opens over a card too, from CHANGE IN
-  MENU. A match's options are never in it.
+  send feedback, rules, home; Escape closes it. A match's options are never in it.
 - **Settings** (the owner's settings sheet, 2026-11-20: each setting lives where its
   scope says). Device settings are kept on the device and never asked per match: your
-  name (prefs `name`, `src/game/player-name.js`), the meter
+  name (prefs `name`, `src/game/player-name.js`; a generated name, "Names" below), the meter
   (`meter`), its side (`meterSide`) and the sound (`muted`). They are one set of rows,
   `deviceRows` in `src/ui/settings.js`, shown at the top of MENU in every mode and as the
   `/settings/` page, linked as Settings on the web game's page (`prefsDevice` reads and
-  writes the same prefs there, with no engine loaded). Game settings (Computer level,
+  writes the same prefs there; the page loads the engine for the name row only). Game settings (Computer level,
   surface, opening, raising, wind, kubb set, scene, and online who can join) live on the
   match options only: the solo card, the practice MENU (surface and scene) and the lobby.
   Turn and throw settings (stand, spin; arc, tilt) live on the throw controls and the
-  engine keeps their scope. The solo card and the lobby show your name as one row, You
-  ("Birch"), with one CHANGE IN MENU (`youRow` in `src/ui/settings.js`); while the device
-  keeps no name yet the row asks for it once (a box), and what is typed becomes the device's (`Game.setPlayerName`, heard through
-  `Game.onPlayerName`; the pitch sends it to the room). A device's older name moves
-  across once: `name`, else the solo card's `solo.name` unless it is the "You"
-  placeholder. The solo card no longer saves a name in `solo`.
+  engine keeps their scope. The solo card and the lobby show your name as one row, You,
+  holding the name row (`youRow` in `src/ui/settings.js`): a pick there is the device's
+  name everywhere (`Game.setPlayerName`, heard through `Game.onPlayerName`; the pitch
+  sends it to the room), and a pick in MENU shows in the card's row. The solo card no
+  longer saves a name in `solo`, and its old `solo.name` is dropped unread.
 - **One level: the computer's** (the owner, 2026-11-21, with engine 0.13;
   `src/game/throw-level.js`). From engine 0.13 a level is the computer's standard only:
   every person throws on one meter, the bars going by the throw's distance (the engine's
   docs/notes/throw.md "The person's meter"), so nobody is asked for their own level. The
   device's stored level (prefs `level`) is still read and passed as before (practice's
   `level`, a player's `level` in a start, `setLevel` before each of a person's throws,
-  `me.level` on a pitch), never reset: it changes nothing on 0.13, and on a match that runs
-  on a carried 0.9 engine (a pitch with the iPhone app on 0.9, a replay) it throws a person
-  at the level it always did. A device that never chose one throws at Club. The
+  `me.level` on a pitch), never reset: it changes nothing on 0.13 (the 0.9 engine where it
+  counted is no longer carried). A device that never chose one throws at Club. The
   computer's level is a match option, Computer level (Beginner, Club, Pro): the solo
   card's row (prefs `solo.computer`, passed as `computer` and on the computer's player),
   and on a pitch the host's row (engine 0.9 on). A device's older choices move across
@@ -731,15 +730,83 @@ throws he took for perfect had been judged long.
   Playdate's "BASE 5". Practice's tray is a joined pair, BATONS | KUBBS, the one in use
   pressed, then RESET.
 
+## Names
+
+No name is typed anywhere on the web (the owner, 2026-11-21; the engine's docs/NAMES.md,
+section 10). Every player and team name is a generated one, made from the engine's word
+lists through its `names.*` calls (the engine's docs/SESSION.md "Names"). A name is kept
+and sent as its text.
+
+- **The device's name** (`loadName` in `src/game/player-name.js`, prefs `name`). The
+  first run rolls one: `names.roll` with a seed from the browser's own randomness
+  (`crypto.getRandomValues`, `randomSeed` in `src/game/names.js`), kept at once. On every
+  load the kept text is checked with `names.valid`: one that is not a generated player
+  name (`ok`; a default such as "Player 1" is not one) is replaced by a rolled name and
+  never shown. A once-generated name that lost a word for safety keeps the word still in
+  its list (`names.roll` with both words as locks). `saveName` keeps only a generated
+  name. The solo card's old `solo.name` is dropped unread.
+- **The name row** (`nameRow` in `src/ui/name-row.js`), built once and used in Settings
+  (MENU, `/settings/`), the solo card's and the lobby's You row, the lobby's team names
+  (the host's) and the share card. Top: the name as it reads and SHUFFLE. Under it, one
+  picker per word, a native `<select>` of `names.choices` for that slot with the other
+  words as they are, and beside each KEEP, a toggle button (`aria-pressed`; KEPT when on).
+  SHUFFLE is `names.roll` with the kept words in `keep`; a team's SHUFFLE may change its
+  shape (`adj`, `wood`, `the`) unless a word is kept. A team's "The" is text, not a slot.
+  The row is a labelled group (`role="group"`, `aria-label` "Your name"); each picker is
+  named "Your name, first word" and so on, each lock "Keep Mighty when shuffling"; a
+  change is announced through an `aria-live` line ("Your name: Mighty Maple"); focus stays
+  on the control that changed. Every control is a native button or select, so the
+  keyboard and a screen reader reach each, in order: SHUFFLE, then each word's picker and
+  KEEP. `data-test`: `<key>`, `<key>-text`, `<key>-shuffle`, `<key>-word-<slot>`,
+  `<key>-lock-<slot>` (keys `settings-name`, `solo-name`, `lobby-name`, `team-A-name`,
+  `share-name`).
+- **Fit.** The longest name in characters is not the widest, so every name from
+  `names.all` (4,133 player and 6,530 team names in 0.13.3) is measured in the game's own
+  fonts by `tests/game/names-fit-client.test.mjs`: the row's text (800 17px Inter) within
+  `NAME_FIT.text` (200 px; the widest is "Redwood Hammocks", 177 px), which `.name-text`
+  keeps as its least width; each word in a picker (700 15px Inter, the widest
+  "Lawnmowers", 98 px) within `NAME_FIT.word` with its padding; the lobby's team title;
+  and the HUD rail, whose name now breaks between words, so each word must fit the
+  narrowest rail (a phone held upright: 141 px; the widest, "CLOUDBERRIES", is 113 px in
+  Londrina Solid at 20 px). The row spans the card's width under its label, so it has
+  that room on a 390 px phone.
+- **A team of several** plays under a team name the host picks in the lobby. When a side
+  first has two players the host rolls one (`Pitch.rollTeamNames`) and writes it into
+  the document's own top-level `teamNames` (`setTeamName` in `src/net/lobby.js`: the
+  engine's reducers keep a key they do not know; it has no reducer for it yet). The host
+  sees a name row under the side's heading ("Plays as"); everyone else sees the name.
+  START puts it on the side (`opts.teams[side].name`, rolled then if missing). A side of
+  one plays under its player's name (the engine's `matchOptions`).
+- **Two members with one name** are told apart in the lobby only: the second shows
+  "Mighty Maple II", the third "III" (`apartNames`, by the order the pitch lists members).
+  Never by changing a name: the wire, the device and the match keep the name as it is.
+- **The display check** (a client is not proof: docs/MULTIPLAYER.md "Names"). A name that
+  arrives from outside is shown only when `names.valid` says `ok` or `default`
+  (`Names.passes`); otherwise the default for its place: "Player n" for a member (n their
+  place on their side, as the engine's lineup numbers a player with no name; a watcher,
+  their place on the pitch), "Team A" / "Team B" for a team. Where: the lobby and the
+  watching card (`Pitch.nameOf`, `lobbyNameOf`), the status pill and shouts, the winner
+  card's "who played" (`teamsLine`), the lobby's team names (`Pitch.teamNameOf`), the
+  share card's starting name (`nameFromMatch`). The host checks the lineup before START
+  (`checkedLineup`), so an honest host never starts a match with a name that fails.
+  Names drawn by the engine come from the match's snapshot, which is hashed, so they
+  cannot be put right on the page: a live match (`Pitch.enterMatch`) or a kept replay
+  (`replayProblem`) whose snapshot or setup holds a name that fails is not shown, with
+  "This match has a name the game did not make, so it cannot be shown." Stored
+  documents and replays are never rewritten.
+- Watching the computer keeps its North and South: that match never leaves the device
+  but as a private record.
+
 ## Replays
 
 A finished match on a shared pitch can be watched again (Jamie, 2026-11-16: "When a game
 is finished playing on a pitch I'd like the URL to allow people to come and watch a
 replay of the match."). A replay is not a video: the match is set out again from its
 `newMatch` options and every committed action goes through the engine in order
-(the engine's `session/replay.lua`), the same throws with the same physics: the match's
-own engine (`match.engine`, carried in the replay) where the site still carries it, else
-the newest (`docs/ENGINES.md`). What the pitch keeps is `docs/MULTIPLAYER.md` "The document"; the api keeps
+(the engine's `session/replay.lua`), the same throws with the same physics, on the match's
+own engine (`match.engine`, carried in the replay). One made on an engine the site no
+longer carries is not played: "This match was made on an older version of the game and
+can no longer be replayed." (`docs/ENGINES.md` "Looking back at a match"). What the pitch keeps is `docs/MULTIPLAYER.md` "The document"; the api keeps
 the finished match's replay (`backend/api/API.md`, `GET /api/replay?pitch=<code>`), and
 the page that played it builds one from the actions it holds without asking.
 
@@ -884,19 +951,19 @@ and the card's states are a pure reducer in `src/net/share.js` (`shareStart`,
   computer against itself (docs/REEL.md "What a player sees": nobody played), not in
   practice. A rematch starts a new `Share`; the old match's is dropped with its card.
 - **The share card** (words: docs/REEL.md "The share card", `SHARE_WORDS`). What sharing
-  does, the name field, what the other side is called, and that the score sheet shows
+  does, the name row ("Names"), what the other side is called, and that the score sheet shows
   the day and time the match was played (the start carries it, to the minute, and it is
   kept: docs/REEL.md open question 14). Then SHARE AND MAKE THE REEL and NOT NOW. Nothing
   is sent before SHARE. NOT NOW (BACK once sent), Escape and a press outside close it.
-- **The name.** It starts as the name typed for the match, or empty when that was the
-  game's stand-in "You". It takes what the server's check takes (`nameProblem`, as
-  `nameAllowed` in `backend/reels/check.mjs`): 1 to 16 characters, counted as code
-  points and cut there as typed (`clipName`), trimmed, never "You" in any case. SHARE is
-  faded while the name will not do, and a line under it says why.
+- **The name.** The name row starts with the name the match was played under (the
+  device's generated name; when that is not a generated name, the device's name now:
+  `nameFromMatch`). It offers only generated names, which is what the server's check takes
+  (`nameProblem`, as `nameAllowed` in `backend/reels/check.mjs`: a generated player name or
+  a default), so SHARE is never faded for the name; should the server refuse one (a page
+  that sends its own), the line is "Pick a name for your side."
 - **The message.** One `share` message: `client: "web"` (checked by the server, never
   stored), `engine` (the engine's version), `start` and `log` as the engine's
-  `renameStart` gives them with side A renamed to the typed name (team and player; the
-  name typed for the match never leaves the page in a share), and `end` (`winner` from
+  `renameStart` gives them with side A renamed to the name picked (team and player), and `end` (`winner` from
   the `over` need, `throws` the log's throws). No hashes, member id or clock of the
   browser's. It goes as one HTTPS call (`POST /api/share`, `askShare`), and waits up to 45 s for the answer: the server plays the match first.
 - **Too long, known here.** Past the server's ceilings (256 KB, 1000 actions, a 16 KB
@@ -910,10 +977,10 @@ and the card's states are a pure reducer in `src/net/share.js` (`shareStart`,
   same and the button shows how it goes. From then on the button opens the reel card; the
   card is not shown again. A share is idempotent on the server (the same start and log
   are answered the same code, free), so TRY AGAIN after a lost answer gives one link.
-- **Refusals** (`code: null` with a why): `engine`, `does-not-replay`, `too-long`, `busy`
-  and `unavailable` each have a line, and an error `too-many` too; `too-big` reads as
+- **Refusals** (`code: null` with a why): `engine`, `name`, `does-not-replay`, `too-long`,
+  `busy` and `unavailable` each have a line, and an error `too-many` too; `too-big` reads as
   too long and `bad-message` as does-not-replay. None offers TRY AGAIN. Opened again,
-  `busy`, `unavailable` and `too-many` start over at the name; the others stay. The error
+  `name`, `busy`, `unavailable` and `too-many` start over at the name; the others stay. The error
   `failed`: "This match could not be shared." with TRY AGAIN once, then "Not this time".
   No connection: "No connection." with TRY AGAIN as often as pressed.
 - **A sealed pitch.** `/p/<code>` of a shared match: the join is refused `sealed`, and
@@ -1071,16 +1138,17 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
 - **The label** (`src/site/release.js`): every app shows its own version with the Kubb
   Engine's beside it, `<app version> (<engine version>)` (Jamie, 2026-11-20). On the web
   that is `package.json`'s version and the full version of the newest engine the page
-  carries: `0.10.0 (0.13.1)`. Nothing but that engine's version is in the parentheses: an
-  older engine the page still plays is only in the detail, `Also plays 0.9.0, 0.8.2 and 0.7.4`, and the
+  carries: `0.11.0 (0.13.3)`. Nothing but that engine's version is in the parentheses: an
+  older engine the page still plays would be only in the detail, `Also plays ...` (none
+  today: the site carries the newest alone, `docs/ENGINES.md`), and the
   web commit never shows. The release is `{ version, web, engine, also, text, detail }`
   (`text` the label, `detail` the older engines or null). The build (`tools/build.mjs`
   `releaseOf`) reads the version from `package.json`, the web commit from `GITHUB_SHA` in
   CI or `git rev-parse HEAD`, and the engines from the vendored set; it puts the release
   in the game pages' config (`config.release`) and writes it as `/version.json`.
-- **Shown** small, in the shared type tokens: "Version 0.10.0 (0.13.1)" at the foot of
-  every reading page (beside the link to the engine page), and the label with "Also plays
-  0.9.0, 0.8.2 and 0.7.4" under it at the foot of MENU in the game.
+- **Shown** small, in the shared type tokens: "Version 0.11.0 (0.13.3)" at the foot of
+  every reading page (beside the link to the engine page), and the label at the foot of
+  MENU in the game, with "Also plays ..." under it only while an older engine is carried.
 - **Exact identity** is the web commit: freshness (below) compares it, and a feedback
   report carries the label (`build.label`) beside `build.version`, `build.commit` and the
   Lua bundle it played on.
@@ -1113,13 +1181,23 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
   for (`tune.planW`, `planH`) and on a phone on its side at the far edge, and each
   slider's hit area, and STAND's, is at least 44 px across its drag.
 - `tests/game/settings-client.test.mjs` (Playwright): `/settings/` from the web game's
-  page shows a device's older name, has no match option and no level of your own, keeps
-  the device's older level, and what it sets is what the game reads; MENU has the device's rows in practice and in a match, the
-  practice pitch's Surface and Scene only in practice, and no Raising; the solo card asks
-  a new device's name once, the match carries it, the next card shows it and MENU changes
-  it, each in one You row with one CHANGE IN MENU; the lobby's You row shows a kept name
-  and the room hears a change.
-  `tests/game/player-name.test.mjs` is the move across and `prefsDevice`.
+  page replaces a device's typed name with a generated one and shows no text field, has
+  no match option and no level of your own, keeps the device's older level, and what it
+  sets is what the game reads; the first run rolls a name, SHUFFLE keeps a kept word,
+  the keyboard reaches every control of the row in order and a pick is announced; MENU
+  has the device's rows in practice and in a match, the practice pitch's Surface and
+  Scene only in practice, and no Raising; the solo card's You row is the name row, its
+  pick is the match's name, and a pick in MENU is the next card's; the lobby's You row is
+  the name row and the room hears a pick.
+  `tests/game/player-name.test.mjs` is the first run, the typed name replaced, saveName,
+  SHUFFLE with locks, the display check, the "II" rule and `prefsDevice`.
+- `tests/game/names-fit-client.test.mjs` (Playwright): every name from `names.all`,
+  measured in the game's fonts, fits the name row, its pickers, the lobby and the rail.
+- `tests/game/names-client.test.mjs` (Playwright, the local pitch server): a page that
+  sends a typed name is "Player 1" to everyone and still plays; two members with one
+  name are "Mighty Maple" and "Mighty Maple II"; the host's team name for a side of
+  several is seen by all and carried by the match; a forged snapshot's match is not
+  shown, and a start naming a typed name is refused `bad-name`.
 - `tests/game/levels-client.test.mjs` (Playwright): a device from before keeps its
   level, passed as before though nothing shows or sets it; the solo card's Computer level
   sets the computer, and neither the card, its You row nor MENU has a level of your own;

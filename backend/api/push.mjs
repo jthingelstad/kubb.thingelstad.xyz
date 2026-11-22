@@ -112,7 +112,7 @@ const LEVELS = ["beginner", "club", "pro"];
 const teamName = (s) =>
   typeof s === "string" && s.trim() ? s.trim().slice(0, 40) : null;
 
-// From a match's `meta` (or a replay): the team names as typed, the side the computer
+// From a match's `meta` (or a replay): the team names, the side the computer
 // played alone ("A" or "B") and its level. Only what a pitch's link shows (backend/pages).
 export function matchInfo(meta) {
   const setup = isObject(meta?.setup) ? meta.setup : null;

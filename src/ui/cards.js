@@ -9,7 +9,6 @@ import { h, button, clear } from "./dom.js";
 import { prefs } from "../game/prefs.js";
 import { soloOptions } from "../game/throw-level.js";
 import { youRow } from "./settings.js";
-import { NAME_MAX, PLACEHOLDER, tidyName } from "../game/player-name.js";
 import { drawMinimap } from "../render/minimap.js";
 import { teamOf } from "../game/scenes.js";
 import { SCENE_ROW, sceneId } from "../render/scenes.js";
@@ -208,17 +207,17 @@ export class Cards {
 
   // The Computer level row is the computer's, a match option; a person's own level
   // is not shown (from engine 0.13 a person throws on one meter). name: the
-  // device's name (src/game/player-name.js), shown once kept (menu() opens MENU
-  // over this card to change it); while there is none the card asks for it once and
-  // setName(t) keeps it on the device; onName(f) hears a change made in MENU.
+  // device's name (src/game/player-name.js), a generated one, in the You row's name
+  // row (src/ui/name-row.js): a pick there is the device's name (setName); onName(f)
+  // hears a change made in MENU. names: the engine's door (src/game/names.js).
   // scene: the Scene row's value when the address names one (?scene=), else the
   // saved one; onScene(id) hears it picked, so the pitch behind the card can show it.
   options(
     onStart,
     {
       home,
-      menu = null,
-      name: kept = "",
+      names,
+      name: kept,
       setName = null,
       onName = null,
       scene = null,
@@ -228,27 +227,19 @@ export class Cards {
     const saved = soloSaved();
     if (scene) saved.scene = sceneId(scene);
     onScene?.(saved.scene);
-    // no name on this device yet: typed here, once
-    const name = kept
-      ? null
-      : h("input.name", {
-          type: "text",
-          maxlength: NAME_MAX,
-          value: "",
-          placeholder: PLACEHOLDER,
-          autocomplete: "off",
-          spellcheck: "false",
-          "aria-label": "Your name",
-          "data-test": "solo-name",
-        });
     let current = kept;
-    // one "You" row: the name (or its box), one CHANGE IN MENU
-    const you = youRow("solo", { name: kept, input: name, menu });
+    // one "You" row: the name and its pickers
+    const you = youRow("solo", {
+      names,
+      name: kept,
+      setName: (t) => {
+        current = t;
+        setName?.(t);
+      },
+    });
     const stopName = onName?.((v) => {
       current = v;
       you.setName(v);
-      // a name set in MENU over this card is the box's too: START takes the box's
-      if (name) name.value = v;
     });
     const groups = {};
     const rows = OPTION_ROWS.map(([key, label, choices]) => {
@@ -267,16 +258,12 @@ export class Cards {
       );
     });
     const start = () => {
-      if (name && tidyName(name.value)) {
-        setName?.(name.value);
-        current = tidyName(name.value);
-      }
       const o = {};
       for (const k of Object.keys(groups)) o[k] = groups[k].value();
       // the match options are kept for the next card; the name is the device's
       prefs.set("solo", o);
       close();
-      onStart({ ...o, name: current || PLACEHOLDER });
+      onStart({ ...o, name: current });
     };
     const el = h(
       "div.card.options",
@@ -293,9 +280,6 @@ export class Cards {
         button("HOME", home),
       ),
     );
-    name?.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") start();
-    });
     const close = this.show(el, null, {
       onClose: () => {
         stopName?.();

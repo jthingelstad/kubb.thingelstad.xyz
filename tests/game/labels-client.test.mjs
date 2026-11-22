@@ -118,15 +118,15 @@ browserTest("the menu's rows say what they set and show it", async () => {
     assert.equal(await page.evaluate(() => window.__kubb.sound.muted), true);
     await page.click("[data-test=mute] >> text=On");
     assert.equal(await page.evaluate(() => window.__kubb.sound.muted), false);
-    // at the foot, small: the version label, the newest engine in the parentheses, and
-    // the older engines the page also plays under it
+    // at the foot, small: the version label, the newest engine in the parentheses;
+    // no "Also plays" line, as the site carries the newest engine alone
     assert.equal(
       await page.textContent("[data-test=menu-version-label]"),
-      "0.10.0 (0.13.1)",
+      "0.11.0 (0.13.3)",
     );
     assert.equal(
-      await page.textContent("[data-test=menu-version-also]"),
-      "Also plays 0.9.0, 0.8.2 and 0.7.4",
+      await page.locator("[data-test=menu-version-also]").count(),
+      0,
     );
     assert.deepEqual(page.errors, []);
   } finally {

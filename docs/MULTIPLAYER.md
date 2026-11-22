@@ -13,9 +13,9 @@ the calls that are not live (replays, reels, shares, reports, records) are the a
 | `src/net/aim.js`                  | The aim on the wire: the sender's rate and the watcher's buffer, drawn 100 ms behind between samples. |
 | `src/net/api.js`                  | The HTTPS api's one call (`apiCall`), its address from the page's `kubb-config`.                      |
 | `src/game/pacing.js`              | The match's online pacing, one named tune (see "Pace").                                               |
-| `src/net/lobby.js`                | Wrappers over the engine's `room.*` document reducers (what `update(fn)` runs).                       |
+| `src/net/lobby.js`                | Wrappers over the engine's `pitch.*` document reducers (what `update(fn)` runs), and `setTeamName`.   |
 | `src/net/seats.js`                | Cached wrappers over the engine's seat and actor rules.                                               |
-| `src/net/room-engine.js`          | The bridge: `engine.call("room.<name>", args).value` on the newest engine or a named one.             |
+| `src/net/room-engine.js`          | The bridge: `engine.call("pitch.<name>", args).value` on the newest engine or a named one.            |
 | `src/ui/lobby.js`                 | `Lobby`, the lobby card.                                                                              |
 | `tools/pitch-dev.mjs`             | The pitch core and the api on this machine, for `npm run dev` and the tests (see Tests).              |
 | `tests/net/pitch-client.test.mjs` | The socket against the pitch core: resume, retries, every socket dropped, refusals, two clients.      |
@@ -30,15 +30,15 @@ browser's member id (`kubb.member` in localStorage) as a `player` with
 `me = { name, level, engine, engines }`. `engine` is the
 vendored engine's major.minor (`"0.3"`), read from `room.constants`. The lobby card shows:
 
-- **You**: your name, this device's (`kubb:name`), in one row with one CHANGE IN MENU. A
-  device with no name yet gets a box here once; what is typed is kept as the device's
-  name and sent as you type. A change in MENU is sent too. No level is shown: from
-  engine 0.13 every person throws on one meter. `me.level` is still sent, the device's
-  stored level (`kubb:level`, Club when never chosen), so a match the pitch runs on a
-  carried 0.9 engine (an iPhone still on 0.9) throws each person at it as before.
+- **You**: your name, this device's generated name (`kubb:name`), in its name row
+  (docs/CLIENT.md "Names"): a pick here or in MENU is kept as the device's name and sent
+  at once (`me.name`). No level is shown: from engine 0.13 every person throws on one
+  meter. `me.level` is still sent, the device's stored level (`kubb:level`, Club when
+  never chosen); it changes nothing on 0.13.
 - **Team A** (marigold) and **Team B** (violet), up to six a side, in throwing order, each
-  member with a dot for connected and HOST and YOU tags. JOIN A, JOIN B, or WATCH INSTEAD
-  to sit out. An empty side says "The computer plays this side." when the other has
+  member with a dot for connected and HOST and YOU tags (two with one name: the second
+  "II", "Names" below). A side of several shows the name it plays as, the host's to pick
+  in a name row. JOIN A, JOIN B, or WATCH INSTEAD to sit out. An empty side says "The computer plays this side." when the other has
   someone.
 - **Watching**: everyone in the room on neither team.
 - **SHARE THE LINK**: `navigator.share` where there is one, else the clipboard.
@@ -116,8 +116,10 @@ to list, `open { open: { seats: 12, state } }` from `openListing` (`state` is `w
 null` when the host makes it invite only. A new host sends it afresh. The web game's list
 reads the pitch server's `GET /open` (`public/js/open-games.js`).
 
-**START** (the host): the lineup is the lobby's teams with each member's name and level;
-an empty side is the computer. The host's browser makes the match (`engine.newMatch` with
+**START** (the host): the lineup is the lobby's teams with each member's name and level,
+each name checked ("Names" below); a side of several plays under the document's
+`teamNames` (rolled now if missing), a side of one under its player's name; an empty
+side is the computer. The host's browser makes the match (`engine.newMatch` with
 a random seed, each player's `key` = their member id) on the room's engine
 (`docs/ENGINES.md` "Playing together": that engine's `room.startCheck` and
 `room.startMatch` receive the current members as `room.speakAs` gives them), then sends
@@ -126,6 +128,35 @@ the header, and beside it the snapshot, its hash and `meta`. The server takes it
 `v` (a write that crossed it means another try from the top, at most three). Team A
 throws first.
 
+## Names
+
+Every name on a pitch is a generated one (docs/CLIENT.md "Names"; the engine's
+docs/NAMES.md section 6). A client offers only generated names, but a client is not
+proof, so each boundary checks:
+
+| Where a name enters                                                                       | Who checks                                                            | When it fails                                                                                 |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| a member's `me.name` (join, `me`, waking)                                                 | the pitch server (`checkedMe`, `backend/pitch-server/core.mjs`)       | dropped, never refused: the member stays, with no name, shown to all as "Player n"            |
+| the document's `teamNames`, the header's players, a start's `meta` (players, setup teams) | the pitch server (`badNames`, on `set` and `start`)                   | refused `bad-name`: an honest page never sends one                                            |
+| any name a page shows                                                                     | the page (`names.valid`: `ok` or `default`)                           | the default for its place, "Player n" or "Team A"/"Team B"                                    |
+| a match's snapshot (drawn by the engine)                                                  | the page, on entering the match (`badNames` of the snapshot's `opts`) | the match is not shown: "This match has a name the game did not make, so it cannot be shown." |
+
+"Player n" is the engine's own name for a player with none: n is their place on their
+side, as `lineup` numbers them, so the lobby, the host's START and every page agree.
+
+**What a client that sends a typed name sees** (an old build, or anyone sending their own
+messages; no older iPhone build can join a web pitch since the site carries only the
+newest engine): the pitch takes its join, drops the name, and every page, its own
+included, shows it as "Player 1" (its place on its side; a watcher, its place on the
+pitch). Its own name row, if it has one, still shows what it sent: that text goes
+nowhere. It can sit on a side and play; START puts it in the match as "Player n". If it
+writes a team name or starts a match naming a typed name, the pitch refuses the write
+(`error bad-name`). Others never see its text.
+
+**Two members with one name** are told apart in the lobby only: the second (by the
+pitch's join order) shows "II", the third "III" (`apartNames`); the name itself is
+never changed.
+
 ## Engines
 
 Room reducers, seat decisions and sync decisions are kubb-engine's `room.*`
@@ -133,9 +164,11 @@ calls over the same JSON bridge as the session (`kubbCall`). The engine's `docs/
 is their API; its 8,851 recorded vector steps cover the rules. There is no second
 JavaScript implementation. `useRoomEngine` reads the newest engine's constants once
 during boot; tools that use these wrappers initialize it too. A page can carry older
-engines beside it (`docs/ENGINES.md`); their calls name the major.minor. A pitch plays
-on the room's engine, the newest every player and the host carry; practice, solo and
-watch on the newest.
+engines beside it if we decide one is supported (`docs/ENGINES.md`: today it carries the
+newest alone); their calls name the major.minor. A pitch plays on the room's engine, the
+newest every player and the host carry; practice, solo and watch on the newest. A player
+on an older client leaves no engine in common: both the host and that player are told
+"This pitch needs the newest version of the game", and START is off.
 
 Every web build from PR #40 sends its engine’s major.minor in join presence; from
 engine 0.8.1 the page sends the room's engine marked `+engines` and every engine it
@@ -250,7 +283,7 @@ The controller keeps the same context object until the members, host or match ch
 Seat and actor wrappers cache by context, need and member: repeated render-loop reads
 never cross the room bridge. Name cleanup and open-listing reads are cached too.
 
-Whose turn it is shows by name: the status pill says YOUR THROW (marigold), HANNA THROWS,
+Whose turn it is shows by name: the status pill says YOUR THROW (marigold), MIGHTY MAPLE THROWS,
 COMPUTER THROWS, YOUR RAISE, TEAM B PLACES A KUBB and so on, and the hand-off card leads
 with the same line. A card for someone else's turn has a WATCH button and closes itself.
 A throw taken for an absent teammate says YOUR THROW FOR <NAME>.
@@ -386,6 +419,14 @@ keep these the same, or the two disagree on screen:
   complete a turn in step, and the observer's dial is drawn between the aim samples, not
   only on them. `KUBB_E2E_PITCH=ws://127.0.0.1:8797 KUBB_E2E_API=http://127.0.0.1:8798/api`
   runs it against `wrangler dev` and the api stand-in (`npm run dev` starts both).
+- `tests/game/names-client.test.mjs` ("Names"): a page sending a typed name is "Player 1"
+  to everyone and plays; two with one name show "II"; the host's team name is seen by
+  all and carried by the match; a forged snapshot is not shown and a start naming a typed
+  name is refused. `tests/pitch-server/names.test.mjs`: the server's word lists are the
+  engine's, its check agrees with `names.valid` on every name and thousands of near
+  misses, and the drop and refusals.
+- `tests/game/room-engines.test.mjs` and `tests/net/room-engines.test.mjs`: one engine
+  carried; a player on an older client is told on both sides and START stays off.
 
 ## Not done yet
 

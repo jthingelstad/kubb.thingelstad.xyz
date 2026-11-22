@@ -26,6 +26,7 @@ const SURFACES = [
 // The device rows' view of a Game and its Sound.
 function gameDevice(game, sound) {
   return {
+    names: game.names,
     name: game.playerName,
     setName: (t) => game.setPlayerName(t),
     meter: game.meter,

@@ -1,9 +1,10 @@
-// The lobby on a pitch link (docs/MULTIPLAYER.md): your name (the device's, set
-// in MENU; typed here only while the device keeps none), the two teams with who is on them, who is connected and who is host, who is
-// watching, the link to share, who can join (open or invite only), the host's
-// match options and START. Built
-// once; update(state) changes only what changed, so typing a name is never
-// interrupted by someone else joining.
+// The lobby on a pitch link (docs/MULTIPLAYER.md): your name (the device's
+// generated name, in its name row: src/ui/name-row.js), the two teams with who is on
+// them and, for a side of several, the team's name (the host's to pick), who is
+// connected and who is host, who is watching, the link to share, who can join (open
+// or invite only), the host's match options and START. Built once; update(state)
+// changes only what changed, so picking a name is never interrupted by someone else
+// joining.
 import { h, button, clear } from "./dom.js";
 import {
   MATCH_OPTIONS,
@@ -12,10 +13,10 @@ import {
   lobbyOf,
   optionLabel,
   optionsOf,
-  NAME_MAX,
 } from "../net/lobby.js";
 import { roomEngine } from "../net/room-engine.js";
 import { youRow } from "./settings.js";
+import { nameRow } from "./name-row.js";
 import { SCENE_ROW, sceneId, takesScene } from "../render/scenes.js";
 
 // "Computer level", as the iPhone app and the solo card say it (the engine's label
@@ -41,43 +42,14 @@ export class Lobby {
     this.code = code;
     this.closeFn = null;
 
-    // your name is this device's (src/game/player-name.js): asked here only while
-    // there is none
-    this.nameInput = name
-      ? null
-      : h("input.name", {
-          type: "text",
-          maxlength: NAME_MAX,
-          value: "",
-          placeholder: "Your name",
-          autocomplete: "off",
-          spellcheck: "false",
-          enterkeyhint: "done",
-          "aria-label": "Your name",
-          "data-test": "lobby-name",
-        });
-    if (this.nameInput) {
-      const input = this.nameInput;
-      const sendName = () => hooks.name(input.value);
-      input.addEventListener("change", sendName);
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          sendName();
-          input.blur();
-        }
-      });
-      let timer = null;
-      input.addEventListener("input", () => {
-        clearTimeout(timer);
-        timer = setTimeout(sendName, 600);
-      });
-    }
-    // one "You" row: the name (or its box), one CHANGE IN MENU; no level, as a
-    // person throws on one meter from engine 0.13 (src/game/throw-level.js)
+    // one "You" row: your name, this device's (src/game/player-name.js), picked here
+    // or in MENU; no level, as a person throws on one meter from engine 0.13
+    // (src/game/throw-level.js)
+    this.names = game.names;
     this.you = youRow("lobby", {
-      name: name || "",
-      input: this.nameInput,
-      menu: () => hooks.menu?.(),
+      names: this.names,
+      name,
+      setName: (t) => hooks.name(t),
     });
 
     this.teams = {};
@@ -88,14 +60,23 @@ export class Lobby {
         "data-test": `join-${side}`,
       });
       const empty = h("p.team-empty");
+      // a side of several plays under a team name, the host's to pick (a side of one
+      // plays under its player's name)
+      const teamName = h("div.team-name", {
+        "data-test": `team-${side}-name-box`,
+        hidden: true,
+      });
       this.teams[side] = {
         list,
         count,
         join,
         empty,
+        teamName,
+        row: null,
         el: h(
           `section.team.team-${side.toLowerCase()}`,
           h("h3.team-head", TEAM_LABEL[side], count),
+          teamName,
           list,
           empty,
           join,
@@ -203,9 +184,42 @@ export class Lobby {
     if (text) this.startBtn.disabled = true;
   }
 
-  // st: { you, host, members, doc, status, nameOf(id), engine }, engine the
-  // major.minor the next match runs on (null when none is carried by all: then the
-  // newest's options are shown)
+  // A side's team name: the host picks it in a name row, everyone else reads it.
+  // Shown while the side has several players.
+  teamNameShow(side, { several, isHost, name }) {
+    const t = this.teams[side];
+    t.teamName.hidden = !several;
+    if (!several) return;
+    // the host's row once the side has its rolled name (src/net/pitch.js
+    // rollTeamNames); until then, and for everyone else, the name as text
+    const mode = isHost && this.names.valid("team", name).ok ? "host" : "read";
+    if (t.mode !== mode) {
+      t.mode = mode;
+      t.row = null;
+      t.text = null;
+      if (mode === "host")
+        t.row = nameRow({
+          names: this.names,
+          kind: "team",
+          text: name,
+          label: `${TEAM_LABEL[side]}'s name`,
+          key: `team-${side}-name`,
+          onChange: (v) => this.hooks.teamName?.(side, v),
+        });
+      else
+        t.text = h("p.team-title", { "data-test": `team-${side}-name-text` });
+      t.teamName.replaceChildren(
+        h("span.opt-label", "Plays as"),
+        t.row ? t.row.el : t.text,
+      );
+    }
+    if (t.row) t.row.set(name);
+    else if (t.text.textContent !== name) t.text.textContent = name;
+  }
+
+  // st: { you, host, members, doc, status, nameOf(id), teamName(side), engine },
+  // engine the major.minor the next match runs on (null when none is carried by all:
+  // then the newest's options are shown)
   update(st) {
     const l = lobbyOf(st.doc);
     const byId = new Map(st.members.map((m) => [m.id, m]));
@@ -234,6 +248,11 @@ export class Lobby {
       t.join.disabled = ids.length >= TEAM_MAX;
       t.join.textContent =
         ids.length >= TEAM_MAX ? `${TEAM_LABEL[side]} IS FULL` : `JOIN ${side}`;
+      this.teamNameShow(side, {
+        several: ids.length > 1,
+        isHost,
+        name: st.teamName?.(side) ?? TEAM_LABEL[side],
+      });
     }
 
     const watching = st.members.filter(
@@ -345,17 +364,9 @@ export class Lobby {
             : "";
   }
 
-  // What is typed in the name box, or null when the name is the device's kept one.
-  typedName() {
-    return this.nameInput ? this.nameInput.value : null;
-  }
-
-  // The device's name changed (in MENU, or typed here): the row says it. A name box
-  // stays a box while the lobby is up, so typing in it is never interrupted.
+  // The device's name changed (in MENU, or picked here): the row says it.
   setName(v) {
     this.you.setName(v);
-    if (this.nameInput && document.activeElement !== this.nameInput)
-      this.nameInput.value = v;
   }
 }
 

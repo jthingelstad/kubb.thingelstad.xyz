@@ -10,7 +10,7 @@ const entryFor = async (code) =>
 describe("LobbyDO", () => {
   it("lists an open pitch with counts, state and age, and takes it off", async () => {
     const code = newCode();
-    const a = await join(code, "anna", { me: { name: "Anna" } });
+    const a = await join(code, "anna", { me: { name: "Mighty Maple" } });
     a.send({ t: "open", open: { seats: 12, state: "waiting" } });
     const e = await waitUntil(() => entryFor(code));
     expect(e).toMatchObject({
@@ -29,7 +29,7 @@ describe("LobbyDO", () => {
       "state",
       "watchers",
     ]);
-    expect(JSON.stringify(e)).not.toContain("Anna");
+    expect(JSON.stringify(e)).not.toContain("Mighty Maple");
     const o = await join(code, "olga", { role: "observer" });
     await waitUntil(async () => (await entryFor(code))?.watchers === 1);
     a.send({ t: "open", open: null });

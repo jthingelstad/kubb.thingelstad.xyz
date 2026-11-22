@@ -1,7 +1,7 @@
 // The pitch's shared document (docs/MULTIPLAYER.md): the lobby and, once the
-// host starts, the match. The reducers are the engine's (vendor/engine/room/lobby.lua,
+// host starts, the match. The reducers are the engine's (vendor/engine/pitch/lobby.lua,
 // its docs/ROOM.md "The document"), the same the iPhone app calls; these are thin
-// wrappers over `room.<name>` (src/net/room-engine.js). Each reducer returns the whole
+// wrappers over `pitch.<name>` (src/net/room-engine.js). Each reducer returns the whole
 // new document, or undefined to change nothing (the room client then writes nothing),
 // as room.update(fn) expects.
 //
@@ -127,6 +127,18 @@ export const setOptions = (doc, options) =>
 export const setAccess = (doc, open) => write("setAccess", { doc, open });
 export const pruneTeams = (doc, present) =>
   write("pruneTeams", { doc, present });
+
+// A side's team name, picked by the host (docs/MULTIPLAYER.md "Names"): kept in the
+// document's own top-level `teamNames` ({ A, B }), which the engine's reducers keep as
+// they keep any key they do not know. The engine has no reducer for it yet, so this
+// is the web's one write of its own; the name is checked (a generated team name)
+// before it is written and again wherever it is read. undefined when nothing changes.
+export function setTeamName(doc, side, name) {
+  if (!doc || (side !== "A" && side !== "B") || typeof name !== "string")
+    return undefined;
+  if (doc.teamNames?.[side] === name) return undefined;
+  return { ...doc, teamNames: { ...(doc.teamNames ?? {}), [side]: name } };
+}
 
 // What the host tells the room server about an open pitch, or null while it is invite
 // only. The host asks on every tick: kept while the document and members are the same.

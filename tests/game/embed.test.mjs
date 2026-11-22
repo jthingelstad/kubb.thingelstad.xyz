@@ -247,15 +247,15 @@ browserTest(
       [CODES.playing, "playing", "Match in progress"],
       [CODES.waiting, "waiting", "Waiting for players"],
       [CODES.rematch, "waiting", "Waiting for players"],
-      [CODES.over, "over", "Final: South 1, North 0"],
-      [CODES.older, "over", "Final: South 1, North 0"],
+      [CODES.over, "over", "Final: Lucky Larch 1, Mighty Maple 0"],
+      [CODES.older, "over", "Final: Lucky Larch 1, Mighty Maple 0"],
       [CODES.none, "none", "No match here"],
     ]) {
       const { frame, ctx } = await host(code);
       const card = await frame.waitForSelector("[data-test=embed-card]");
       assert.equal(await card.getAttribute("data-state"), state, code);
       const h2 = await frame.textContent("[data-test=embed-card] h2");
-      if (state === "over") assert.match(h2, /^Final: \w+ 1, \w+ 0$/);
+      if (state === "over") assert.match(h2, /^Final: [\w ]+ 1, [\w ]+ 0$/);
       else assert.equal(h2, title, code);
       const go = await frame.getAttribute("[data-test=embed-card] a", "href");
       assert.equal(go, `/p/${code}`);

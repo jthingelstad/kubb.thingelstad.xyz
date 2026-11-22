@@ -7,6 +7,8 @@ rooms server it replaced (`docs/ROOMS.md`) is deleted.
 | File                   | What it is                                                                       |
 | ---------------------- | -------------------------------------------------------------------------------- |
 | `core.mjs`             | the pitch core: pure logic, no Cloudflare APIs (tested in `tests/pitch-server/`) |
+| `names.mjs`            | the names check, from `names-words.json` (PROTOCOL.md section 6a)                |
+| `names-words.json`     | the engine's word lists, written by `tools/names-words.mjs`; never edited        |
 | `src/worker.mjs`       | the Worker: checks each request and hands it on                                  |
 | `src/pitch-do.mjs`     | `PitchDO`, one per pitch code: the core over hibernating sockets and SQLite      |
 | `src/lobby-do.mjs`     | `LobbyDO`, one for all: the open games list                                      |

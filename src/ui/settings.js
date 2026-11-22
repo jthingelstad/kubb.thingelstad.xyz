@@ -1,5 +1,6 @@
 // The device's settings, in one place (the owner's settings sheet, 2026-11-20):
-// your name, the meter and its side, and the sound. Each is kept on
+// your name (a generated one, picked with the name row: src/ui/name-row.js), the
+// meter and its side, and the sound. Each is kept on
 // this device and is never asked per match. The same rows are MENU's top half
 // (src/ui/menu.js, inside every mode) and the /settings/ page, reached from the
 // web game's page (openSettingsPage below). Match options (surface, scene, the
@@ -7,38 +8,33 @@
 // MENU and the lobby.
 import { h, button } from "./dom.js";
 import { prefs } from "../game/prefs.js";
-import { loadName, saveName, NAME_MAX } from "../game/player-name.js";
+import { loadName, saveName } from "../game/player-name.js";
+import { nameRow } from "./name-row.js";
 
-// The solo card's and the lobby's one "You" row: the device's name, with one
-// CHANGE IN MENU. While the device keeps no name yet, `input` (the card's name
-// box) takes the name's place. There is no level here: from engine 0.13 a
-// person throws on one meter (src/game/throw-level.js). `key` names the row for
-// tests (`<key>-you`, its button `<key>-you-menu`).
-export function youRow(key, { name = "", input = null, menu = null }) {
-  const nameText = h("span.you-name", name);
-  const value = input ? null : h("span.opt-value", nameText);
-  const sync = () => {
-    if (value) value.hidden = !nameText.textContent.trim();
-  };
-  sync();
+// The solo card's and the lobby's one "You" row: the device's name in the name row
+// (src/ui/name-row.js), so it is picked where it is shown; a pick is the device's
+// name everywhere (setName). There is no level here: from engine 0.13 a person
+// throws on one meter (src/game/throw-level.js). `key` names the row for tests
+// (`<key>-you`, its name row `<key>-name`).
+export function youRow(key, { names, name, setName = null }) {
+  const row = nameRow({
+    names,
+    kind: "player",
+    text: name,
+    label: "Your name",
+    key: `${key}-name`,
+    onChange: (t) => setName?.(t),
+  });
   const el = h(
     "div.opt.you",
     { "data-test": `${key}-you` },
     h("span.opt-label", "You"),
-    input,
-    value,
-    menu
-      ? button("CHANGE IN MENU", () => menu(), "small", {
-          "aria-label": "Change in MENU: your name",
-          "data-test": `${key}-you-menu`,
-        })
-      : null,
+    row.el,
   );
   return {
     el,
     setName(v) {
-      nameText.textContent = v;
-      sync();
+      row.set(v);
     },
   };
 }
@@ -59,40 +55,24 @@ export const SOUND = [
 ];
 
 // The rows for a device:
-//   { name, setName(t), meter, setMeter(v), meterSide,
+//   { names, name, setName(t), meter, setMeter(v), meterSide,
 //     setMeterSide(v), muted, setMuted(on), meterNote?, sideNote? }
-// render() draws them again after a pick (the name is not drawn again while typed).
+// render() draws them again after a pick.
 export function deviceRows(dev, render) {
-  const name = h("input.name", {
-    type: "text",
-    maxlength: NAME_MAX,
-    value: dev.name || "",
-    placeholder: "Your name",
-    autocomplete: "off",
-    spellcheck: "false",
-    enterkeyhint: "done",
-    "aria-label": "Your name",
-    "data-test": "settings-name",
-  });
-  const keep = () => dev.setName(name.value);
-  let timer = null;
-  name.addEventListener("input", () => {
-    clearTimeout(timer);
-    timer = setTimeout(keep, 600);
-  });
-  name.addEventListener("change", keep);
-  name.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      keep();
-      name.blur();
-    }
+  const name = nameRow({
+    names: dev.names,
+    kind: "player",
+    text: dev.name,
+    label: "Your name",
+    key: "settings-name",
+    onChange: (t) => dev.setName(t),
   });
   return [
     h(
-      "label.opt",
+      "div.opt",
       { "data-test": "settings-name-row" },
       h("span.opt-label", "Your name"),
-      name,
+      name.el,
     ),
     h(
       "div.opt",
@@ -135,12 +115,14 @@ export function deviceRows(dev, render) {
 }
 
 // The same settings with no game around them: read from and written to the prefs
-// the game reads when it starts (src/game/game.js, src/game/sound.js).
-export function prefsDevice(store = prefs) {
+// the game reads when it starts (src/game/game.js, src/game/sound.js). names: the
+// engine's door (src/game/names.js).
+export function prefsDevice(store = prefs, names) {
   return {
-    name: loadName(store),
+    names,
+    name: loadName(store, names),
     setName(t) {
-      this.name = saveName(store, t);
+      this.name = saveName(store, names, t);
     },
     meter: store.get("meter", "clock") === "linear" ? "linear" : "clock",
     setMeter(v) {
@@ -161,9 +143,9 @@ export function prefsDevice(store = prefs) {
 }
 
 // /settings/: the device's settings as a card of their own, reached from the web
-// game's page, with DONE back to it. No engine is loaded.
-export function openSettingsPage(root, { home }) {
-  const dev = prefsDevice();
+// game's page, with DONE back to it. The engine is loaded for the names only.
+export function openSettingsPage(root, { home, names }) {
+  const dev = prefsDevice(prefs, names);
   const body = h("div.card.menu.settings", { "data-test": "settings" });
   const render = () => {
     body.replaceChildren(

@@ -126,7 +126,7 @@ function landing({ tinylytics, config = {} }) {
   <div class="frame split">
     <div>
       <h2 class="display" id="friends">A pitch is a link</h2>
-      <p>Start a pitch and send its link. Friends type a name and pick a side, up to six a side. Each plays on their own screen. The computer plays any empty side.</p>
+      <p>Start a pitch and send its link. Friends pick a name and a side, up to six a side. Each plays on their own screen. The computer plays any empty side.</p>
       <p><a class="button" href="/web/">Start a pitch</a></p>
     </div>
     <figure class="split__shot">

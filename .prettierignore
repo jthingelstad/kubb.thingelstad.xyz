@@ -12,3 +12,5 @@ tests/fixtures/
 backend/pitch-server/results/
 backend/pitch-server/.wrangler/
 backend/pitch-server/.cloudflare/
+# written from the engine by tools/names-words.mjs, checked by npm run check
+backend/pitch-server/names-words.json

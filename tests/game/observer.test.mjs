@@ -178,7 +178,7 @@ browserTest(
   "WATCH on the open games list: in step mid-match, never acting, the free camera, never the host",
   async () => {
     const code = makePitchCode();
-    const host = await join(code, "Hanna", { query: "&open=1" });
+    const host = await join(code, "Happy Hazel", { query: "&open=1" });
     await host.waitForSelector("[data-test=lobby]");
     await host.click("[data-test=join-A]");
     await waitFor(host, () => window.__kubb.pitch.state().side === "A");
@@ -187,7 +187,11 @@ browserTest(
     await throwCommitted(host);
 
     // the web game's page: the row has JOIN and WATCH
-    const home = await open(`${env.base}/web/?${roomsQ()}`, "desktop", "Olive");
+    const home = await open(
+      `${env.base}/web/?${roomsQ()}`,
+      "desktop",
+      "Lively Linden",
+    );
     let watchHref = null;
     for (let i = 0; i < 40 && !watchHref; i++) {
       if (i) await home.reload();
@@ -339,7 +343,7 @@ browserTest(
 
     // a third arrives after the observer, then the host goes: the observer is first in
     // line, but the server hands the host to a player, never an observer
-    const late = await join(code, "Lou", {});
+    const late = await join(code, "Faithful Fir", {});
     await waitFor(late, () => window.__kubb.pitch.state().mode === "match");
     await inStep([host, obs, late]);
     await host.context().close();
@@ -372,11 +376,11 @@ browserTest(
   "between matches an observer sees the watching card, and is listed as watching",
   async () => {
     const code = makePitchCode();
-    const host = await join(code, "Hanna");
+    const host = await join(code, "Happy Hazel");
     await host.waitForSelector("[data-test=lobby]");
     await host.click("[data-test=join-A]");
     await waitFor(host, () => window.__kubb.pitch.state().side === "A");
-    const obs = await join(code, "Olive", {
+    const obs = await join(code, "Lively Linden", {
       query: "&observe=1",
       kind: "landscape",
     });
@@ -386,32 +390,32 @@ browserTest(
     await waitFor(obs, () =>
       document
         .querySelector("[data-test=watch-team-A]")
-        ?.textContent.includes("Hanna"),
+        ?.textContent.includes("Happy Hazel"),
     );
     assert.match(
       await obs.textContent("[data-test=watchers]"),
-      /Olive \(you\)/,
+      /Lively Linden \(you\)/,
     );
     assert.match(
       await obs.textContent("[data-test=watch-state]"),
-      /Waiting for Hanna to start/,
+      /Waiting for Happy Hazel to start/,
     );
     await waitFor(host, () =>
       document
         .querySelector("[data-test=watchers]")
-        ?.textContent.includes("Olive"),
+        ?.textContent.includes("Lively Linden"),
     );
     // the observer is no player: START counts only the host
     const s = await pst(obs);
     assert.equal(s.side, null);
     assert.equal(s.observing, false, "no match: no free camera");
     // a name changed in MENU reaches the room: both Watching lines show it
-    await obs.evaluate(() => window.__kubb.game.setPlayerName("Opal"));
+    await obs.evaluate(() => window.__kubb.game.setPlayerName("Brave Birch"));
     for (const p of [obs, host])
       await waitFor(p, () =>
         document
           .querySelector("[data-test=watchers]")
-          ?.textContent.includes("Opal"),
+          ?.textContent.includes("Brave Birch"),
       );
     // JOIN THIS PITCH: the same link, as a member who may pick a side
     await obs.click("[data-test=watch-join]");
@@ -427,7 +431,7 @@ browserTest(
   "a host who opens WATCH on their own pitch in another tab stays the host in the first",
   async () => {
     const code = makePitchCode();
-    const host = await join(code, "Hanna");
+    const host = await join(code, "Happy Hazel");
     await host.waitForSelector("[data-test=lobby]");
     await host.click("[data-test=join-A]");
     await waitFor(host, () => window.__kubb.pitch.state().side === "A");
@@ -462,7 +466,7 @@ browserTest(
     const obs = await open(
       `${env.base}/p/${code}?nohowto=1&observe=1&${roomsQ()}`,
       "desktop",
-      "Olive",
+      "Lively Linden",
     );
     await obs.waitForSelector("[data-test=no-game]", { timeout: 30000 });
     assert.equal((await pst(obs)).mode, "gone");
@@ -519,7 +523,7 @@ for (const sealed of [true, false])
       const obs = await open(
         `${env.base}/p/${code}?nohowto=1&observe=1&${roomsQ()}`,
         "desktop",
-        "Olive",
+        "Lively Linden",
       );
       // the finished match, as a browser arriving after a pitch's end sees it
       await obs.waitForSelector("[data-test=winner] [data-test=watch-replay]", {

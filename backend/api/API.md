@@ -80,7 +80,9 @@ tries in all.
 
 As docs/ROOMS.md section 13. Answer `{ "code": <code> | null, "v": 1 | 0, "why"? }`.
 `why`: `too-long` (over 256 KB, 1000 actions or a 16 KB first snapshot), `engine`,
-`does-not-replay`, `busy` (the day's 200 shares are used, or the renderer could not take
+`name` (side A's name is not a generated player name or one of the engine's defaults,
+`names.valid` on the match's engine: the client says "Pick a name for your side."; since
+2026-11-21), `does-not-replay`, `busy` (the day's 200 shares are used, or the renderer could not take
 the check in 20 s), `unavailable`. The same match shared again gets the same code. The
 code's pitch is sealed: its state is final, it has a whole replay, and a push for it is
 taken and ignored.

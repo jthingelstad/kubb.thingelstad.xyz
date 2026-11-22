@@ -74,7 +74,7 @@ browserTest(
       await host.waitForSelector("[data-test=lobby-engine]:not([hidden])");
       assert.match(
         await host.textContent("[data-test=lobby-engine]"),
-        /older version of Throwing Wood \(0\.3\)/,
+        /has an older version of the game\. This pitch needs the newest version of the game\./,
       );
       await host.evaluate(() => window.__kubb.pitch.start());
       assert.equal(
@@ -115,14 +115,14 @@ for (const [engine, kind, seated, text, reload] of [
     "1.0",
     "desktop",
     true,
-    "This pitch is playing on a newer version of Throwing Wood. Reload to join.",
+    "This pitch is playing on a newer version of the game. Reload the page to update.",
     true,
   ],
   [
     "0.3",
     "portrait",
     false,
-    "This pitch is playing on an older version of Throwing Wood. Ask the host to reload.",
+    "This pitch is playing on an older version of the game, which this page no longer plays. This pitch needs the newest version of the game: the host must update to play.",
     false,
   ],
 ]) {
@@ -140,7 +140,7 @@ for (const [engine, kind, seated, text, reload] of [
             const { pitch, engine: e } = window.__kubb;
             e.newMatch({ seed: 6, cpu: "B" });
             const id = seated ? pitch.you : "other-member";
-            const players = { A: [{ id, name: "Player" }], B: [] };
+            const players = { A: [{ id, name: "Player 1" }], B: [] };
             const h = e.hash().hash;
             const r = await pitch.room.start({
               doc: {
@@ -212,7 +212,7 @@ for (const [engine, kind, seated, text, reload] of [
           const call = e.call.bind(e);
           window.__roomCalls = 0;
           e.call = (method, ...args) => {
-            if (method.startsWith("room.")) window.__roomCalls++;
+            if (method.startsWith("pitch.")) window.__roomCalls++;
             return call(method, ...args);
           };
         });

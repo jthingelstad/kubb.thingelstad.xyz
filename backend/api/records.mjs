@@ -8,7 +8,7 @@
 //                                                 { t, game }, as the rooms function kept it
 //   reports/<yyyy-mm-dd>/<ms>-<random>.json.gz    a player's report: { t, report }, the same
 //
-// The names players typed are in them. Nothing names the sender: no address, browser
+// The players' names are in them. Nothing names the sender: no address, browser
 // string or member id is added here (a push's actions carry the pitch's member ids, as
 // the rooms function's records did).
 

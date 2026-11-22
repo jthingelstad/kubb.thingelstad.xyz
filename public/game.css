@@ -148,9 +148,10 @@ body.game {
   font-weight: 900;
   font-size: 20px;
   line-height: 1.05;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* a generated name breaks between its words: every word fits the narrowest rail
+     (tests/game/names-fit-client.test.mjs), so no name is cut */
+  overflow-wrap: normal;
+  white-space: normal;
 }
 .rail-what,
 .rail-counts {
@@ -1000,17 +1001,6 @@ body.game {
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.name {
-  min-height: 44px;
-  padding: 6px 10px;
-  border: 3px solid var(--ink);
-  border-radius: 6px;
-  background: var(--field);
-  font: 700 17px var(--jt-font-body);
-  color: var(--ink);
-  user-select: text;
-  -webkit-user-select: text;
-}
 .seg {
   display: flex;
   flex-wrap: wrap;
@@ -1360,10 +1350,6 @@ body.game {
 .lobby {
   width: min(640px, 100%);
 }
-.lobby .name {
-  width: 100%;
-  min-width: 0;
-}
 .lobby-status {
   color: #b3123f;
 }
@@ -1504,11 +1490,89 @@ body.game {
   grid-column: 2;
   justify-self: start;
 }
-/* the solo card's and the lobby's one "You" row (src/ui/settings.js youRow): with
-   the name box, the button sits under the box */
-.opt.you > button {
-  grid-column: 2;
-  justify-self: start;
+/* ---------- the name row (src/ui/name-row.js): a generated name, its words'
+   pickers, a lock each and SHUFFLE. It spans the option's whole width, under its
+   label, so the widest name fits on a phone (tests/game/names-fit-client.test.mjs
+   measures every name against NAME_FIT). ---------- */
+.opt > .name-row {
+  grid-column: 1 / -1;
+}
+.name-row {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.name-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.name-text {
+  /* NAME_FIT.text: the widest name the engine makes, in this type */
+  min-width: 200px;
+  font: 800 17px var(--jt-font-body);
+  white-space: nowrap;
+}
+.name-words {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.name-prefix {
+  font: 700 15px var(--jt-font-body);
+  padding: 0 2px;
+}
+.name-word {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.name-pick {
+  min-height: 44px;
+  /* NAME_FIT.word: the widest word, with the arrow's room */
+  min-width: 9em;
+  padding: 4px 8px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: var(--field);
+  color: var(--ink);
+  font: 700 15px var(--jt-font-body);
+  touch-action: manipulation;
+}
+.name-pick:focus-visible,
+.name-lock:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+.name-lock {
+  appearance: none;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 4px 8px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 800 11px var(--jt-font-body);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.name-lock[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+}
+/* a side of several's team name in the lobby */
+.team-name {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0 8px;
+}
+.team-title {
+  margin: 0;
+  font: 800 16px var(--jt-font-body);
 }
 .access-note {
   margin: 4px 0 10px;
@@ -1861,14 +1925,8 @@ body.embed .replay-controls {
 .share-name {
   grid-template-columns: 1fr;
 }
-.share-name .name {
-  width: 100%;
-}
 .share-name + .reel-text {
   margin-top: 10px;
-}
-.share-name .name::placeholder {
-  color: rgba(0, 0, 0, 0.45);
 }
 .share-when {
   font-size: 13px;

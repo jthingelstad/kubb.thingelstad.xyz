@@ -1,8 +1,10 @@
-// The room's engine through the web's wrappers (src/net/lobby.js, sync.js), with the
-// four engines this checkout carries registered: 0.13 the newest, 0.9, 0.8 and 0.7 beside
-// it. The rules are kubb-engine's (pitch/engines.lua, room/ before 0.13, and its tests);
-// what these pin is that the web asks the newest for them and runs START, a commit,
-// `decide` and a rider on the match's own.
+// The room's engine through the web's wrappers (src/net/lobby.js, sync.js) with the one
+// engine this checkout carries (the owner, 2026-11-21: "Let's force all clients to the
+// most recent engine"; docs/ENGINES.md). The rules are kubb-engine's (pitch/engines.lua
+// and its tests); what these pin is the web's side of the rule: a page announces the
+// newest alone, a player on an older client (an iPhone build on 0.9) leaves the pitch
+// with no engine in common, so START cannot run, and a match on an older engine is never
+// this page's to play.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -11,12 +13,10 @@ import { bundleLua, carriedEngines } from "../../tools/lua-bundle.mjs";
 import {
   ENGINE,
   useRoomEngine,
-  useOlderEngine,
   roomEngineFor,
   carriedBy,
   announce,
   speakAs,
-  compareEngines,
   startCheck,
   startMatch,
   commitAction,
@@ -26,242 +26,163 @@ import {
   lineup,
   matchOptions,
   engineConstants,
+  setTeamName,
+  lobbyOf,
+  joinTeam,
 } from "../../src/net/lobby.js";
 import { decide, rider } from "../../src/net/sync.js";
 import { roomMinor } from "../../src/net/room-engine.js";
 
-const [newest, nine, middle, older] = await Promise.all(
-  carriedEngines().map(({ dir }) => Engine.create({ sources: bundleLua(dir) })),
-);
+const engines = carriedEngines();
+const newest = await Engine.create({ sources: bundleLua(engines[0].dir) });
 useRoomEngine(newest);
-useOlderEngine(nine);
-useOlderEngine(middle);
-useOlderEngine(older);
 
 const APP_VERSION = JSON.parse(
   readFileSync(new URL("../../package.json", import.meta.url)),
 ).version;
 const doc = { v: 1, teams: { A: ["a"], B: ["b"] } };
-const both = {
-  engine: "0.13+engines",
-  engines: ["0.13", "0.9", "0.8", "0.7"],
-};
+const page = announce([ENGINE]);
 // the iPhone app on engine 0.9, carrying 0.8 and 0.7 beside it
-// (throwingwood-ios scripts/vendor-engine.sh: TAG v0.9.0, OLDER v0.8.2 v0.7.4)
 const iphone09 = { engine: "0.9+engines", engines: ["0.9", "0.8", "0.7"] };
-// an iPhone build that carries 0.8 and 0.7 (TestFlight build 121)
-const iphone08 = { engine: "0.8+engines", engines: ["0.8", "0.7"] };
 const member = (id, me) => ({ id, connected: true, me });
 
-test("this checkout carries 0.13, 0.9, 0.8 and 0.7", () => {
-  assert.equal(ENGINE, "0.13");
+test("this checkout carries the newest engine alone", () => {
   assert.deepEqual(
-    [newest.version, nine.version, middle.version, older.version],
-    ["0.13.1", "0.9.0", "0.8.2", "0.7.4"],
+    engines.map((e) => e.mm),
+    [ENGINE],
   );
-  assert.equal(roomMinor("0.9.0"), "0.9");
-  assert.equal(roomMinor("0.8.1"), "0.8");
-  assert.equal(roomMinor("0.7.4"), "0.7");
-  assert.equal(roomMinor("0.6"), "0.13");
-  assert.equal(roomMinor(null), "0.13");
+  assert.equal(newest.version, engines[0].version);
+  // a match of any other engine is looked up on the newest (and refused to play)
+  assert.equal(roomMinor("0.9.0"), ENGINE);
+  assert.equal(roomMinor(null), ENGINE);
+  // what a page says of itself: the newest, and no app version
+  assert.deepEqual(page, { engine: `${ENGINE}+engines`, engines: [ENGINE] });
+  assert.deepEqual(carriedBy(page), [ENGINE]);
 });
 
-test("what a page carrying both says, and how a member is read", () => {
-  // what a page says of itself is its engines only: no app version
-  assert.deepEqual(announce(["0.13", "0.9", "0.8", "0.7"]), both);
-  assert.deepEqual(announce(["0.13", "0.9", "0.8", "0.7"], "0.9"), {
-    engine: "0.9+engines",
-    engines: ["0.13", "0.9", "0.8", "0.7"],
-  });
-  assert.deepEqual(carriedBy(both), ["0.13", "0.9", "0.8", "0.7"]);
-  assert.deepEqual(carriedBy(iphone09), ["0.9", "0.8", "0.7"]);
-  assert.deepEqual(carriedBy(iphone08), ["0.8", "0.7"]);
-  // an older tab under the same member id: its lone engine, not the stale list
-  assert.deepEqual(carriedBy({ ...both, engine: "0.7" }), ["0.7"]);
-  assert.deepEqual(carriedBy({ engine: "0.7.4" }), ["0.7"]);
-  assert.deepEqual(carriedBy({}), []);
-  assert.deepEqual(carriedBy(null), []);
-  assert.equal(compareEngines("0.7", "0.8"), -1);
-  assert.equal(compareEngines("0.10", "0.9"), 1);
-  assert.equal(compareEngines("0.13", "0.9"), 1);
-});
-
-test("the room's engine: the newest the host and every player carry", () => {
-  const two = [member("a", both), member("b", both)];
-  assert.equal(roomEngineFor(doc, two, "a").engine, "0.13");
-  // the iPhone app still on 0.9 (with 0.8 and 0.7): the pitch plays 0.9, whoever hosts
-  const phone = [member("a", both), member("b", iphone09)];
-  assert.equal(roomEngineFor(doc, phone, "a").engine, "0.9");
-  assert.equal(roomEngineFor(doc, phone, "b").engine, "0.9");
-  // and a client that names 0.9 alone (no +engines)
-  const lone = [member("a", both), member("b", { engine: "0.9.0" })];
-  assert.equal(roomEngineFor(doc, lone, "a").engine, "0.9");
-  // an iPhone tester's build that carries 0.8 and 0.7: the pitch falls to 0.8
-  const mixed = [member("a", both), member("b", iphone08)];
-  assert.equal(roomEngineFor(doc, mixed, "a").engine, "0.8");
-  // and the iPhone as host
-  assert.equal(roomEngineFor(doc, mixed, "b").engine, "0.8");
-  const iphone = [member("a", both), member("b", { engine: "0.7" })];
-  assert.equal(roomEngineFor(doc, iphone, "a").engine, "0.7");
-  // a watcher on 0.7 does not count
-  const watched = [...two, member("w", { engine: "0.7" })];
-  assert.equal(roomEngineFor(doc, watched, "a").engine, "0.13");
-  // this browser's own presence still on its way: what it carries counts
-  const early = [member("a", both), member("b", {})];
-  assert.equal(roomEngineFor(doc, early, "a").engine, null);
-  assert.equal(
-    roomEngineFor(doc, early, "a", "b", ["0.13", "0.9", "0.8", "0.7"]).engine,
-    "0.13",
-  );
-  const none = [member("a", both), member("b", { engine: "0.3" })];
-  assert.deepEqual(roomEngineFor(doc, none, "a"), {
+test("a player on an older client: no engine in common, so START cannot run", () => {
+  const two = [member("a", page), member("b", page)];
+  assert.equal(roomEngineFor(doc, two, "a").engine, ENGINE);
+  // the iPhone still on 0.9 as a player: no engine every player carries
+  const phone = [member("a", page), member("b", iphone09)];
+  assert.deepEqual(roomEngineFor(doc, phone, "a"), {
     engine: null,
     missing: ["b"],
     unknown: [],
   });
+  // and as host: the same
+  assert.equal(roomEngineFor(doc, phone, "b").engine, null);
+  // a client too old to name its engine
+  const silent = [member("a", page), member("b", {})];
+  assert.deepEqual(roomEngineFor(doc, silent, "a").unknown, ["b"]);
+  // a watcher on 0.9 does not count: the pitch plays the newest
+  const watched = [...two, member("w", iphone09)];
+  assert.equal(roomEngineFor(doc, watched, "a").engine, ENGINE);
+  // START's own check refuses the 0.9 player on the newest
+  const players = {
+    A: [{ id: "a", name: "Mighty Maple" }],
+    B: [{ id: "b", name: "Lucky Larch" }],
+  };
+  const ok = startCheck(players, speakAs(phone, ENGINE), "a", ENGINE);
+  assert.equal(ok.ok, false);
+  assert.deepEqual([...ok.differ, ...ok.unknown], ["b"]);
 });
 
-test("START on 0.7 stamps 0.7; the match's commit, decide and rider run on 0.7", () => {
-  // the guest's new announcement has not come back: speakAs lets it in on 0.7
-  const members = [member("a", both), member("b", both)];
-  const players = { A: [{ id: "a", name: "A" }], B: [{ id: "b", name: "B" }] };
-  assert.equal(startCheck(players, members, "a", "0.7").ok, false);
-  const spoken = speakAs(members, "0.7");
-  assert.equal(spoken[1].me.engine, "0.7");
-  assert.equal(startCheck(players, spoken, "a", "0.7").ok, true);
-  older.newMatch({ seed: 6, cpu: null });
-  const snap = older.snapshot();
-  const hash = older.hash().hash;
-  const start = { snap, hash, players, cpu: null, host: "a", members: spoken };
-  const d = startMatch({ ...doc }, start, "0.7");
-  assert.equal(d.match.engine, "0.7");
-  // the newest stamps its own, and refuses players spoken down to 0.7
-  assert.equal(
-    startMatch({ ...doc }, { ...start, members }).match.engine,
-    "0.13",
+test("a match started on the newest plays there; one on 0.9 is never this page's", () => {
+  const members = [member("a", page), member("b", page)];
+  const players = {
+    A: [{ id: "a", name: "Mighty Maple" }],
+    B: [{ id: "b", name: "Lucky Larch" }],
+  };
+  newest.newMatch({ seed: 6, cpu: null });
+  const snap = newest.snapshot();
+  const hash = newest.hash().hash;
+  const d = startMatch(
+    { ...doc },
+    { snap, hash, players, cpu: null, host: "a", members },
   );
-  assert.equal(startMatch({ ...doc }, start), undefined);
-  assert.equal(mayPlay("0.7", d.match, "0.7").ok, true);
-  assert.equal(mayPlay("0.13", d.match).why, "differs");
+  assert.equal(d.match.engine, ENGINE);
+  assert.equal(mayPlay(ENGINE, d.match).ok, true);
+  // a match an iPhone host started on 0.9: this page may not play it
+  assert.equal(mayPlay(ENGINE, { ...d.match, engine: "0.9" }).ok, false);
 
-  // every call a 0.7 match makes goes to the 0.7 engine
   const asked = [];
-  const call = older.call.bind(older);
-  older.call = (name, args) => (asked.push(name), call(name, args));
+  const call = newest.call.bind(newest);
+  newest.call = (name, args) => (asked.push(name), call(name, args));
   try {
     const next = commitAction(
       { ...d },
       { n: 1, seq: 1, snap, hash, action: { type: "x" }, over: false },
-      "0.7",
     );
     assert.equal(next.match.seq, 1);
     assert.equal(
       decide({ n: 1, seq: 0 }, next, undefined, false).kind,
       "adopt",
     );
-    const w = rider(1, 1, { type: "x" }, { engine: older.version });
-    assert.equal(w.e, "0.7.4");
-    // the rider names the client and the engine, never the app's version: web and
-    // iPhone players are alike on the wire (src/site/release.js)
+    const w = rider(1, 1, { type: "x" }, { engine: newest.version });
+    assert.equal(w.e, newest.version);
+    // the rider names the client and the engine, never the app's version
     assert.equal(w.c, "web");
     assert.ok(!JSON.stringify(w).includes(APP_VERSION));
-    assert.deepEqual(asked, ["room.commitAction", "room.decide", "room.rider"]);
+    // the bridge says pitch., the engine's own spelling since 0.13
+    assert.deepEqual(asked, [
+      "pitch.commitAction",
+      "pitch.decide",
+      "pitch.rider",
+    ]);
   } finally {
-    older.call = call;
+    newest.call = call;
   }
 });
 
-// The web on 0.13 and the iPhone app still on 0.9: the web speaks down, START runs on
-// 0.9 and stamps it, the iPhone's own checks pass, and the match's calls go to 0.9.
-test("a pitch with an iPhone still on 0.9 starts on 0.9, and the match plays on 0.9", () => {
-  const members = [member("a", both), member("b", iphone09)];
-  const room = roomEngineFor(doc, members, "a");
-  assert.equal(room.engine, "0.9");
-  assert.deepEqual(room.missing, []);
-  // what the web announces once it knows the pitch: the iPhone reads 0.9
-  const said = announce(["0.13", "0.9", "0.8", "0.7"], room.engine);
-  assert.equal(said.engine, "0.9+engines");
-  const spoken = speakAs(
-    [member("a", said), member("b", iphone09)],
-    room.engine,
-  );
-  const players = { A: [{ id: "a", name: "A" }], B: [{ id: "b", name: "B" }] };
-  assert.equal(startCheck(players, spoken, "a", "0.9").ok, true);
-  nine.newMatch({ seed: 6, cpu: null });
-  const snap = nine.snapshot();
-  const hash = nine.hash().hash;
-  const start = { snap, hash, players, cpu: null, host: "a", members: spoken };
-  const d = startMatch({ ...doc }, start, "0.9");
-  assert.equal(d.match.engine, "0.9");
-  // the iPhone (one engine on the wire: 0.9) may play it, and so may this page on 0.9
-  assert.equal(mayPlay("0.9.0", d.match, "0.9").ok, true);
-  assert.equal(mayPlay("0.9", d.match, "0.9").ok, true);
-  // the newest would refuse it: the match is 0.9's
-  assert.equal(mayPlay("0.13", d.match).why, "differs");
-  // the match's calls go to 0.9
-  const asked = [];
-  const call = nine.call.bind(nine);
-  nine.call = (name, args) => (asked.push(name), call(name, args));
-  try {
-    commitAction(
-      { ...d },
-      { n: 1, seq: 1, snap, hash, action: { type: "x" }, over: false },
-      "0.9",
-    );
-    const w = rider(1, 1, { type: "x" }, { engine: nine.version });
-    assert.equal(w.e, "0.9.0");
-    assert.deepEqual(asked, ["room.commitAction", "room.rider"]);
-  } finally {
-    nine.call = call;
-  }
-});
-
-// The computer's level is a match option since 0.9, kept in the document's `settings`.
-test("the host sets the computer's level: 0.9 on reads it and starts with it, 0.8 leaves it be", () => {
+test("the host sets the computer's level; the match starts with it", () => {
   const set = setOptions(
     { v: 1, teams: { A: ["a"], B: [] } },
     { wind: "light", computer: "pro" },
   );
   assert.deepEqual(set.settings, { computer: "pro" });
-  for (const mm of ["0.13", "0.9"])
-    assert.equal(optionsOf(set, mm).computer, "pro", mm);
-  const o9 = optionsOf(set, "0.9");
-  assert.equal(o9.computer, "pro");
-  assert.equal(o9.scene, "day", "the scene is carried, its default filled in");
-  assert.equal(o9.wind, "light");
-  // an engine before 0.9 has no optionsOf: its lobby's five, asked again and again
-  for (let i = 0; i < 2; i++) {
-    const o8 = optionsOf(set, "0.8");
-    assert.equal(o8.wind, "light");
-    assert.equal(o8.computer, undefined);
-  }
-  // the rows: Computer on 0.9 only
-  const keys = (mm) => engineConstants(mm).MATCH_OPTIONS.map(([k]) => k);
-  assert.ok(keys("0.13").includes("computer"));
-  assert.ok(keys("0.9").includes("computer"));
-  assert.ok(!keys("0.8").includes("computer"));
-  assert.ok(!keys("0.7").includes("computer"));
-
-  const members = [member("a", both)];
-  const lu = lineup(set, members);
+  const o = optionsOf(set);
+  assert.equal(o.computer, "pro");
+  assert.equal(o.scene, "day");
+  assert.equal(o.wind, "light");
+  assert.ok(engineConstants().MATCH_OPTIONS.some(([k]) => k === "computer"));
+  const lu = lineup(set, [member("a", page)]);
   assert.equal(lu.cpu, "B");
   const start = { year: 2026, month: 11, day: 20, hour: 12, min: 0 };
-  const m9 = matchOptions(set, lu, { seed: 7, start }, "0.9");
-  assert.equal(m9.computer, "pro");
-  // the match starts on 0.9 with the computer at Pro: its setup says so
-  nine.newMatch(m9);
-  const opts = JSON.parse(nine.snapshot()).opts;
+  const m = matchOptions(set, lu, { seed: 7, start });
+  assert.equal(m.computer, "pro");
+  newest.newMatch(m);
+  const opts = JSON.parse(newest.snapshot()).opts;
   assert.equal(opts.computer, "pro");
   assert.deepEqual(
     opts.teams.B.players.map((p) => p.level),
     ["pro"],
-    "the computer throws at Pro",
   );
-  // on a 0.8 room the option is not passed: the match it always started
-  const m8 = matchOptions(set, lu, { seed: 7, start }, "0.8");
-  assert.equal(m8.computer, undefined);
-  assert.equal(m8.wind, "light");
-  // a 0.8 client's write keeps the host's settings (a top-level key it does not know)
-  const kept = setOptions(set, { wind: "strong" });
-  assert.deepEqual(kept.settings, { computer: "pro" });
+});
+
+test("a side's team name is the document's own key, kept by the engine's reducers", () => {
+  const d0 = { v: 1, teams: { A: [], B: [] } };
+  const d1 = setTeamName(d0, "A", "Wobbly Towers");
+  assert.deepEqual(d1.teamNames, { A: "Wobbly Towers" });
+  assert.equal(setTeamName(d1, "A", "Wobbly Towers"), undefined, "no change");
+  assert.equal(setTeamName(d1, "C", "Wobbly Towers"), undefined);
+  // the engine's reducers keep a key they do not know
+  const d2 = joinTeam(d1, "a", "A");
+  assert.deepEqual(d2.teamNames, { A: "Wobbly Towers" });
+  const d3 = setOptions(d2, { wind: "light" });
+  assert.deepEqual(d3.teamNames, { A: "Wobbly Towers" });
+  assert.deepEqual(lobbyOf(d3).teams.A, ["a"]);
+  // a side of one plays under its player's name; the host puts the team's name on a
+  // side of several (src/net/pitch.js start)
+  const lu = lineup(joinTeam(d3, "b", "A"), [
+    member("a", { ...page, name: "Mighty Maple" }),
+    member("b", { ...page, name: "Lucky Larch" }),
+  ]);
+  const start = { year: 2026, month: 11, day: 20, hour: 12, min: 0 };
+  const m = matchOptions(d3, lu, { seed: 7, start });
+  assert.equal(
+    m.teams.A.name,
+    "Team A",
+    "the engine's default, renamed by the host",
+  );
 });

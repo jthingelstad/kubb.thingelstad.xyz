@@ -1,22 +1,18 @@
-// A finished match looked back at on its own engine in a real browser
-// (docs/ENGINES.md): the embed's replay, a shared match's WATCH REPLAY and its score
-// sheet. The page's config is given another engine for these tests besides the two
-// the site carries ("0.6", the vendored sources with only the version changed, made in a
-// temporary directory and served by the test), and the kept replays name 0.6 or an
-// engine the page does not carry. Both engines play alike: what is checked is which
-// engine each path runs, and that the Game is back on the newest after.
+// A kept match made on an engine the site no longer carries, in a real browser
+// (docs/ENGINES.md "Looking back at a match"; the owner, 2026-11-21: "Let's force all
+// clients to the most recent engine"). The site carries the newest alone, so a replay of
+// 0.9 (a finished pitch's, a shared match's, an embed's) cannot be played again: each
+// place it can be opened says so in one sentence, with nothing broken around it, and a
+// shared match's reel (a stored video, which needs no engine) is still offered.
 // Skipped with a notice when Playwright's Chromium is not installed.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { chromium } from "playwright";
 import { serve } from "./browser.mjs";
 import { startPitchServer } from "../../tools/pitch-dev.mjs";
-import { bundleText } from "../../tools/lua-bundle.mjs";
 import { injectPreview, pitchState } from "../../backend/pages/pitch.mjs";
-import { writeEngineTree } from "../engine/engine-fixture.mjs";
+import { OLD_REPLAY } from "../../src/replay/player.js";
 
 let available = false;
 try {
@@ -33,39 +29,16 @@ const browserTest = available ? test : test.skip;
 const REPLAY = JSON.parse(
   fs.readFileSync("tests/fixtures/replay-north-south.json", "utf8"),
 );
-const OLDER_URL = "/assets/lua-sources-0.6-fixture.json";
 const CODES = {
-  older: "kkkkmmmm", // embed: a replay of 0.6, carried
-  unknown: "uuuummmm", // embed: a replay of 0.5, not carried
-  sealed: "sssskkkk", // a shared match of 0.6
+  older: "kkkkmmmm", // a finished pitch whose kept replay is 0.9's
+  sealed: "sssskkkk", // a shared match of 0.9
+  current: "ccccmmmm", // a finished pitch on the newest
 };
-const withEngine = (engine) => JSON.stringify({ ...REPLAY, engine });
 
-// The page config with a second engine in its engines map.
-function addOlder(html) {
-  return html.replace(
-    /(<script type="application\/json" id="kubb-config">)([^<]*)(<\/script>)/,
-    (_, open, json, close) => {
-      const c = JSON.parse(json);
-      c.engines = {
-        ...c.engines,
-        0.6: { version: "0.6.9", luaUrl: OLDER_URL },
-      };
-      return open + JSON.stringify(c) + close;
-    },
-  );
-}
-
-let env, rooms, olderDir, olderText;
+let env, rooms;
 before(async () => {
   if (!available) return;
-  olderDir = fs.mkdtempSync(path.join(os.tmpdir(), "kubb-older-engine-"));
-  writeEngineTree(olderDir, "0.6.9");
-  olderText = bundleText(olderDir).text;
   rooms = await startPitchServer();
-  // kept replays in the api's store (backend/api/memory-store.mjs): a finished pitch's
-  // as its pushes leave it (the final snapshot and the kept half), and a shared match's
-  // as `share` keeps it (a sealed state and replay)
   const store = rooms.api.store;
   const exp = Math.floor(Date.now() / 1000) + 3600;
   const { snap, hash, n } = REPLAY;
@@ -84,8 +57,8 @@ before(async () => {
       exp,
     });
   };
-  await keep(CODES.older, "0.6");
-  await keep(CODES.unknown, "0.5");
+  await keep(CODES.older, "0.9");
+  await keep(CODES.current, REPLAY.engine);
   await store.keepShare(`fixture-${CODES.sealed}`, CODES.sealed, {
     state: {
       made: 9,
@@ -98,25 +71,21 @@ before(async () => {
       rev: 1,
       exp,
     },
-    replay: { made: 9, n, v: 9, data: half("0.6"), snap, hash, exp },
+    replay: { made: 9, n, v: 9, data: half("0.9"), snap, hash, exp },
   });
-  for (const code of Object.values(CODES))
-    assert.ok(await store.getReplay(code), code);
-  assert.equal((await store.getReplay(CODES.sealed)).sealed, true);
   env = await serve({
     build: true,
     page: (html, { uri, query }) => {
       const code = query?.pitch?.value;
       if (uri === "/embed/index.html" && code)
-        return addOlder(
-          injectPreview(html, {
-            code,
-            s: pitchState({ kept: keptOf(withEngine("0.6")) }),
-            path: `/e/${code}`,
-            embed: true,
+        return injectPreview(html, {
+          code,
+          s: pitchState({
+            kept: { v: 5, made: 1, n, hash, snap },
           }),
-        );
-      if (uri === "/pitch/index.html") return addOlder(html);
+          path: `/e/${code}`,
+          embed: true,
+        });
       return html;
     },
   });
@@ -124,16 +93,12 @@ before(async () => {
 after(async () => {
   if (env) await env.close();
   if (rooms) await rooms.close();
-  if (olderDir) fs.rmSync(olderDir, { recursive: true, force: true });
 });
 
 async function open(url) {
   const ctx = await env.browser.newContext({
     viewport: { width: 1200, height: 760 },
   });
-  await ctx.route(`**${OLDER_URL}`, (route) =>
-    route.fulfill({ contentType: "application/json", body: olderText }),
-  );
   const page = await ctx.newPage();
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
@@ -142,122 +107,97 @@ async function open(url) {
   return { page, ctx };
 }
 
-// A kept replay as the api's records give it to the pitch pages (backend/pages/pitch.mjs).
-function keptOf(text) {
-  const r = JSON.parse(text);
-  return { v: 5, made: 1, n: r.n ?? null, hash: r.hash ?? null, snap: r.snap };
-}
-
 const rq = () =>
   `pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`;
 
 browserTest(
-  "an embed plays a carried engine's match on that engine, another on the newest",
+  "an embed of a 0.9 match says it can no longer be replayed",
   async () => {
-    {
-      const { page, ctx } = await open(`/e/${CODES.older}?${rq()}`);
-      const seen = await page.evaluate(() => ({
-        state: window.__kubb.embed.state,
-        playing: window.__kubb.embed.game.engine.version,
-        older: window.__kubb.engines.loaded("0.6")?.version ?? null,
-        newest: window.__kubb.engines.loaded("0.13")?.version ?? null,
-      }));
-      assert.deepEqual(seen, {
-        state: "replay",
-        playing: "0.6.9",
-        older: "0.6.9",
-        newest: "0.13.1",
-      });
-      assert.deepEqual(page.errors, []);
-      await ctx.close();
-    }
-    {
-      const { page, ctx } = await open(`/e/${CODES.unknown}?${rq()}`);
-      const seen = await page.evaluate(() => ({
-        playing: window.__kubb.embed.game.engine.version,
-        older: window.__kubb.engines.loaded("0.6"),
-      }));
-      // not carried: the newest plays it, and the older engine is never fetched
-      assert.deepEqual(seen, { playing: "0.13.1", older: null });
-      assert.deepEqual(page.errors, []);
-      await ctx.close();
-    }
-  },
-);
-
-browserTest(
-  "a shared match of a carried engine: its replay and its score sheet on that engine",
-  async () => {
-    const { page, ctx } = await open(`/p/${CODES.sealed}?${rq()}&nohowto=1`);
-    await page.waitForSelector("[data-test=winner]", { timeout: 30000 });
-    assert.equal(
-      await page.evaluate(() => window.__kubb.engines.loaded("0.6")),
-      null,
-      "nothing of 0.6 loads until it is looked at",
+    const { page, ctx } = await open(
+      `/e/${CODES.older}?api=${encodeURIComponent(rooms.apiUrl)}`,
     );
-
-    // SCORE SHEET: read from 0.6, set to the match's last snapshot
-    await page.evaluate(async () => {
-      const e = await window.__kubb.engines.loadEngine("0.6");
-      const sheet = e.sheet.bind(e);
-      window.__olderSheets = 0;
-      e.sheet = () => (window.__olderSheets++, sheet());
-    });
-    await page.click("[data-test=winner-sheet]");
-    await page.waitForSelector("[data-test=sheet-text]");
-    const sheet = await page.evaluate(() => ({
-      text: document.querySelector("[data-test=sheet-text]").textContent,
-      read: window.__olderSheets,
-      game: window.__kubb.game.engine.version,
-    }));
-    assert.match(sheet.text, /\[Win "Team B"\]/);
-    assert.equal(sheet.read, 1);
-    assert.equal(sheet.game, "0.13.1");
-    await page.click("[data-test=sheet-back]");
-
-    // WATCH REPLAY: the Game draws from 0.6 while it plays, and from the newest after
-    await page.click("[data-test=watch-replay]");
-    await page.waitForSelector("[data-test=replay-bar]");
+    await page.waitForSelector("[data-test=embed-card]");
     assert.equal(
-      await page.evaluate(() => window.__kubb.game.engine.version),
-      "0.6.9",
+      await page.getAttribute("[data-test=embed-card]", "data-state"),
+      "old",
     );
-    await page.click("[data-test=replay-close]");
-    await page.waitForSelector("[data-test=winner]", { timeout: 30000 });
-    assert.equal(
-      await page.evaluate(() => window.__kubb.game.engine.version),
-      "0.13.1",
+    assert.match(
+      await page.textContent("[data-test=embed-card]"),
+      new RegExp(OLD_REPLAY.replace(".", "\\.")),
     );
+    // the link to the pitch is there; no game was made for it
+    assert.equal(await page.locator("[data-test=embed-card] a.btn").count(), 1);
+    assert.equal(await page.evaluate(() => window.__kubb.embed.state), "old");
     assert.deepEqual(page.errors, []);
     await ctx.close();
   },
 );
 
 browserTest(
-  "SCORE SHEET pressed after WATCH REPLAY, while the engine loads, leaves the replay playing",
+  "a shared match of 0.9: the one sentence, its reel, and HOME",
   async () => {
     const { page, ctx } = await open(`/p/${CODES.sealed}?${rq()}&nohowto=1`);
-    await page.waitForSelector("[data-test=winner]", { timeout: 30000 });
-    // both pressed before 0.6 has loaded: the replay starts first, and the sheet must
-    // not then set the engine it plays on to the match's last snapshot
-    await page.evaluate(() => {
-      window.__restores = 0;
-      window.__kubb.engines.onLoad((e, mm) => {
-        if (mm !== "0.6") return;
-        const restore = e.restore.bind(e);
-        e.restore = (...a) => (window.__restores++, restore(...a));
-      });
-      document.querySelector("[data-test=watch-replay]").click();
-      document.querySelector("[data-test=winner-sheet]").click();
+    await page.waitForSelector("[data-test=sealed-old]", { timeout: 30000 });
+    assert.match(
+      await page.textContent("[data-test=sealed-old]"),
+      /no longer be replayed/,
+    );
+    assert.equal(
+      await page
+        .locator("[data-test=sealed-old] button:has-text('HIGHLIGHT REEL')")
+        .count(),
+      1,
+    );
+    assert.equal(
+      await page
+        .locator("[data-test=sealed-old] button:has-text('HOME')")
+        .count(),
+      1,
+    );
+    // the reel's card opens (its video, when made, needs no engine)
+    await page.click(
+      "[data-test=sealed-old] button:has-text('HIGHLIGHT REEL')",
+    );
+    await page.waitForSelector("[data-test=reel-card]");
+    assert.equal(await page.evaluate(() => window.__kubb.pitch.mode), "gone");
+    assert.deepEqual(page.errors, []);
+    await ctx.close();
+  },
+);
+
+browserTest(
+  "a pitch's last match from 0.9: WATCH THE LAST MATCH says so, the lobby stays",
+  async () => {
+    const { page, ctx } = await open(`/p/${CODES.older}?${rq()}&nohowto=1`);
+    await page.waitForSelector("[data-test=lobby]");
+    await page.waitForSelector("[data-test=lobby-replay]:not([hidden])", {
+      timeout: 30000,
     });
+    await page.click("[data-test=lobby-replay]");
+    await page.waitForSelector("[data-test=replay-refused]");
+    assert.equal(
+      await page.textContent("[data-test=replay-refused] p:not(.kicker)"),
+      OLD_REPLAY,
+    );
+    await page.click("[data-test=replay-refused] button:has-text('OK')");
+    // back to the lobby as it was: nothing broken
+    await page.waitForSelector("[data-test=lobby]");
+    assert.equal(await page.evaluate(() => window.__kubb.pitch.mode), "lobby");
+    assert.deepEqual(page.errors, []);
+    await ctx.close();
+  },
+);
+
+browserTest(
+  "a pitch's last match on the newest engine still plays",
+  async () => {
+    const { page, ctx } = await open(`/p/${CODES.current}?${rq()}&nohowto=1`);
+    await page.waitForSelector("[data-test=lobby-replay]:not([hidden])", {
+      timeout: 30000,
+    });
+    await page.click("[data-test=lobby-replay]");
     await page.waitForSelector("[data-test=replay-bar]");
-    await page.waitForSelector("[data-test=sheet-text]");
-    const seen = await page.evaluate(() => ({
-      mode: window.__kubb.pitch.mode,
-      playing: window.__kubb.game.engine.version,
-      restores: window.__restores,
-    }));
-    assert.deepEqual(seen, { mode: "replay", playing: "0.6.9", restores: 0 });
+    assert.equal(await page.evaluate(() => window.__kubb.pitch.mode), "replay");
     assert.deepEqual(page.errors, []);
     await ctx.close();
   },

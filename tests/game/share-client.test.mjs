@@ -68,15 +68,26 @@ browserTest(
       );
       await page.click("[data-test=winner-reel]");
       await page.waitForSelector("[data-test=share-card]");
-      // nothing has gone yet; the stand-in "You" is not offered as the name
-      assert.equal(await page.inputValue("[data-test=share-name]"), "");
-      assert.ok(await page.isDisabled("[data-test=share-send]"));
-      await page.fill("[data-test=share-name]", "you");
-      assert.match(
-        await page.textContent("[data-test=share-say]"),
-        /not "You"/,
+      // nothing has gone yet; the name row starts with the name the match was played
+      // under (the device's generated name), and no text field is offered
+      const played = await page.evaluate(() => window.__kubb.game.playerName);
+      assert.equal(
+        await page.textContent("[data-test=share-name-text]"),
+        played,
       );
-      await page.fill("[data-test=share-name]", "Lakeside");
+      assert.equal(
+        await page.locator("[data-test=share-card] input").count(),
+        0,
+      );
+      assert.ok(await page.isEnabled("[data-test=share-send]"));
+      // SHUFFLE, then the second word's picker: the reel's name is a generated one
+      await page.click("[data-test=share-name-shuffle]");
+      const w = await page.$eval("[data-test=share-name-word-1]", (el) =>
+        [...el.options].map((o) => o.value).find((v) => v !== el.value),
+      );
+      await page.selectOption("[data-test=share-name-word-1]", w);
+      const chosen = await page.textContent("[data-test=share-name-text]");
+      assert.equal(chosen.split(" ")[1], w);
       assert.ok(await page.isEnabled("[data-test=share-send]"));
       assert.match(
         await page.textContent("[data-test=share-card]"),
@@ -108,11 +119,11 @@ browserTest(
       );
       assert.equal(asked.length, 1);
       assert.equal(asked[0].room, code);
-      // the shared pitch is sealed, and its replay keeps the name typed on the card
+      // the shared pitch is sealed, and its replay keeps the name picked on the card
       const state = await rooms.api.store.getState(code);
       assert.equal(state.sealed, true);
       const kept = await rooms.api.store.getReplay(code);
-      assert.match(kept.data, /Lakeside/);
+      assert.ok(kept.data.includes(chosen), chosen);
       assert.deepEqual(page.errors, []);
       await page.context().close();
     } finally {

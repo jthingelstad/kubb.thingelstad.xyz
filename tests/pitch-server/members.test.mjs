@@ -179,13 +179,16 @@ test("observers get every reliable frame", () => {
 
 test("me: a member's own fields, merged, null removes, announced to all", () => {
   const h = new Harness();
-  h.join("a", "anna", { me: { name: "Anna", level: "club" } });
+  h.join("a", "anna", { me: { name: "Mighty Maple", level: "club" } });
   h.join("b", "bert");
   h.take("a");
   h.send("a", { t: "me", me: { level: null, engine: "0.9+engines" } });
   const toA = h.take("a")[0];
   const toB = h.take("b")[0];
-  assert.deepEqual(toA.member.me, { name: "Anna", engine: "0.9+engines" });
+  assert.deepEqual(toA.member.me, {
+    name: "Mighty Maple",
+    engine: "0.9+engines",
+  });
   assert.deepEqual(toB, toA);
   h.send("a", { t: "me", me: "nope" });
   assert.equal(h.take("a")[0].code, "bad-message");

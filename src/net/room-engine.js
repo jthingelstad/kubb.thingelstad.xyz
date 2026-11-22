@@ -1,4 +1,4 @@
-// The door to the room's logic in the engine (vendor/engine/room/, its docs/ROOM.md):
+// The door to the room's logic in the engine (vendor/engine/pitch/, its docs/PITCH.md):
 // the shared document's reducers, who acts and how a client stays in step are Lua in
 // kubb-engine, the same calls the iPhone app makes, so the two clients cannot drift.
 // src/net/lobby.js, seats.js and sync.js are thin wrappers over these calls.
@@ -10,7 +10,7 @@
 //   useRoomEngine(engine)        once, with the page's newest engine (src/main.js
 //                                makeEngine); lobby.js's constants are read from it
 //   addRoomEngine(engine)        another carried engine, once it is loaded
-//   roomCall(name, args, mm?)    kubbCall("room.<name>", JSON args) -> its `value`,
+//   roomCall(name, args, mm?)    kubbCall("pitch.<name>", JSON args) -> its `value`,
 //                                on engine mm (a major.minor), the newest by default
 //   roomEngine(mm?)              that engine, or null
 //   roomMinor(version)           the major.minor a call for a match of `version`
@@ -58,11 +58,11 @@ export function roomCall(name, args = {}, mm = newest) {
   if (!engine)
     throw new Error(
       newest
-        ? `room.${name}: this page has no engine ${mm}`
-        : `room.${name}: no engine yet (useRoomEngine first)`,
+        ? `pitch.${name}: this page has no engine ${mm}`
+        : `pitch.${name}: no engine yet (useRoomEngine first)`,
     );
   calls++;
-  return engine.call(`room.${name}`, args).value;
+  return engine.call(`pitch.${name}`, args).value;
 }
 
 // How many room calls this page has made (tests, and the bridge's call rate).

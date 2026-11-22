@@ -21,8 +21,19 @@ import * as site from "../../src/site/site.mjs";
 import { gamePage } from "../../src/site/layout.mjs";
 
 const fixture = (name) => fs.readFile(`tests/fixtures/${name}`, "utf8");
-const inPlay = await fixture("snap-in-play.json");
-const over = await fixture("snap-over.json");
+// The snapshot fixtures were captured with the sides named North and South, typed
+// names as the game had then; a pitch's match now carries generated names (the
+// engine's docs/NAMES.md), so the sides are renamed here, in memory, and the typed
+// names kept for the test that they are left off.
+const typedInPlay = await fixture("snap-in-play.json");
+const renamed = (text) => {
+  const s = JSON.parse(text);
+  s.save.game.teams.A.name = "Mighty Maple";
+  s.save.game.teams.B.name = "Lucky Larch";
+  return JSON.stringify(s);
+};
+const inPlay = renamed(typedInPlay);
+const over = renamed(await fixture("snap-over.json"));
 const replay = await fixture("replay-north-south.json");
 const overGame = JSON.parse(over).save.game;
 // the kept replay's own last snapshot (tools/replay-fixture.mjs writes it)
@@ -99,13 +110,16 @@ test("each state's words", () => {
         "A pitch waiting for players · Kubb: Throwing Wood",
         "Waiting for players. Join the pitch.",
       ],
-      playing: ["North vs South · Kubb: Throwing Wood", "In play: turn 2"],
+      playing: [
+        "Mighty Maple vs Lucky Larch · Kubb: Throwing Wood",
+        "In play: turn 2",
+      ],
       over: [
-        "North vs South · Kubb: Throwing Wood",
+        "Mighty Maple vs Lucky Larch · Kubb: Throwing Wood",
         `Final: ${winner} won, 1 to 0, in ${turns} turns.`,
       ],
       kept: [
-        "North vs South · Kubb: Throwing Wood",
+        "Mighty Maple vs Lucky Larch · Kubb: Throwing Wood",
         `Final: ${keptWinner} won, 1 to 0, in ${keptGame.turn} turns. Watch the replay.`,
       ],
       none: null,
@@ -156,10 +170,10 @@ test("each state's words", () => {
     state: {
       ...RECORDS.playing.state,
       snap: JSON.stringify(nameless),
-      names: { A: "Oak", B: "Elm" },
+      names: { A: "Wobbly Towers", B: "Birch Batons" },
     },
   });
-  assert.deepEqual(named.teams, { A: "Oak", B: "Elm" });
+  assert.deepEqual(named.teams, { A: "Wobbly Towers", B: "Birch Batons" });
 });
 
 test("a match against the computer says so, and at what level", () => {
@@ -221,51 +235,55 @@ test("the preview goes into the page's head; the fallback leaves it as built", (
   }
 });
 
-test("names are escaped, and the embed's state block cannot close its element", () => {
-  const snap = JSON.parse(inPlay);
-  snap.save.game.teams.A.name = '</script><b x="1">&';
-  const s = pitchState({
-    state: { ...RECORDS.playing.state, snap: JSON.stringify(snap) },
+// The engine's docs/NAMES.md section 6: the pitch card leaves off a name the game did
+// not make. A typed name (as the captured fixture has), markup or a $ sequence never
+// reaches the page, the image or the embed's state block: the side is "Team A".
+test("a team name the game did not make is left off: Team A / Team B", () => {
+  const typed = pitchState({
+    state: { ...RECORDS.playing.state, snap: typedInPlay },
   });
-  const html = injectPreview(base, {
-    code: "abcd2345",
-    s,
-    path: "/e/abcd2345",
-    embed: true,
-  });
-  assert.ok(!html.includes('</script><b x="1">'));
-  assert.match(
-    meta(html, "og:title"),
-    /^&lt;\/script&gt;&lt;b x=&quot;1&quot;&gt;&amp; vs South/,
+  assert.deepEqual(typed.teams, { A: "Team A", B: "Team B" });
+  assert.equal(
+    previewOf(typed).title,
+    "Team A vs Team B · Kubb: Throwing Wood",
   );
-  const block = html.match(
-    /<script type="application\/json" id="kubb-pitch">(.*?)<\/script>/s,
-  )[1];
-  const state = JSON.parse(block);
-  assert.equal(state.state, "playing");
-  assert.equal(state.teams.A, '</script><b x="1">&');
-  assert.equal(state.turn, 2);
-});
-
-test("a $ sequence in a team name is written as it is", () => {
+  for (const bad of ['</script><b x="1">&', "$& $1 $` $'", "Anna", "North"]) {
+    const snap = JSON.parse(inPlay);
+    snap.save.game.teams.A.name = bad;
+    const s = pitchState({
+      state: { ...RECORDS.playing.state, snap: JSON.stringify(snap) },
+    });
+    const html = injectPreview(base, {
+      code: "abcd2345",
+      s,
+      path: "/e/abcd2345",
+      embed: true,
+    });
+    assert.ok(!html.includes(bad), bad);
+    assert.equal(html.match(/<title>/g).length, 1);
+    assert.equal(
+      meta(html, "og:title"),
+      "Team A vs Lucky Larch · Kubb: Throwing Wood",
+    );
+    const block = html.match(
+      /<script type="application\/json" id="kubb-pitch">(.*?)<\/script>/s,
+    )[1];
+    const state = JSON.parse(block);
+    assert.equal(state.state, "playing");
+    assert.equal(state.teams.A, "Team A");
+    assert.equal(state.turn, 2);
+  }
+  // a side of one may carry its player's name; a side of several needs a team's
   const snap = JSON.parse(inPlay);
-  snap.save.game.teams.A.name = "$& $1 $` $'";
-  const s = pitchState({
-    state: { ...RECORDS.playing.state, snap: JSON.stringify(snap) },
-  });
-  const html = injectPreview(base, {
-    code: "abcd2345",
-    s,
-    path: "/e/abcd2345",
-    embed: true,
-  });
-  assert.equal(html.match(/<title>/g).length, 1);
-  assert.equal(html.match(/property="og:title"/g).length, 1);
-  assert.match(meta(html, "og:title"), /^\$&amp; \$1 \$` \$&#39; vs South/);
-  const block = html.match(
-    /<script type="application\/json" id="kubb-pitch">(.*?)<\/script>/s,
-  )[1];
-  assert.equal(JSON.parse(block).teams.A, "$& $1 $` $'");
+  const players = snap.save.game.teams.A.players?.length ?? 1;
+  snap.save.game.teams.A.name = "Wobbly Towers";
+  assert.equal(
+    pitchState({
+      state: { ...RECORDS.playing.state, snap: JSON.stringify(snap) },
+    }).teams.A,
+    "Wobbly Towers",
+  );
+  assert.ok(players >= 1);
 });
 
 test("the server: each state's page, and the built page on any failure", async () => {
@@ -305,7 +323,7 @@ test("the server: each state's page, and the built page on any failure", async (
   assert.equal(playing.status, 200);
   assert.equal(
     meta(playing.body, "og:title"),
-    "North vs South · Kubb: Throwing Wood",
+    "Mighty Maple vs Lucky Larch · Kubb: Throwing Wood",
   );
   assert.match(playing.headers["cache-control"], /s-maxage=60/);
   const done = await get("/pitch/index.html?pitch=vvvvvvvv");

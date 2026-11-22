@@ -10,7 +10,9 @@ deleted.
 
 The pitch knows no Kubb. It keeps who is on the pitch, the host, one lobby document,
 the current match's head and its action log, and relays casts. It never runs the
-engine: clients run it and cross-check hashes, as they do today.
+engine: clients run it and cross-check hashes, as they do today. The one thing it reads
+is names (section 6a): it checks every name it can see against the engine's own word
+lists.
 
 ## 1. Connecting
 
@@ -58,6 +60,7 @@ as the member is on the pitch:
 A member view: `{ id, role, connected, joined, since, me }`. `joined` orders members (it
 is the join time, made unique); `since` is when the member last connected or went away;
 `me` is the member's own small object (name, level, engines; at most 512 bytes as JSON).
+Its `name`, when it is not a generated name or a default, is dropped (section 6a).
 
 When a role is full, the member of that role away longest gives up their place (never
 the host) and the others get `left`. With nobody away, the join is refused `full`.
@@ -94,7 +97,7 @@ listing; the clients' own rules give it the computer and absent players' turns.
   "t": "join",
   "member": "<id>",
   "role": "player",
-  "me": { "name": "Anna" },
+  "me": { "name": "Mighty Maple" },
   "v": 3,
   "n": 2,
   "seq": 41,
@@ -103,7 +106,8 @@ listing; the clients' own rules give it the computer and absent players' turns.
 ```
 
 - `role`: `player` (the default) or `observer`.
-- `me`: merged into the member's fields (a `null` value removes a field).
+- `me`: merged into the member's fields (a `null` value removes a field). A `name` that
+  fails the names check is dropped, never refused (section 6a).
 - `v`: the lobby document version this client holds; when it is the current one the
   answer leaves the document out.
 - `n`, `seq`: the match and the last action this client holds, to resume (section 7).
@@ -115,8 +119,8 @@ nothing behind. Answered `joined`; the others get `member`.
 
 ### me
 
-`{ "t": "me", "me": { "level": "club" } }`: merged as in join. Everyone (the sender
-too) gets `member`.
+`{ "t": "me", "me": { "level": "club" } }`: merged as in join, the name checked as in
+join. Everyone (the sender too) gets `member`, with the member as the pitch keeps it.
 
 ### set: a lobby write
 
@@ -125,6 +129,8 @@ too) gets `member`.
 ```
 
 Compare-and-set: written as version `base + 1` only when the pitch's version is `base`.
+A document whose `teamNames` or `match.players` holds a name that fails the names check
+is refused `bad-name` (section 6a).
 Answered `ok` (`re: "set"`) with the others getting `doc`, or `no` with the current
 document. The document is the lobby only: never the match's snapshot or log. At most
 64 KB as JSON. Players only.
@@ -140,7 +146,7 @@ document. The document is the lobby only: never the match's snapshot or log. At 
   "n": 3,
   "h": "<hash at the start>",
   "snap": "<the engine's first snapshot>",
-  "meta": { "engine": "0.9.0", "setup": {}, "players": {}, "cpu": null }
+  "meta": { "engine": "0.13", "setup": {}, "players": {}, "cpu": null }
 }
 ```
 
@@ -149,7 +155,11 @@ pitch). `base` as for `set`. `snap` is the engine's text, carried as given and n
 parsed. `meta` is opaque to the pitch (at most 16 KB): put in it what a replay needs
 besides the log (the engine's `setup`, the engine version, the players). The previous
 match's log is dropped. Answered `ok` (`re: "start"`); the others get `start` with the
-snapshot; a stale `base` is answered `no`.
+snapshot; a stale `base` is answered `no`. A start whose document (as for `set`) or
+`meta` (`players`, `setup.teams`: a team's name, or on a side of one player that player's,
+and each player's) holds a name that fails the names check is refused `bad-name` (section
+6a). The snapshot is opaque and not read: the clients check its names (they do not show
+a match whose snapshot holds one that fails).
 
 ### act: commit one action
 
@@ -296,7 +306,37 @@ resumeMax, seatsMax, hostGraceMs`.
 | `replaced`       | this member connected somewhere else (then closed, 4001)                                   |
 | `observer`       | an observer tried to act, write or cast                                                    |
 | `not-host`       | `start` or `open` from someone not host                                                    |
+| `bad-name`       | a `set` or `start` naming a name the game does not make (section 6a)                       |
 | `bad-match`      | `start` with a match number that is not the next one                                       |
+
+## 6a. Names
+
+Every player and team name is generated from the engine's word lists (the engine's
+docs/NAMES.md); none is typed. A client is not proof, so the pitch checks every name it
+can see, in JavaScript (`names.mjs`), against `names-words.json`, the engine's own
+`names.words` answer (written from the vendored engine by `tools/names-words.mjs` and
+held to it by `npm run check`; its `hash` is the engine's, so a client can tell it holds
+the same words). The rule is the engine's: a name is valid for a kind (`player` or
+`team`) when it is a string of at most `max[kind]` characters (16), its words split on
+single spaces, it is not in `never`, no word begins with the word before it, and it
+matches one of the kind's shapes word for word. The engine's own names for no name
+(`defaults`: "Computer", "Team A", "Team B", "Player 1" to "Player 6") pass too.
+
+| Name                                                                         | Checked as                                  | When it fails                              |
+| ---------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------ |
+| a member's `me.name` (`join`, `me`, and members kept from before, on waking) | a player name                               | dropped: the member is kept with no `name` |
+| the document's `teamNames` (`set`, `start`)                                  | a team name                                 | the write is refused `bad-name`            |
+| the document's `match.players[side][i].name` (`set`, `start`)                | a player name                               | refused `bad-name`                         |
+| `start`'s `meta.players[side][i].name`                                       | a player name                               | refused `bad-name`                         |
+| `start`'s `meta.setup.teams[side].name`                                      | a team name, or on a side of one a player's | refused `bad-name`                         |
+| `start`'s `meta.setup.teams[side].players[i].name`                           | a player name                               | refused `bad-name`                         |
+
+A member with no name is shown by every client as "Player n", the engine's name for a
+player with none (n their place on their side). So a client that sends a typed name (an
+old build, or anyone writing their own messages) joins and plays, and everyone, itself
+included, sees it as "Player n". Refusing it would lock it out; dropping it keeps it in
+without its text. A document or a start naming a typed name is refused, because no
+honest client sends one: a page checks its lineup and team names before START.
 
 ## 7. Resume
 

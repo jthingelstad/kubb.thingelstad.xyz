@@ -31,7 +31,7 @@ test("the defaults are the spec's", () => {
 
 test("the first player opens the pitch, is host and gets the whole state", () => {
   const h = new Harness();
-  const j = h.join("a", "anna", { me: { name: "Anna" } });
+  const j = h.join("a", "anna", { me: { name: "Mighty Maple" } });
   assert.equal(j.t, "joined");
   assert.equal(j.you, id("anna"));
   assert.equal(j.role, "player");
@@ -44,7 +44,7 @@ test("the first player opens the pitch, is host and gets the whole state", () =>
   assert.equal(j.limits.observers, 20);
   assert.deepEqual(
     j.members.map((m) => [m.id, m.role, m.connected, m.me.name]),
-    [[id("anna"), "player", true, "Anna"]],
+    [[id("anna"), "player", true, "Mighty Maple"]],
   );
   assert.ok(h.store.pitch && h.store.members && h.store.doc, "persisted");
   assert.deepEqual(h.attached.get("a"), { member: id("anna"), role: "player" });
@@ -366,7 +366,7 @@ test("every client sees every pitch sequence number once, in order", () => {
   const base = h.state.s;
   h.send("a", act(1));
   note();
-  h.send("b", { t: "me", me: { name: "B" } });
+  h.send("b", { t: "me", me: { name: "Brave Birch" } });
   note();
   h.send("b", act(2));
   note();
