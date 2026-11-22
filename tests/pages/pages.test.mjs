@@ -19,6 +19,7 @@ import { renderer } from "../../backend/pages/render.mjs";
 import { createPages, siteBase } from "../../backend/pages/server.mjs";
 import * as site from "../../src/site/site.mjs";
 import { gamePage } from "../../src/site/layout.mjs";
+import { pitchCardImage } from "../../src/site/art.mjs";
 
 const fixture = (name) => fs.readFile(`tests/fixtures/${name}`, "utf8");
 // The snapshot fixtures were captured with the sides named North and South, typed
@@ -425,6 +426,54 @@ test("the share image renders per state at 1200 x 630", async () => {
   const pieces = cardOf(STATES.over).pieces;
   const king = pieces.find((p) => p.kind === "king");
   assert.equal(king.standing, !/^king/.test(overGame.how));
+});
+
+test("a pitch just made: its host's name from the first moment, round plates, TAP TO WATCH", async () => {
+  const waiting = pitchState({ open: { made: M, host: "Cheerful Cedar" } });
+  assert.deepEqual(waiting, { state: "waiting", v: M, host: "Cheerful Cedar" });
+  const p = previewOf(waiting);
+  assert.equal(
+    p.title,
+    "Cheerful Cedar is waiting for players · Kubb: Throwing Wood",
+  );
+  assert.equal(p.description, "Waiting for players. Join the pitch.");
+  const card = cardOf(waiting);
+  assert.equal(card.host, "Cheerful Cedar");
+  assert.equal(card.line, "Is waiting for players");
+  const svg = pitchCardImage(card);
+  assert.match(svg, />CHEERFUL CEDAR</);
+  assert.match(svg, />IS WAITING FOR PLAYERS</);
+  assert.doesNotMatch(svg, />A PITCH</);
+  // the plates are round: 8 px at 1200 wide
+  assert.match(svg, /<rect x="56" y="48" [^>]*rx="8"/);
+  // a name the game did not make is left off: the pitch is "A PITCH"
+  const typed = pitchState({ open: { made: M, host: "Anna Smith" } });
+  assert.equal(typed.host, null);
+  assert.match(pitchCardImage(cardOf(typed)), />A PITCH</);
+  assert.equal(
+    previewOf(typed).title,
+    "A pitch waiting for players · Kubb: Throwing Wood",
+  );
+  // a match on the pitch since it was made is what the link shows
+  assert.equal(
+    pitchState({
+      open: { made: M - 1, host: "Cheerful Cedar" },
+      state: RECORDS.playing.state,
+    }).state,
+    "playing",
+  );
+  // the state line says TAP TO WATCH where there is something to watch
+  assert.match(cardOf(STATES.playing).line, / · tap to watch$/);
+  assert.match(cardOf(STATES.kept).line, / · tap to watch$/);
+  assert.doesNotMatch(cardOf(STATES.over).line, /tap to watch/);
+  // and the image draws
+  const require = createRequire(import.meta.url);
+  const render = renderer({
+    wasm: await fs.readFile(require.resolve("@resvg/resvg-wasm/index_bg.wasm")),
+    font: await fs.readFile("backend/pages/LondrinaSolid-Black.ttf"),
+  });
+  const png = await render(card);
+  assert.equal(png.readUInt32BE(16), 1200);
 });
 
 test("readPitch: a match in play costs one read; a finished one reads its replay, then its reel", async () => {

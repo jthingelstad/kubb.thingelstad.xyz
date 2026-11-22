@@ -165,7 +165,9 @@ function envelope(
       ? `start:${body.n}`
       : topic === "act"
         ? `act:${body.n}:${body.seq}`
-        : `keep:${body.n}`;
+        : topic === "open"
+          ? "open"
+          : `keep:${body.n}`;
   const raw = Buffer.from(
     JSON.stringify({
       v: 1,
@@ -1135,6 +1137,50 @@ test("reels on the api's records: a takeover the day's cap refuses keeps the ite
   assert.equal(after.at, before.at);
   assert.equal(h.started.length, 1);
 });
+
+for (const kind of STORES)
+  test(`${kind}: open: the pitch made, by its host, for the link's preview; a later pitch on the code wins`, async () => {
+    const h = harness(kind);
+    const open = (host, made = MADE) => envelope("open", { host }, { made });
+    assert.deepEqual((await h.push(open("Cheerful Cedar"))).json, { ok: true });
+    assert.deepEqual((await h.push(open("Cheerful Cedar"))).json, {
+      ok: true,
+      duplicate: true,
+    });
+    // not a match: nothing recorded in the games bucket, no state
+    assert.equal(h.records.kept.size, 0);
+    assert.equal(await h.store.getState(CODE), null);
+    if (kind === "dynamo") {
+      const s = pitchState(await readPitch(h.item, CODE));
+      assert.deepEqual(s, {
+        state: "waiting",
+        v: MADE,
+        host: "Cheerful Cedar",
+      });
+      assert.equal(
+        previewOf(s).title,
+        "Cheerful Cedar is waiting for players · Kubb: Throwing Wood",
+      );
+      // an older pitch's late open changes nothing; the code made again does
+      await h.push(open("Plucky Plum", MADE - 1));
+      assert.equal(
+        pitchState(await readPitch(h.item, CODE)).host,
+        "Cheerful Cedar",
+      );
+      await h.push(open("Plucky Plum", MADE + 1));
+      assert.equal(
+        pitchState(await readPitch(h.item, CODE)).host,
+        "Plucky Plum",
+      );
+      // once a match is pushed, the match is what the link shows
+      const m = matchPushes({ made: MADE + 1 });
+      await h.push(m.start);
+      assert.equal(pitchState(await readPitch(h.item, CODE)).state, "playing");
+    }
+    // a host that is no name: null; anything else is a bad message
+    assert.equal((await h.push(open(null, MADE + 2))).status, 200);
+    assert.equal((await h.push(open(42, MADE + 3))).status, 400);
+  });
 
 test("the pages and reels are refused nothing the roles do not allow: they read only the fields they name", async () => {
   const h = harness("dynamo");

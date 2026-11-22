@@ -115,7 +115,8 @@ The pitch server's contract (PROTOCOL.md "Pushes to AWS"): `POST` with
   secret;
 - `idempotency-key: <pitch>:<made>:<k>`;
 - the body `{ "v": 1, "pitch", "made", "k", "topic", "sent", "body" }`, `topic` one of
-  `start` (`k` `start:<n>`), `act` (`act:<n>:<seq>`) and `keep` (`keep:<n>`).
+  `start` (`k` `start:<n>`), `act` (`act:<n>:<seq>`), `keep` (`keep:<n>`) and `open`
+  (`k` `open`).
 
 The function checks the signature over the raw bytes, in constant time, before it
 parses anything. A wrong or missing signature is `401 bad-signature` and nothing is
@@ -130,6 +131,12 @@ it):
   `games/pitch/<code>/<made, 13 digits>/<n, 4 digits>-<seq, 6 digits>.json.gz` (a start
   is seq 0), only if nothing is there (`If-None-Match: *`), and folded into the pitch's
   state item. An `act` with `over: true` keeps its snapshot as one half of the replay.
+- `open` (the pitch was made: `{ pitch, host }`, `host` the maker's name or null): the
+  `open` item, `{ made, host }`, 48 hours, unless one for a later `made` is there. Not a
+  match: nothing goes to the games bucket. It is what the pitch link's preview shows
+  before any match ("CHEERFUL CEDAR IS WAITING FOR PLAYERS"). This function must take
+  `open` before a pitch server that sends it is deployed (an untaken push is retried
+  for as long as the pitch lives).
 - `keep`: the replay (`meta`, `n`, `h0`, `log`) as the other half, gzipped, a year on.
   A replay over 256 KB is answered `200 { ok: true, kept: false, why: "too-long" }`, so
   the pitch stops sending it.
@@ -153,13 +160,15 @@ The pitches stack's table (`pk`, `sk`, TTL on `exp` in seconds; nothing else is 
 | pk                            | sk                | What                                                                                                                                                                               |
 | ----------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pitch#<code>`                | `state`           | the latest match: `rev`, `made`, `n`, `seq`, `over`, `z` (the last snapshot, gzipped), `hash`, `names`, `cpu`, `level`, `sealed`? ; 48 hours after the last push, a year once over |
+| `pitch#<code>`                | `open`            | the pitch was made: `made`, `host` (a generated player name, or null); 48 hours, the latest `made`                                                                                 |
 | `pitch#<code>`                | `half#<made>#<n>` | one match's replay being put together: `made`, `n`, `v`, `z`, `s`, `hash`, `cpu`, `level`; gone once whole                                                                         |
 | `pitch#<code>`                | `replay`          | the last whole replay, the same fields; a year from its end                                                                                                                        |
 | `pitch#<code>`                | `reel`            | the highlight reel, as `room#<code> \| reel` was                                                                                                                                   |
 | `share#<hash>`                | `share`           | a shared match's code                                                                                                                                                              |
 | `reels#<day>`, `shares#<day>` | `count`           | the day's counters                                                                                                                                                                 |
 
-The pitch pages (`backend/pages/`) read `state`, `replay` and `reel` with `GetItem`; the
+The pitch pages (`backend/pages/`) read `state`, `open` (only when there is no `state`),
+`replay` and `reel` with `GetItem`; the
 renderer (`backend/reels/`) reads `replay` and writes `reel`. The old rooms table and
 its `room#` items were deleted on 2026-11-21.
 

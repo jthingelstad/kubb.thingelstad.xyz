@@ -202,11 +202,15 @@ export async function readPitch(item, code) {
         level: st.level ?? null,
       }
     : null;
-  // the pitch made again after its last match: waiting (one read more)
-  const op = await item(pk, "open", ["made", "host", "exp"]);
-  const open = op ? { made: op.made, host: op.host ?? null } : null;
-  if (pitchState({ state, open }).state === "waiting") return { state, open };
   if (state && pitchState({ state }).state === "playing") return { state };
+  // a pitch with no match yet: its `open` record says who made it (one read more,
+  // only then: a match in play or finished costs what it did)
+  let open = null;
+  if (!state) {
+    const op = await item(pk, "open", ["made", "host", "exp"]);
+    open = op ? { made: op.made, host: op.host ?? null } : null;
+    if (pitchState({ open }).state === "waiting") return { state, open };
+  }
   const kp = await item(pk, "replay", [
     "v",
     "made",
