@@ -202,7 +202,7 @@ browserTest(
       const menuScene = () =>
         page.textContent("[data-test=menu-scene] [aria-checked=true]");
       assert.equal(await menuScene(), "Techno");
-      await page.click("[data-test=menu-scene] .seg-btn:has-text('Night')");
+      await page.click("[data-test=menu-scene] .seg-btn:has-text('Camping')");
       assert.equal(await menuScene(), "Camping");
       await page.keyboard.press("Escape");
       assert.deepEqual(await drawn(page), {
