@@ -13,7 +13,14 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
-import { serve, sweep, swingInPage, VIEWPORTS, played } from "./browser.mjs";
+import {
+  assertLocalPath,
+  serve,
+  sweep,
+  swingInPage,
+  VIEWPORTS,
+  played,
+} from "./browser.mjs";
 import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { makePitchCode } from "../../src/net/pitch-client.js";
 
@@ -74,6 +81,8 @@ async function join(code, name, kind = "desktop", ctx = null) {
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
   const url = `${env.base}/p/${code}?nohowto=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`;
+  // never a pitch server or api off this machine (AGENTS.md "Build and check")
+  assertLocalPath(url.slice(env.base.length));
   await page.goto(url);
   await page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
   await page.waitForFunction(
