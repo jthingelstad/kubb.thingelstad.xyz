@@ -231,3 +231,58 @@ test("a lobby write or start naming a name the game does not make is refused", (
   assert.equal(h.take("a").at(-1).t, "ok");
   assert.deepEqual(badNames({ teamNames: { B: "The Lumberjacks" } }), []);
 });
+
+// Computer seats (engine 0.17, its docs/PITCH.md "Computer seats"): a seat's record in the
+// document's top-level `computers` names a player, checked like one in `match.players`.
+test("a computer seat's name is a player name: a typed one is refused, a generated one taken", () => {
+  const h = new Harness();
+  h.join("a", "anna", { me: { name: "Mighty Maple" } });
+  const seated = (name) => ({
+    teams: { A: ["cpu:1"], B: [] },
+    computers: { "cpu:1": { level: "pro", ...(name ? { name } : {}) } },
+  });
+  h.send("a", { t: "set", id: "w1", base: 0, doc: seated("Robo Rick") });
+  assert.equal(h.take("a").at(-1).code, "bad-name");
+  // a team name in a seat is not a player name either
+  h.send("a", { t: "set", id: "w2", base: 0, doc: seated("Wobbly Towers") });
+  assert.equal(h.take("a").at(-1).code, "bad-name");
+  h.send("a", { t: "set", id: "w3", base: 0, doc: seated("Lucky Larch") });
+  assert.equal(h.take("a").at(-1).t, "ok");
+  // a seat that keeps no name (shown as "Computer")
+  h.send("a", { t: "set", id: "w4", base: 1, doc: seated(null) });
+  assert.equal(h.take("a").at(-1).t, "ok");
+  assert.deepEqual(badNames(seated("Robo Rick")), ["Robo Rick"]);
+  assert.deepEqual(badNames({ computers: { "cpu:1": "x" } }), []);
+  // a start whose players carry computer players: their generated names pass
+  const players = {
+    A: [
+      { id: "anna", name: "Mighty Maple" },
+      { id: "cpu:1", name: "Lucky Larch", cpu: true, level: "pro" },
+    ],
+    B: [{ id: "cpu:2", name: "Brisk Birch", cpu: true, level: "club" }],
+  };
+  assert.deepEqual(
+    badNames(
+      { ...seated("Lucky Larch"), match: { players } },
+      {
+        players,
+        setup: {
+          teams: {
+            A: {
+              name: "Wobbly Towers",
+              players: [
+                { name: "Mighty Maple" },
+                { name: "Lucky Larch", cpu: true },
+              ],
+            },
+            B: {
+              name: "Brisk Birch",
+              players: [{ name: "Brisk Birch", cpu: true }],
+            },
+          },
+        },
+      },
+    ),
+    [],
+  );
+});
