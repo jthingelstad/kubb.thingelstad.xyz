@@ -5,6 +5,7 @@
 // punishment panels. On a shared pitch `cards.who(need)` (set by
 // src/net/pitch.js) says who acts: the engine's cards then name them, and a
 // browser that only watches gets a WATCH button and the card closes itself.
+import { MAX_MINUTES } from "../game/clock.js";
 import { h, button, clear } from "./dom.js";
 import { prefs } from "../game/prefs.js";
 import { soloOptions } from "../game/throw-level.js";
@@ -189,7 +190,9 @@ export class Cards {
     const stats = [`${w.turns} ${w.turns === 1 ? "turn" : "turns"}`];
     // the length only when it is known: the engine gives 0 when no action carried the
     // clock (a person's throw cannot yet), and "under a min" was then said of every match
-    if (w.minutes >= 1) stats.push(`${w.minutes} min`);
+    // and never one that cannot be true (a stamp from a clock gone wrong)
+    if (w.minutes >= 1 && w.minutes <= MAX_MINUTES)
+      stats.push(`${w.minutes} min`);
     if (w.thrown)
       stats.push(`baton hits ${Math.round((100 * w.hits) / w.thrown)}%`);
     const noteEl = note

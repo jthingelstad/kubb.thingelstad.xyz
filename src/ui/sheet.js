@@ -7,6 +7,7 @@
 // them (the engine's `shown`); SHOW POSITIONS puts them back. COPY and DOWNLOAD always
 // take the whole file, positions included. Like the report card, it is
 // modal while open and everything else under the root is inert.
+import { MAX_MINUTES } from "../game/clock.js";
 import { h, button } from "./dom.js";
 
 export const NOTATION_URL =
@@ -21,7 +22,17 @@ export const NOTATION_URL =
 // docs/CLIENT.md "Score sheet"). Without one the engine writes the finish as the start,
 // `[Duration "0m"]`, which is not true: the sheet shown leaves that line out. The file
 // kept in the record is the engine's as it is.
-export const UNKNOWN_DURATION = /^\[Duration "0m"\]$/;
+// And a Duration that cannot be true (negative, or past MAX_MINUTES: a stamp from a clock
+// gone wrong) goes too: no length rather than a wrong one.
+const DURATION = /^\[Duration "(-?\d+)m"\]$/;
+export const UNKNOWN_DURATION = {
+  test(line) {
+    const m = DURATION.exec(line);
+    if (!m) return false;
+    const n = Number(m[1]);
+    return n <= 0 || n > MAX_MINUTES;
+  },
+};
 export const knownLines = (lines) =>
   lines.filter((l) => !UNKNOWN_DURATION.test(l));
 export const knownText = (text) =>
