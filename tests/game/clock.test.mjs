@@ -88,3 +88,42 @@ test("solo, watch and a pitch's START make the start with the same function", ()
   for (const src of [main, pitch])
     assert.ok(!/getMinutes\(\)/.test(src), "no start stamped by hand");
 });
+
+// Engine 0.18.0 stamps the throws it makes from each frame's `at` (Game.stamp passes it
+// on every frame, and on the raise, punish and resign actions): a match then has a real
+// length, the same in every browser; with no stamp it has none (not "0 minutes").
+test("engine 0.18: the throws a frame makes carry its stamp, and the match has a length", async () => {
+  const { Engine } = await import("../../src/engine/index.js");
+  const { bundleLua } = await import("../../tools/lua-bundle.mjs");
+  const play = async (stamped) => {
+    const e = await Engine.create({ sources: bundleLua() });
+    e.call("useTune", { name: "pointer" });
+    const start = {
+      year: 2026,
+      month: 11,
+      day: 22,
+      hour: 10,
+      min: 0,
+      utcOffset: -360,
+    };
+    e.newMatch({ seed: 3, cpu: "both", start, maxTurns: 2 });
+    let minute = 0;
+    for (let i = 0; i < 40000 && e.view().need.kind !== "over"; i++) {
+      if (i % 600 === 0) minute++;
+      const at = { ...start, min: minute };
+      delete at.utcOffset;
+      e.frame(stamped ? { dt: 1 / 30, at } : { dt: 1 / 30 });
+    }
+    return e;
+  };
+  const stamped = await play(true);
+  assert.equal(stamped.view().need.kind, "over");
+  const file = stamped.sheet().text ?? JSON.stringify(stamped.sheet());
+  assert.match(file, /\[Duration "\d+m"\]/);
+  assert.doesNotMatch(file, /\[Duration "0m"\]/);
+  const bare = await play(false);
+  assert.doesNotMatch(
+    bare.sheet().text ?? JSON.stringify(bare.sheet()),
+    /\[Duration /,
+  );
+});

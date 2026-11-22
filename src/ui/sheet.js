@@ -17,11 +17,12 @@ export const NOTATION_URL =
 // engine: the engine holding the match, when it is not the Game's (a finished match from
 // an older engine the site carries, docs/ENGINES.md).
 // Returns null when there is no match to show (practice).
-// The match's length is known only when an action carried the clock (`at`: a resign
-// since QA 2026-11-22; a person's throw cannot until the engine takes it, see
-// docs/CLIENT.md "Score sheet"). Without one the engine writes the finish as the start,
-// `[Duration "0m"]`, which is not true: the sheet shown leaves that line out. The file
-// kept in the record is the engine's as it is.
+// The match's length is known only when an action carried the clock (`at`). Since
+// engine 0.18.0 every action is stamped (the throws through each frame's `at`, the raise,
+// punish and resign actions themselves: Game.stamp), and a finished match with no stamp
+// has no End or Duration line at all; a match from before kept a `[Duration "0m"]` that
+// was not true, so a 0m line is still left out (a whole match is never under a minute).
+// The file kept in the record is the engine's as it is.
 // And a Duration that cannot be true (negative, or past MAX_MINUTES: a stamp from a clock
 // gone wrong) goes too: no length rather than a wrong one.
 const DURATION = /^\[Duration "(-?\d+)m"\]$/;
