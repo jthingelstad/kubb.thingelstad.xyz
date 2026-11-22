@@ -85,8 +85,9 @@ switch for `/ios/`: set, the page shows "Join the TestFlight"; empty, it says th
 by invitation and shows no button. `APP_STORE_URL` beside it is the store badge's switch:
 empty (until the app is live), / and /ios/ keep the TestFlight wording; set, they show
 Apple's badge (`storeLink`), whose artwork goes in at `APP_STORE_BADGE` with it. `/ios/`
-has the sections `#support` and `#privacy` the App Store listing links to; Support's words
-are a marked placeholder (`SUPPORT_PLACEHOLDER`) until the owner gives them. Every claim on `/engine/` has a source in the engine's
+has `#privacy` for the App Store listing's link, and `#support` only once
+`SUPPORT_TEXT` in `src/site/site.mjs` is set (the support words are the owner's to
+give; empty today, so there is no Support section and no footer Support link). Every claim on `/engine/` has a source in the engine's
 docs or tests; keep it that way. The pages announce nothing that is not live: no dates,
 no store, no features in progress.
 
