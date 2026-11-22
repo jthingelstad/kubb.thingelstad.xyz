@@ -2470,3 +2470,22 @@ browserTest(
     await page.context().close();
   },
 );
+
+// QA, 2026-11-22: after THROW on the hand-off the focus was left on the page, and the
+// next Tabs went MENU, the page, MENU before the meter. It now goes to the meter's
+// stand-in (or the raise panel's first choice when a raise comes next).
+browserTest("after the hand-off the keyboard is on the meter", async () => {
+  const page = await open(env, "/p/abcdefgh?solo=1&nohowto=1");
+  await page.click("[data-test=start]");
+  await page.waitForSelector("[data-test=handoff-go]");
+  await page.focus("[data-test=handoff-go]");
+  await page.keyboard.press("Enter");
+  await waitPhase(page, "aim", 10000);
+  await page.waitForFunction(
+    () => document.activeElement?.dataset?.test === "meter-proxy",
+    null,
+    { timeout: 3000 },
+  );
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
