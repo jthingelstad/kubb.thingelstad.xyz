@@ -119,8 +119,15 @@ function whoActs(need) {
     need.team || need.teams?.[need.side] || `TEAM ${need.side || ""}`,
   );
   if (need.kind === "throw") {
+    const th = need.setup?.thrower;
+    // a computer player in a team (engine 0.17): its name and level
+    if (th?.cpu && th.name)
+      return {
+        text: `${up(th.name)} THROWS · COMPUTER · ${up(th.level)}`,
+        mine: false,
+      };
     if (need.cpu) return { text: "COMPUTER THROWS", mine: false };
-    const name = need.setup?.thrower?.name;
+    const name = th?.name;
     return { text: `${up(name) || team} THROWS`, mine: false };
   }
   if (need.kind === "raise") return { text: `${team} RAISES`, mine: false };
