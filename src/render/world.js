@@ -1496,7 +1496,7 @@ function drawBaton(ctx, cam, kx, s) {
   const m = project(cam, it.x, it.y, it.z);
   const sideSign =
     q && m && (q[0] - m[0]) * px + (q[1] - m[1]) * py > 0 ? 1 : -1;
-  ctx.fillStyle = "rgba(23, 20, 15, 0.32)";
+  ctx.fillStyle = "rgba(22, 19, 15, 0.32)";
   ctx.beginPath();
   ctx.moveTo(
     p1[0] + px * sideSign * r1 * 0.25,

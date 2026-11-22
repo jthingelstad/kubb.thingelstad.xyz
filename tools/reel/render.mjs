@@ -139,7 +139,7 @@ async function contactSheet(mp4, file, stills, edit, o) {
   const x = c.getContext("2d");
   x.fillStyle = "#f7f0de";
   x.fillRect(0, 0, c.width, c.height);
-  x.fillStyle = "#17140f";
+  x.fillStyle = "#16130f";
   x.font = `900 34px ${O.DISPLAY}`;
   x.fillText(
     `${edit.teams.A} v ${edit.teams.B}: ${edit.result}  ·  ${edit.seconds.toFixed(1)} s  ·  ${edit.address}`,

@@ -4,8 +4,11 @@
 // stored one is kept)
 // in one place, MENU in every mode and the /settings/ page from the web game's page;
 // a match's options on the solo card, the practice MENU and the lobby, nowhere else;
-// the part-way raising on the raise panel. Skipped with a notice when Playwright's
-// Chromium is not installed.
+// the part-way raising on the raise panel and MENU's Raising row. The 1.0 design: the
+// name row is the name and SHUFFLE (no KEEP, no pickers), with a stepper per word in
+// Settings only; every two to four way choice is a segmented bar, one Tab stop with
+// the arrow keys inside. Skipped with a notice when Playwright's Chromium is not
+// installed.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -45,13 +48,16 @@ const pick = (page, row, value) =>
   page.click(`[data-test=${row}] [data-value="${value}"]`);
 
 const text = (page, t) => page.textContent(`[data-test=${t}]`);
-// picks another word in a word's picker, from its own choices; returns the word
-async function pickWord(page, t) {
-  const w = await page.$eval(`[data-test=${t}]`, (el) =>
-    [...el.options].map((o) => o.value).find((v) => v !== el.value),
-  );
-  await page.selectOption(`[data-test=${t}]`, w);
-  return w;
+// steps a word on in its stepper (Settings); returns the word it shows then
+async function stepWord(page, key, slot, dir = "next") {
+  await page.click(`[data-test=${key}-${dir}-${slot}]`);
+  return text(page, `${key}-word-${slot}`);
+}
+// MENU, then its SETTINGS: the device's rows
+async function openSettings(page) {
+  await page.click("[data-test=menu]");
+  await page.click("[data-test=menu-settings]");
+  await page.waitForSelector("[data-test=settings] [data-test=settings-name]");
 }
 const valid = (page, name) =>
   page.evaluate(
@@ -100,8 +106,10 @@ browserTest(
         "menu-level",
       ])
         assert.equal(await has(page, t), false, t);
-      // pick a word: the second word's picker, by keyboard as a select is used
-      const word = await pickWord(page, "settings-name-word-1");
+      // the second word stepped on: the first stays
+      const before = await text(page, "settings-name-text");
+      const word = await stepWord(page, "settings-name", 1);
+      assert.notEqual(word, before.split(" ")[1]);
       const picked = await text(page, "settings-name-text");
       assert.equal(picked.split(" ")[1], word);
       assert.equal(await pref(page, "name"), picked);
@@ -109,7 +117,7 @@ browserTest(
       await pick(page, "menu-side", "left");
       await pick(page, "mute", "off");
       await page.click("[data-test=settings-done]");
-      // DONE goes HOME, /web/, which answers 301 to the landing page's #play
+      // DONE goes HOME, the landing page's #play
       await page.waitForURL(/\/#play$/);
 
       // the game reads them as Settings left them
@@ -141,7 +149,7 @@ browserTest(
 );
 
 browserTest(
-  "the first run rolls a name; SHUFFLE keeps a locked word; the name row works by keyboard",
+  "the first run rolls a name; SHUFFLE rolls a whole new one, with no KEEP; the steppers step one word; the row works by keyboard",
   async () => {
     const page = await open(env, "/settings/", "desktop", { prefs: {} });
     try {
@@ -149,7 +157,7 @@ browserTest(
       const first = await text(page, "settings-name-text");
       assert.equal(await valid(page, first), true, first);
       assert.equal(await pref(page, "name"), first, "rolled and kept");
-      // the row is a labelled group of native controls
+      // the row is a labelled group of native buttons: no picker, no KEEP
       assert.equal(
         await page.getAttribute("[data-test=settings-name]", "role"),
         "group",
@@ -158,45 +166,52 @@ browserTest(
         await page.getAttribute("[data-test=settings-name]", "aria-label"),
         "Your name",
       );
+      for (const sel of [
+        "select",
+        "[data-test*=lock]",
+        "button:has-text('KEEP')",
+      ])
+        assert.equal(
+          await page.locator(`[data-test=settings-name] ${sel}`).count(),
+          0,
+          `no ${sel}`,
+        );
       assert.equal(
         await page.getAttribute(
-          "[data-test=settings-name-word-0]",
+          "[data-test=settings-name-prev-0]",
           "aria-label",
         ),
-        "Your name, first word",
+        "Previous first word",
       );
-      // lock the second word: SHUFFLE keeps it, every time
-      const kept = first.split(" ")[1];
-      await page.focus("[data-test=settings-name-lock-1]");
-      await page.keyboard.press("Enter");
       assert.equal(
         await page.getAttribute(
-          "[data-test=settings-name-lock-1]",
-          "aria-pressed",
+          "[data-test=settings-name-next-1]",
+          "aria-label",
         ),
-        "true",
+        "Next second word",
       );
-      const seen = new Set();
-      for (let i = 0; i < 8; i++) {
+      // SHUFFLE rolls a whole new name: over a few, both words change
+      const firsts = new Set();
+      const seconds = new Set();
+      for (let i = 0; i < 10; i++) {
         await page.focus("[data-test=settings-name-shuffle]");
         await page.keyboard.press("Enter");
         const n = await text(page, "settings-name-text");
-        assert.equal(n.split(" ")[1], kept, n);
         assert.equal(await valid(page, n), true, n);
-        seen.add(n.split(" ")[0]);
+        firsts.add(n.split(" ")[0]);
+        seconds.add(n.split(" ")[1]);
       }
-      assert.ok(seen.size > 1, "the open word changes");
-      // unlocked, SHUFFLE may change both
-      await page.click("[data-test=settings-name-lock-1]");
-      assert.equal(
-        await page.getAttribute(
-          "[data-test=settings-name-lock-1]",
-          "aria-pressed",
-        ),
-        "false",
-      );
+      assert.ok(firsts.size > 1 && seconds.size > 1, "both words change");
+      // a stepper steps its word and keeps the other (names.step)
+      const n0 = await text(page, "settings-name-text");
+      const w1 = await stepWord(page, "settings-name", 1, "next");
+      const n1 = await text(page, "settings-name-text");
+      assert.equal(n1, `${n0.split(" ")[0]} ${w1}`);
+      assert.notEqual(n1, n0);
+      const back = await stepWord(page, "settings-name", 1, "prev");
+      assert.equal(back, n0.split(" ")[1], "previous takes it back");
       // the keyboard reaches every control in order: SHUFFLE, then each word's
-      // picker and its lock
+      // previous and next
       await page.focus("[data-test=settings-name-shuffle]");
       const order = [];
       for (let i = 0; i < 4; i++) {
@@ -206,19 +221,22 @@ browserTest(
         );
       }
       assert.deepEqual(order, [
-        "settings-name-word-0",
-        "settings-name-lock-0",
-        "settings-name-word-1",
-        "settings-name-lock-1",
+        "settings-name-prev-0",
+        "settings-name-next-0",
+        "settings-name-prev-1",
+        "settings-name-next-1",
       ]);
-      // a word picked in the first word's picker (a native select: its own keys)
-      const w = await pickWord(page, "settings-name-word-0");
+      // Enter on the first word's next: the word moves, the focus stays on it
+      await page.focus("[data-test=settings-name-next-0]");
+      await page.keyboard.press("Enter");
       const after = await text(page, "settings-name-text");
-      assert.equal(after.split(" ")[0], w);
-      // focus stays on the picker after the row is drawn again
+      assert.equal(
+        after.split(" ")[0],
+        await text(page, "settings-name-word-0"),
+      );
       assert.equal(
         await page.evaluate(() => document.activeElement?.dataset.test),
-        "settings-name-word-0",
+        "settings-name-next-0",
       );
       assert.equal(await valid(page, after), true);
       assert.equal(await pref(page, "name"), after);
@@ -227,6 +245,11 @@ browserTest(
         await page.textContent("[data-test=settings-name] [aria-live]"),
         new RegExp(`^Your name: ${after}$`),
       );
+      // each stepper is at least 44 px square to a finger
+      const step = await page
+        .locator("[data-test=settings-name-prev-0]")
+        .boundingBox();
+      assert.ok(step.width >= 44 && step.height >= 44, JSON.stringify(step));
       assert.deepEqual(page.errors, []);
     } finally {
       await page.context().close();
@@ -235,9 +258,93 @@ browserTest(
 );
 
 browserTest(
-  "MENU: the device's rows everywhere, the practice pitch's options in practice only, no Raising",
+  "a segmented bar is one Tab stop: the arrow keys move the choice inside it, Home and End too",
   async () => {
-    const prefs = { name: "Brave Birch", howtoSeen: true };
+    const page = await open(env, "/settings/", "desktop", {
+      prefs: { name: "Brave Birch", meter: "clock" },
+    });
+    try {
+      await page.waitForSelector("[data-test=menu-meter] .seg");
+      const bar = "[data-test=menu-meter] .seg";
+      assert.equal(await page.getAttribute(bar, "role"), "radiogroup");
+      assert.equal(await page.getAttribute(bar, "aria-label"), "Meter");
+      // the chosen part alone takes Tab; the others are out of the Tab order
+      const tabs = await page.$$eval(`${bar} .seg-btn`, (bs) =>
+        bs.map((b) => [
+          b.dataset.value,
+          b.tabIndex,
+          b.getAttribute("aria-checked"),
+        ]),
+      );
+      assert.deepEqual(tabs, [
+        ["clock", 0, "true"],
+        ["linear", -1, "false"],
+      ]);
+      // from the bar before, one Tab lands on the chosen part, the next leaves the bar
+      await page.focus("[data-test=mute] .seg-btn[aria-checked=true]");
+      await page.keyboard.press("Tab");
+      assert.equal(
+        await page.evaluate(() => document.activeElement.dataset.value),
+        "clock",
+      );
+      // the arrow keys pick, and the focus follows the choice (the rows are drawn
+      // again after a pick)
+      await page.keyboard.press("ArrowRight");
+      assert.equal(await pref(page, "meter"), "linear");
+      assert.equal(
+        await page
+          .evaluate(() => [
+            document.activeElement.dataset.value,
+            document.activeElement.getAttribute("aria-checked"),
+          ])
+          .then((v) => v.join()),
+        "linear,true",
+      );
+      await page.keyboard.press("ArrowRight"); // round to the first
+      assert.equal(await pref(page, "meter"), "clock");
+      await page.keyboard.press("End");
+      assert.equal(await pref(page, "meter"), "linear");
+      await page.keyboard.press("Home");
+      assert.equal(await pref(page, "meter"), "clock");
+      await page.keyboard.press("ArrowLeft");
+      assert.equal(await pref(page, "meter"), "linear");
+      await page.keyboard.press("Tab");
+      assert.notEqual(
+        await page.evaluate(() =>
+          document.activeElement.closest("[data-test=menu-meter]") ? 1 : 0,
+        ),
+        1,
+        "Tab leaves the bar",
+      );
+      // the chosen part is ink with paper type; the focus ring is 3 px of ink, 2 px off
+      const look = await page.$eval(`${bar} [aria-checked=true]`, (b) => {
+        const c = getComputedStyle(b);
+        return [c.backgroundColor, c.color];
+      });
+      assert.deepEqual(look, ["rgb(22, 19, 15)", "rgb(247, 240, 222)"]);
+      await page.focus(`${bar} [aria-checked=true]`);
+      await page.keyboard.press("ArrowRight");
+      const ring = await page.$eval(bar, (el) => {
+        const c = getComputedStyle(el);
+        return [
+          c.outlineStyle,
+          c.outlineWidth,
+          c.outlineOffset,
+          c.outlineColor,
+        ];
+      });
+      assert.deepEqual(ring, ["solid", "3px", "2px", "rgb(22, 19, 15)"]);
+      assert.deepEqual(page.errors, []);
+    } finally {
+      await page.context().close();
+    }
+  },
+);
+
+browserTest(
+  "MENU: the grid, Settings with the device's rows and DONE, the practice pitch's options in practice only, Raising in a match by hand",
+  async () => {
+    const prefs = { name: "Brave Birch", howtoSeen: true, throwsMade: 3 };
     const practice = await open(env, "/practice/?nohowto=1", "desktop", {
       prefs,
     });
@@ -250,37 +357,96 @@ browserTest(
       },
     );
     try {
+      // MENU is a word in the header's plate
+      assert.equal(
+        await practice.locator("[data-test=rail] [data-test=menu]").count(),
+        1,
+      );
       await practice.click("[data-test=menu]");
       for (const t of [
-        "settings-name",
-        "menu-meter",
-        "menu-side",
-        "mute",
+        "menu-settings",
+        "menu-howto",
         "menu-surface",
         "menu-scene",
       ])
         assert.ok(await has(practice, t), `practice MENU has ${t}`);
-      assert.equal(await has(practice, "menu-raise"), false);
-      assert.equal(await has(practice, "menu-level"), false);
+      // practice has no match: no score sheet, no Raising, no RESIGN
+      for (const t of [
+        "menu-sheet",
+        "menu-raising",
+        "menu-resign",
+        "menu-level",
+      ])
+        assert.equal(
+          await has(practice, t),
+          false,
+          `practice MENU has no ${t}`,
+        );
+      assert.equal(
+        await practice.textContent("[data-test=menu-back]"),
+        "BACK TO THE PITCH",
+      );
+      await practice.click("[data-test=menu-settings]");
+      for (const t of ["settings-name", "menu-meter", "menu-side", "mute"])
+        assert.ok(await has(practice, t), `Settings has ${t}`);
       assert.equal(
         await practice.textContent("[data-test=settings-name-text]"),
         "Brave Birch",
       );
+      // DONE, at the bottom right, back to the menu; Escape closes the menu
+      await practice.click("[data-test=settings-done]");
+      assert.equal(await has(practice, "settings"), false);
+      assert.ok(await practice.isVisible("[data-test=menu-card]"));
+      await practice.keyboard.press("Escape");
+      assert.equal(await has(practice, "menu-card"), false);
 
       await solo.waitForSelector("[data-test=options]");
       await solo.click("[data-test=start]");
       await solo.waitForFunction(() => window.__kubb.game.mode === "match");
       await solo.click("[data-test=handoff-go]");
       await solo.click("[data-test=menu]");
-      for (const t of ["settings-name", "menu-meter", "mute"])
-        assert.ok(await has(solo, t), `match MENU has ${t}`);
+      // the grid of four, in its order, then Raising, BACK TO THE MATCH, RESIGN, HOME
+      const grid = await solo.$$eval(
+        "[data-test=menu-card] .menu-grid .btn",
+        (bs) => bs.map((b) => b.textContent),
+      );
+      assert.deepEqual(grid.slice(0, 3), [
+        "SETTINGS",
+        "SCORE SHEET",
+        "HOW TO THROW",
+      ]);
+      assert.ok(await has(solo, "menu-raising"), "a match raising by hand");
+      assert.equal(
+        await solo.textContent("[data-test=menu-back]"),
+        "BACK TO THE MATCH",
+      );
+      assert.ok(await has(solo, "menu-resign"));
+      assert.ok(await has(solo, "menu-home"));
       for (const t of [
         "menu-surface",
         "menu-scene",
-        "menu-raise",
         "menu-level",
+        "settings-name",
       ])
         assert.equal(await has(solo, t), false, `match MENU has no ${t}`);
+      // Raising: Automatic hands every raise to the engine, as REST OF GAME does
+      await pick(solo, "menu-raising", "auto");
+      assert.equal(
+        await solo.evaluate(() => window.__kubb.game.autoRaise.game),
+        true,
+      );
+      await pick(solo, "menu-raising", "hand");
+      assert.equal(
+        await solo.evaluate(() => window.__kubb.game.autoRaise.game),
+        false,
+      );
+      // the buttons' kinds: BACK TO THE MATCH the one go, RESIGN and HOME quiet
+      const kinds = await solo.$$eval("[data-test=menu-card] .btn", (bs) =>
+        bs.map((b) => [b.dataset.test, b.className]),
+      );
+      assert.equal(kinds.filter(([, c]) => /\bgo\b/.test(c)).length, 1);
+      assert.match(Object.fromEntries(kinds)["menu-resign"], /quiet/);
+      assert.match(Object.fromEntries(kinds)["menu-home"], /quiet/);
       assert.deepEqual([...practice.errors, ...solo.errors], []);
     } finally {
       await practice.context().close();
@@ -312,9 +478,24 @@ browserTest(
           .count(),
         0,
       );
-      const word = await pickWord(page, "solo-name-word-1");
+      // the name and SHUFFLE on one line: no stepper, no KEEP here (Settings has them)
+      for (const t of [
+        "solo-name-prev-0",
+        "solo-name-word-0",
+        "solo-name-lock-0",
+      ])
+        assert.equal(await has(page, t), false, t);
+      await page.click("[data-test=solo-name-shuffle]");
+      await page.waitForFunction(
+        (r) =>
+          document.querySelector("[data-test=solo-name-text]")?.textContent !==
+          r,
+        rolled,
+        { timeout: 5000 },
+      );
       const picked = await text(page, "solo-name-text");
-      assert.equal(picked.split(" ")[1], word);
+      assert.notEqual(picked, rolled);
+      assert.equal(await valid(page, picked), true, picked);
       await page.click("[data-test=start]");
       await page.waitForFunction(() => window.__kubb.game.mode === "match");
       assert.equal(await pref(page, "name"), picked);
@@ -329,11 +510,14 @@ browserTest(
       // MENU's row during the match changes the device's name; the next card (a
       // rematch) shows it
       await page.click("[data-test=handoff-go]");
-      await page.click("[data-test=menu]");
+      await openSettings(page);
       assert.equal(await text(page, "settings-name-text"), picked);
-      await pickWord(page, "settings-name-word-1");
+      await stepWord(page, "settings-name", 1);
       const fromMenu = await text(page, "settings-name-text");
+      // Escape closes Settings, then the menu
       await page.keyboard.press("Escape");
+      await page.keyboard.press("Escape");
+      assert.equal(await has(page, "menu-card"), false);
       assert.equal(await pref(page, "name"), fromMenu);
       await page.evaluate(() => window.__kubb.game.resign("A"));
       await page.waitForSelector("[data-test=rematch]");
@@ -377,15 +561,23 @@ browserTest(
         await page.textContent("[data-test=team-A] .member-name"),
         "Brave Birch",
       );
-      await page.selectOption("[data-test=lobby-name-word-1]", "Elm");
+      // the name and SHUFFLE on one line, under "You are"
+      assert.equal(
+        await page.textContent("[data-test=lobby-you] .you-caption"),
+        "You are",
+      );
+      assert.equal(await has(page, "lobby-name-prev-0"), false);
+      await page.click("[data-test=lobby-name-shuffle]");
+      const now = await text(page, "lobby-name-text");
+      assert.notEqual(now, "Brave Birch");
       await page.waitForFunction(
-        () =>
+        (n) =>
           document.querySelector("[data-test=team-A] .member-name")
-            ?.textContent === "Brave Elm",
-        null,
+            ?.textContent === n,
+        now,
         { timeout: 10000 },
       );
-      assert.equal(await pref(page, "name"), "Brave Elm");
+      assert.equal(await pref(page, "name"), now);
       assert.deepEqual(page.errors, []);
     } finally {
       await page.context().close();

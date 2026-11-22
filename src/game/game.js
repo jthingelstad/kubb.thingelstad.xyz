@@ -1803,7 +1803,7 @@ export class Game {
       if (!q) return;
       const pt = [q.lx, q.ly];
       const r = 17;
-      ctx.fillStyle = "#17140f";
+      ctx.fillStyle = "#16130f";
       ctx.beginPath();
       ctx.arc(pt[0] + 3, pt[1] + 3, r, 0, Math.PI * 2);
       ctx.fill();
@@ -1813,9 +1813,9 @@ export class Game {
       ctx.arc(pt[0], pt[1], r, 0, Math.PI * 2);
       ctx.fill();
       ctx.lineWidth = 3;
-      ctx.strokeStyle = "#17140f";
+      ctx.strokeStyle = "#16130f";
       ctx.stroke();
-      ctx.fillStyle = "#17140f";
+      ctx.fillStyle = "#16130f";
       ctx.font = `22px "Londrina Solid", system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
