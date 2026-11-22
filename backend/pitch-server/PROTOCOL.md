@@ -438,17 +438,17 @@ with `write-first` before them. `push`, `listing` and `alarm` always come last.
 All small but `head` (one snapshot) and `doc`. Written whole when present, except the
 log:
 
-| Record      | Shape                                                                | Written               |
-| ----------- | -------------------------------------------------------------------- | --------------------- |
-| `pitch`     | `{ code, made, s, host, hostAway, open, listing, alarmAt, touched }` | every change          |
-| `doc`       | `{ v, by, sid, text }` (`text`: the document as JSON)                | each lobby write      |
-| `members`   | `[{ id, joined, since, role, me, on }]` (`on`: connected)            | member changes        |
-| `match`     | `{ n, meta, h0, at }`                                                | each start            |
-| `head`      | `{ n, seq, h, snap, over }`                                          | each start and action |
-| `acts`      | a list of `{ n, seq, id, m, a, h, s, ts, over, c? }` to append       | each action           |
-| `clearActs` | `true`: drop every stored action before appending                    | each start            |
-| `outbox`    | a list of `{ k, topic, body }` to append: pushes not yet confirmed   | each start and action |
-| `unbox`     | a list of `k` to delete from the outbox                              | each `pushed` event   |
+| Record      | Shape                                                                | Written                                              |
+| ----------- | -------------------------------------------------------------------- | ---------------------------------------------------- |
+| `pitch`     | `{ code, made, s, host, hostAway, open, listing, alarmAt, touched }` | every change                                         |
+| `doc`       | `{ v, by, sid, text }` (`text`: the document as JSON)                | each lobby write                                     |
+| `members`   | `[{ id, joined, since, role, me, on }]` (`on`: connected)            | member changes                                       |
+| `match`     | `{ n, meta, h0, at }`                                                | each start                                           |
+| `head`      | `{ n, seq, h, snap, over }`                                          | each start and action                                |
+| `acts`      | a list of `{ n, seq, id, m, a, h, s, ts, over, c? }` to append       | each action                                          |
+| `clearActs` | `true`: drop every stored action before appending                    | each start                                           |
+| `outbox`    | a list of `{ k, topic, body }` to append: pushes not yet confirmed   | the join that makes the pitch, each start and action |
+| `unbox`     | a list of `k` to delete from the outbox                              | each `pushed` event                                  |
 
 ### Pushes
 
@@ -457,13 +457,14 @@ log:
 | `start` | `{ pitch, n, m, ts, v, doc, meta, h0, snap }`              | each start             |
 | `act`   | `{ pitch, n, id, seq, m, a, h, s, ts, over, c?, snap }`    | each stored action     |
 | `keep`  | `{ pitch, n, at, started, meta, h0, log: [{ a, h, ts }] }` | the action with `over` |
+| `open`  | `{ pitch, host }`                                          | the pitch is made      |
 
 Every push goes through the outbox: it is in the same `persist` as the change it
 reports, and stays there until the object sends `{ type: "pushed", k }` once the AWS
 function has taken it. On waking, `rebuildPitch` sends every pending push again, so a
 restart between the write and the push loses nothing. The function must take a push
 idempotently by `(pitch, made, k)` (`made` is on every `push` effect: a code wiped and
-used again starts its keys over). Keys: `start:<n>`, `act:<n>:<seq>`, `keep:<n>`. The
+used again starts its keys over). Keys: `start:<n>`, `act:<n>:<seq>`, `keep:<n>`, `open`. The
 object retries an unconfirmed push itself, with backoff; while any push is pending the
 pitch is never wiped.
 
@@ -471,6 +472,13 @@ pitch is never wiped.
 replay, built by the pitch from its own log (no client uploads it): `{ ...meta, h0, log }`
 is the engine's replay when `meta` carries the match's `setup` and `engine`. It has no
 member ids.
+
+`open` is sent once, by the join that makes the pitch (a fresh object, or a code wiped
+and used again): `host` is that player's checked name (a generated player name; null
+when its `me` has none). It is only for the pitch link's preview before a match exists
+(backend/pages: "CHEERFUL CEDAR IS WAITING FOR PLAYERS"). No member id, nothing else of
+the lobby. The AWS function must take this topic before this pitch server is deployed:
+an untaken push is retried for as long as the pitch lives.
 
 ### On the wire to AWS
 

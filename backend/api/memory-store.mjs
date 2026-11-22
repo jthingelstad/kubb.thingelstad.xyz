@@ -61,6 +61,16 @@ export function memoryStore({ now = Date.now } = {}) {
   return {
     items,
     writes,
+    async putOpen(code, { made, host, exp }) {
+      const had = get(`pitch#${code}`, "open");
+      if (had && had.made >= made) return false;
+      put(`pitch#${code}`, "open", { made, host, exp });
+      return true;
+    },
+    async getOpen(code) {
+      const o = get(`pitch#${code}`, "open");
+      return o ? { ...o } : null;
+    },
     async getState(code) {
       const s = get(`pitch#${code}`, "state");
       return s ? { ...s } : null;

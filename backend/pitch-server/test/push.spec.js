@@ -22,11 +22,36 @@ const outbox = (code) =>
       .toArray(),
   );
 
+// A pitch's first join pushes `open` (PROTOCOL.md "Pushes"): joined, and that push
+// taken, before a test makes the receiver fail.
+async function joinOpened(code, who) {
+  const a = await join(code, who);
+  await waitUntil(async () =>
+    (await receiverGet(`/received?pitch=${code}`)).taken.some(
+      (m) => m.k === "open",
+    ),
+  );
+  await waitUntil(async () => (await outbox(code)).length === 0);
+  return a;
+}
+const notOpen = (list) => list.filter((m) => m.k !== "open");
+
 describe("pushes", () => {
+  it("the join that makes a pitch pushes `open` with the host's name", async () => {
+    const code = newCode();
+    const a = await joinOpened(code, "anna");
+    const got = await receiverGet(`/received?pitch=${code}`);
+    const open = got.taken.find((m) => m.k === "open");
+    expect(open).toMatchObject({ v: 1, pitch: code, topic: "open" });
+    expect(open.body).toEqual({ pitch: code, host: null });
+    expect(typeof open.made).toBe("number");
+    a.close();
+  });
+
   it("are signed, retried by alarm with backoff, and confirmed only on a 2xx", async () => {
     const code = newCode();
+    const a = await joinOpened(code, "anna");
     await receiverPost("/control", { fail: 3, failPitch: code });
-    const a = await join(code, "anna");
     a.send(startMsg(1));
     await a.next((f) => f.t === "ok" && f.re === "start");
     a.send(actMsg(1, 1, { over: true }));
@@ -35,7 +60,8 @@ describe("pushes", () => {
     // start:1, act:1:1 and keep:1 all answered 503
     await waitUntil(
       async () =>
-        (await receiverGet(`/received?pitch=${code}`)).attempts.length >= 3,
+        notOpen((await receiverGet(`/received?pitch=${code}`)).attempts)
+          .length >= 3,
     );
     await settle(100);
     let box = await outbox(code);
@@ -54,11 +80,11 @@ describe("pushes", () => {
     await waitUntil(async () => (await outbox(code)).length === 0);
     const got = await receiverGet(`/received?pitch=${code}`);
     expect(got.bad).toBe(0);
-    expect(got.taken.map((m) => m.k).sort()).toEqual([
-      "act:1:1",
-      "keep:1",
-      "start:1",
-    ]);
+    expect(
+      notOpen(got.taken)
+        .map((m) => m.k)
+        .sort(),
+    ).toEqual(["act:1:1", "keep:1", "start:1"]);
     const byK = Object.fromEntries(got.taken.map((m) => [m.k, m]));
     expect(byK["start:1"]).toMatchObject({ v: 1, pitch: code, topic: "start" });
     expect(byK["start:1"].body).toMatchObject({
@@ -82,8 +108,8 @@ describe("pushes", () => {
 
   it("send what is pending again when the object wakes", async () => {
     const code = newCode();
+    const a = await joinOpened(code, "anna");
     await receiverPost("/control", { fail: 1, failPitch: code });
-    const a = await join(code, "anna");
     a.send(startMsg(1));
     await a.next((f) => f.t === "ok" && f.re === "start");
     await waitUntil(async () =>
@@ -99,15 +125,17 @@ describe("pushes", () => {
     await runDurableObjectAlarm(stub(code));
     await waitUntil(async () => (await outbox(code)).length === 0);
     expect(
-      (await receiverGet(`/received?pitch=${code}`)).taken.map((m) => m.k),
+      notOpen((await receiverGet(`/received?pitch=${code}`)).taken).map(
+        (m) => m.k,
+      ),
     ).toEqual(["start:1"]);
     a.close();
   });
 
   it("leave a push on its way out of the alarm, so a slow receiver is not hammered", async () => {
     const code = newCode();
+    const a = await joinOpened(code, "anna");
     await receiverPost("/control", { fail: 1, failPitch: code });
-    const a = await join(code, "anna");
     a.send(startMsg(1));
     await a.next((f) => f.t === "ok" && f.re === "start");
     await waitUntil(async () =>
@@ -128,14 +156,16 @@ describe("pushes", () => {
     expect(during).toEqual({ inflight: 1, alarm: null });
     await waitUntil(async () => (await outbox(code)).length === 0);
     expect(
-      (await receiverGet(`/received?pitch=${code}`)).taken.map((m) => m.k),
+      notOpen((await receiverGet(`/received?pitch=${code}`)).taken).map(
+        (m) => m.k,
+      ),
     ).toEqual(["start:1"]);
     a.close();
   });
 
   it("wait quietly in the outbox when no receiver is configured", async () => {
     const code = newCode();
-    const a = await join(code, "anna");
+    const a = await joinOpened(code, "anna");
     await runInDurableObject(stub(code), (inst) => {
       inst.env = { ...inst.env, PUSH_URL: undefined };
     });
@@ -148,7 +178,9 @@ describe("pushes", () => {
       ["start:1", 0],
       ["act:1:1", 0],
     ]);
-    expect((await receiverGet(`/received?pitch=${code}`)).attempts).toEqual([]);
+    expect(
+      notOpen((await receiverGet(`/received?pitch=${code}`)).attempts),
+    ).toEqual([]);
     // no retry alarm for them: only the core's own deadlines
     const alarm = await runInDurableObject(stub(code), (_i, s) =>
       s.storage.getAlarm(),

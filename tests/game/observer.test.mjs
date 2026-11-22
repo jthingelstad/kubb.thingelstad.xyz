@@ -7,7 +7,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
-import { serve, sweep, swing, VIEWPORTS } from "./browser.mjs";
+import { serve, sweep, swing, VIEWPORTS, played } from "./browser.mjs";
 import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { makePitchCode } from "../../src/net/pitch-client.js";
 
@@ -41,6 +41,7 @@ after(async () => {
 
 async function open(url, kind = "desktop", name = null) {
   const ctx = await env.browser.newContext(VIEWPORTS[kind]);
+  await played(ctx);
   if (name)
     await ctx.addInitScript(
       (n) => localStorage.setItem("kubb:name", JSON.stringify(n)),

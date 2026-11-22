@@ -388,12 +388,12 @@ browserTest(
     assert.equal((await auto()).turn, false, "it ends with the turn");
 
     // the next turn is by hand again; REST OF GAME on the panel makes it the
-    // match's (raising is a match option: MENU has no Raising row)
+    // match's, and MENU's Raising row (the 1.0 design) offers the same choice
     await page.evaluate(() => window.__stage(6, 2));
     await page.waitForSelector("[data-test=raise-auto]");
     assert.ok(await has("raise-auto-game"), "REST OF GAME offered by hand");
     await page.click("[data-test=menu]");
-    assert.equal(await has("menu-raise"), false, "not in MENU");
+    assert.ok(await has("menu-raising"), "and MENU's Raising");
     await page.keyboard.press("Escape");
     await page.click("[data-test=raise-auto-game]");
     assert.match(
@@ -1534,6 +1534,7 @@ browserTest(
     const meter = () => page.evaluate(() => window.__kubb.game.L.meter);
     assert.equal(await meter(), "clock", "the clock is the default");
     await page.click("[data-test=menu]");
+    await page.click("[data-test=menu-settings]");
     await page.click("[data-test=menu-meter] >> text=Linear");
     assert.equal(await meter(), "linear");
     assert.equal(
@@ -1552,6 +1553,7 @@ browserTest(
     assert.equal(s.phase, "aim");
     assert.deepEqual(s.marker, before);
     await page.click("[data-test=menu]");
+    await page.click("[data-test=menu-settings]");
     await page.click("[data-test=menu-meter] >> text=Clock");
     assert.equal(await meter(), "clock");
     assert.deepEqual(page.errors, []);
@@ -1580,9 +1582,11 @@ for (const side of ["right", "left"]) {
         const g = linearGeometry(L.dial, side);
         assert.ok(g.travel >= 260, `travel ${g.travel}`);
         // the plate at the meter's top corner stands 10 px off its body
-        const sel = side === "right" ? "[data-test=menu]" : "[data-test=rail]";
+        // (MENU is in the header since the 1.0 design: at the right, practice's tray)
+        const sel = side === "right" ? "[data-test=tray]" : "[data-test=rail]";
         const r = await page.locator(sel).boundingBox();
-        if (side === "right") assert.ok(r.x + r.width <= g.left - 9, "MENU");
+        if (side === "right")
+          assert.ok(r.x + r.width <= g.left - 9, "the tray");
         else assert.ok(r.x >= g.right + g.sh + 9, "the rail");
         // a tap on the lane beside the knob is a tap: nothing thrown
         await page.touchscreen.tap(g.laneLeft + g.laneW / 2, g.y0 - 20);
@@ -1621,7 +1625,7 @@ browserTest(
       await waitPhase(page, "aim", 10000);
       let L = await page.evaluate(() => window.__kubb.game.L);
       assert.equal(L.meter, "linear");
-      assert.ok(L.meterRoom.right > 0, "MENU and the tray moved in");
+      assert.ok(L.meterRoom.right > 0, "the tray moved in");
       const t = layoutTune;
       const tray = await box(page, "[data-test=tray]");
       const menu = await box(page, "[data-test=menu]");
@@ -1629,7 +1633,12 @@ browserTest(
       assert.ok(tray.width <= t.trayW.practice, `tray ${tray.width}`);
       assert.ok(menu.width <= t.menuW, `MENU ${menu.width}`);
       assert.ok(rail.width <= t.railPracticeW, `rail ${rail.width}`);
-      assert.ok(apart(tray, rail) && apart(menu, rail), "844 x 390");
+      // MENU is a word inside the header's plate
+      assert.ok(
+        menu.x >= rail.x && menu.x + menu.width <= rail.x + rail.width,
+        "MENU in the header",
+      );
+      assert.ok(apart(tray, rail), "844 x 390");
       assert.ok(
         await page.evaluate(() =>
           document.documentElement.classList.contains("meter-room"),
@@ -1887,6 +1896,7 @@ browserTest("the menu's Side moves the meter and remembers", async () => {
     assert.equal(await side(), "right", "the right is the default");
     await clearOfMeter(page);
     await page.click("[data-test=menu]");
+    await page.click("[data-test=menu-settings]");
     await page.click("[data-test=menu-side] >> text=Left");
     assert.equal(await side(), "left");
     assert.equal(
@@ -1898,6 +1908,7 @@ browserTest("the menu's Side moves the meter and remembers", async () => {
     await waitPhase(page, "aim", 10000);
     assert.equal(await side(), "left", "kept over a reload");
     await page.click("[data-test=menu]");
+    await page.click("[data-test=menu-settings]");
     await page.click("[data-test=menu-side] >> text=Right");
     assert.equal(await side(), "right");
     assert.deepEqual(page.errors, []);
@@ -2122,7 +2133,7 @@ browserTest(
       await page.click("[data-test=menu]");
       assert.equal(
         (await page.textContent("[data-test=report]")).trim(),
-        "SEND FEEDBACK",
+        "FEEDBACK",
       );
       await page.click("[data-test=report]");
       await page.waitForSelector("[data-test=report-card]");

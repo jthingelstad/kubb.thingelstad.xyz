@@ -65,9 +65,12 @@ export const sameMatch = (kept, state) =>
 //   { state: "over", v, teams, turn, winner: "A" | "B" | null, how, replay, pieces,
 //     match: { n, hash }, reel: { wide } | null, computer: { side, level } | null }
 //
-// A pitch waiting for players has no record (the pitch server pushes no lobby writes),
-// so it is "none" and the page keeps the site's own preview; previewOf still words a
-// "waiting" state for an embed that is handed one.
+//   { state: "waiting", v, host }   a pitch made and not played since (its `open`
+//     record, which the pitch server pushes when the pitch is made: PROTOCOL.md
+//     "Pushes"); host its maker's name, or null when that is not a generated name
+//
+// A pitch with no record at all (made before the pitch server pushed `open`, or wiped)
+// is "none" and the page keeps the site's own preview.
 //
 // computer: the side the computer played and its level, for a match of a person against
 // it (a shared match, docs/ROOMS.md section 13, or a pitch where one side was the
@@ -75,7 +78,15 @@ export const sameMatch = (kept, state) =>
 //
 // reel: the kept replay's finished highlight reel ({ wide: site path }), or null;
 // shown only beside a replay (docs/REEL.md, docs/ROOMS.md section 12).
-export function pitchState({ state = null, kept = null, reel = null } = {}) {
+export function pitchState({
+  state = null,
+  kept = null,
+  reel = null,
+  open = null,
+} = {}) {
+  // a pitch made after its last match (or with none): waiting, and who made it
+  const waiting = openOf(open, state, kept);
+  if (waiting) return waiting;
   const shown = state ? fromSnap(state.snap, state.names) : null;
   if (shown) {
     const v = finite(state.v) ? state.v : 0;
@@ -101,6 +112,19 @@ export function pitchState({ state = null, kept = null, reel = null } = {}) {
       computer: computerOf(kept),
     };
   return { state: "none" };
+}
+
+// A pitch made (its `open` record: { made, host }) and not yet played since: { state:
+// "waiting", v, host }, the host's name only when it is a generated player name.
+function openOf(open, state, kept) {
+  if (!open || !finite(open.made)) return null;
+  const later = (m) => !m || !finite(m.made) || open.made > m.made;
+  if (!later(state) || !later(kept)) return null;
+  const host =
+    typeof open.host === "string" && NAMES.passes("player", open.host)
+      ? open.host
+      : null;
+  return { state: "waiting", v: open.made, host };
 }
 
 const LEVELS = ["beginner", "club", "pro"];
@@ -178,6 +202,10 @@ export async function readPitch(item, code) {
         level: st.level ?? null,
       }
     : null;
+  // the pitch made again after its last match: waiting (one read more)
+  const op = await item(pk, "open", ["made", "host", "exp"]);
+  const open = op ? { made: op.made, host: op.host ?? null } : null;
+  if (pitchState({ state, open }).state === "waiting") return { state, open };
   if (state && pitchState({ state }).state === "playing") return { state };
   const kp = await item(pk, "replay", [
     "v",
@@ -205,6 +233,7 @@ export async function readPitch(item, code) {
   return {
     state,
     kept,
+    open,
     reel: own ? await readReel(item, code, kept.v) : null,
   };
 }
@@ -319,19 +348,28 @@ const turns = (n) => `${n} ${n === 1 ? "turn" : "turns"}`;
 export function previewOf(s) {
   if (!s || s.state === "none") return null;
   if (s.state === "waiting")
-    return {
-      title: `A pitch waiting for players · ${SITE_NAME}`,
-      description: "Waiting for players. Join the pitch.",
-      line: "Waiting for players",
-      teams: null,
-      alt: "A Kubb pitch from above, set out and waiting for players",
-    };
+    return s.host
+      ? {
+          title: `${s.host} is waiting for players · ${SITE_NAME}`,
+          description: "Waiting for players. Join the pitch.",
+          line: "Is waiting for players",
+          host: s.host,
+          teams: null,
+          alt: `${s.host} is waiting for players: a Kubb pitch from above, set out`,
+        }
+      : {
+          title: `A pitch waiting for players · ${SITE_NAME}`,
+          description: "Waiting for players. Join the pitch.",
+          line: "Waiting for players",
+          teams: null,
+          alt: "A Kubb pitch from above, set out and waiting for players",
+        };
   const vs = `${s.teams.A} vs ${s.teams.B}`;
   if (s.state === "playing")
     return {
       title: `${vs} · ${SITE_NAME}`,
       description: `In play: turn ${s.turn}`,
-      line: `In play · turn ${s.turn}`,
+      line: `In play · turn ${s.turn} · tap to watch`,
       teams: s.teams,
       alt: `${vs}, in play at turn ${s.turn}: the pitch from above as it stands`,
     };
@@ -342,7 +380,7 @@ export function previewOf(s) {
   return {
     title: `${vs} · ${SITE_NAME}`,
     description: `Final: ${result}${s.replay ? " Watch the replay." : ""}${s.reel ? " Watch the highlights." : ""}`,
-    line: won ? `${won} won · ${turns(s.turn)}` : `Over · ${turns(s.turn)}`,
+    line: `${won ? `${won} won` : "Over"} · ${turns(s.turn)}${s.replay ? " · tap to watch" : ""}`,
     teams: s.teams,
     alt: `${vs}, final: ${result} The pitch from above as the match ended`,
   };
@@ -366,6 +404,7 @@ export function cardOf(s) {
   if (!p) return null;
   return {
     teams: p.teams,
+    host: p.host ?? null,
     line: p.line,
     pieces: s.state === "waiting" ? setOut() : s.pieces,
   };

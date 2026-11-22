@@ -39,9 +39,11 @@ export const tune = {
   stillClear: 8,
   margin: 14, // px from the edges (plus the safe area)
   railH: 46,
-  // CSS px from the top that the rail's own box (top left) takes, with its
-  // 10 px off the edge: a meter at the left edge starts below it
-  railBox: 84,
+  // CSS px from the top that the header's own box (top left) takes, with its
+  // 10 px off the edge: a meter at the left edge starts below it. The 1.0
+  // header holds MENU (48 tall to a finger), so it is 82 px tall there, 78
+  // with a mouse: 10 + 82.
+  railBox: 92,
   // the wide view's box (wideBox): CSS px kept clear at the top for the rail,
   // the status pill and the menu (more on a tall screen, where the pill sits
   // under the rail), and at the other edges
@@ -106,23 +108,26 @@ export const tune = {
   // linear meter) keeps this many px under the header row, or is not drawn
   stackedMapGap: 10,
   // the header row's plates in CSS px (headerPlates), measured in the
-  // browser (tests/game/client.test.mjs holds the page to them): MENU (63)
-  // and SKIP (59) at plateEdge from the right, under one another; the
-  // tray's right edge at trayRight, practice's BATONS | KUBBS and RESET
-  // (222) or the watch view's THROWER'S VIEW (90); the rail at plateEdge
-  // from the left, practice's at most railPracticeW (124 measured, room for
-  // "TARGET 10.0 M"), its counts' widest while watching ("10 FIELD KUBBS
-  // ·  5 BASE KUBBS", 237: nowrap; the teams are North and South) and a
-  // match's up to game.css max-width 44vw, never under the counts' widest;
-  // headerGap px kept between the rail and the right corner's row
+  // browser (tests/game/client.test.mjs holds the page to them). Since the 1.0
+  // design MENU (64) is a word inside the header's plate at the top left; the
+  // right corner holds SKIP (59) alone, at plateEdge from the right, or the
+  // tray, its right edge at trayRight: practice's BATONS | KUBBS and RESET
+  // (230) or the watch view's THROWER'S VIEW (93). The header at plateEdge
+  // from the left: practice's at most railPracticeW (215 measured: "BATONS ·
+  // 5 BASE KUBBS" over "Practice" and MENU), its widest while watching, the
+  // line "TURN 12 · BATON 6 OF 6 · 10 FIELD KUBBS" over North or South with
+  // the two numbers and MENU (railCountsW), and a match's up to game.css's
+  // max(44vw, 260px), never under that; headerGap px kept between the header
+  // and the right corner's row
   plateEdge: 12,
   menuW: 64,
   skipW: 60,
-  trayRight: 100,
-  trayW: { practice: 222, watch: 90 },
-  railPracticeW: 140,
+  trayRight: 12,
+  trayW: { practice: 232, watch: 95 },
+  railPracticeW: 218,
   railMaxW: 0.44,
-  railCountsW: 237,
+  railMinW: 260,
+  railCountsW: 360,
   headerGap: 8,
 };
 
@@ -251,12 +256,14 @@ export function headerPlates(L, header = null) {
   const r = L.meterRoom || { left: 0, right: 0 };
   // practice's rail has one count; watching's teams are North and South;
   // a match's names are the players' own, so its rail may reach its widest
+  // the header is never wider than game.css lets it be: max(44vw, 260px)
+  const railMax = Math.max(L.W * t.railMaxW, t.railMinW);
   const railW =
     header === "practice"
-      ? t.railPracticeW
+      ? Math.min(t.railPracticeW, railMax)
       : header === "watch"
-        ? t.railCountsW
-        : Math.max(L.W * t.railMaxW, t.railCountsW);
+        ? Math.min(t.railCountsW, railMax)
+        : railMax;
   // MENU is in the header's plate since the 1.0 design: the right corner holds
   // SKIP alone, or the tray
   const reach = t.trayW[header]

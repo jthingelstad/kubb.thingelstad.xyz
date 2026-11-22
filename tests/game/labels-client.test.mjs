@@ -30,8 +30,9 @@ after(async () => {
 
 const rail = (page) =>
   page.evaluate(() => ({
+    // the header's line over the name (shown in capitals)
     what: document.querySelector(".rail-what").textContent,
-    counts: document.querySelector(".rail-counts").textContent,
+    name: document.querySelector(".rail-name").textContent,
     batons: document
       .querySelector("[data-test=batons]")
       .getAttribute("aria-pressed"),
@@ -49,8 +50,8 @@ browserTest(
       await nextFrame(page);
       let r = await rail(page);
       assert.deepEqual(r, {
-        what: "BATONS",
-        counts: "5 BASE KUBBS",
+        what: "Batons · 5 base kubbs",
+        name: "Practice",
         batons: "true",
         kubbs: "false",
       });
@@ -62,8 +63,7 @@ browserTest(
       );
       await nextFrame(page);
       r = await rail(page);
-      assert.equal(r.what, "KUBBS");
-      assert.match(r.counts, /^TARGET \d+\.\d M$/);
+      assert.match(r.what, /^Kubbs · target \d+\.\d m$/);
       assert.equal(r.kubbs, "true");
       assert.equal(r.batons, "false");
       // pressing the one in use changes nothing
@@ -81,7 +81,7 @@ browserTest(
       );
       await nextFrame(page);
       r = await rail(page);
-      assert.equal(r.what, "BATONS");
+      assert.equal(r.what, "Batons · 5 base kubbs");
       assert.equal(r.batons, "true");
       assert.deepEqual(page.errors, []);
     } finally {
@@ -99,15 +99,14 @@ browserTest("the menu's rows say what they set and show it", async () => {
       "[data-test=menu-card] .opt-label",
       (els) => els.map((e) => e.textContent),
     );
-    // the device's settings first (src/ui/settings.js), then the practice pitch's own
-    assert.deepEqual(labels, [
-      "Your name",
-      "Meter",
-      "Meter side",
-      "Sound",
-      "Surface",
-      "Scene",
-    ]);
+    // practice: the pitch's own options under the menu's grid
+    assert.deepEqual(labels, ["Surface", "Scene"]);
+    // the device's settings in Settings (src/ui/settings.js)
+    await page.click("[data-test=menu-settings]");
+    const device = await page.$$eval("[data-test=settings] .opt-label", (els) =>
+      els.map((e) => e.textContent),
+    );
+    assert.deepEqual(device, ["Your name", "Sound", "Meter", "Meter side"]);
     const sound = () =>
       page.$$eval("[data-test=mute] [role=radio]", (els) =>
         els.map((e) => `${e.textContent}:${e.getAttribute("aria-checked")}`),
@@ -118,6 +117,7 @@ browserTest("the menu's rows say what they set and show it", async () => {
     assert.equal(await page.evaluate(() => window.__kubb.sound.muted), true);
     await page.click("[data-test=mute] >> text=On");
     assert.equal(await page.evaluate(() => window.__kubb.sound.muted), false);
+    await page.click("[data-test=settings-done]");
     // at the foot, small: the version label, the newest engine in the parentheses;
     // no "Also plays" line, as the site carries the newest engine alone
     assert.equal(

@@ -84,6 +84,17 @@ async function withLock(dir, fn, staleMs = 180000) {
   }
 }
 
+// A device that has played before (the `throwsMade` pref the nudge counts): a pitch
+// link then opens on its lobby, not on the welcome card a device new to the game sees
+// first (src/ui/welcome.js). For the pitch tests' own contexts; a test that sets the
+// pref itself keeps its value.
+export async function played(ctx) {
+  await ctx.addInitScript(() => {
+    if (localStorage.getItem("kubb:throwsMade") === null)
+      localStorage.setItem("kubb:throwsMade", "1");
+  });
+}
+
 // A page on `path`, with its console errors collected in page.errors.
 // prefs: the player's saved choices (src/game/prefs.js), set before it loads.
 export async function open(env, path, kind = "desktop", { prefs = {} } = {}) {

@@ -50,6 +50,29 @@ test("the first player opens the pitch, is host and gets the whole state", () =>
   assert.deepEqual(h.attached.get("a"), { member: id("anna"), role: "player" });
 });
 
+test("the join that makes the pitch pushes `open` with its host's checked name, once", () => {
+  const h = new Harness();
+  h.deliver = false; // AWS does not answer: the push waits in the outbox
+  h.join("a", "anna", { me: { name: "Cheerful Cedar" } });
+  const opens = h.pushes.filter((p) => p.topic === "open");
+  assert.equal(opens.length, 1);
+  assert.equal(opens[0].k, "open");
+  assert.deepEqual(opens[0].body, { pitch: h.code, host: "Cheerful Cedar" });
+  assert.equal(opens[0].made, h.state.made);
+  assert.deepEqual(
+    h.store.outbox.map((e) => e.k),
+    ["open"],
+    "in the outbox until AWS takes it",
+  );
+  // nobody else's join pushes it again
+  h.join("b", "bert", { me: { name: "Plucky Plum" } });
+  assert.equal(h.pushes.filter((p) => p.topic === "open").length, 1);
+  // a name the game did not make is never pushed
+  const typed = new Harness();
+  typed.join("a", "anna", { me: { name: "Anna Smith" } });
+  assert.equal(typed.pushes.find((p) => p.topic === "open").body.host, null);
+});
+
 test("a second member is announced to the first, stamped", () => {
   const h = new Harness();
   h.join("a", "anna");

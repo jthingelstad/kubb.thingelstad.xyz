@@ -9,7 +9,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
-import { serve, open, waitPhase, VIEWPORTS } from "./browser.mjs";
+import { serve, open, waitPhase, VIEWPORTS, played } from "./browser.mjs";
 import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { makePitchCode } from "../../src/net/pitch-client.js";
 
@@ -65,11 +65,31 @@ browserTest(
         await page.textContent("[data-test=solo-opt-scene] .opt-label"),
         "Scene",
       );
+      // three picture tiles (the 1.0 design), named from SCENE_NAMES, each the
+      // game's own drawing of the pitch in that scene
       assert.deepEqual(
-        await page.$$eval("[data-test=solo-opt-scene] .seg-btn", (bs) =>
+        await page.$$eval("[data-test=solo-opt-scene] .tile-name", (bs) =>
           bs.map((b) => b.textContent),
         ),
         ["Day", "Night", "Neon"],
+      );
+      await page.waitForFunction(() =>
+        [
+          ...document.querySelectorAll("[data-test=solo-opt-scene] canvas"),
+        ].every((c) => c.width === 192),
+      );
+      const painted = await page.$$eval(
+        "[data-test=solo-opt-scene] canvas",
+        (cs) =>
+          cs.map((c) => {
+            const d = c.getContext("2d").getImageData(96, 80, 1, 1).data;
+            return `${d[0]},${d[1]},${d[2]},${d[3]}`;
+          }),
+      );
+      assert.equal(new Set(painted).size, 3, `three pictures: ${painted}`);
+      assert.ok(
+        painted.every((p) => !p.endsWith(",0")),
+        "drawn, not blank",
       );
       assert.equal(await checked(page, "solo-opt-scene"), "neon");
       // the pitch behind the card shows the saved scene, then the pick
@@ -205,6 +225,7 @@ browserTest(
 
 async function join(code, name) {
   const ctx = await env.browser.newContext(VIEWPORTS.desktop);
+  await played(ctx);
   const page = await ctx.newPage();
   page.errors = [];
   page.on("console", (m) => {

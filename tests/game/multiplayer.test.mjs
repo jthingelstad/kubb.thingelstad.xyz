@@ -7,7 +7,14 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
-import { serve, sweep, swing, waitPhase, VIEWPORTS } from "./browser.mjs";
+import {
+  serve,
+  sweep,
+  swing,
+  waitPhase,
+  VIEWPORTS,
+  played,
+} from "./browser.mjs";
 import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { makePitchCode } from "../../src/net/pitch-client.js";
 
@@ -44,6 +51,7 @@ async function join(
   { lobby = true, query = "" } = {},
 ) {
   const ctx = await env.browser.newContext(VIEWPORTS[kind]);
+  await played(ctx);
   // a name remembered from before, for a browser that skips the lobby
   if (!lobby)
     await ctx.addInitScript(
@@ -678,6 +686,7 @@ browserTest(
 
     // the landing page, where the web game's page now is, as someone passing by
     const ctx = await env.browser.newContext(VIEWPORTS.portrait);
+    await played(ctx);
     const home = await ctx.newPage();
     home.errors = [];
     home.on("console", (m) => {
@@ -729,6 +738,7 @@ browserTest(
     await waitFor(host, () => window.__kubb.pitch.state().members === 2);
     const guestPage = home;
     const ctx2 = await env.browser.newContext(VIEWPORTS.desktop);
+    await played(ctx2);
     const passer = await ctx2.newPage();
     const lookAgain = async () => {
       await passer.goto(
@@ -786,6 +796,7 @@ browserTest(
 
 browserTest("a bad pitch code and a missing pitch server say so", async () => {
   const ctx = await env.browser.newContext(VIEWPORTS.desktop);
+  await played(ctx);
   const page = await ctx.newPage();
   await page.goto(
     `${env.base}/p/abcdefgh?nohowto=1&pitchserver=ws://127.0.0.1:1&api=http://127.0.0.1:1/api`,

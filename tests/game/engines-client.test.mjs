@@ -9,7 +9,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
-import { serve } from "./browser.mjs";
+import { serve, played } from "./browser.mjs";
 import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { injectPreview, pitchState } from "../../backend/pages/pitch.mjs";
 import { OLD_REPLAY } from "../../src/replay/player.js";
@@ -115,6 +115,7 @@ async function open(url) {
   const ctx = await env.browser.newContext({
     viewport: { width: 1200, height: 760 },
   });
+  await played(ctx);
   const page = await ctx.newPage();
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));

@@ -130,8 +130,10 @@ body.game {
 .btn.plain:active {
   transform: none;
 }
+/* (the plan's plates, ARC, TILT, STAND and SIDE VIEW, keep their size: the aim
+   layout is the next stage's) */
 @media (pointer: coarse) {
-  .btn,
+  .btn:not(.plan),
   .seg-btn,
   .name-step-btn {
     min-height: 48px;

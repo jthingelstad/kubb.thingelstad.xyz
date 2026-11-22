@@ -155,12 +155,16 @@ ${king(84, 146, 136)}
 // teams by their names (each checked: backend/pages/pitch.mjs), the state line, and the pitch from above with its
 // pieces as they stand, or as they fell (backend/pages/pitch.mjs piecesOf).
 //
-//   pitchCardImage({ teams: { A, B } | null, line, pieces })
+//   pitchCardImage({ teams: { A, B } | null, host, line, pieces })
 //
-// teams null (a pitch waiting for players) shows "A PITCH" instead of names: the
-// lobby holds member ids, not names. The team colours are the game's
-// (src/render/palette.js): marigold for A, violet for B.
+// teams null (a pitch waiting for players) shows its host's name, the player who made
+// it ("CHEERFUL CEDAR" over "IS WAITING FOR PLAYERS": the 1.0 design), or "A PITCH"
+// when it has none. The team colours are the game's (src/render/palette.js): marigold
+// for A, violet for B. The plates' corners are round (the 1.0 system: 8 px on a card
+// at 1200 wide). The state line says TAP TO WATCH where there is a match to watch.
 const TEAM_FILL = { A: "#f2b705", B: "#8e44ad" };
+// a plate's corner radius, in the card's px (1200 wide)
+const RADIUS = 8;
 const TEAM_TEXT = { A: C.ink, B: C.paper };
 const XML = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
 const xml = (s) => String(s).replace(/[&<>"]/g, (c) => XML[c]);
@@ -188,8 +192,8 @@ function pitchFromAbove(left, top, scale, pieces) {
   const w = 9.6 * scale;
   const h = 6.2 * scale;
   out.push(
-    `<rect x="${r(left + 8)}" y="${r(top + 8)}" width="${r(w)}" height="${r(h)}" fill="${C.ink}"/>`,
-    `<rect x="${r(left)}" y="${r(top)}" width="${r(w)}" height="${r(h)}" fill="${C.grass}" stroke="${C.ink}" stroke-width="5"/>`,
+    `<rect x="${r(left + 8)}" y="${r(top + 8)}" width="${r(w)}" height="${r(h)}" rx="${RADIUS}" fill="${C.ink}"/>`,
+    `<rect x="${r(left)}" y="${r(top)}" width="${r(w)}" height="${r(h)}" rx="${RADIUS}" fill="${C.grass}" stroke="${C.ink}" stroke-width="5"/>`,
   );
   // mown stripes, one per metre
   for (let y = 0; y < 8; y += 2)
@@ -237,19 +241,24 @@ function pitchFromAbove(left, top, scale, pieces) {
   return out.join("\n");
 }
 
-export function pitchCardImage({ teams = null, line = "", pieces = [] } = {}) {
+export function pitchCardImage({
+  teams = null,
+  host = null,
+  line = "",
+  pieces = [],
+} = {}) {
   const W = 1200;
   const H = 630;
   const TEXT = 520; // the text column's width
   const parts = [];
   const plate = (text, x, y, size, fill, ink) => {
     const w = Math.ceil(text.length * size * 0.52 + size * 0.7);
-    return `<rect x="${x + 6}" y="${y - size + 6}" width="${w}" height="${Math.round(size * 1.25)}" fill="${C.ink}"/>
-<rect x="${x}" y="${y - size}" width="${w}" height="${Math.round(size * 1.25)}" fill="${fill}" stroke="${C.ink}" stroke-width="4"/>
+    return `<rect x="${x + 6}" y="${y - size + 6}" width="${w}" height="${Math.round(size * 1.25)}" rx="${RADIUS}" fill="${C.ink}"/>
+<rect x="${x}" y="${y - size}" width="${w}" height="${Math.round(size * 1.25)}" rx="${RADIUS}" fill="${fill}" stroke="${C.ink}" stroke-width="4"/>
 <text x="${x + size * 0.35}" y="${Math.round(y + size * 0.05)}" font-size="${size}" fill="${ink}">${xml(text)}</text>`;
   };
   parts.push(
-    `<rect x="56" y="48" width="${TEXT - 30}" height="70" fill="${C.ink}"/>`,
+    `<rect x="56" y="48" width="${TEXT - 30}" height="70" rx="${RADIUS}" fill="${C.ink}"/>`,
     `<text x="76" y="100" font-size="44" fill="${C.paper}" letter-spacing="1">KUBB: THROWING WOOD</text>`,
   );
   if (teams) {
@@ -260,6 +269,11 @@ export function pitchCardImage({ teams = null, line = "", pieces = [] } = {}) {
       plate(a, 56, 236, size, TEAM_FILL.A, TEAM_TEXT.A),
       `<text x="64" y="${236 + size * 0.95}" font-size="40" fill="${C.ink}">VS</text>`,
       plate(b, 56, 236 + size * 1.6 + 30, size, TEAM_FILL.B, TEAM_TEXT.B),
+    );
+  } else if (host) {
+    const who = cardName(host);
+    parts.push(
+      `<text x="56" y="330" font-size="${fit(who, TEXT - 20, 96, 48)}" fill="${C.wood}" stroke="${C.ink}" stroke-width="8" stroke-linejoin="round" paint-order="stroke">${xml(who)}</text>`,
     );
   } else
     parts.push(
