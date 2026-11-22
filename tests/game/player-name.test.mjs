@@ -10,7 +10,6 @@ import { loadName, saveName } from "../../src/game/player-name.js";
 import {
   Names,
   apartNames,
-  badNames,
   namesOf,
   playerDefault,
   teamDefault,
@@ -120,23 +119,6 @@ test("the display check: a generated name or a default passes, typed text does n
   // a side of one is named after its player
   assert.equal(names.teamPasses("Mighty Maple", 1), true);
   assert.equal(names.teamPasses("Mighty Maple", 2), false);
-  const ok = {
-    teams: {
-      A: { name: "Mighty Maple", players: [{ name: "Mighty Maple" }] },
-      B: { name: "Computer", players: [{ name: "Computer" }] },
-    },
-  };
-  assert.deepEqual(badNames(names, ok), []);
-  const typed = {
-    teams: {
-      A: {
-        name: "Riverside",
-        players: [{ name: "Ann" }, { name: "Lucky Larch" }],
-      },
-      B: { name: "Team B", players: [{ name: "Player 1" }] },
-    },
-  };
-  assert.deepEqual(badNames(names, typed), ["Riverside", "Ann"]);
 });
 
 test("two members with one name: the second shows II, never a changed name", () => {

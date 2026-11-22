@@ -14,6 +14,20 @@ import { serve, VIEWPORTS } from "./browser.mjs";
 import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { makePitchCode } from "../../src/net/pitch-client.js";
 
+// The forgery Codex found: the replay fixture's last snapshot with only the saved
+// game's side A name changed; its options keep the generated names.
+const FIXTURE = JSON.parse(
+  fs.readFileSync("tests/fixtures/replay-north-south.json", "utf8"),
+);
+const forge = (snapText) => {
+  const s = JSON.parse(snapText);
+  s.save.game.teams.A.name = "Typed Text";
+  return JSON.stringify(s);
+};
+const FORGED = forge(FIXTURE.snap);
+const NAMES_LINE =
+  "This match has a name the game did not make, so it cannot be shown.";
+
 let available = false;
 try {
   available = fs.existsSync(chromium.executablePath());
@@ -90,6 +104,14 @@ browserTest(
           (m) => m.me.name !== "Anna" && m.me.name !== "Lucky Larch",
         ),
       );
+      for (const p of [host, old])
+        await until(
+          p,
+          () =>
+            [...document.querySelectorAll("[data-test=team-B] .member-name")]
+              .map((e) => e.textContent)
+              .join() === "Player 1",
+        );
       assert.deepEqual(await names(host, "B"), ["Player 1"]);
       assert.deepEqual(await names(old, "B"), ["Player 1"], "itself too");
       assert.equal(
@@ -215,8 +237,9 @@ browserTest(
             ?.textContent === t,
         picked,
       );
-      assert.equal(
-        await host.evaluate(() => window.__kubb.pitch.room.doc.teamNames.A),
+      await until(
+        host,
+        (t) => window.__kubb.pitch.room.doc.teamNames?.A === t,
         picked,
       );
       // the match carries it
@@ -304,6 +327,108 @@ browserTest(
         }
       });
       assert.equal(refused, "bad-name");
+      assert.deepEqual(other.errors, []);
+    } finally {
+      await close(host, other);
+    }
+  },
+);
+
+browserTest(
+  "entering a pitch: a start whose saved game alone holds a typed name is not shown",
+  async () => {
+    const code = makePitchCode();
+    const host = await join(code, "Happy Hazel");
+    const other = await join(code, "Lucky Larch");
+    try {
+      // header and meta name generated names; the snapshot's options do too
+      const r = await host.evaluate(async (snap) => {
+        const { pitch } = window.__kubb;
+        const players = { A: [{ id: pitch.you, name: "Mighty Maple" }], B: [] };
+        return await pitch.room.start({
+          doc: {
+            v: 1,
+            teams: { A: [pitch.you], B: [] },
+            started: true,
+            n: 1,
+            match: { n: 1, players, cpu: "B", host: pitch.you, engine: "0.13" },
+          },
+          n: 1,
+          h: "forged",
+          snap,
+          meta: { v: 1, engine: "0.13", players, cpu: "B" },
+        });
+      }, FORGED);
+      assert.ok(r, "the pitch server cannot see into the snapshot");
+      await other.waitForSelector("[data-test=names-refused]");
+      assert.equal(
+        await other.textContent("[data-test=names-refused] p:not(.kicker)"),
+        NAMES_LINE,
+      );
+      assert.ok(
+        !(await other.evaluate(() => document.body.innerText)).includes(
+          "Typed Text",
+        ),
+      );
+      assert.notEqual(
+        await other.evaluate(() => window.__kubb.pitch.mode),
+        "match",
+      );
+      assert.deepEqual(other.errors, []);
+    } finally {
+      await close(host, other);
+    }
+  },
+);
+
+browserTest(
+  "a resync: a forged snapshot at the head of a match being played is not adopted",
+  async () => {
+    const code = makePitchCode();
+    const host = await join(code, "Happy Hazel");
+    const other = await join(code, "Lucky Larch");
+    try {
+      await host.click("[data-test=join-A]");
+      await other.click("[data-test=join-B]");
+      await until(
+        host,
+        () => window.__kubb.pitch.room.doc?.teams.B.length === 1,
+      );
+      await host.click("[data-test=lobby-start]");
+      await until(other, () => window.__kubb.pitch.mode === "match");
+      // the host commits an action whose snapshot is the forgery: the other page cannot
+      // play it to that hash, asks for the whole pitch, and is handed the forgery
+      await host.evaluate(async (snap) => {
+        const { pitch } = window.__kubb;
+        pitch.room.send?.({
+          t: "act",
+          id: "forged-1",
+          n: pitch.local.n,
+          seq: pitch.local.seq + 1,
+          a: { type: "resign", side: "B" },
+          h: "forged",
+          snap,
+        });
+      }, FORGED);
+      await other.evaluate(() => window.__kubb.pitch.room.resync());
+      await other.waitForSelector("[data-test=names-refused]", {
+        timeout: 20000,
+      });
+      assert.equal(
+        await other.textContent("[data-test=names-refused] p:not(.kicker)"),
+        NAMES_LINE,
+      );
+      // nothing of it was taken: the engine never held the forged snapshot
+      assert.ok(
+        !(
+          await other.evaluate(() => window.__kubb.game.engine.snapshot())
+        ).includes("Typed Text"),
+      );
+      assert.ok(
+        !(await other.evaluate(() => document.body.innerText)).includes(
+          "Typed Text",
+        ),
+      );
       assert.deepEqual(other.errors, []);
     } finally {
       await close(host, other);

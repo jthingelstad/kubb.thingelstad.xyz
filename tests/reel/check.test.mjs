@@ -103,12 +103,31 @@ test("check: a renamed side under a generated name replays", async () => {
 test("check: a typed name, You, or a team's name is refused: Pick a name", async () => {
   for (const name of ["Ann", "You", "a".repeat(17), "Wobbly Towers"]) {
     const out = await check(share(await renamed({ A: name })));
-    assert.deepEqual(out, { ok: false, why: "name", step: "name" }, name);
+    // the engine's names.check finds it first; sidesOf's own check stands behind it
+    assert.deepEqual(
+      out,
+      { ok: false, why: "name", step: "names-check" },
+      name,
+    );
   }
 });
 
+// the forgery Codex found: the start's options keep the generated name, its saved game
+// carries typed text, which is what a restored match shows
+test("check: a start whose saved game names another side than its options is refused: name", async () => {
+  const s = JSON.parse(played.start);
+  assert.equal(s.opts.teams.A.name, "Mighty Maple");
+  s.save.game.teams.A.name = "Typed Text";
+  const out = await check(share({ start: JSON.stringify(s) }));
+  assert.deepEqual(out, { ok: false, why: "name", step: "names-check" });
+});
+
 test("check: the computer's side under another name is refused", async () => {
-  const out = await check(share(await renamed({ B: "Robot" })));
+  // a typed name there is a name the game did not make
+  let out = await check(share(await renamed({ B: "Robot" })));
+  assert.deepEqual(out, { ok: false, why: "name", step: "names-check" });
+  // a generated name there is not the computer: the sides check refuses it
+  out = await check(share(await renamed({ B: "Lucky Larch" })));
   assert.deepEqual(out, { ok: false, why: "does-not-replay", step: "sides" });
 });
 

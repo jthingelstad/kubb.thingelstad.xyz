@@ -33,6 +33,7 @@ const CODES = {
   older: "kkkkmmmm", // a finished pitch whose kept replay is 0.9's
   sealed: "sssskkkk", // a shared match of 0.9
   current: "ccccmmmm", // a finished pitch on the newest
+  forged: "ffffmmmm", // a kept replay whose last snapshot's saved game holds typed text
 };
 
 let env, rooms;
@@ -59,6 +60,21 @@ before(async () => {
   };
   await keep(CODES.older, "0.9");
   await keep(CODES.current, REPLAY.engine);
+  // the forgery Codex found: only save.game.teams.A.name changed
+  {
+    const s = JSON.parse(snap);
+    s.save.game.teams.A.name = "Typed Text";
+    const forged = JSON.stringify(s);
+    await store.putFinal(CODES.forged, { made: 1, n, snap: forged, exp });
+    await store.putKept(CODES.forged, {
+      made: 1,
+      n,
+      v: 9,
+      data: half(REPLAY.engine),
+      hash,
+      exp,
+    });
+  }
   await store.keepShare(`fixture-${CODES.sealed}`, CODES.sealed, {
     state: {
       made: 9,
@@ -198,6 +214,49 @@ browserTest(
     await page.click("[data-test=lobby-replay]");
     await page.waitForSelector("[data-test=replay-bar]");
     assert.equal(await page.evaluate(() => window.__kubb.pitch.mode), "replay");
+    assert.deepEqual(page.errors, []);
+    await ctx.close();
+  },
+);
+
+browserTest(
+  "an embed of a kept replay whose snapshot was forged is not played",
+  async () => {
+    const { page, ctx } = await open(
+      `/e/${CODES.forged}?api=${encodeURIComponent(rooms.apiUrl)}`,
+    );
+    await page.waitForSelector("[data-test=embed-card]");
+    assert.equal(
+      await page.getAttribute("[data-test=embed-card]", "data-state"),
+      "names",
+    );
+    assert.match(
+      await page.textContent("[data-test=embed-card]"),
+      /This match has a name the game did not make, so it cannot be shown\./,
+    );
+    assert.ok(!(await page.textContent("body")).includes("Typed Text"));
+    assert.deepEqual(page.errors, []);
+    await ctx.close();
+  },
+);
+
+browserTest(
+  "a pitch's kept replay whose snapshot was forged: WATCH THE LAST MATCH says so",
+  async () => {
+    const { page, ctx } = await open(`/p/${CODES.forged}?${rq()}&nohowto=1`);
+    await page.waitForSelector("[data-test=lobby-replay]:not([hidden])", {
+      timeout: 30000,
+    });
+    await page.click("[data-test=lobby-replay]");
+    await page.waitForSelector("[data-test=replay-refused]");
+    assert.equal(
+      await page.textContent("[data-test=replay-refused] p:not(.kicker)"),
+      "This match has a name the game did not make, so it cannot be shown.",
+    );
+    assert.notEqual(
+      await page.evaluate(() => window.__kubb.pitch.mode),
+      "replay",
+    );
     assert.deepEqual(page.errors, []);
     await ctx.close();
   },

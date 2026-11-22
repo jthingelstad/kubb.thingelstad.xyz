@@ -33,6 +33,9 @@ import "session/api"
 `;
 
 export class EngineError extends Error {}
+// A match from outside refused for its names (the engine's names.check): show "This
+// match has a name the game did not make", never the message's places to a player.
+export class NamesRefused extends EngineError {}
 
 export class Engine {
   // Use Engine.create.
@@ -105,12 +108,34 @@ export class Engine {
   newMatch(opts = {}) {
     return this.call("new", { ...opts, mode: "match" });
   }
-  // snapshot: the text snapshot() gave (passed through untouched).
+  // snapshot: the text snapshot() gave (passed through untouched). This browser's own
+  // snapshots only: one someone else sent goes through restoreChecked.
   restore(snapshot) {
     if (typeof snapshot !== "string")
       throw new EngineError("restore takes the snapshot text");
     const out = JSON.parse(this.callText("restore", snapshot));
     if (out && "error" in out) throw new EngineError(`restore: ${out.error}`);
+    return out;
+  }
+  // A snapshot from outside (a pitch's, a kept match's) through the engine's strict
+  // door (since 0.13.4, its docs/SESSION.md "Names"): refused, with nothing changed,
+  // when a name or line in it is not one the game makes. The error is a NamesRefused,
+  // whose message names places only, never the text.
+  restoreChecked(snapshot) {
+    if (typeof snapshot !== "string")
+      throw new EngineError("restore takes the snapshot text");
+    const out = JSON.parse(
+      this.callText(
+        "restore",
+        JSON.stringify({ snap: snapshot, names: "check" }),
+      ),
+    );
+    if (out && "error" in out) {
+      const E = /names not allowed/.test(out.error)
+        ? NamesRefused
+        : EngineError;
+      throw new E(`restore: ${out.error}`);
+    }
     return out;
   }
   // The whole match as JSON text (opaque: store and send it as it is).
@@ -168,13 +193,25 @@ export class Engine {
   // match's first snapshot) in place of `setup` (a share's start). Every result
   // carries `replay`: { i, total, turn, thrown, throws, differs, done }. While a
   // replay is loaded every action from outside is refused; new or restore ends it.
+  // Every replay the web loads came from outside (a pitch's kept match, a share), so it
+  // goes through the engine's strict door: refused, a NamesRefused, when a name in it
+  // is not one the game makes (`snap` and `players` are checked when given).
   replayLoad(data) {
-    return this.call("replayLoad", {
-      setup: data.start ? undefined : data.setup,
-      start: data.start ?? undefined,
-      h0: data.h0 ?? undefined,
-      log: data.log,
-    });
+    try {
+      return this.call("replayLoad", {
+        setup: data.start ? undefined : data.setup,
+        start: data.start ?? undefined,
+        h0: data.h0 ?? undefined,
+        log: data.log,
+        snap: data.snap ?? undefined,
+        players: data.players ?? undefined,
+        names: "check",
+      });
+    } catch (err) {
+      if (/names not allowed/.test(err?.message))
+        throw new NamesRefused(err.message);
+      throw err;
+    }
   }
   replayStep() {
     return this.call("replayStep");

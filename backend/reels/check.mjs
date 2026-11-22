@@ -110,6 +110,14 @@ export async function checkShare({
   try {
     e = await Engine.create({ sources: own.sources });
     useRoomEngine(e);
+    // every name and line the shared match could show or write, both copies of each,
+    // judged by the engine (names.check, since 0.13.4): a forged start that keeps
+    // generated names in its options and typed text in its saved game is refused here,
+    // "name", and the load below goes through the strict door as well
+    if (
+      !e.call("names.check", { replay: { start: g.start, log: g.log } }).allowed
+    )
+      return no("name", "names-check");
     const start = e.call("checkStart", { start: g.start });
     if (!start?.ok) return no("does-not-replay", "start");
     // checkStart proved the start is newMatch's of these options: who plays, and names
@@ -128,6 +136,7 @@ export async function checkShare({
       checkCpu: true,
       checkThrows: true,
       document: true,
+      names: "check",
     });
     const info = e.call("replayFinish");
     if (info.refusedAt != null) return no("does-not-replay", "refused");

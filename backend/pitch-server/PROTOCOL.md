@@ -158,8 +158,9 @@ match's log is dropped. Answered `ok` (`re: "start"`); the others get `start` wi
 snapshot; a stale `base` is answered `no`. A start whose document (as for `set`) or
 `meta` (`players`, `setup.teams`: a team's name, or on a side of one player that player's,
 and each player's) holds a name that fails the names check is refused `bad-name` (section
-6a). The snapshot is opaque and not read: the clients check its names (they do not show
-a match whose snapshot holds one that fails).
+6a). The snapshot is opaque and not read: the clients check its names through the engine
+(`names.check`, and `restore` with `names: "check"`), and do not show a match whose
+snapshot holds one that fails.
 
 ### act: commit one action
 

@@ -495,7 +495,12 @@ plays the match through the engine release of that major.minor, from `start`:
 1. the start is a new match of a person (side A) against the computer (side B), and
    side A's name is a generated player name or one of the engine's defaults
    (`names.valid` on the match's engine; else `why: "name"`, since 2026-11-21: no name
-   is typed, the engine's docs/NAMES.md);
+   is typed, the engine's docs/NAMES.md). Before that, the engine's `names.check` judges
+   the whole start and log (every name and line, both copies of each, since 0.13.4) and
+   the replay loads with `names: "check"`: a start that keeps generated names in its
+   options and typed text in its saved game is refused `why: "name"` (step
+   `names-check`). A reel of a kept replay that the engine refuses for its names is
+   `failed`, `why: "names"`, and never rendered;
 2. every action is taken, none refused, and the match ends `over` with the winner and
    the number of throws the device claims;
 3. each of the computer's throws is made again by the engine from the snapshot before

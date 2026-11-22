@@ -38,7 +38,6 @@ import { prefs } from "../game/prefs.js";
 import { openSheet } from "../ui/sheet.js";
 import { fetchReplay } from "./fetch.js";
 import { engineFor, majorMinor } from "../engine/registry.js";
-import { badNames, namesOf } from "../game/names.js";
 
 export const replayTune = {
   throwAfter: 1.2, // s a person stands before their throw is played
@@ -60,9 +59,11 @@ export const OLD_REPLAY =
 export const NAMES_REPLAY =
   "This match has a name the game did not make, so it cannot be shown.";
 
-// Why a replay (or a kept match: { engine, setup }) will not play here: "old", "names"
-// or null. engines: the page's registry (src/engine/registry.js), or the one engine
-// it plays on; names: the engine's door (src/game/names.js).
+// Why a replay (or a kept match) will not play here: "old", "names" or null. engines:
+// the page's registry (src/engine/registry.js), or the one engine it plays on. The
+// names are the engine's to judge (names.check with the whole kept replay: its setup or
+// start, snap, players and log, since 0.13.4), so no field of it is read here; the
+// replay is then loaded through the engine's strict door as well (replayLoad).
 export function replayProblem(r, { engines = null, engine = null } = {}) {
   const mm = majorMinor(r?.engine);
   const carried = engines?.newest
@@ -70,8 +71,14 @@ export function replayProblem(r, { engines = null, engine = null } = {}) {
     : !!mm && mm === majorMinor(engine?.version);
   if (!carried) return "old";
   const e = engine ?? engines?.loaded?.(mm);
-  if (e && r?.setup && badNames(namesOf(e), r.setup).length) return "names";
-  return null;
+  if (!e) return null;
+  try {
+    return e.call("names.check", { replay: r }).allowed === true
+      ? null
+      : "names";
+  } catch {
+    return "names";
+  }
 }
 
 export const problemText = (why) =>
@@ -561,7 +568,7 @@ export class ReplayPlayer {
       try {
         this.restored = true;
         g.engine.replayEnd();
-        const v = g.engine.restore(this.data.snap);
+        const v = g.engine.restoreChecked(this.data.snap);
         g.onNeed = null;
         this.show(v);
         need = v.need;
