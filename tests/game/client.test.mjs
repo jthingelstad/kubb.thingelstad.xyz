@@ -277,6 +277,41 @@ browserTest(
 );
 
 browserTest(
+  "a first visit's HOW TO THROW stands over the first hand-off, which waits for it",
+  async () => {
+    // PLAY NOW on a device that has never played: the match starts at once and
+    // the guide opens with it. The guide is the top card; the hand-off's card is
+    // not shown under it, and takes its place when the guide is closed.
+    const page = await open(env, "/p/abcdefgh?solo=1&play=1");
+    await page.waitForSelector("[data-test=howto]");
+    await page.waitForSelector("[data-test=handoff]", { state: "attached" });
+    const under = await page.evaluate(() => {
+      const how = document.querySelector("[data-test=howto]");
+      const r = how.getBoundingClientRect();
+      const top = document.elementFromPoint(r.x + r.width / 2, r.y + 12);
+      const hand = document.querySelector("[data-test=handoff]");
+      const go = document.querySelector("[data-test=handoff-go]");
+      const gr = go.getBoundingClientRect();
+      return {
+        guideOnTop: how.contains(top),
+        handoff: getComputedStyle(hand).visibility,
+        goReachable: go.contains(
+          document.elementFromPoint(gr.x + gr.width / 2, gr.y + gr.height / 2),
+        ),
+      };
+    });
+    assert.equal(under.guideOnTop, true);
+    assert.equal(under.handoff, "hidden");
+    assert.equal(under.goReachable, false);
+    await page.click("[data-test=howto-close]");
+    await page.waitForSelector("[data-test=handoff]", { state: "visible" });
+    await page.click("[data-test=handoff-go]");
+    assert.deepEqual(page.errors, []);
+    await page.context().close();
+  },
+);
+
+browserTest(
   "a solo match plays your throw, the computer's WATCH and a hand-off",
   async () => {
     const page = await open(env, "/p/abcdefgh?solo=1&nohowto=1");
