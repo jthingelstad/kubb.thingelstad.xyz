@@ -633,6 +633,11 @@ browserTest(
         assert.equal(r.out, 0, `${width}: buttons past the card`);
         assert.equal(r.hscroll, 0);
         assert.equal(r.sameLine, oneLine, `${width}: one line`);
+        // the page's one h1 is the card's title (QA, 2026-11-22: it had none)
+        assert.deepEqual(
+          await page.$$eval("h1", (hs) => hs.map((x) => x.textContent)),
+          ["Settings"],
+        );
         assert.deepEqual(page.errors, []);
       } finally {
         await page.context().close();

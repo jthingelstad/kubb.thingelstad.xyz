@@ -172,7 +172,8 @@ export function prefsDevice(store = prefs, names) {
 // game's page, with DONE back to it. The engine is loaded for the names only.
 export function openSettingsPage(root, { home, names, release = null }) {
   const dev = prefsDevice(prefs, names);
-  const body = settingsCard(dev, { done: home, release });
+  // the card is the page: its title is the page's one h1
+  const body = settingsCard(dev, { done: home, release, heading: "h1" });
   root.append(h("div.scrim", body.el));
   const esc = (e) => {
     if (e.key === "Escape") home();
@@ -185,8 +186,9 @@ export function openSettingsPage(root, { home, names, release = null }) {
 // right"): its title, "Kept on this device.", the device's rows, and a foot with the
 // release label at the left and DONE, the one go button, at the right. MENU opens it
 // over the match (src/ui/menu.js) and /settings/ shows it alone. done: DONE (and
-// Escape, which the opener listens for). release: { text } or null.
-export function settingsCard(dev, { done, release = null }) {
+// Escape, which the opener listens for). release: { text } or null. heading: the
+// title's element, "h2" over a match, "h1" where the card is the page.
+export function settingsCard(dev, { done, release = null, heading = "h2" }) {
   const el = h("div.card.menu.settings", {
     "data-test": "settings",
     role: "dialog",
@@ -194,7 +196,7 @@ export function settingsCard(dev, { done, release = null }) {
   });
   const render = () => {
     el.replaceChildren(
-      h("h2.display", "Settings"),
+      h(`${heading}.display`, "Settings"),
       h(
         "p.opt-note",
         "Kept on this device. The match options are on each match's card.",
