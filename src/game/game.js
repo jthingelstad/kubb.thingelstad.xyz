@@ -109,6 +109,12 @@ import { loadThrowLevel } from "./throw-level.js";
 import { NudgeTrigger, timeline, swingOf, captionFor } from "./nudge.js";
 import { coachFor, slowVerdict } from "./coach.js";
 import {
+  gainFor,
+  panFor as neighbourPan,
+  rateFor,
+  tune as neighbourSoundTune,
+} from "./neighbour-sound.js";
+import {
   actionClip,
   settledClips,
   liftPace,
@@ -1261,6 +1267,7 @@ export class Game {
       while (p.ki < p.knocks.length && p.knocks[p.ki].t <= p.t) {
         const k = p.knocks[p.ki++];
         this.sound?.knock(k.kind === "king" ? 1 : 0.9);
+        this.ownKnockAt = performance.now();
       }
       for (const b of p.bursts) {
         if (b.realAt === null && p.t >= b.start) {
@@ -1908,10 +1915,49 @@ export class Game {
     if (this.nb.key !== key)
       this.nb.open({ seed: this.nbSeed, layout: neighboursTune.layout }, key);
     this.nb.tick(this.modal > 0 || this.quiet ? 0 : dt);
+    this.neighbourSounds();
     if (this.nb.failed) {
       this.nbFailed = true;
       this.endNeighbours();
     }
+  }
+
+  // The other pitches heard (src/game/neighbour-sound.js): the cues due by the match
+  // clock, quiet and far, panned from where each pitch lies in the view. Taken every
+  // tick; played only with the Sound on, in a visible tab, with no card up, not paused
+  // and not within ownGap of this pitch's own knock.
+  neighbourSounds(now = performance.now()) {
+    const cues = this.nb?.takeCues?.() || [];
+    if (!cues.length || !this.sound || this.sound.muted) return 0;
+    if (this.quiet || this.modal > 0 || this.frozen) return 0;
+    if (typeof document !== "undefined" && document.hidden) return 0;
+    if (this.ownKnockNear(now)) return 0;
+    const turned = this.pitchFrame() === "B";
+    const cam = this.nbDrawn?.camera || null;
+    let n = 0;
+    for (const c of cues) {
+      if (!c.offset) continue;
+      const g = gainFor(Math.hypot(c.offset.x, c.offset.y), c.kind);
+      if (!g) continue;
+      const x = turned ? -c.offset.x : c.offset.x;
+      const y = (turned ? -c.offset.y : c.offset.y) + 4;
+      if (this.sound.distant(g, neighbourPan(cam, x, y), rateFor(c.kind)))
+        n += 1;
+    }
+    return n;
+  }
+
+  // This pitch's own knock just sounded or is about to (half of ownGap either side).
+  ownKnockNear(now = performance.now()) {
+    const half = neighbourSoundTune.ownGap / 2;
+    if (now - (this.ownKnockAt ?? -Infinity) < half * 1000) return true;
+    const p = this.play;
+    return !!(
+      p &&
+      !p.done &&
+      p.ki < p.knocks.length &&
+      p.knocks[p.ki].t - p.t < half
+    );
   }
 
   // Where each live neighbour's piece in the air is on the canvas, CSS px, as last

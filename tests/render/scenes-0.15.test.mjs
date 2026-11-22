@@ -398,9 +398,10 @@ test("a Techno throw's recording carries impacts once asked, and asking changes 
   assert.equal(stage.fx.rings.state().length, on.impacts.length);
 });
 
-test("the tournament's neighbours are data: pitches of pieces and people", () => {
+test("the tournament's neighbours are data: pitches of pieces, and no people anywhere", () => {
   assert.ok(NEIGHBOURS.length >= 4);
   for (const p of NEIGHBOURS) {
+    assert.equal("people" in p, false);
     assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y));
     assert.ok(p.pieces.some((q) => q.kind === "king"));
     for (const q of p.pieces)

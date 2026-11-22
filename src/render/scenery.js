@@ -1,6 +1,6 @@
 // What stands round a pitch in the outdoor scenes (src/render/beach.js, minnesota.js,
 // tournament.js): a sky with a horizon, ground beyond the rough (the sea), and flat
-// cartoon things on the ground (trees, umbrellas, people, scoreboards, cones), each
+// cartoon things on the ground (trees, umbrellas, scoreboards, cones), each
 // drawn as a picture standing upright at its place and scaled by its distance, with
 // the game's ink line. A look only: none of it is in the physics.
 //
@@ -255,57 +255,6 @@ export function birch(ctx, at, h, kx, c, seed = 1) {
       s * 0.012,
     );
   }
-}
-
-// A cartoon person standing: legs, a body in `shirt`, a head; `arm` raised or not.
-export function person(ctx, at, kx, c, { shirt, arm = 0, h = 1.75 } = {}) {
-  const s = at.s * h;
-  if (s * kx < 4) return;
-  const w = inkFor(s, kx);
-  const { x, y } = at;
-  const legW = s * 0.06;
-  inked(
-    ctx,
-    () => {
-      ctx.rect(x - legW * 1.6, y - s * 0.46, legW, s * 0.46);
-      ctx.rect(x + legW * 0.6, y - s * 0.46, legW, s * 0.46);
-    },
-    c.trousers,
-    c.ink,
-    w,
-  );
-  if (arm) {
-    ctx.strokeStyle = c.ink;
-    ctx.lineCap = "round";
-    ctx.lineWidth = Math.max(w, s * 0.05);
-    ctx.beginPath();
-    ctx.moveTo(x + s * 0.12, y - s * 0.74);
-    ctx.lineTo(x + s * 0.28, y - s * (0.74 + arm * 0.22));
-    ctx.stroke();
-  }
-  inked(
-    ctx,
-    () => {
-      const bw = s * 0.15,
-        top = y - s * 0.82,
-        bot = y - s * 0.44;
-      ctx.moveTo(x - bw, bot);
-      ctx.lineTo(x - bw * 1.05, top + s * 0.04);
-      ctx.quadraticCurveTo(x, top - s * 0.03, x + bw * 1.05, top + s * 0.04);
-      ctx.lineTo(x + bw, bot);
-      ctx.closePath();
-    },
-    shirt,
-    c.ink,
-    w,
-  );
-  inked(
-    ctx,
-    () => ctx.arc(x, y - s * 0.9, s * 0.085, 0, Math.PI * 2),
-    c.skin,
-    c.ink,
-    w,
-  );
 }
 
 // A traffic cone (the Kid line's ends): orange with a white band.

@@ -7,6 +7,7 @@
 // Browsers start audio only after a gesture: unlock() on the first pointer
 // down. Muted is remembered (prefs "muted").
 import { prefs } from "./prefs.js";
+import { capVoices } from "./neighbour-sound.js";
 
 export const tune = {
   takes: 9,
@@ -35,6 +36,7 @@ export class Sound {
     this.busy = new Map(); // take -> time it ends
     this.muted = !!prefs.get("muted", false);
     this.loading = null;
+    this.far = []; // the neighbours' knocks sounding: { gain, end, g }
   }
 
   // On the first pointer down: make the context and fetch the takes.
@@ -84,6 +86,45 @@ export class Sound {
     src.connect(g).connect(ctx.destination);
     src.start(now);
     this.busy.set(take, now + tune.takeLength / src.playbackRate.value);
+  }
+
+  // A knock from another pitch (src/game/neighbour-sound.js): a random take at `gain`,
+  // `rate` and a left-right `pan` (-1 to 1), at most its tune.voices at once, the
+  // faintest dropped (faded out in 20 ms). Returns whether it plays.
+  distant(gain, pan = 0, rate = 1) {
+    const ctx = this.ctx;
+    if (!ctx || this.muted || !(gain > 0)) return false;
+    const now = ctx.currentTime;
+    this.far = this.far.filter((v) => v.end > now);
+    const cap = capVoices(this.far, gain);
+    if (!cap.play) return false;
+    if (cap.stop) {
+      cap.stop.g.gain.setTargetAtTime(0, now, 0.02);
+      this.far = this.far.filter((v) => v !== cap.stop);
+    }
+    const take = pickTake(tune.takes, -1);
+    const buf = this.buffers[take];
+    if (!buf) return false;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value =
+      rate * (1 + (Math.random() * 2 - 1) * tune.rateSpread);
+    const g = ctx.createGain();
+    g.gain.value = gain;
+    let out = src.connect(g);
+    if (typeof ctx.createStereoPanner === "function" && pan) {
+      const p = ctx.createStereoPanner();
+      p.pan.value = Math.max(-1, Math.min(1, pan));
+      out = out.connect(p);
+    }
+    out.connect(ctx.destination);
+    src.start(now);
+    this.far.push({
+      gain,
+      g,
+      end: now + tune.takeLength / src.playbackRate.value,
+    });
+    return true;
   }
 
   // The king's chord: C and G, a quick strike and a short ring.
