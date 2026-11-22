@@ -187,10 +187,14 @@ snapshot or its hashes.
 - **Sounds** (web 0.17.0; "We should hear the sounds from the other pitches.";
   `src/game/neighbour-sound.js`, `Field.takeCues`, `Game.neighbourSounds`,
   `Sound.distant`). The game's own knock takes, cued on the match clock from each
-  neighbour throw's recording: a knock at each body's `toppleT` (a king's half as loud
-  again), and where the thrown piece lands (its first pose under 6 cm after it was over
-  20 cm), 0.55 as loud and played at 0.72 the rate, a thud; every neighbour knock at 0.9
-  the rate. Loudness by the distance d between the pitch origins: **0.22 at 8 m** (the
+  neighbour throw's recording, by its `hits` and `landing` (engine 0.16.0; web 0.19.0):
+  each body struck knocks once, at its first contact's `t`; one that toppled at a share
+  of the full knock by the hit's `strength` (0.35 + 0.65 x strength: a graze is quiet, a
+  hard hit full; a king's half as loud again), one struck and left standing (a kubb, a
+  stake) at 0.45 of that and at 1.05 the rate, a tap; the thrown piece's landing at
+  `landing.t`, 0.55 as loud times its strength's share and played at 0.72 the rate, a
+  thud; every neighbour knock at 0.9 the rate. Nothing is read from the poses (a body
+  that toppled with no hit listed still knocks at its `toppleT`). Loudness by the distance d between the pitch origins: **0.22 at 8 m** (the
   pitch beside), falling as (8 / d)^1.5: 0.12 at 12 m (ahead), 0.09 at 14.4 m (the
   corners), 0.04 at 24 m (the far row), nothing under 0.02; the player's own knock is
   0.72, so the pitch beside is about 10 dB under it and a king there still under half of
