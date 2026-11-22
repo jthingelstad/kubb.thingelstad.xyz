@@ -119,8 +119,11 @@ async function walk(log, wide) {
     k = j + 1;
     const action = structuredClone(log[j % log.length].action);
     action.seq = n.throws;
-    // Team B's kubbs thrown out (twice for one of them): Team A places punishment kubbs
-    if (n.setup.projectile === "kubb" && n.side === "B" && boosted < 6) {
+    // Team B's first three kubbs thrown out (twice for one of them): Team A places
+    // punishment kubbs, and the next lands for Team A to raise. Engine 1.0.0 (the seat):
+    // with six thrown out, as on 0.18, Team B's later kubbs came only after the six were
+    // spent on its first two turns of kubbs, so Team A never raised one.
+    if (n.setup.projectile === "kubb" && n.side === "B" && boosted < 3) {
       action.launch.speed *= 3;
       boosted++;
     }

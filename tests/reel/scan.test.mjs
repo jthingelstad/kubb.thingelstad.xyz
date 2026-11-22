@@ -52,9 +52,13 @@ test("scan: land, rest and first hit agree with the pieces' world positions, bot
       );
       seen[f.side].rest++;
     }
-    if (f.firstHit?.x != null && f.touches[0]) {
-      const t = f.firstHit.t ?? f.touches[0].t;
-      const k = engine.showAt(t).items.find((it) => it.id === f.touches[0].id);
+    // the first hit is judged against the body it met (`with`): in the 1.0.0 fixture's
+    // throw 19 the baton meets a lying baton and the kubb it leans on in one step, and
+    // `touches` sorts a tie by id, so its first is the kubb, 0.32 m from the hit
+    const hitBody = f.firstHit?.with ?? f.touches[0]?.id;
+    if (f.firstHit?.x != null && hitBody) {
+      const t = f.firstHit.t ?? f.touches[0]?.t;
+      const k = engine.showAt(t).items.find((it) => it.id === hitBody);
       assert.ok(
         near(f.firstHit, k) < 0.3,
         `${label}: firstHit ${JSON.stringify(f.firstHit)} vs ${JSON.stringify(k)}`,
@@ -63,7 +67,7 @@ test("scan: land, rest and first hit agree with the pieces' world positions, bot
     }
     // the camera aims where the throw went: the first piece hit, else the landing
     if (f.how === "baton" && (f.firstHit?.x != null || f.land?.x != null)) {
-      const hitId = f.firstHit?.x != null ? f.touches[0]?.id : null;
+      const hitId = f.firstHit?.x != null ? hitBody : null;
       const at = hitId ? (f.firstHit.t ?? f.touches[0].t) : f.landT;
       const w = engine.showAt(at).items.find((it) => it.id === (hitId ?? pid));
       const { to } = throwLine(f);

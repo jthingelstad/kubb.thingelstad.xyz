@@ -113,7 +113,9 @@ browserTest(
 
 for (const [engine, kind, seated, text, reload] of [
   [
-    "1.0",
+    // a newer engine than the page's: 1.1 since the page plays 1.0 (it was "1.0" while
+    // the page played 0.18)
+    "1.1",
     "desktop",
     true,
     "This pitch is playing on a newer version of the game. Reload the page to update.",

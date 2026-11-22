@@ -46,7 +46,7 @@ test("the build names one bundle per carried engine; the newest keeps its name",
   // several is the machinery's, kept for when another is decided on
   assert.deepEqual(
     carriedEngines().map((e) => e.mm),
-    ["0.18"],
+    ["1.0"],
   );
   const asked = [];
   const asset = async (from, name) => {
@@ -55,7 +55,7 @@ test("the build names one bundle per carried engine; the newest keeps its name",
   };
   const engines = await configEngines(
     [
-      { mm: "0.18", version: "0.18.0" },
+      { mm: "1.0", version: "1.0.0" },
       { mm: "0.9", version: "0.9.0" },
       { mm: "0.8", version: "0.8.2" },
       { mm: "0.7", version: "0.7.4" },
@@ -63,13 +63,13 @@ test("the build names one bundle per carried engine; the newest keeps its name",
     asset,
   );
   assert.deepEqual(engines, {
-    0.18: { version: "0.18.0", luaUrl: "/assets/lua-sources-hash.json" },
+    "1.0": { version: "1.0.0", luaUrl: "/assets/lua-sources-hash.json" },
     0.9: { version: "0.9.0", luaUrl: "/assets/lua-sources-0.9-hash.json" },
     0.8: { version: "0.8.2", luaUrl: "/assets/lua-sources-0.8-hash.json" },
     0.7: { version: "0.7.4", luaUrl: "/assets/lua-sources-0.7-hash.json" },
   });
   assert.deepEqual(asked, [
-    [path.join("build", "lua-sources-0.18.json"), "lua-sources"],
+    [path.join("build", "lua-sources-1.0.json"), "lua-sources"],
     [path.join("build", "lua-sources-0.9.json"), "lua-sources-0.9"],
     [path.join("build", "lua-sources-0.8.json"), "lua-sources-0.8"],
     [path.join("build", "lua-sources-0.7.json"), "lua-sources-0.7"],
@@ -140,12 +140,12 @@ test("room calls go to the engine they name; the page plays on the newest", asyn
 
   useRoomEngine(newest);
   assert.equal(useOlderEngine(older), "0.6");
-  assert.equal(ENGINE, "0.18");
+  assert.equal(ENGINE, "1.0");
   assert.equal(roomEngine(), newest);
   assert.equal(roomEngine("0.6"), older);
-  assert.equal(roomCall("constants").ENGINE, "0.18");
+  assert.equal(roomCall("constants").ENGINE, "1.0");
   assert.equal(roomCall("constants", {}, "0.6").ENGINE, "0.6");
   assert.equal(engineConstants("0.6").ENGINE, "0.6");
-  assert.equal(engineConstants().ENGINE, "0.18");
+  assert.equal(engineConstants().ENGINE, "1.0");
   assert.throws(() => roomCall("constants", {}, "0.5"), /no engine 0\.5/);
 });

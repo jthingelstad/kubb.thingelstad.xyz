@@ -35,7 +35,7 @@ test.after(() => fs.rmSync(older, { recursive: true, force: true }));
 const twoEngines = () =>
   makeRegistry({
     engines: {
-      0.18: { version: V, sources: bundleLua() },
+      "1.0": { version: V, sources: bundleLua() },
       0.6: { version: "0.6.9", sources: bundleLua(older) },
     },
     newest: V,
@@ -73,8 +73,8 @@ test("the browser's registry: a carried engine for its matches, the newest for o
   const engines = twoEngines();
   assert.equal(engines.pick("0.6"), "0.6");
   assert.equal(engines.pick("0.6.2"), "0.6");
-  assert.equal(engines.pick("0.5"), "0.18");
-  assert.equal(engines.pick(null), "0.18");
+  assert.equal(engines.pick("0.5"), "1.0");
+  assert.equal(engines.pick(null), "1.0");
   const fallback = { version: "x" };
   assert.equal(engineFor(null, "0.6", fallback), fallback);
   // not loaded yet: a promise; loaded: at once
@@ -115,7 +115,7 @@ test("the tools' engines: each carried engine of a vendor folder, made once", as
     /carries no engine 0\.5/,
   );
   // this checkout's own vendor/: the newest alone (docs/ENGINES.md)
-  assert.deepEqual(checkoutEngines().carried(), ["0.18"]);
+  assert.deepEqual(checkoutEngines().carried(), ["1.0"]);
 });
 
 test("the engine a record says played it", () => {
@@ -152,7 +152,7 @@ test("games:replay plays each match on its own engine, or the newest, or --engin
   await replayRecords({
     browser: [old],
     engines,
-    only: "0.18",
+    only: "1.0",
     log,
   });
   assert.match(said[0], new RegExp(`through kubb-engine ${Vre}`));
@@ -168,9 +168,9 @@ test("a record names the engine that played and the bundle it came from", async 
   const config = {
     version: "0.1.0",
     luaUrl: "/assets/lua-sources-new.json",
-    engine: "0.18.0",
+    engine: "1.0.0",
     engines: {
-      0.18: { version: "0.18.0", luaUrl: "/assets/lua-sources-new.json" },
+      "1.0": { version: "1.0.0", luaUrl: "/assets/lua-sources-new.json" },
       0.6: { version: "0.6.9", luaUrl: "/assets/lua-sources-0.6-old.json" },
     },
   };
@@ -188,16 +188,16 @@ test("a record names the engine that played and the bundle it came from", async 
   const rec = matchRecord({ game, mode: "solo", config, now: () => 0 });
   assert.equal(rec.engine, "0.6.9");
   assert.equal(rec.build.lua, "lua-sources-0.6-old.json");
-  assert.equal(luaFor(config, "0.18.0"), "lua-sources-new.json");
+  assert.equal(luaFor(config, "1.0.0"), "lua-sources-new.json");
   // a page with no engines map, or an engine it does not name: the newest's
   assert.equal(luaFor({ luaUrl: "/assets/x.json" }, "0.6.9"), "x.json");
   assert.equal(luaFor(config, "0.5.0"), "lua-sources-new.json");
-  assert.equal(luaFor({}, "0.18.0"), null);
+  assert.equal(luaFor({}, "1.0.0"), null);
 });
 
-// Engine 0.18 replaced 0.16 with --drop (docs/ENGINES.md): a kept match of 0.16 says it
-// can no longer be replayed, wherever it is opened, and one of 0.18 plays.
-test("a kept 0.16 match is old; a 0.18 one plays", async () => {
+// Engine 1.0 replaced 0.18 with --drop (docs/ENGINES.md): a kept match of 0.18 says it
+// can no longer be replayed, wherever it is opened, and one of 1.0 plays.
+test("a kept 0.18 match is old; a 1.0 one plays", async () => {
   const { replayProblem, problemText, OLD_REPLAY } =
     await import("../../src/replay/player.js");
   const r = JSON.parse(
@@ -206,14 +206,14 @@ test("a kept 0.16 match is old; a 0.18 one plays", async () => {
       "utf8",
     ),
   );
-  assert.equal(r.engine, "0.18");
+  assert.equal(r.engine, "1.0");
   const engine = { version: V };
-  assert.equal(replayProblem({ ...r, engine: "0.16" }, { engine }), "old");
+  assert.equal(replayProblem({ ...r, engine: "0.18" }, { engine }), "old");
   assert.equal(problemText("old"), OLD_REPLAY);
   const engines = makeRegistry({
-    engines: { 0.18: { version: V, sources: bundleLua() } },
+    engines: { "1.0": { version: V, sources: bundleLua() } },
     newest: V,
   });
-  assert.equal(replayProblem({ ...r, engine: "0.16" }, { engines }), "old");
+  assert.equal(replayProblem({ ...r, engine: "0.18" }, { engines }), "old");
   assert.notEqual(replayProblem(r, { engines }), "old");
 });

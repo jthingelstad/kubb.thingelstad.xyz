@@ -231,27 +231,27 @@ browserTest(
       await waitFor(
         guest,
         () =>
-          window.__kubb.pitch.room.me.engine === "0.18+engines" &&
-          window.__kubb.pitch.room.me.engines.join() === "0.18",
+          window.__kubb.pitch.room.me.engine === "1.0+engines" &&
+          window.__kubb.pitch.room.me.engines.join() === "1.0",
       );
       await freeze(watcher, IPHONE_09);
       await sawMember(host, "0.9+engines");
-      assert.equal(await roomEngine(host), "0.18");
+      assert.equal(await roomEngine(host), "1.0");
       assert.equal(await host.isHidden("[data-test=lobby-engine]"), true);
       // the options are drawn (the Computer row shows only while a side is empty)
       await host.waitForSelector("[data-test=lobby-opt-raising]");
       await host.click("[data-test=lobby-start]");
       await waitFor(guest, () => window.__kubb.pitch.mode === "match");
       const [h, g] = await Promise.all([pst(host), pst(guest)]);
-      assert.equal(h.matchEngine, "0.18");
+      assert.equal(h.matchEngine, "1.0");
       const v = await host.evaluate(() => window.__kubb.engine.version);
       assert.deepEqual(
         [h.engine, g.engine, h.announced, g.announced],
-        [v, v, "0.18+engines", "0.18+engines"],
+        [v, v, "1.0+engines", "1.0+engines"],
       );
       assert.deepEqual(
         await host.evaluate(() => window.__kubb.engines.carried()),
-        ["0.18"],
+        ["1.0"],
       );
       for (const p of [host, guest, watcher]) assert.deepEqual(p.errors, []);
     } finally {
