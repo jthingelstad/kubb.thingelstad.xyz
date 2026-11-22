@@ -683,6 +683,9 @@ in its order (`settledClips`): its poses are the raiser's frame, drawn as given,
 since web 0.21.0 (engine 0.17.0) each with its own surroundings, `others` and `king`,
 drawn round it as the raise-by-hand view draws its need, entry by entry, never compared
 or turned; after a restore there is none, and watching keeps its zen pause after them.
+Since web 1.0.0 (engine 1.0.0's seat: a standing kubb leans up to 3 degrees in the turf)
+each clip ends on its entry's `seat`, the pose the next throw draws; a raise from an
+action or by hand still ends plumb and takes its seat on the next throw.
 `src/game/lift.js`, docs/SYSTEM.md "Watching a raise". The raise camera stands twice as
 far off as it first did (the owner, the same day: "We need to see about twice as much to
 know how to raise them."), the kubb's touch target still 44 px or more (docs/SYSTEM.md

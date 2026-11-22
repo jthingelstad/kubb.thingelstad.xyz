@@ -108,10 +108,11 @@ test("with reduced motion the kubb does not tip: it lies, then stands", () => {
 // surroundings (`others`, `king`), drawn as the raise by hand draws its need.
 const near = (a, b, e = 1e-9) => Math.abs(a - b) <= e;
 
-async function autoMatch({ wide = false, seed = 7 } = {}) {
+async function autoMatch({ wide = false, seed = 7, scene = undefined } = {}) {
   const e = await Engine.create({ sources: bundleLua() });
   e.call("useTune", { name: "pointer" });
   e.newMatch({
+    ...(scene ? { scene } : {}),
     seed,
     cpu: "both",
     raising: "auto",
@@ -215,6 +216,74 @@ test("the engine's own raises in the wide view: the world frame, drawn with the 
         `${it.id} where the view has it`,
       );
     }
+  }
+});
+
+// Engine 1.0.0's seat: a standing kubb leans up to 3 degrees in the turf (sand), and each
+// settled entry says where (`seat`). The clip ends on it, so the next throw's first frame
+// has the kubb where the clip left it; the kubbs raised before it in the list stand at
+// their seats among its others.
+const turned = (a, b) =>
+  (2 *
+    Math.acos(
+      Math.min(
+        1,
+        Math.abs(a.qw * b.qw + a.qx * b.qx + a.qy * b.qy + a.qz * b.qz),
+      ),
+    ) *
+    180) /
+  Math.PI;
+// one orientation, up to acos's float noise near 1 (about 2e-6 degrees for equal ones)
+const EQ = 1e-4;
+const plumb = (it) =>
+  (Math.acos(Math.min(1, 1 - 2 * (it.qx * it.qx + it.qy * it.qy))) * 180) /
+  Math.PI;
+
+test("a watched raise ends on the entry's seat, where the next throw draws the kubb (engine 1.0.0)", async () => {
+  for (const wide of [false, true]) {
+    const e = await autoMatch({ wide, scene: "beach" });
+    const seen = settledNeeds(e, 3);
+    assert.ok(seen.length >= 1);
+    let leaning = 0;
+    for (const { v, st } of seen) {
+      const clips = settledClips(st, { around: v.items });
+      clips.forEach((c, k) => {
+        const x = st.list[k];
+        if (!x.seat) return;
+        const end = c.items(1).find((it) => it.id === x.id);
+        assert.ok(turned(end, x.seat) < EQ, `${x.id} ends on its seat`);
+        assert.ok(plumb(end) <= 3 + 1e-6, "3 degrees at most");
+        if (plumb(end) > 0.5) leaning++;
+        // it starts plumb as the tip leaves it, and leans in as it slides home
+        const top = c.items(tune.tipOf + 1e-6).find((it) => it.id === x.id);
+        assert.ok(plumb(top) < 0.05, "plumb at the top of the tip");
+        // reduced motion: standing at once on its seat
+        const reduced = settledClips(st, { around: v.items, reduced: true });
+        const r = reduced[k].items(0.6).find((it) => it.id === x.id);
+        assert.ok(turned(r, x.seat) < EQ);
+        // the earlier kubbs of the list stand at their seats among its others
+        st.list.slice(0, k).forEach((o) => {
+          if (o.kind !== "raise" || !o.seat || o.side !== x.side) return;
+          const it = c.items(0).find((q) => q.id === o.id);
+          assert.ok(turned(it, o.seat) < EQ, `${o.id} on its seat`);
+        });
+        // the wide view draws the entries in the world frame, the view's own: the
+        // kubb ends as the next throw's items have it
+        if (wide) {
+          const next = v.items.find((it) => it.id === x.id);
+          if (next && !next.toppled)
+            assert.ok(turned(end, next) < EQ, `${x.id} as the throw draws it`);
+          // and at its height: a leaning kubb rests on an edge, up to 2 mm higher
+          if (next && !next.toppled)
+            assert.ok(
+              Math.abs(next.z - end.z) < 1e-9 &&
+                Math.hypot(next.x - end.x, next.y - end.y) < 1e-9,
+              `${x.id} where the throw draws it`,
+            );
+        }
+      });
+    }
+    assert.ok(leaning > 0, "a kubb that leans, on sand");
   }
 });
 

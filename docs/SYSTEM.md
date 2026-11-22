@@ -350,6 +350,19 @@ phase):
     and `king` round it, entry by entry (`settledClips`). Nothing is taken from the
     throw need's items, compared or turned. (On 0.16 the list carried only its own kubbs,
     so the thrower's view drew them with the king alone.)
+  - **The seat** (since engine 1.0.0, web 1.0.0). A standing kubb leans a little in the
+    turf (up to 2 degrees on grass, 3 on sand, 1.5 on snow, none on Techno's grid; the
+    engine's docs/notes/physics.md "The seat"), and the items the page draws carry it.
+    Each entry's `seat` (`{ qw, qx, qy, qz }`, absent where it stands plumb) is the
+    orientation it stands at in the next throw's world, in the entry's frame: the clip's
+    kubb is plumb at the top of its tip and leans into its seat as it slides home
+    (`lift.js` `seated`, a normalised blend over the same ease, its height set so it
+    rests on its lowest edge, up to 2 mm higher than plumb), so its last frame is the
+    next throw's pose exactly. A kubb an earlier entry raised stands at its seat among a
+    later entry's `others` when the two share a raiser. The other standing kubbs of
+    `others` are drawn plumb (their poses carry no orientation), as is a raise from an
+    action (`actionClip`, AUTO and the rest) and one by hand: those take their seat on
+    the next throw, behind the cut from the raise camera to the throw's.
   - After a restore there is none: the kubbs already stand. Watching the computer keeps
     its zen pause, which comes after the clips (the next throw need is entered when they
     end).
