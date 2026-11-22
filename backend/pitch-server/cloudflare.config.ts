@@ -23,14 +23,14 @@ const PUSH_URL =
 const WORKERS = {
   dev: {
     name: "throwingwood-pitches-dev",
-    version: "dev-4",
+    version: "dev-5",
     origins:
       "https://throwingwood.com,https://app.throwingwood.com,http://localhost,http://127.0.0.1",
     dev: true,
   },
   production: {
     name: "throwingwood-pitches",
-    version: "2",
+    version: "3",
     origins: "https://throwingwood.com,https://app.throwingwood.com",
     dev: false,
   },
