@@ -86,7 +86,7 @@ function rules({ tinylytics, config = {} }) {
 <section class="frame prose" aria-labelledby="throw">
   <h2 class="display" id="throw">Throwing on the web</h2>
   ${GAME_READY ? "" : `<p class="notice">The game is still being built; this is how its throw is designed to work.</p>`}
-  <p>You throw with the meter, low on the screen beside the pitch. It can be a clock or a straight track (MENU, Meter). It can sit on the left or the right (MENU, Meter side).</p>
+  <p>You throw with the meter, low on the screen beside the pitch. It can be a clock or a straight track (Settings, Meter). It can sit on the left or the right (Settings, Meter side).</p>
   <ol class="throw-steps">
     <li><strong>Pull back to the stripes.</strong> On the clock, drag the knob from the bottom up the left side. On the track, drag the knob down. Go at any speed. How far back you go is the power.</li>
     <li><strong>Flick through and let go on the solid mark.</strong> Swing quickly back through the bottom and up, and let go on the solid mark. Where you let go is the arc. A slow flick throws short.</li>
@@ -99,7 +99,7 @@ function rules({ tinylytics, config = {} }) {
       <tr><th scope="row">Tap or drag the pitch, or the arrow keys</th><td>Aim. The circle is where the throw should land. A tap puts it there. A drag moves it at half your finger’s speed, so you can see it.</td></tr>
       <tr><th scope="row">ARC, or R and F</th><td>A higher arc drops in steeper. A lower one skids in.</td></tr>
       <tr><th scope="row">TILT, or Q and E</th><td>Tilt leans the baton to steer it through a group. For a kubb it is SPIN, which keeps it steady in the air.</td></tr>
-      <tr><th scope="row">SIDE VIEW, or hold Shift</th><td>The camera out over your shoulder, with the arc drawn. Sliding ARC or TILT shows it too.</td></tr>
+      <tr><th scope="row">ARC open, or hold Shift</th><td>The side view: the camera out over your shoulder, with the arc drawn. Sliding TILT shows it too.</td></tr>
       <tr><th scope="row">STAND, or A and D, W and S</th><td>Where you stand. Drag the ring along your line or back from it. When there is an advantage line, you can go up to it.</td></tr>
     </tbody>
   </table>
@@ -110,7 +110,7 @@ function rules({ tinylytics, config = {} }) {
       <tr><th scope="row">AUTO, AUTO ALL</th><td>Let the game raise this kubb, or the rest of this turn’s. MENU, Raising does it for the rest of the game.</td></tr>
       <tr><th scope="row">Drag or tap, then PLACE IT</th><td>Put a punishment kubb in the defenders’ half, clear of the stakes and the king.</td></tr>
       <tr><th scope="row">SKIP, or Space</th><td>Skip to the end of a throw.</td></tr>
-      <tr><th scope="row">MENU, SEND FEEDBACK</th><td>Tell us a throw looked wrong, or anything else.</td></tr>
+      <tr><th scope="row">MENU, FEEDBACK</th><td>Tell us a throw looked wrong, or anything else.</td></tr>
     </tbody>
   </table>
   <p>If you only touch the meter, you get a good throw at the nearest kubb.</p>

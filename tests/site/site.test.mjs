@@ -58,6 +58,7 @@ import {
   storeSections,
 } from "../../src/site/landing.mjs";
 import { PAGES } from "../../src/site/pages.mjs";
+import { STEPS as HOWTO_STEPS } from "../../src/ui/howto.js";
 
 const json = async (file) => JSON.parse(await fs.readFile(file, "utf8"));
 const viewer = await loadViewerRequest();
@@ -82,6 +83,18 @@ test("the game page paints its loading card before the client arrives", () => {
     html,
     /<noscript>\s*<style>\.loading \{ display: none; \}<\/style>/,
   );
+});
+
+test("the rules page and HOW TO THROW name the controls the game has", () => {
+  // the 1.0 design: SIDE VIEW is no longer a button (ARC open is the side view), the
+  // menu's button is FEEDBACK, the meter's rows are in Settings, and ARC, TILT and
+  // STAND are plates of the tray at the screen's edge, not sliders beside the meter
+  const rules = PAGES.find((p) => p.path === "/rules/").render({ config: {} });
+  for (const gone of ["SIDE VIEW", "SEND FEEDBACK", "MENU, Meter"])
+    assert.ok(!rules.includes(gone), `rules: ${gone}`);
+  assert.match(rules, /ARC open, or hold Shift/);
+  const words = JSON.stringify(HOWTO_STEPS);
+  assert.ok(!/beside the (dial|meter)/.test(words), "how-to: beside the meter");
 });
 
 test("a pitch at any code is the one game page", () => {

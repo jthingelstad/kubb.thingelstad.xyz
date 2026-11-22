@@ -7,7 +7,7 @@ import { drawDial } from "../render/dial.js";
 import { drawLinear } from "../render/linear.js";
 import { prefs } from "../game/prefs.js";
 
-const STEPS = [
+export const STEPS = [
   {
     swipe: [
       "Start on the dial or the grass",
@@ -55,10 +55,10 @@ const STEPS = [
   {
     linear: [
       "Aim if you like",
-      "Tap the pitch to put the target circle there, or drag to move it. Slide ARC and TILT beside the meter; drag the ring on STAND to stand somewhere else. Or just throw: the circle starts on a good target.",
+      "Tap the pitch to put the target circle there, or drag to move it. Tap ARC or TILT at the side to slide it, or STAND to drag where you stand. Or just throw: the circle starts on a good target.",
     ],
     title: "Aim if you like",
-    text: "Tap the pitch to put the target circle there, or drag to move it. Slide ARC and TILT beside the dial; drag the ring on STAND to stand somewhere else. Or just throw: the circle starts on a good target.",
+    text: "Tap the pitch to put the target circle there, or drag to move it. Tap ARC or TILT at the side to slide it, or STAND to drag where you stand. Or just throw: the circle starts on a good target.",
     arm: () => 0,
   },
 ];
