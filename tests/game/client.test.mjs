@@ -303,9 +303,16 @@ browserTest(
     assert.equal(under.guideOnTop, true);
     assert.equal(under.handoff, "hidden");
     assert.equal(under.goReachable, false);
-    await page.click("[data-test=howto-close]");
+    await page.keyboard.press("Escape");
     await page.waitForSelector("[data-test=handoff]", { state: "visible" });
-    await page.click("[data-test=handoff-go]");
+    // the keyboard is on the hand-off's THROW, not left on the page
+    await page.waitForFunction(
+      () => document.activeElement?.dataset.test === "handoff-go",
+      null,
+      { timeout: 2000 },
+    );
+    await page.keyboard.press("Enter");
+    await waitPhase(page, "aim", 10000);
     assert.deepEqual(page.errors, []);
     await page.context().close();
   },
