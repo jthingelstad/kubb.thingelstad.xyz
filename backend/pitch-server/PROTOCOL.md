@@ -129,8 +129,9 @@ join. Everyone (the sender too) gets `member`, with the member as the pitch keep
 ```
 
 Compare-and-set: written as version `base + 1` only when the pitch's version is `base`.
-A document whose `teamNames` or `match.players` holds a name that fails the names check
-is refused `bad-name` (section 6a).
+A document whose `teamNames`, `computers` (a computer seat's `name`, engine 0.17) or
+`match.players` holds a name that fails the names check is refused `bad-name` (section
+6a).
 Answered `ok` (`re: "set"`) with the others getting `doc`, or `no` with the current
 document. The document is the lobby only: never the match's snapshot or log. At most
 64 KB as JSON. Players only.
@@ -327,10 +328,21 @@ matches one of the kind's shapes word for word. The engine's own names for no na
 | ---------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------ |
 | a member's `me.name` (`join`, `me`, and members kept from before, on waking) | a player name                               | dropped: the member is kept with no `name` |
 | the document's `teamNames` (`set`, `start`)                                  | a team name                                 | the write is refused `bad-name`            |
+| the document's `computers[id].name` (`set`, `start`; engine 0.17's seats)    | a player name                               | refused `bad-name`                         |
 | the document's `match.players[side][i].name` (`set`, `start`)                | a player name                               | refused `bad-name`                         |
 | `start`'s `meta.players[side][i].name`                                       | a player name                               | refused `bad-name`                         |
 | `start`'s `meta.setup.teams[side].name`                                      | a team name, or on a side of one a player's | refused `bad-name`                         |
 | `start`'s `meta.setup.teams[side].players[i].name`                           | a player name                               | refused `bad-name`                         |
+
+**Computer seats** (engine 0.17, its docs/PITCH.md "Computer seats"): a team may hold
+computer players beside its people, by seat ids no member can have (`"cpu:1"`, with a
+colon), each with a record in the document's top-level `computers` (`{ level, name }`).
+The pitch keeps the document as given; it checks only the seats' names, as player names.
+A computer player in `match.players`, `meta.players` and `meta.setup.teams[side].players`
+carries a generated name already and passes as any player does. Its throws arrive as the
+host's actions, as a computer side's do. An open pitch's `seats` (the host sends it) is
+the twelve places less the seats; the pitch's own count of players is of members, as
+before. A seat with no `name` is shown as "Computer".
 
 A member with no name is shown by every client as "Player n", the engine's name for a
 player with none (n their place on their side). So a client that sends a typed name (an

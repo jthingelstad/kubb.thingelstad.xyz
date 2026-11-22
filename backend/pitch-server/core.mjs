@@ -453,7 +453,8 @@ export function checkedMe(me) {
 }
 
 // The names a lobby write or a start carries that do not pass (PROTOCOL.md "Names"):
-// the document's team names (`teamNames`, a generated team name each), the match header's
+// the document's team names (`teamNames`, a generated team name each), its computer
+// seats' names (`computers[id].name`, engine 0.17: player names), the match header's
 // players (`doc.match.players`), and a start's `meta`: its players and its setup's teams
 // (a side of one is named after its player). [] when every one passes.
 export function badNames(doc, meta = null) {
@@ -470,6 +471,11 @@ export function badNames(doc, meta = null) {
       if (Array.isArray(list)) for (const p of list) player(p?.name);
   };
   sides(doc?.match?.players);
+  // a computer seat's name (engine 0.17, its docs/PITCH.md "Computer seats"): a player
+  // name, absent when the seat keeps none
+  if (isObject(doc?.computers))
+    for (const r of Object.values(doc.computers))
+      if (isObject(r)) player(r.name);
   sides(meta?.players);
   const teams = meta?.setup?.teams;
   if (isObject(teams))

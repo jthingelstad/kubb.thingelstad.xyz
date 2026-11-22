@@ -132,6 +132,22 @@ describe("PitchDO", () => {
     for (const x of [a, b, c]) x.close();
   });
 
+  it("refuses a computer seat whose name the game did not make (bad-name)", async () => {
+    const code = newCode();
+    const a = await join(code, "anna", { me: { name: "Mighty Maple" } });
+    const doc = (name) => ({
+      teams: { A: [member("anna"), "cpu:1"], B: [] },
+      computers: { "cpu:1": { level: "pro", name } },
+    });
+    a.send({ t: "set", id: "w1", base: 0, doc: doc("Robo Rick") });
+    expect((await a.next((f) => f.t === "error")).code).toBe("bad-name");
+    a.send({ t: "set", id: "w2", base: 0, doc: doc("Lucky Larch") });
+    expect(await a.next((f) => f.t === "ok" && f.re === "set")).toMatchObject({
+      v: 1,
+    });
+    a.close();
+  });
+
   it("answers the literal ping from the runtime", async () => {
     const a = await connect(newCode());
     a.send("ping");
