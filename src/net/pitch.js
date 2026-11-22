@@ -1276,7 +1276,9 @@ export class Pitch {
   // controller's clock; never in the middle of a playback.
   refreshSeat() {
     const game = this.game;
-    if (this.mode !== "match" || game.phase === "play") return;
+    // never in the middle of a playback or a watched raise (src/game/lift.js)
+    if (this.mode !== "match" || game.phase === "play" || game.phase === "lift")
+      return;
     const c = this.controlHere();
     game.localSide = this.sideHere();
     this.syncView();
@@ -1462,10 +1464,18 @@ export class Pitch {
   }
 
   // Play the queued actions, one playback at a time; each must end on the committed
-  // hash, or the whole pitch is asked for (its snapshot is the head's).
+  // hash, or the whole pitch is asked for (its snapshot is the head's). Held, like a
+  // playback, while a raise is watched (`lift`, src/game/lift.js): the Game would only
+  // queue the action and answer nothing; the raise's own end drains again (onNeed), and
+  // what waits here hurries the watched raise (game.backlog).
   drain() {
     const game = this.game;
-    while (this.queue.length && game.phase !== "play") {
+    game.backlog ??= () => this.queue.length;
+    while (
+      this.queue.length &&
+      game.phase !== "play" &&
+      game.phase !== "lift"
+    ) {
       const e = this.queue[0];
       if (e.due > Date.now()) {
         clearTimeout(this.drainTimer);

@@ -134,7 +134,8 @@ nothing and skipping each throw's playback.
 
 Phases (`game.phase`): `aim` (a throw is wanted: this browser's, or the computer's shown
 as WATCH), `play` (a recording playing back), `raise`, `punish`, `lift` (a raise being
-watched: "Match flow"), `over`. Actions from elsewhere wait behind `play` and `lift`.
+watched: "Match flow"), `over`. Actions from elsewhere wait behind `play` and `lift`: a
+shared pitch's own queue is held through both (`Pitch.drain`).
 
 In the Tournament scene each tick also posts the match clock to the neighbours' worker
 (`Game.sceneryTick`): stopped under a card, in a hidden tab and while a replay is paused,
@@ -731,20 +732,22 @@ header's row on a wide screen, clear of the target, the tray, the minimap and th
   itself is the match's own Raising option (the solo card, the lobby), which never asks.
   `src/game/auto-raise.js` (pure, its 0.4 s in `tune`), `Game.autoRaiseTick`.
 - **Watching a raise** (web 0.17.0; the owner, 2026-11-22: "When you hit auto to raise
-  kubbs you should watch the computer raise them."): every raise not made by hand here is
-  shown on the raise view, each kubb tipped up onto its end with the hand's own tip, one
-  after another: AUTO, AUTO ALL, REST OF GAME and MENU's Raising (`Game.raise(null, {
-watch })`, `Game.raiseAuto`), a `raise` from another browser (`applyRemote`) or a
-  replay's log (`ReplayPlayer.step`), and the kubbs the engine raised itself between a
-  turn's last kubb thrown in and its first baton (`Game.settledLifts`, from the pieces:
-  a match raising automatically, the computer's raises, watching). The action is applied
-  and sent first, then the clip plays (`Game.showAction`, `startLifts`, `liftFrame`,
-  phase `lift`), then the next view is entered: the actions and their order are what
-  they were. 0.4 s before the first kubb, half a second a kubb, 4 s at most in all;
-  actions arriving meanwhile wait and hurry it; a tap or a key skips to the end and
-  stands the rest of the turn's at once; a hidden tab shows none; reduced motion stands
-  each kubb without tipping, still one at a time. `src/game/lift.js` (pure), numbers in
-  docs/SYSTEM.md "Watching a raise".
+  kubbs you should watch the computer raise them."): every raise that comes as a `raise`
+  action with its need, and was not made by hand here, is shown on the raise view, each
+  kubb tipped up onto its end with the hand's own tip, one after another, from the need's
+  own poses: AUTO, AUTO ALL, REST OF GAME and MENU's Raising (`Game.raise(null, { watch
+})`, `Game.raiseAuto`), a `raise` from another browser on a shared pitch
+  (`applyRemote`) and a replay's log (`ReplayPlayer.step`). The action is applied and
+  sent first, then the clip plays (`Game.showAction`, `startLifts`, `liftFrame`, phase
+  `lift`), then the next view is entered: the actions and their order are what they
+  were. 0.4 s before the first kubb, half a second a kubb, 4 s at most in all; actions
+  arriving meanwhile wait (a shared pitch holds its queue through `lift`) and hurry it;
+  a tap or a key skips to the end and stands the rest of the turn's at once; a hidden
+  tab shows none; reduced motion stands each kubb without tipping, still one at a time.
+  The kubbs the engine raises itself (a match raising automatically, the computer's
+  raises, watching) still stand at once: they wait for the engine to hand them out
+  (`lift.js` `settledClips`, engine 0.16.0's `setup.settled`). `src/game/lift.js`
+  (pure), numbers in docs/SYSTEM.md "Watching a raise".
 - **Punishment**: drag or tap the kubb in the defender's half; the stakes and the king carry
   keep-out circles and a refused spot says why (TOO NEAR A STAKE); PLACE IT when allowed.
 - **The panel on a phone on its side** (a screen 460 px high or less): the raise and

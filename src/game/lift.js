@@ -6,14 +6,17 @@
 // phase) and never holds the engine for them: the action has been applied, and sent,
 // before its clip starts.
 //
-// Two sources of clips:
+// Clips play from a raise need's own poses, which the engine gives in the frame the raise
+// view draws in (JavaScript never turns the pitch):
 // - a `raise` action applied to a raise need the player did not make by hand (AUTO,
 //   AUTO ALL, REST OF GAME, MENU's Raising: Automatic, and any raise another browser
-//   sent: a shared pitch's other player, or a replay): `actionClip(need, action)`;
-// - the kubbs the engine raised itself between two throws (a match started with Raising:
-//   Automatic, the computer's own raises, watching the computer): the next throw's
-//   `settled.raised` says so, and `settledClips(before, after, ...)` finds them by
-//   comparing the pitch at the end of the last throw with the pitch at the next.
+//   sent: a shared pitch's other player, or a replay): `actionClip(need, action)`.
+// - The kubbs the engine raises itself between two throws (a match started with Raising:
+//   Automatic, the computer's own raises, watching the computer) come with no need and
+//   no action: `settledClips(settled)` is their seam, and returns none until the engine
+//   hands out what it raised (engine 0.16.0's `setup.settled` on the throw need: each
+//   kubb's id, the end chosen, and its lying and standing poses in the raise view's
+//   frame). Until then those raises are shown as before: the kubbs stand at once.
 //
 //   const pace = liftPace(of);          // { lead, beat, tip } s for a raise of `of` kubbs
 //   const clip = actionClip(need, a);   // { need, i, final, items(u) } or null
@@ -114,92 +117,13 @@ export function actionClip(need, action, opts = {}) {
 
 // ---------- the engine's own raises, between two throws ----------
 
-const other = (side) => (side === "A" ? "B" : "A");
-
-// An item turned half about (0, 4), from one side's view frame to the other's: the
-// point (x, y) to (-x, 8 - y) and the pose turned 180 degrees about z.
-export function turnItem(it) {
-  const w = it.qw ?? 1,
-    x = it.qx ?? 0,
-    y = it.qy ?? 0,
-    z = it.qz ?? 0;
-  return { ...it, x: -it.x, y: 8 - it.y, qw: -z, qx: -y, qy: x, qz: w };
+// The clips of the kubbs the engine raised itself before a throw, from that throw need's
+// `setup.settled` (`n.setup.settled`). Engine 0.15.1 never fills it (core/match keeps the
+// count on the match, not the setup), so this returns [] and those raises stand at once,
+// as before web 0.17.0. Engine 0.16.0 is to fill it with, for each kubb raised, its id,
+// the end chosen and its lying and standing poses in the frame the raise view draws in;
+// a clip is then made from those poses alone, as actionClip makes one from a need.
+export function settledClips(settled) {
+  void settled;
+  return [];
 }
-
-// A renderer item's long axis on the ground, as an angle (radians), and whether it
-// stands (its long axis near upright).
-function lieOf(it) {
-  const qw = it.qw ?? 1,
-    qx = it.qx ?? 0,
-    qy = it.qy ?? 0,
-    qz = it.qz ?? 0;
-  const ax = 2 * (qx * qz + qw * qy),
-    ay = 2 * (qy * qz - qw * qx),
-    az = 1 - 2 * (qx * qx + qy * qy);
-  return { angle: Math.atan2(ay, ax), up: Math.abs(az) > 0.7 };
-}
-
-const isKubb = (it) => it && it.kind === "kubb";
-const lying = (it) => isKubb(it) && (it.toppled || !lieOf(it).up);
-const standing = (it) => isKubb(it) && !it.toppled && lieOf(it).up;
-
-// The kubbs the engine raised between two throws, as clips on the raise view, in the
-// raiser's frame. before: the pieces at the end of the last throw, in frame `fromSide`;
-// after: the pieces of the next throw's view, in frame `toSide`; raiser: the side that
-// raised them (the side that does not throw next). A kubb is raised when it lay before
-// and stands after; one that stands farther than a metre from where it lay (a
-// punishment kubb placed) is not tipped, it is stood up at the end. [] when none.
-export function settledClips(
-  before,
-  after,
-  { fromSide, toSide, raiser, reduced = false } = {},
-) {
-  if (!before?.length || !after?.length) return [];
-  const into = (items, side) =>
-    side === raiser ? items : items.map((it) => turnItem(it));
-  const b = new Map(into(before, fromSide).map((it) => [it.id, it]));
-  const a = into(after, toSide);
-  const raised = a.filter((it) => {
-    const was = b.get(it.id);
-    return (
-      standing(it) && lying(was) && Math.hypot(it.x - was.x, it.y - was.y) < 1
-    );
-  });
-  const ids = new Set(raised.map((it) => it.id));
-  // the pieces as they will stand, the raised ones lying as they were until their turn
-  const clips = raised.map((it, k) => {
-    const was = b.get(it.id);
-    const lie = lieOf(was);
-    const need = {
-      kind: "raise",
-      side: raiser,
-      kubb: it.id,
-      pose: { x: was.x, y: was.y, standing: false, angle: lie.angle },
-      ends: [{ which: 1, ok: true, pose: { x: it.x, y: it.y } }],
-      choices: [],
-      others: [],
-    };
-    // a standing kubb's turn about the upright (poseItem's qz(angle))
-    const yaw = 2 * Math.atan2(it.qz ?? 0, it.qw ?? 1);
-    const final = { x: it.x, y: it.y, standing: true, angle: yaw };
-    const items = (u) =>
-      a.map((q) => {
-        if (q.id === it.id) return liftKubb(need, 0, final, u, { reduced });
-        if (!ids.has(q.id)) return q;
-        const j = raised.findIndex((r) => r.id === q.id);
-        return j < k ? q : b.get(q.id);
-      });
-    return {
-      need,
-      i: 0,
-      final,
-      footprints: [
-        { x: it.x, y: it.y, angle: final.angle, chosen: true, allowed: true },
-      ],
-      items,
-    };
-  });
-  return clips;
-}
-
-export { other as otherSide };

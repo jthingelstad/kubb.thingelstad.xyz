@@ -118,7 +118,6 @@ import {
   actionClip,
   settledClips,
   liftPace,
-  otherSide,
   tune as liftTune,
 } from "./lift.js";
 import {
@@ -336,6 +335,8 @@ export class Game {
     // turn's automatic raises stand at once
     this.liftState = null;
     this.liftSkip = false;
+    // () => number: actions a shared pitch holds behind a watched raise (src/net/pitch.js)
+    this.backlog = null;
     this.punishAt = null;
     this.running = false;
     this.zen = null; // a calm pace for watching (main's watchTune.zen), or null
@@ -612,7 +613,9 @@ export class Game {
     const L = this.liftState;
     if (!L) return;
     if (this.quiet) return this.finishLifts();
-    const k = 1 + liftTune.catchUp * this.queue.length;
+    // actions waiting here, or in a shared pitch's own queue (src/net/pitch.js `backlog`)
+    const waiting = this.queue.length + (this.backlog?.() || 0);
+    const k = 1 + liftTune.catchUp * waiting;
     let step = dt * k;
     if (L.lead > 0) {
       const used = Math.min(L.lead, step);
@@ -1320,25 +1323,13 @@ export class Game {
     }
   }
 
-  // The engine's own raises between the throw just played and the next: clips on the
-  // raise view in the raiser's frame (lift.js settledClips), or []. The engine raises
-  // between a turn's last kubb thrown in and its first baton, so only there. (The
-  // engine's throw need carries `setup.settled` for this, but engine 0.15.1 never fills
-  // it: core/match keeps it on the match, not the setup. The pieces say it instead.)
+  // The engine's own raises between the throw just played and the next, as clips: none
+  // until the engine hands them out (lift.js settledClips, waiting for engine 0.16.0's
+  // `setup.settled`); the page never works them out by turning the pitch itself.
   settledLifts(p, v) {
     const n = v?.need;
-    const was = this.need;
-    if (!p?.last?.items || n?.kind !== "throw" || was?.kind !== "throw")
-      return [];
-    if (was.setup?.kind !== "toss" || n.setup?.kind === "toss") return [];
-    if (!this.watchLifts() || !n.side || !was.side) return [];
-    const wide = !!this.wide;
-    return settledClips(p.last.items, v.items || [], {
-      fromSide: wide ? "A" : was.side,
-      toSide: wide ? "A" : n.side,
-      raiser: otherSide(n.side),
-      reduced: this.reduced,
-    });
+    if (!p || n?.kind !== "throw" || !this.watchLifts()) return [];
+    return settledClips(n.setup?.settled);
   }
 
   // ---------- raise and punishment ----------

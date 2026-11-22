@@ -1,6 +1,7 @@
 // Watching a raise (src/game/lift.js): the pace, the clip of a raise action (the end
-// the engine's choice stands it on, the same tip as the hand's drag), and the kubbs
-// the engine raised itself found between two throws of a real match.
+// the engine's choice stands it on, the same tip as the hand's drag), and the seam for
+// the kubbs the engine raises itself, which has none to give until the engine hands
+// them out.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -8,7 +9,6 @@ import {
   actionClip,
   raiseEnd,
   settledClips,
-  turnItem,
   liftKubb,
   tune,
 } from "../../src/game/lift.js";
@@ -101,22 +101,13 @@ test("with reduced motion the kubb does not tip: it lies, then stands", () => {
   );
 });
 
-test("turning an item half about (0, 4) twice gives it back", () => {
-  const it = poseItem("a1", "kubb", { ...pose });
-  const back = turnItem(turnItem(it));
-  for (const k of ["x", "y", "z"]) assert.ok(Math.abs(back[k] - it[k]) < 1e-12);
-  // a quaternion and its negative are one turn
-  const dot =
-    back.qw * it.qw + back.qx * it.qx + back.qy * it.qy + back.qz * it.qz;
-  assert.ok(Math.abs(Math.abs(dot) - 1) < 1e-12);
-});
-
-// A computer-against-computer match that raises automatically: at each first baton
-// after kubbs were thrown in, the clips found from the last kubb's resting pieces and
-// the next view are kubbs the engine raised (at most the kubbs thrown in), each lying
-// where it lay at the start and standing where the view has it at the end; between
-// two batons none are found.
-test("the kubbs the engine raised itself are found between two throws of a real match", async () => {
+// The engine's own raises (a match raising automatically, the computer's, watching)
+// wait for the engine to hand them out (engine 0.16.0's setup.settled): today the seam
+// gives none, whatever it is passed, and a real match's throw needs never fill it.
+test("the engine's own raises: no clips until the engine hands out what it raised", async () => {
+  assert.deepEqual(settledClips(undefined), []);
+  assert.deepEqual(settledClips({ raised: 2, punished: 0 }), []);
+  assert.deepEqual(settledClips([{ kubb: "a1", which: 1 }]), []);
   const e = await Engine.create({ sources: bundleLua() });
   e.call("useTune", { name: "pointer" });
   e.newMatch({
@@ -124,50 +115,17 @@ test("the kubbs the engine raised itself are found between two throws of a real 
     cpu: "both",
     raising: "auto",
     start: { year: 2026, month: 11, day: 22, hour: 10, min: 0 },
-    maxTurns: 8,
+    maxTurns: 6,
   });
-  let last = null;
-  let side = null;
-  let kind = null;
-  let tossed = 0;
-  let checked = 0;
-  let between = 0;
-  for (let guard = 0; guard < 120000 && checked < 3; guard++) {
-    const v = e.view();
-    const n = v.need;
+  let throws = 0;
+  for (let guard = 0; guard < 60000; guard++) {
+    const n = e.view().need;
     if (n.kind === "over") break;
-    if (n.kind === "throw" && last) {
-      const clips = settledClips(last, v.items, {
-        fromSide: side,
-        toSide: n.side,
-        raiser: n.side === "A" ? "B" : "A",
-      });
-      const raising = kind === "toss" && n.setup?.kind !== "toss";
-      if (!raising && kind === "baton") {
-        assert.equal(clips.length, 0, "between two batons");
-        between += 1;
-      }
-      last = null;
-      if (!raising || !clips.length) continue;
-      assert.ok(clips.length <= tossed, `${clips.length} of ${tossed}`);
-      for (const c of clips) {
-        const start = c.items(0).find((it) => it.id === c.need.kubb);
-        assert.equal(start.toppled, true);
-        const end = c.items(1).find((it) => it.id === c.need.kubb);
-        assert.equal(end.toppled, false);
-      }
-      checked += 1;
-      tossed = 0;
+    if (n.kind === "throw") {
+      assert.equal(n.setup?.settled, undefined, "engine 0.15.1 leaves it out");
+      throws += 1;
     }
-    const o = e.frame({ dt: 1 / 30 });
-    if (o.event === "release") {
-      side = n.side;
-      kind = n.setup?.kind;
-      if (kind === "toss") tossed += 1;
-      else tossed = 0;
-      last = e.showAt(o.recording.duration).items;
-    }
+    e.frame({ dt: 1 / 30 });
   }
-  assert.ok(checked > 0, "a turn raised by the engine");
-  assert.ok(between > 0, "batons compared too");
+  assert.ok(throws > 0);
 });

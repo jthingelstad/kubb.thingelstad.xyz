@@ -358,7 +358,7 @@ browserTest(
 );
 
 browserTest(
-  "with reduced motion the kubbs still stand one at a time; the engine's own raises are watched too",
+  "with reduced motion the kubbs still stand one at a time; the engine's own raises stand at once until the engine hands them out",
   async () => {
     const page = await soloAim(
       "portrait",
@@ -374,27 +374,26 @@ browserTest(
     await page.context().close();
 
     // the computer against itself raising automatically: its last kubb thrown in, then
-    // the engine stands them, watched before the batons
+    // the engine stands them itself. Those raises have no need and no action, and wait
+    // for the engine to hand them out (engine 0.16.0's setup.settled; lift.js
+    // settledClips): today they stand at once, as before web 0.17.0, never watched
     const watch = await soloAim("portrait", { solo: { ...SOLO("day").solo } });
-    await watch.evaluate((snap) => window.__kubb.game.adopt(snap), LAST_KUBB);
+    await watch.evaluate((snap) => {
+      const g = window.__kubb.game;
+      window.__lifted = false;
+      const look = () => {
+        if (g.phase === "lift") window.__lifted = true;
+        requestAnimationFrame(look);
+      };
+      look();
+      g.adopt(snap);
+    }, LAST_KUBB);
     await watch.waitForFunction(
-      () => window.__kubb.game.phase === "lift",
+      () => window.__kubb.game.need?.setup?.kind === "baton",
       null,
-      {
-        timeout: 60000,
-      },
+      { timeout: 60000 },
     );
-    const n = await watch.evaluate(
-      () => window.__kubb.game.liftState.clips.length,
-    );
-    assert.ok(n >= 1);
-    await watch.waitForFunction(
-      () => window.__kubb.game.phase === "aim",
-      null,
-      {
-        timeout: 10000,
-      },
-    );
+    assert.equal(await watch.evaluate(() => window.__lifted), false);
     assert.equal(
       await watch.evaluate(() => window.__kubb.game.need.setup.kind),
       "baton",
