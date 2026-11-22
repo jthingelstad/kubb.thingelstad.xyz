@@ -121,7 +121,7 @@ function whoActs(need) {
   if (need.kind === "throw") {
     const th = need.setup?.thrower;
     // a computer player in a team (engine 0.17): its name and level
-    if (th?.cpu && th.name)
+    if (th?.cpu && th.name && /^cpu:[1-9]\d?$/.test(th.key ?? ""))
       return {
         text: `${up(th.name)} THROWS · COMPUTER · ${up(th.level)}`,
         mine: false,

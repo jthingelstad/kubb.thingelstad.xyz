@@ -438,7 +438,11 @@ browserTest(
         s.raisedBy.size > 0,
     );
     assert.ok(seen.noControlsForCpu, "no person was given a computer's throw");
-    const shown = seen.cpuShown.find((x) => x.rail && x.pill);
+    // the header and the pill as they stood while a computer threw (a sample taken as
+    // its need came may still show the throw before)
+    const shown = seen.cpuShown.find(
+      (x) => /· computer · pro$/i.test(x.rail) && / · COMPUTER · /.test(x.pill),
+    );
     assert.ok(shown, "a computer's throw was shown");
     assert.match(shown.rail, /· computer · pro$/i);
     assert.match(shown.pill, / THROWS · COMPUTER · PRO$/);

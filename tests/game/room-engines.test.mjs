@@ -238,7 +238,8 @@ browserTest(
       await sawMember(host, "0.9+engines");
       assert.equal(await roomEngine(host), "0.18");
       assert.equal(await host.isHidden("[data-test=lobby-engine]"), true);
-      await host.waitForSelector("[data-test=lobby-opt-computer]");
+      // the options are drawn (the Computer row shows only while a side is empty)
+      await host.waitForSelector("[data-test=lobby-opt-raising]");
       await host.click("[data-test=lobby-start]");
       await waitFor(guest, () => window.__kubb.pitch.mode === "match");
       const [h, g] = await Promise.all([pst(host), pst(guest)]);

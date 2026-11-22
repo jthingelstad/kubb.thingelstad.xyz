@@ -2101,8 +2101,9 @@ export class Pitch {
     const actor = shownActor(need, ctx);
     if (actor === "cpu") {
       // a computer player in a team (engine 0.17): its name and level
+      // (a side the computer plays whole still says COMPUTER THROWS)
       const th = need.setup?.thrower;
-      if (th?.cpu)
+      if (th?.cpu && ctx.cpu !== need.side)
         return {
           text: `${(th.key && this.nameOf(th.key)) || th.name || "COMPUTER"} THROWS · COMPUTER · ${LEVEL_WORD[th.level] ?? th.level ?? ""}`.toUpperCase(),
           mine: false,

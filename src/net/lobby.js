@@ -217,7 +217,7 @@ export const matchOptions = (doc, lineup, { seed, start }, mm) =>
 // member id) counts this browser too, with `carries` (what it carries) while its own
 // presence is still on its way.
 //
-// Engine 0.17.0's engineFor counts a computer seat in the lineup as a player who names
+// Engine 0.17.0's engineFor (and 0.18.0's) counts a computer seat in the lineup as a player who names
 // no engine (it is in `unknown` and `missing`, and `engine` is null), so a pitch with a
 // seat could never start. A seat has no engine to carry (startCheck skips it): the
 // seats are taken out of the document's teams before the engine is asked. When the

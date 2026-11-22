@@ -137,8 +137,9 @@ export function actionClip(need, action, opts = {}) {
 // with `others` and `king` round it, entry by entry. Nothing is taken from the throw
 // need's items, compared or turned.
 //
-// around (an entry without `others` only: none on engine 0.17): the other pieces to draw
-// with it, in that same frame, and the list's other kubbs lying before their turn and
+// around: the view's pieces. Its stakes are drawn with every entry (they stand alike in
+// either frame); for an entry without `others` (none since engine 0.17) the rest of it
+// too, in that same frame, with the list's other kubbs lying before their turn and
 // standing after it.
 export function settledClips(settled, { around = [], reduced = false } = {}) {
   const list = Array.isArray(settled?.list) ? settled.list : [];
@@ -165,6 +166,7 @@ export function settledClips(settled, { around = [], reduced = false } = {}) {
   if (!done.length) return [];
   const ids = new Set(done.map((d) => d.e.id));
   const rest = (around || []).filter((it) => it && !ids.has(it.id));
+  const stakes = rest.filter((it) => it.kind === "stake");
   return done.map((d, k) => {
     // a need of the raise view's shape: the kubb lying, no footprints (tiltItem tips
     // it toward its end along its own axis)
@@ -184,10 +186,13 @@ export function settledClips(settled, { around = [], reduced = false } = {}) {
       items(u) {
         const kubb = liftKubb(need, d.i, d.final, u, { reduced });
         if (Array.isArray(d.e.others)) {
-          // the entry's own surroundings, as given (engine 0.17.0)
-          const items = d.e.others
-            .filter((o) => o?.pose && o.id !== d.e.id)
-            .map((o) => poseItem(o.id, "kubb", o.pose));
+          // the entry's own surroundings, as given (engine 0.17.0), on the pitch's
+          // stakes from `around`: the six stand the same in either team's frame
+          // (core/pitch: x ±2.5 at y 0, 4 and 8), so they are never turned either
+          const items = stakes.slice();
+          for (const o of d.e.others)
+            if (o?.pose && o.id !== d.e.id)
+              items.push(poseItem(o.id, "kubb", o.pose));
           if (d.e.king) items.push(poseItem("king", "king", d.e.king));
           items.push(kubb);
           return items;

@@ -42,9 +42,10 @@ const needPoses = (n) =>
 
 // The computer's throws, to replay as both sides' throws in a match of people (so
 // both sides raise and place punishment kubbs by hand).
+// seed 8 since engine 0.18.0 (the baton's blow): a match that walks through every step
 async function computerThrows() {
   const e = await Engine.create({ sources });
-  e.newMatch({ seed: 3, cpu: "both", start: START, maxTurns: 10 });
+  e.newMatch({ seed: 8, cpu: "both", start: START, maxTurns: 10 });
   const log = [];
   for (let g = 0; g < 300 && e.need().kind !== "over"; g++) {
     const n = e.need();
@@ -71,7 +72,7 @@ async function walk(log, wide) {
     return new Map(posesOf(v.items).map((p) => [p.id, p]));
   };
   e.newMatch({
-    seed: 3,
+    seed: 8,
     cpu: "none",
     start: START,
     maxTurns: 6,
