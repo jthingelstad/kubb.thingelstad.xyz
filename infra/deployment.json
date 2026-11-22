@@ -46,6 +46,6 @@
     "pushSecretArn": "arn:aws:secretsmanager:us-east-1:999153317627:secret:throwing-wood/push-secret-tpJVzR",
     "tableName": "throwing-wood-pitches-PitchesTable-1NHQM3KZSNXUO",
     "gamesBucket": "throwing-wood-pitches-games-999153317627",
-    "codeKey": "api/e72b9d6f78c565fbf3f2af94e950f398c9df9370ba4e5fecf27bc071e75008ab.zip"
+    "codeKey": "api/9551723e1555e97593c394bde39e562cf951a9d17dcf4f3e28cc8eea2ef81aae.zip"
   }
 }
