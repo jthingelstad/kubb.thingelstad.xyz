@@ -2946,17 +2946,29 @@ export class Game {
   }
 }
 
-// The throw's distance as the meter shows it beside the prompt (the 1.0
-// design: "the throw's distance to the nearest metre on an inverted tab"):
-// the plan's own distance, from the stance to the circle (session aimView's
+// The throw's distance as the meter shows it beside the prompt, on an inverted
+// tab: the plan's own distance, from the stance to the circle (session aimView's
 // plan.dist), else the two points' (an older engine), in the canvas's capitals.
+// metresWords says how it is rounded.
 export function distanceWords(aim) {
   const p = aim?.plan;
   let d = Number.isFinite(p?.dist) ? p.dist : null;
   if (d == null && aim?.marker && aim?.thrower)
     d = Math.hypot(aim.marker.x - aim.thrower.x, aim.marker.y - aim.thrower.y);
-  if (!Number.isFinite(d)) return null;
-  return `${Math.max(1, Math.round(d))} M`;
+  return metresWords(d);
+}
+
+// A distance in metres as the meter's tab writes it: to the tenth under
+// `tenthsUnder` (a field kubb close in, where half a metre is a third of the
+// throw: 1.5 m was read "2 M", a QA note of 2026-11-22), as the rail's "TARGET
+// 2.3 M" and STAND's "0.8 M RIGHT" write theirs; to the whole metre from there
+// out ("8 M"), where a tenth changes nothing a thrower does. Never under 0.1 M;
+// null for no distance.
+export const tenthsUnder = 5;
+export function metresWords(d) {
+  if (!Number.isFinite(d) || d <= 0) return null;
+  const tenth = Math.max(0.1, Math.round(d * 10) / 10);
+  return tenth < tenthsUnder ? `${tenth.toFixed(1)} M` : `${Math.round(d)} M`;
 }
 
 // A key pressed in a text box is the text's, not the camera's.
