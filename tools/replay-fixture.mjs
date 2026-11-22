@@ -1,7 +1,9 @@
 // tests/fixtures/replay-north-south.json: a kept replay (src/net/lobby.js replayOf) of a
-// whole computer-against-computer match, North against South (South topples the king in
-// turn 18 under kubb-engine 0.2.0 and 0.3.0, and with seed 22 in turn 10 under 0.13.0; the
-// tests read "South 1, North 0"), played through this checkout's engine. The embed and
+// whole computer-against-computer match, Mighty Maple (Team A) against Lucky Larch (Team
+// B), generated names as every kept match now has (the engine's docs/NAMES.md; the file
+// keeps its old name, from when the sides were North and South). With seed 22 Lucky
+// Larch topples the king under 0.13 (the tests read "Lucky Larch 1, Mighty Maple 0"),
+// played through this checkout's engine. The embed and
 // pitch pages tests serve it; tests/engine/fixtures fails when the engine no longer plays
 // it to the hashes it carries. After an engine change that moves hashes (a new minor
 // version), write it again, and if South no longer wins choose another seed for that
@@ -42,8 +44,8 @@ export const SETUP = {
   start: { year: 2026, month: 11, day: 15, hour: 10, min: 0 },
   maxTurns: 40,
   teams: {
-    A: { name: "North", players: [{ name: "North" }] },
-    B: { name: "South", players: [{ name: "South" }] },
+    A: { name: "Mighty Maple", players: [{ name: "Mighty Maple" }] },
+    B: { name: "Lucky Larch", players: [{ name: "Lucky Larch" }] },
   },
 };
 

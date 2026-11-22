@@ -37,7 +37,8 @@ import { VIEWS, CamBar } from "../ui/watch-view.js";
 import { prefs } from "../game/prefs.js";
 import { openSheet } from "../ui/sheet.js";
 import { fetchReplay } from "./fetch.js";
-import { engineFor } from "../engine/registry.js";
+import { engineFor, majorMinor } from "../engine/registry.js";
+import { badNames, namesOf } from "../game/names.js";
 
 export const replayTune = {
   throwAfter: 1.2, // s a person stands before their throw is played
@@ -50,6 +51,32 @@ export const replayTune = {
 
 export const DIFFERS = "This replay may differ from the match as played.";
 
+// The one sentence for a kept match this page will not play (docs/ENGINES.md
+// "Looking back at a match"): made on an engine the site no longer carries, or holding
+// a name the game did not make (its snapshot is hashed, so the name cannot be put
+// right: docs/MULTIPLAYER.md "Names").
+export const OLD_REPLAY =
+  "This match was made on an older version of the game and can no longer be replayed.";
+export const NAMES_REPLAY =
+  "This match has a name the game did not make, so it cannot be shown.";
+
+// Why a replay (or a kept match: { engine, setup }) will not play here: "old", "names"
+// or null. engines: the page's registry (src/engine/registry.js), or the one engine
+// it plays on; names: the engine's door (src/game/names.js).
+export function replayProblem(r, { engines = null, engine = null } = {}) {
+  const mm = majorMinor(r?.engine);
+  const carried = engines?.newest
+    ? engines.has(mm)
+    : !!mm && mm === majorMinor(engine?.version);
+  if (!carried) return "old";
+  const e = engine ?? engines?.loaded?.(mm);
+  if (e && r?.setup && badNames(namesOf(e), r.setup).length) return "names";
+  return null;
+}
+
+export const problemText = (why) =>
+  why === "names" ? NAMES_REPLAY : OLD_REPLAY;
+
 // Fetch a pitch's kept replay and play it. Resolves the player, or null when the pitch
 // keeps none (the caller says so: a match from before replays, a room long gone).
 export async function startReplay({
@@ -61,6 +88,10 @@ export async function startReplay({
 }) {
   const r = data ?? (await fetchReplay({ url, code }));
   if (!r) return null;
+  // a match from an engine the site no longer carries, or with a name the game did
+  // not make, is not played: { problem } (the caller says OLD_REPLAY or NAMES_REPLAY)
+  const problem = replayProblem(r, { engines, engine: opts.game.engine });
+  if (problem) return { problem };
   const engine = await engineFor(engines, r.engine, opts.game.engine);
   const p = new ReplayPlayer({ ...opts, data: r, engine });
   p.start();
@@ -73,7 +104,7 @@ const NOBODY = Object.freeze({
   mayAct: () => false,
 });
 
-// The status pill in a replay: who acts, by the names the players typed.
+// The status pill in a replay: who acts, by the players' names.
 function whoActs(need) {
   if (!need || need.kind === "over") return null;
   const up = (x) => String(x || "").toUpperCase();

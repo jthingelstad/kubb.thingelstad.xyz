@@ -47,21 +47,29 @@ async function renamed(names) {
   }
 }
 
-test("check: names the share card allows", () => {
-  for (const ok of ["Ann", "Riverside", "a".repeat(16), "Ünïcödé 🪵"])
-    assert.equal(nameAllowed(ok), true, ok);
-  for (const bad of [
-    "",
-    " Ann",
-    "Ann ",
-    "You",
-    "you",
-    "YOU",
-    "a".repeat(17),
-    7,
-    null,
-  ])
-    assert.equal(nameAllowed(bad), false, String(bad));
+test("check: names a share may carry: a generated player name or a default", async () => {
+  const e = await Engine.create({ sources });
+  try {
+    for (const ok of ["Mighty Maple", "Lucky Larch", "Player 1", "Computer"])
+      assert.equal(nameAllowed(e, ok), true, ok);
+    for (const bad of [
+      "",
+      "Ann",
+      "Riverside",
+      "You",
+      "mighty maple",
+      " Mighty Maple",
+      "Mighty  Maple",
+      "Wobbly Towers", // a team's name, not a player's
+      "Mighty Yew", // a word taken out for safety
+      "Ünïcödé 🪵",
+      7,
+      null,
+    ])
+      assert.equal(nameAllowed(e, bad), false, String(bad));
+  } finally {
+    e.lua.global.close();
+  }
 });
 
 test("check: a fair match replays, and the room gets the engine's document and replay", async () => {
@@ -82,21 +90,20 @@ test("check: a fair match replays, and the room gets the engine's document and r
   assert.match(out.document, /^[\x20-\x7e]*$/);
 });
 
-test("check: a renamed side under an allowed name replays", async () => {
-  const r = await renamed({ A: "Ann" });
+test("check: a renamed side under a generated name replays", async () => {
+  const r = await renamed({ A: "Lucky Larch" });
   const out = await check(share(r));
   assert.equal(out.ok, true, JSON.stringify(out));
-  assert.equal(JSON.parse(out.document).match.setup.teams.A.name, "Ann");
+  assert.equal(
+    JSON.parse(out.document).match.setup.teams.A.name,
+    "Lucky Larch",
+  );
 });
 
-test("check: the name You, or one of 17 characters, is refused", async () => {
-  for (const name of ["You", "a".repeat(17)]) {
+test("check: a typed name, You, or a team's name is refused: Pick a name", async () => {
+  for (const name of ["Ann", "You", "a".repeat(17), "Wobbly Towers"]) {
     const out = await check(share(await renamed({ A: name })));
-    assert.deepEqual(
-      out,
-      { ok: false, why: "does-not-replay", step: "sides" },
-      name,
-    );
+    assert.deepEqual(out, { ok: false, why: "name", step: "name" }, name);
   }
 });
 
@@ -187,7 +194,7 @@ test("check: the handler logs the step and engine, never a name", async () => {
   const log = console.log;
   console.log = (line) => lines.push(String(line));
   try {
-    const r = await renamed({ A: "Zebediah" });
+    const r = await renamed({ A: "Jolly Juniper" });
     const out = await checkHandler(
       { check: share(r) },
       {
@@ -201,6 +208,6 @@ test("check: the handler logs the step and engine, never a name", async () => {
     console.log = log;
   }
   assert.ok(lines.length >= 1);
-  assert.ok(!lines.join("\n").includes("Zebediah"));
+  assert.ok(!lines.join("\n").includes("Jolly Juniper"));
   assert.match(lines.join("\n"), /"check":"ok"|"check":true/);
 });

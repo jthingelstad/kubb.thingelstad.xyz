@@ -10,8 +10,8 @@ import {
 
 // A match under way: two players, an observer, some actions, the pitch open.
 const before = [
-  ["join", "a", "anna", { me: { name: "Anna" } }],
-  ["join", "b", "bert", { me: { name: "Bert" } }],
+  ["join", "a", "anna", { me: { name: "Mighty Maple" } }],
+  ["join", "b", "bert", { me: { name: "Lucky Larch" } }],
   ["join", "o", "olga", { role: "observer" }],
   [
     "send",

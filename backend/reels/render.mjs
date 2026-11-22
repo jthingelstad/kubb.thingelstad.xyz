@@ -14,6 +14,7 @@
 // Writes <out>/tall.mp4 (1080x1920), <out>/wide.mp4 (1920x1080) (H.264 High, yuv420p,
 // 30 fps, AAC, faststart) and <out>/edit.json (the edit list, with each moment's
 // still time).
+import { NAMES } from "../pitch-server/names.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -266,7 +267,7 @@ export async function renderReel({
   fs.mkdirSync(out, { recursive: true });
   const t0 = performance.now();
   const scan = await scanReplay(replay, { sources });
-  const teams = scan.teams || scan.end?.teams || { A: "Team A", B: "Team B" };
+  const teams = shownTeams(scan.teams || scan.end?.teams);
   const edit = pickHighlights(scan);
   // nothing to show: no encoder is started on nothing
   if (!edit.moments?.length) throw new NoHighlights();
@@ -590,4 +591,17 @@ export function stillTimes(edit, frames, facts) {
     Math.round(((frames.length - FPS * edit.endCard * 0.2) / FPS) * 1000) /
     1000;
   return { title, moments, end };
+}
+
+// The teams as a reel draws them (the engine's docs/NAMES.md section 6): a generated
+// team name, or a side of one's player name, or a default; anything else is shown as
+// "Team A" / "Team B". The kept replay's names were checked when the match started.
+export function shownTeams(teams) {
+  const side = (k) => {
+    const t = teams?.[k];
+    return NAMES.passes("team", t) || NAMES.passes("player", t)
+      ? t
+      : `Team ${k}`;
+  };
+  return { A: side("A"), B: side("B") };
 }

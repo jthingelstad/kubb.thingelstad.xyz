@@ -42,9 +42,11 @@ test("a page built before the set has a set of one", () => {
 });
 
 test("the build names one bundle per carried engine; the newest keeps its name", async () => {
+  // this checkout carries the newest alone (docs/ENGINES.md); the build's naming of
+  // several is the machinery's, kept for when another is decided on
   assert.deepEqual(
     carriedEngines().map((e) => e.mm),
-    ["0.13", "0.9", "0.8", "0.7"],
+    ["0.13"],
   );
   const asked = [];
   const asset = async (from, name) => {

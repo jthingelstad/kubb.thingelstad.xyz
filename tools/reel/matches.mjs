@@ -4,7 +4,8 @@
 //
 //   node tools/reel/matches.mjs 3 11 17     write build/reel/matches/seed-<n>.json
 //
-// The teams are North and South, so a reel made from one says only team names.
+// The teams are Mighty Maple and Lucky Larch (generated names), so a reel made from one
+// says only names the game made.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,8 +22,8 @@ export function setupFor(seed, opts = {}) {
     start: { year: 2026, month: 11, day: 15, hour: 10, min: 0 },
     maxTurns: 40,
     teams: {
-      A: { name: "North", players: [{ name: "North" }] },
-      B: { name: "South", players: [{ name: "South" }] },
+      A: { name: "Mighty Maple", players: [{ name: "Mighty Maple" }] },
+      B: { name: "Lucky Larch", players: [{ name: "Lucky Larch" }] },
     },
     ...opts,
   };

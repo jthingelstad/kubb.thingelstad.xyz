@@ -1,7 +1,8 @@
 // npm run check: everything CI runs before a merge, in order, stopping at the
 // first failure.
 //
-//   1. vendor:check   vendor/engine is kubb-engine's tagged release byte for byte
+//   1. vendor:check   vendor/engine is kubb-engine's tagged release byte for byte,
+//                     and the pitch server's names-words.json is its names.words
 //   2. shared:check   the vendored shared type and sites.json are current
 //   3. infra/site.json carries infra/viewer-request.js and the CSP
 //   4. node --test    every *.test.mjs under tests/ (the engine's golden corpus
@@ -34,6 +35,7 @@ function testFiles(dir) {
     .sort();
 }
 node("vendor:check", "tools/vendor.mjs", "check");
+node("names-words", "tools/names-words.mjs", "check");
 node("shared:check", "tools/shared.mjs", "check");
 node("infra/site.json", "tools/site-template.mjs", "check");
 const tests = testFiles("tests");

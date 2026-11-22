@@ -14,7 +14,7 @@
 // that renamed its side before sending would not claim). The script replays the file
 // from its start, as the server would, and says whether it reaches the claimed end.
 //
-// The teams are "Riverside" (an invented team name, typed by the player in a real match)
+// The teams are "Mighty Maple" (a generated name, as a player picks one in a real match)
 // and "Computer".
 import fs from "node:fs";
 import path from "node:path";
@@ -35,7 +35,7 @@ export function soloSetup(seed, opts = {}) {
     raising: "hand",
     maxTurns: 40,
     teams: {
-      A: { name: "Riverside", players: [{ name: "Riverside", level }] },
+      A: { name: "Mighty Maple", players: [{ name: "Mighty Maple", level }] },
       B: { name: "Computer", players: [{ name: "Computer", level }] },
     },
     start: { year: 2026, month: 11, day: 19, hour: 12, min: 0 },

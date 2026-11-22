@@ -22,6 +22,7 @@ import { prefs } from "./game/prefs.js";
 import { Cards, soloSaved } from "./ui/cards.js";
 import { Menu } from "./ui/menu.js";
 import { openSettingsPage } from "./ui/settings.js";
+import { namesOf } from "./game/names.js";
 import { showHowto, shouldShowHowto } from "./ui/howto.js";
 import { h, button } from "./ui/dom.js";
 import { startPitch, tune as pitchTune } from "./net/pitch.js";
@@ -140,11 +141,14 @@ async function bootEmbed() {
 }
 
 // /settings/: the device's settings (src/ui/settings.js) from the web game's page,
-// the same rows as MENU's. No engine, no game: nothing to load but this card.
-function bootSettings() {
+// the same rows as MENU's. No game: the engine is loaded for the name row only (its
+// names.* calls, src/game/names.js).
+async function bootSettings() {
+  const engine = await makeEngine();
+  const names = namesOf(engine);
   loading.remove();
-  openSettingsPage(ui, { home });
-  if (testing) window.__kubb = { config };
+  openSettingsPage(ui, { home, names });
+  if (testing) window.__kubb = { config, engine, names };
   document.body.dataset.ready = "1";
 }
 
@@ -355,15 +359,15 @@ const takesComputer = () => MATCH_OPTIONS.some(([k]) => k === "computer");
 function startSolo(game, cards, { sheet, record, menu, asked }) {
   game.seat = { sides: ["A"], cpu: true };
   game.localSide = "A";
-  // MAKE A HIGHLIGHT REEL on the winner card: the match is shared (with the name typed
+  // MAKE A HIGHLIGHT REEL on the winner card: the match is shared (with the name picked
   // on the share card) only when that card's SHARE is pressed (src/ui/share.js). Not
   // while watching the computer against itself (docs/REEL.md), nor in practice.
   let share = null;
   const options = () =>
     cards.options((o) => play(o), {
       home,
-      menu: () => menu.open(),
-      // and your name, this device's too: asked here only while none is kept
+      // and your name, this device's too: a generated one, picked in its name row
+      names: game.names,
       name: game.playerName,
       setName: (t) => game.setPlayerName(t),
       onName: (f) => game.onPlayerName(f),

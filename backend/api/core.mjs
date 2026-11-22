@@ -391,7 +391,9 @@ export function createApi({
       throw new ApiError("failed", "The match could not be checked.");
     }
     if (!out?.ok) {
-      const why = ["engine", "does-not-replay", "too-long"].includes(out?.why)
+      const why = ["engine", "name", "does-not-replay", "too-long"].includes(
+        out?.why,
+      )
         ? out.why
         : "does-not-replay";
       return answer(null, why);

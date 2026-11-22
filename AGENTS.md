@@ -16,19 +16,19 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
 - **`vendor/engine/` is never edited.** It is kubb-engine (`../kubb-engine`) at the tag
   in `vendor/engine.json`, byte for byte. Change how the game plays in kubb-engine,
   release a tag, then `npm run vendor:sync -- --tag vX.Y.Z` (`vendor:check` holds it to
-  the engine's manifest). The same goes for each older minor the site still carries in
-  `vendor/engines/<major.minor>/` (`docs/ENGINES.md`): practice, solo and watch play on
-  the newest and a shared pitch on the room's engine (the newest every player carries).
-  Today the site carries 0.13.1 (the newest), 0.9.0, 0.8.2 and 0.7.4; the iPhone app on
-  0.9 carries 0.9, 0.8 and 0.7, so a pitch with it plays 0.9 (an older tester's build
-  with 0.8 and 0.7, 0.8). Engine 0.13 renamed the shared pitch's directory `room/` to
-  `pitch/` (calls `pitch.<name>`, `room.<name>` kept as their old spelling); the tools
-  read both and skip the one an engine lacks, and the bridge still says `room.`, which
-  every carried engine answers. The carried set is
-  `vendor/engine.json` (the newest and `older`), read by the build, the registry and the
-  reels' `REEL_ENGINES`: there is no list to keep by hand. A new
-  minor is vendored with `--keep` (carry the old one on) or `--drop`, never by
-  accident. Never write in the kubb-engine or playdate-kubb checkouts from here. wasmoon stays pinned at exactly 1.16.0.
+  the engine's manifest). **An engine is carried only while we decide it is supported,
+  not because it was once released** (the owner, 2026-11-21: "We should only support
+  engines that we decide are worth supporting not just ones that have published so that
+  we can push players to the new engines."). Today that is the newest alone, 0.13
+  (0.13.3); 0.9, 0.8 and 0.7 were dropped on 2026-11-21, so a client on one of them (an
+  iPhone build on 0.9) cannot share a pitch with the web and is told to update, and a
+  kept match of one says it can no longer be replayed (`docs/ENGINES.md`). The supported
+  set is written in one place, `vendor/engine.json` (the newest and `older`, empty
+  today), read by the build, the registry and the reels' `REEL_ENGINES`; carrying an
+  older minor again would be its own decision, vendored into `vendor/engines/<mm>/`. A
+  new minor is vendored with `--keep` or `--drop`, never by accident. The bridge says
+  `pitch.`, the engine's own spelling since 0.13. Never write in the kubb-engine or
+  playdate-kubb checkouts from here. wasmoon stays pinned at exactly 1.16.0.
 - **This repository is public.** Keep email addresses, device serials, home-directory
   paths and secrets out of files and commits. Write
   the AWS account as `<account>` in Markdown.
@@ -36,7 +36,7 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
   own. JavaScript draws, listens and talks to the network. JS and Lua exchange JSON strings in
   a few coarse calls a frame.
 - **Room rules are the engine's too.** `src/net/lobby.js`, `seats.js` and `sync.js`
-  are thin wrappers over `room.*` (the engine's docs/ROOM.md), reading `.value` through
+  are thin wrappers over `pitch.*` (the engine's docs/PITCH.md), reading `.value` through
   `src/net/room-engine.js`. Initialize with `useRoomEngine` (the newest engine) before
   calling them; a call that names a major.minor goes to that carried engine. Pass
   connected ids as an array, and keep seat/actor calls cached out of the render loop.
@@ -132,9 +132,9 @@ address or home path in `dist/`, no account id in Markdown).
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `0.10.0 (0.13.1)`, at the foot of
-every reading page and of MENU, with "Also plays 0.9.0, 0.8.2 and 0.7.4" under it in MENU while older
-engines are carried (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
+the full version of the newest engine the site carries, `0.11.0 (0.13.3)`, at the foot of
+every reading page and of MENU, with "Also plays ..." under it in MENU only while older
+engines are carried (none today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
 The app's version never goes on the room wire, the rider or a kept match, replay, embed,
 share or reel: those name only the engine a match was played on.
@@ -203,6 +203,39 @@ of a live resource. A site check holds new templates and tools to it.
   the wasm content type, and updates `throwing-wood-api`'s code when its bundle changed.
   Roll back by reverting. The same script publishes by hand as `cloud-engineer`.
 
+## Names
+
+No name is typed anywhere (the owner, 2026-11-21, for the iPhone's App Store review: a
+typed name is seen by others in a pitch and on public replays, which counts as
+user-generated content). Every player and team name is a generated one, made from the
+engine's word lists (the engine's docs/NAMES.md, its docs/SESSION.md "Names"); the word
+lists are the content policy. docs/CLIENT.md "Names" and docs/MULTIPLAYER.md "Names" have
+the details.
+
+- **The device's name** (`name` pref, `src/game/player-name.js` over the engine's
+  `names.*` door, `src/game/names.js`): the first run rolls one from the browser's own
+  randomness; a kept name that is not a generated one (a typed name from before) is
+  replaced on load and never shown.
+- **The name row** (`src/ui/name-row.js`), built once: the name, SHUFFLE, a picker per
+  word (a native select of `names.choices`) and KEEP per word, which SHUFFLE respects.
+  It is in Settings (MENU and `/settings/`, which now loads the engine for it), the solo
+  card's and the lobby's You row, the lobby's team names (the host's) and the share card.
+  Every name and word is measured in the game's fonts against `NAME_FIT`
+  (`tests/game/names-fit-client.test.mjs`).
+- **A team of several** plays under a team name the host rolls and picks in the lobby
+  (the document's top-level `teamNames`, `setTeamName` in `src/net/lobby.js`); a side of
+  one plays under its player's name. Two members with one name are told apart in the
+  lobby only ("Mighty Maple II", `apartNames`).
+- **The checks** (a client is not proof): the page shows a name from a pitch, a kept
+  match, a replay or a share only when the engine's `names.valid` says `ok` or `default`,
+  else the default for its place ("Player n", "Team A"/"Team B"); a live match or a
+  replay whose snapshot holds another is not shown at all (the snapshot is hashed). The
+  pitch server (`backend/pitch-server/names.mjs`, from `names-words.json`, which
+  `tools/names-words.mjs` writes from the engine and `npm run check` holds to it) drops
+  a failing `me.name` (never refusing the member) and refuses a lobby write or start
+  that names one (`bad-name`); the share check refuses `why: "name"`; the pitch pages
+  leave a failing team name off.
+
 ## Recorded games
 
 Every match is recorded (Jamie, 2026-11-15: "all games should be recorded so that we can
@@ -211,7 +244,7 @@ a shared pitch to the api, which writes them to the private games bucket for goo
 (`backend/api/API.md`). Solo and watch matches have no
 room: the browser sends each once when it ends (`src/net/record.js`, Jamie 2026-11-16:
 "watch mode should record ... All games recorded"), kept under
-`games/browser/<yyyy-mm-dd>/`. The names players typed are in them: records are pulled to
+`games/browser/<yyyy-mm-dd>/`. The players' names (generated names, "Names" above) are in them: records are pulled to
 `build/games/` (never in git) and never published. The web game's page (`/web/`) says what is recorded.
 Practice is not recorded. The reading pages say only that matches are recorded to make the
 game better, on purpose (Jamie, 2026-11-20: "privacy page can just say that matches are
@@ -322,14 +355,16 @@ the list from the pitch server's `GET /open` (`backend/pitch-server/PROTOCOL.md`
 
 A finished pitch can be watched again (Jamie, 2026-11-16: "When a game is finished playing
 on a pitch I'd like the URL to allow people to come and watch a replay of the match.").
-The match is played again from its start, action by action, on its own engine where the
-site carries it and on the newest otherwise (`docs/ENGINES.md`)
+The match is played again from its start, action by action, on its own engine
 (the engine's `session/replay.lua`, `src/replay/player.js`), in the wide view at the match's own pace,
 with play/pause, NEXT THROW, BACK, 1X 2X 4X and the score sheet beside it. The winner card
 and anyone who opens the link after the end get WATCH REPLAY; after a rematch the lobby
 offers WATCH THE LAST MATCH. A replay belongs to nobody: the engine refuses every action
-from outside while one is loaded. A hash that disagrees (an older match on the newest
-engine after a physics change) is noted and it plays on.
+from outside while one is loaded. A match made on an engine the site no longer carries
+is not played: wherever it can be opened (WATCH REPLAY, WATCH THE LAST MATCH, a shared
+match's page, the embed) one sentence says "This match was made on an older version of
+the game and can no longer be replayed.", and a shared match's reel, a stored video, is
+still offered (`docs/ENGINES.md` "Looking back at a match").
 
 - The pitch server keeps the match's log while it is played; the host sends `meta` (what
   a replay needs besides the actions) with START, and the action that ends the match
@@ -371,13 +406,15 @@ not shown because watching one means joining the room.
 
 A pitch's link shows that pitch (Jamie, 2026-11-16: "can we get the share preview image to
 reflect the game that it is linked to?"). The pitch pages function writes the title
-("North vs South · Kubb: Throwing Wood"), a description of its state ("Waiting for
-players. Join the pitch.", "In play: turn 7", "Final: North won, 1 to 0, in 9 turns. Watch
-the replay.") and `/og/<code>.png?v=<version>` into `/p/<code>` and `/e/<code>`. The image
+("Mighty Maple vs Lucky Larch · Kubb: Throwing Wood"), a description of its state
+("Waiting for players. Join the pitch.", "In play: turn 7", "Final: Lucky Larch won, 1 to
+0, in 9 turns. Watch the replay.") and `/og/<code>.png?v=<version>` into `/p/<code>` and `/e/<code>`. The image
 (1200×630, `pitchCardImage` in `src/site/art.mjs`, drawn with resvg) has the team names,
 the state and the pitch from above with its pieces where they stand. Team names come from
-the match; a waiting pitch has none yet, so it is "A pitch waiting for players". No names
-of players, member ids, open-game listing or games bucket. Anything that fails gives the
+the match, each checked as the pitch server checks it (a team name the game did not make
+is left off: the side is "Team A" or "Team B"); a waiting pitch has none yet, so it is "A
+pitch waiting for players". No names of players, member ids, open-game listing or games
+bucket. Anything that fails gives the
 static title, description and share image, never an error page.
 
 `robots.txt` (`src/site/robots.mjs`; Jamie, 2026-11-20: "we should block robots from
@@ -559,7 +596,7 @@ labels are plain words.
 - Practice's tray is BATONS | KUBBS, the one in use pressed (it was one button naming the
   other mode). The rail counts in words ("5 BASE KUBBS", "TARGET 2.3 M"), not the
   engine's Playdate "BASE 5" (`railCount` in `src/game/hud.js`).
-- MENU's rows say what they set and show their value: Your name, Meter,
+- MENU's rows say what they set and show their value: Your name (the name row), Meter,
   Meter side, Sound (On/Off, once a SOUND: ON button), View (watching), Surface and Scene
   (practice).
 - **Settings by scope** (the owner's settings sheet, 2026-11-20). Device settings (your
@@ -568,27 +605,29 @@ labels are plain words.
   never asked per match. Game settings (Computer level, surface, opening, raising, wind,
   kubb set, scene, who can join) are on the solo card, the practice MENU (surface,
   scene) and the lobby only. Turn and throw settings (stand, spin; arc, tilt) are on the
-  throw controls. Your name is typed once (the solo card or the lobby ask only while the
-  device keeps none) and changed in Settings. docs/CLIENT.md "Settings".
+  throw controls. Your name is the device's generated name, picked in the name row
+  wherever it is shown (Settings, the solo card's and the lobby's You row): "Names"
+  below. docs/CLIENT.md "Settings".
 - **One level: the computer's** (the owner, 2026-11-21, with engine 0.13: "player level
   really should only mean for the computer opponent. It doesn't mean anything for the
   human player."). From engine 0.13 every person throws on one meter, the bars going by
   the throw's distance, so the web asks nobody for their own level: MENU's Your level
   row and the solo card's and lobby's "Throwing at ..." line are gone, and the You row
   is the name alone. A device's stored level (`level` pref) is still read, passed and
-  kept, never reset (`src/game/throw-level.js`): a match on a carried 0.9 engine throws
-  a person at it as before. The computer's level is a match option, Computer level, on
+  kept, never reset (`src/game/throw-level.js`): it changes nothing on 0.13, and the
+  site no longer carries the 0.9 engine where it counted. The computer's level is a match option, Computer level, on
   the solo card and, set by the host, in the lobby of a pitch on 0.9 or newer.
 - **Sliders, not step buttons** (Jamie: "the finger must not cover the control; teach on
   the control"). From engine 0.9 ARC, TILT and SPIN take any value in `aim.controls`'
   range (`setArc`, `setTilt`, `setSpin`), ticks drawn from `tick`; a kubb's spin is kept
-  for the turn and nothing on the page resets it. A match on 0.8 or 0.7 steps as before.
+  for the turn and nothing on the page resets it. (The step buttons were for 0.8 and
+  0.7, no longer carried.)
 - **Scenes** (Jamie, 2026-11-20: "i absolutely adore the two new scenes! lets make it
   real"). A scene is a look only: Day, Night and Neon, a match option, Scene, from engine
   0.9 (the engine keeps the id in `settings.scene` and `view.scene` and never reads it).
   The solo card has the row (watching the computer takes the card's), MENU has it on the
   practice pitch, and the host sets it in the lobby of a pitch whose next match runs on
-  0.9 or newer; a pitch on 0.8 or 0.7 shows no row and draws the day. The pitch behind the card
+  0.9 or newer (every engine the site carries). The pitch behind the card
   or lobby shows the pick. Every surface draws a match through one `Stage`
   (`src/render/scenes.js`): play, replay, embed and the reel. An id the web does not
   draw is the day. `?scene=` picks one off a pitch, never on one. Batons stay plain.

@@ -5,13 +5,15 @@
 //
 // The records are the api function's (backend/api/dynamo-store.mjs): the pitch's
 // state (its latest match as far as the pitch server's pushes go) and its kept
-// replay. Only what the pitch link itself shows: the team names as typed, the turn,
+// replay. Only what the pitch link itself shows: the team names (each checked: one the
+// game did not make is left off, the side shown as "Team A" / "Team B"), the turn,
 // the result and where the pieces lie. Never a member id, never anything from the
 // games bucket, and nothing that lists a pitch anywhere.
 //
 // Nothing here imports src/site/site.mjs (it reads a file at load, which the
 // package does not carry); tests/pages checks these two against it.
 import { gunzipSync } from "node:zlib";
+import { NAMES } from "../pitch-server/names.mjs";
 
 export const ORIGIN = "https://throwingwood.com";
 export const SITE_NAME = "Kubb: Throwing Wood";
@@ -37,6 +39,12 @@ const parse = (text) => {
 const finite = (n) => typeof n === "number" && Number.isFinite(n);
 const name = (s, fallback) =>
   typeof s === "string" && s.trim() ? s.trim().slice(0, 40) : fallback;
+
+// A side's name as the link shows it: a generated team name, or (a side of one) its
+// player's, or one of the engine's defaults; anything else is left off for the side's
+// default (the engine's docs/NAMES.md section 6: the pitch card image).
+const teamName = (s, players, fallback) =>
+  NAMES.teamPasses(s, players) ? s : fallback;
 
 // The kept replay is this match's own: the same pitch object (`made`) and match number.
 // A rematch that is still in play, or one that ended before its replay was kept,
@@ -207,10 +215,12 @@ function fromSnap(snapText, names) {
   const s = parse(snapText);
   const g = s?.save?.game;
   if (!g || typeof g !== "object") return null;
-  const teams = {
-    A: name(g.teams?.A?.name ?? names?.A, "Team A"),
-    B: name(g.teams?.B?.name ?? names?.B, "Team B"),
+  const side = (k) => {
+    const t = g.teams?.[k];
+    const n = Array.isArray(t?.players) ? t.players.length : 1;
+    return teamName(name(t?.name ?? names?.[k], ""), n, `Team ${k}`);
   };
+  const teams = { A: side("A"), B: side("B") };
   return {
     teams,
     turn: Number.isInteger(g.turn) ? g.turn : 1,
@@ -339,8 +349,8 @@ export function previewOf(s) {
 }
 
 // A match against the computer says so, and at what level (docs/REEL.md "Links and share
-// tags"): "Riverside won, against the computer (club), in 9 turns." or "Computer (club)
-// won, against Riverside, in 9 turns." Null for any other match.
+// tags"): "Mighty Maple won, against the computer (club), in 9 turns." or "Computer (club)
+// won, against Mighty Maple, in 9 turns." Null for any other match.
 function againstComputer(s, won) {
   const c = s.computer;
   if (!c || !s.winner) return null;

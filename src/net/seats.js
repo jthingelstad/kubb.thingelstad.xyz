@@ -1,5 +1,5 @@
 // Who acts in a shared match (docs/DESIGN.md 4.3, docs/MULTIPLAYER.md "Who acts"):
-// the engine's rules (vendor/engine/room/seats.lua), thin wrappers over `room.<name>`.
+// the engine's rules (vendor/engine/pitch/seats.lua), thin wrappers over `pitch.<name>`.
 //
 // ctx = {
 //   players:   { A: [{ id, name }], B: [...] }   the match's players (doc.match.players)

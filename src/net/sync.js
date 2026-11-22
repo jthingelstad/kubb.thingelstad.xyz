@@ -1,6 +1,6 @@
 // How a browser keeps its match in step with the room (docs/MULTIPLAYER.md "Staying in
-// step"): the engine's rules (vendor/engine/room/sync.lua), thin wrappers over
-// `room.<name>`. What stays here is the web's own: which program this is, and how it
+// step"): the engine's rules (vendor/engine/pitch/sync.lua), thin wrappers over
+// `pitch.<name>`. What stays here is the web's own: which program this is, and how it
 // paces its aim casts on the socket.
 //
 // The acting browser applies its action, then commits the snapshot after it as action

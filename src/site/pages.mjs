@@ -101,15 +101,15 @@ ${openGames(config.pitchUrl)}
   <h2 class="display" id="how">How it works</h2>
   <ol class="steps">
     <li><strong>Start a pitch.</strong> You get a pitch with its own link.</li>
-    <li><strong>Send the link.</strong> Friends open it, type a name and pick a team. Up to six can play on each side. The computer plays an empty side. Make your pitch open and it shows up under Open games for anyone.</li>
+    <li><strong>Send the link.</strong> Friends open it, pick a name and pick a team. Up to six can play on each side. The computer plays an empty side. Make your pitch open and it shows up under Open games for anyone.</li>
     <li><strong>Throw wood.</strong> Everyone sees every throw. Knock down their kubbs, then the king.</li>
   </ol>
   <p>No one to play with? Play the computer, or throw batons on the practice pitch. You can also sit back and watch the computer play itself, match after match.</p>
   <p>Pick a scene: Day, Night under a full moon, or Neon, where the pitch glows in the dark. On a shared pitch the host picks it for everyone.</p>
-  <p>Matches are recorded to help make the game better. A record holds the throws and the names typed. Records stay private and are never published. Practice is not recorded.</p>
+  <p>Matches are recorded to help make the game better. A record holds the throws and the players’ names. Records stay private and are never published. Practice is not recorded.</p>
   <p>The Open games list shows how many are on a pitch and if the match has started. It never shows names. Feedback from the game’s menu is kept privately too. It holds what you typed and the game as it stood, which can include the players’ names.</p>
   <p>Anyone with a finished pitch’s link can make a highlight reel. It is a short video of the best throws, with the team names. Like the replay, it is kept for a year.</p>
-  <p>A match against the computer is shared only when you choose, one match at a time. It carries how the match started, with the day and time. It also carries every throw and the name you type for your side. It gets its own link. Anyone with the link can watch it, and it is kept for a year.</p>
+  <p>A match against the computer is shared only when you choose, one match at a time. It carries how the match started, with the day and time. It also carries every throw and the name you pick for your side. It gets its own link. Anyone with the link can watch it, and it is kept for a year.</p>
 </section>
 <section class="frame about" aria-labelledby="about">
   <h2 class="display" id="about">The same game</h2>
@@ -211,11 +211,12 @@ function privacy({ tinylytics, config = {} }) {
 </section>
 <section class="frame prose" aria-labelledby="pitch">
   <h2 class="display" id="pitch">Playing a match</h2>
-  <p>A match on a pitch runs through the game’s own server. It gets what the match needs: the name you type, your team, your throws, the score, and that random number. Everyone on the pitch sees your name and team. Any name will do, so use a nickname if you like. Live online play passes through Cloudflare on its way between players.</p>
-  <p>Matches are recorded to help make the game better. A record holds the throws and the names players typed. I keep records privately. They are never published or shared. Practice is not recorded.</p>
+  <p>Every name in the game is made by the game from its own lists of words, such as Mighty Maple or The Lumberjacks. You pick your name from those words; you never type one, so a name says nothing about who you are. The game picks one for you the first time you play, and you can change it whenever you like.</p>
+  <p>A match on a pitch runs through the game’s own server. It gets what the match needs: your name, your team, your throws, the score, and that random number. Everyone on the pitch sees your name and team. The server takes only names the game made: any other name, such as one typed into an older test build of the iPhone app, is not passed on, and that player is shown as Player 1, Player 2 and so on. Live online play passes through Cloudflare on its way between players.</p>
+  <p>Matches are recorded to help make the game better. A record holds the throws and the players’ names. I keep records privately. They are never published or shared. Practice is not recorded.</p>
   <p>When a match ends, its replay is kept for a year, and anyone with the pitch’s link can watch it, names included. An open game’s place in the list on the web game’s page shows only how many are on the pitch and whether the match has started, never names.</p>
-  <p>Anyone with a finished pitch’s link can ask for a highlight reel: a short video of the match’s best throws, made on the game’s server from the kept replay. A reel shows the team names, which for a player alone on a side is the name they typed, as the replay does; nothing else typed in the lobby. Reels are stored with the website, anyone with the link can watch or download them, and they are deleted a year after the match. A video downloaded or posted elsewhere is out of my hands.</p>
-  <p>A match you play against the computer is shared only if you press SHARE AND MAKE THE REEL on its winner card, and only that match, each time you choose to. What is sent is how the match started (including the day and time it began), every throw, and the name you type on that card for your side; the other side is Computer. Nothing else about you or your device goes with it, and it is not linked to any private record of the match. A shared match is kept for a year under its own link, like a pitch, and anyone with the link can watch its replay and its reel.</p>
+  <p>Anyone with a finished pitch’s link can ask for a highlight reel: a short video of the match’s best throws, made on the game’s server from the kept replay. A reel shows the team names, which for a player alone on a side is that player’s name, as the replay does. Reels are stored with the website, anyone with the link can watch or download them, and they are deleted a year after the match. A video downloaded or posted elsewhere is out of my hands.</p>
+  <p>A match you play against the computer is shared only if you press SHARE AND MAKE THE REEL on its winner card, and only that match, each time you choose to. What is sent is how the match started (including the day and time it began), every throw, and the name you pick on that card for your side; the other side is Computer. Nothing else about you or your device goes with it, and it is not linked to any private record of the match. A shared match is kept for a year under its own link, like a pitch, and anyone with the link can watch its replay and its reel.</p>
   <p>If you send feedback from the game’s menu, about a throw that looked wrong or anything else, what you type (and any pieces you mark) and the game as it stood are kept privately in the same way, and never published. The game as it stood can include the names of the players in that match.</p>
 </section>
 <section class="frame prose" aria-labelledby="visits">
@@ -231,11 +232,11 @@ function privacy({ tinylytics, config = {} }) {
 <section class="frame prose" aria-labelledby="who">
   <h2 class="display" id="who">Who sees it</h2>
   <p>Only me. Everything the game keeps is stored on Amazon Web Services in the United States. The newsletter list is the one thing kept elsewhere, with Buttondown. I don’t sell, rent or trade any of it, and I don’t share it with anyone for advertising or anything else.</p>
-  <p>The game doesn’t ask your age or anything about you beyond a name you choose. The newsletter asks only for your email address.</p>
+  <p>The game doesn’t ask your age or anything about you. Your name is one you pick from the game’s words. The newsletter asks only for your email address.</p>
 </section>
 <section class="frame prose" aria-labelledby="ask">
-  <h2 class="display" id="ask">Questions, or taking your name out</h2>
-  <p>If you want your name taken out of the records, or have a question, <a href="https://www.thingelstad.com/contact/">get in touch</a>. Send the pitch’s link if you have it, and I’ll remove the records that carry your name.</p>
+  <h2 class="display" id="ask">Questions, or taking a match out</h2>
+  <p>If you want a match taken out of the records, or have a question, <a href="https://www.thingelstad.com/contact/">get in touch</a>. Send the pitch’s link if you have it, and I’ll remove its records.</p>
   <p>If the game starts keeping something new, this page will say so first.</p>
   <p class="foot__small">Last updated 21 November 2026.</p>
 </section>`;

@@ -49,7 +49,16 @@ const MINOR = ENGINE.split(".").slice(0, 2).join(".");
 const REPLAY = JSON.parse(
   fs.readFileSync("tests/fixtures/replay-north-south.json", "utf8"),
 );
-const IN_PLAY = fs.readFileSync("tests/fixtures/snap-in-play.json", "utf8");
+// captured with typed names (North, South); a pitch's match now carries generated ones,
+// so its sides are renamed here, in memory, as the replay fixture's are
+const IN_PLAY = (() => {
+  const s = JSON.parse(
+    fs.readFileSync("tests/fixtures/snap-in-play.json", "utf8"),
+  );
+  s.save.game.teams.A.name = "Mighty Maple";
+  s.save.game.teams.B.name = "Lucky Larch";
+  return JSON.stringify(s);
+})();
 // the start info a host sends with a match (the replay's own fields, as the client will)
 const META = {
   v: REPLAY.v,
@@ -270,7 +279,7 @@ for (const kind of STORES)
     const ok = start();
     // the same bytes with one changed, under the original signature
     const tampered = Buffer.from(ok.raw);
-    const at = tampered.indexOf("North");
+    const at = tampered.indexOf("Mighty");
     tampered[at] = "S".charCodeAt(0);
     const bad = await h.push({ ...ok, raw: tampered });
     assert.equal(bad.status, 401);
@@ -524,7 +533,7 @@ for (const kind of STORES)
     state = await h.store.getState(CODE);
     assert.deepEqual(
       state.names,
-      { A: "North", B: "South" },
+      { A: "Mighty Maple", B: "Lucky Larch" },
       "the late start adds the names",
     );
     assert.equal(state.seq, acts.length);
@@ -654,7 +663,7 @@ test("mergeState: ordered by (made, n, seq), the start being seq 0", () => {
     { ...s1, rev: 1, exp: 9 },
     p("start", 2, 1, 0, { meta: META }),
   );
-  assert.deepEqual(named.names, { A: "North", B: "South" });
+  assert.deepEqual(named.names, { A: "Mighty Maple", B: "Lucky Larch" });
   assert.equal(named.seq, 4);
   assert.equal("rev" in named || "exp" in named, false);
   // nothing new from a start already known
@@ -1021,7 +1030,7 @@ test("the pitch pages read the api's records: in play, over with its replay and 
   await h.push(m.acts[0]); // before its start
   let s = await page();
   assert.equal(s.state, "playing");
-  assert.deepEqual(s.teams, { A: "North", B: "South" });
+  assert.deepEqual(s.teams, { A: "Mighty Maple", B: "Lucky Larch" });
   await h.push(m.start);
   for (const a of m.acts.slice(1, 5)) await h.push(a);
   s = await page();
@@ -1077,10 +1086,10 @@ test("the pitch pages read the api's records: in play, over with its replay and 
   assert.equal(s.state, "over");
   assert.equal(s.replay, true);
   assert.deepEqual(s.computer, { side: "B", level: "club" });
-  // the fixture's South won: the computer
+  // the fixture's Lucky Larch won: the computer
   assert.match(
     previewOf(s).description,
-    /^Final: South \(club\) won, against North,/,
+    /^Final: Lucky Larch \(club\) won, against Mighty Maple,/,
   );
 });
 
@@ -1152,7 +1161,7 @@ test("the pages and reels are refused nothing the roles do not allow: they read 
 
 test("share end to end: a real match through the real check, kept by the api, read by the pages", async () => {
   const sources = bundleLua();
-  // seed 3: Riverside (the person) wins on engine 0.13 (seed 2 did on 0.9)
+  // seed 3: Mighty Maple (the person) wins on engine 0.13 (seed 2 did on 0.9)
   const played = await playSolo(soloSetup(3), sources);
   const h = harness("dynamo", {
     reelEngines: [MINOR],
@@ -1174,10 +1183,10 @@ test("share end to end: a real match through the real check, kept by the api, re
   assert.equal(s.replay, true);
   assert.deepEqual(s.computer, { side: "B", level: "club" });
   const p = previewOf(s);
-  assert.equal(p.title, "Riverside vs Computer · Kubb: Throwing Wood");
+  assert.equal(p.title, "Mighty Maple vs Computer · Kubb: Throwing Wood");
   assert.equal(
     p.description,
-    `Final: Riverside won, against the computer (club), in ${s.turn} turns. Watch the replay.`,
+    `Final: Mighty Maple won, against the computer (club), in ${s.turn} turns. Watch the replay.`,
   );
   // the replay served is the checked one
   const kept = await h.replay(got.json.code);

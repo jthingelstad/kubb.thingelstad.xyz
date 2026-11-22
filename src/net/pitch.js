@@ -16,8 +16,8 @@ import {
   matchOptions,
   startMatch,
   backToLobby,
-  cleanName,
   cleanOptions,
+  setTeamName,
   optionsOf,
   LEVELS,
   sideOf,
@@ -46,7 +46,7 @@ import { WatchCard } from "../ui/watching.js";
 import { WatchView } from "../ui/watch-view.js";
 import { prefs } from "../game/prefs.js";
 import { h, button } from "../ui/dom.js";
-import { ReplayPlayer } from "../replay/player.js";
+import { ReplayPlayer, problemText, replayProblem } from "../replay/player.js";
 import { fetchReplay, askReplay } from "../replay/fetch.js";
 import { openEmbed, EMBED_ORIGIN } from "../ui/embed.js";
 import { Reel } from "../ui/reel.js";
@@ -54,6 +54,13 @@ import { reelFromPage } from "./reel.js";
 import { majorMinor, withEngineFor } from "../engine/registry.js";
 import { openSheet } from "../ui/sheet.js";
 import { SCENE_ROW } from "../render/scenes.js";
+import {
+  apartNames,
+  badNames,
+  playerDefault,
+  setupOfSnapshot,
+  teamDefault,
+} from "../game/names.js";
 
 export const tune = {
   tickMs: 200, // the controller's clock: drain, seats, the open listing
@@ -92,25 +99,25 @@ export function versionNotice(mine, theirs, why = null) {
   if (why === "load")
     return {
       title: "Could not load the match",
-      text: "This match plays on another version of Throwing Wood, and it did not load in this browser. Reload to try again.",
+      text: "This match did not load in this browser. Reload to try again.",
       reload: true,
     };
   if (!mine)
     return {
       title: "Reload to play",
-      text: "This tab has not announced its engine version. Reload to join.",
+      text: "This pitch needs the newest version of the game. Reload the page to update.",
       reload: true,
     };
   const newer = theirs != null && compareVersions(theirs, mine) > 0;
   return newer
     ? {
         title: "A newer version",
-        text: "This pitch is playing on a newer version of Throwing Wood. Reload to join.",
+        text: "This pitch is playing on a newer version of the game. Reload the page to update.",
         reload: true,
       }
     : {
         title: "An older version",
-        text: "This pitch is playing on an older version of Throwing Wood. Ask the host to reload.",
+        text: "This pitch is playing on an older version of the game, which this page no longer plays. This pitch needs the newest version of the game: the host must update to play.",
         reload: false,
       };
 }
@@ -208,8 +215,9 @@ export class Pitch {
       });
       return;
     }
-    // the device's name (src/game/player-name.js): typed once, kept on the device
-    const name = cleanName(game.playerName);
+    // the device's name (src/game/player-name.js): a generated one, kept on the device
+    this.names = game.names;
+    const name = game.playerName;
     this.name = name;
     // every engine this page can play, newest first (src/engine/registry.js)
     this.carries = this.engines?.newest ? this.engines.carried() : [ENGINE];
@@ -253,7 +261,7 @@ export class Pitch {
           game,
           {
             name: (t) => this.setName(t),
-            menu: () => this.menu?.open(),
+            teamName: (side, t) => this.setTeamName(side, t),
             team: (side) => this.pickTeam(side),
             option: (k, v) => this.setOption(k, v),
             access: (open) => this.setAccess(open),
@@ -359,12 +367,13 @@ export class Pitch {
   // (src/replay/fetch.js), once on arriving and after each match.
   async lookForReplay() {
     const doc = this.room?.doc;
-    if (this.mode !== "lobby" || !doc || !this.apiUrl) return;
-    if (lobbyOf(doc).n < 1 && !this.keptBefore) return;
+    if (this.mode !== "lobby" || !this.apiUrl) return;
+    // a wiped pitch's kept match is offered before the new pitch has a document
+    if (!this.keptBefore && (!doc || lobbyOf(doc).n < 1)) return;
     const r = await fetchReplay({
       ...this.apiOpts(),
       code: this.code,
-      check: isReplay,
+      check: (r) => this.keptCheck(r),
     });
     this.lastReplay = r;
     this.lobby?.setReplay(!!r);
@@ -477,7 +486,7 @@ export class Pitch {
     const r = await fetchReplay({
       ...this.apiOpts(),
       code: this.code,
-      check: isReplay,
+      check: (r) => this.keptCheck(r),
     });
     if (this.mode !== "sealed") return;
     // a kept match that will not play here: an observer hears there is no game
@@ -496,6 +505,29 @@ export class Pitch {
           ["HOME", this.home],
         ],
         test: "sealed-missing",
+      });
+      return;
+    }
+    // a shared match made on an engine the site no longer carries (or with a name
+    // the game did not make): the one sentence, and its reel, whose video needs no
+    // engine (docs/ENGINES.md "Looking back at a match")
+    const why = this.replayIssue(r);
+    if (why) {
+      this.mode = "gone";
+      this.note("sealed-refused", why);
+      this.arrivedOver = r.n;
+      const reel = this.reelFor(r);
+      this.cards.notice({
+        kicker: `PITCH ${this.code}`,
+        title: "Cannot replay this match",
+        text: problemText(why),
+        actions: [
+          ...(reel && why === "old"
+            ? [["HIGHLIGHT REEL", () => reel.open?.(), "go"]]
+            : []),
+          ["HOME", this.home, reel && why === "old" ? "" : "go"],
+        ],
+        test: "sealed-old",
       });
       return;
     }
@@ -522,7 +554,7 @@ export class Pitch {
       embed: () => this.showEmbed(),
       reel: this.reelFor(r),
       first: true,
-      teams: teamsLine(r.players),
+      teams: teamsLine(r.players, this.names),
     });
   }
 
@@ -549,16 +581,16 @@ export class Pitch {
 
   // ---------- the lobby ----------
 
-  // A name typed in the lobby (only while this device keeps none): kept on the
-  // device, which tells nameChanged.
+  // A name picked in the lobby's name row: kept on the device, which tells
+  // nameChanged.
   setName(text) {
     if (text == null) return;
     this.game.setPlayerName(text);
   }
 
-  // The device's name changed (MENU, or typed in the lobby).
+  // The device's name changed (MENU, or picked in the lobby).
   nameChanged(v) {
-    const name = cleanName(v);
+    const name = v;
     this.lobby?.setName(name);
     if (name === this.name) return;
     this.name = name;
@@ -566,7 +598,6 @@ export class Pitch {
   }
 
   async pickTeam(side) {
-    this.setName(this.lobby.typedName());
     const doc = this.room.doc;
     const full = side && lobbyOf(doc).teams[side].length >= 6;
     const r = await this.write((d) => joinTeam(d, this.you, side));
@@ -629,16 +660,111 @@ export class Pitch {
     setTimeout(() => (btn.textContent = "SHARE THE LINK"), 2000);
   }
 
+  // A member's name as this page shows it (docs/MULTIPLAYER.md "Names"): their
+  // presence's name when it is a generated name or a default, else the default for
+  // their place, "Player n" (n their place on their team, as the engine's lineup
+  // numbers a player with no name; a watcher, their place on the pitch). Never the
+  // text that failed. Kept per members, document and match.
   nameOf(id) {
     if (!id) return "";
-    const m = this.room?.members.find((x) => x.id === id);
-    const n = cleanName(m?.me?.name);
-    if (n) return n;
-    for (const s of ["A", "B"]) {
-      const p = this.match?.players?.[s]?.find((x) => x.id === id);
-      if (p) return p.name;
+    return this.shownNames().plain.get(id) ?? "Someone";
+  }
+
+  // The same in the lobby, where two members with one name are told apart: the
+  // second shows "II" (src/game/names.js apartNames). Never a changed name.
+  lobbyNameOf(id) {
+    if (!id) return "";
+    return this.shownNames().apart.get(id) ?? "Someone";
+  }
+
+  shownNames() {
+    const r = this.room;
+    const members = r?.members ?? [];
+    const doc = r?.doc ?? null;
+    const c = this.shownCache;
+    if (c && c.members === members && c.doc === doc && c.match === this.match)
+      return c;
+    const teams = doc ? lobbyOf(doc).teams : { A: [], B: [] };
+    const placeOf = (id, i) => {
+      for (const s of ["A", "B"]) {
+        const k = teams[s].indexOf(id);
+        if (k >= 0) return k + 1;
+      }
+      return i + 1;
+    };
+    const plain = new Map();
+    members.forEach((m, i) => {
+      const n = m?.me?.name;
+      if (typeof n === "string" && n && this.names.passes("player", n))
+        plain.set(m.id, n);
+      else plain.set(m.id, playerDefault(placeOf(m.id, i)));
+    });
+    // a player of the match who has left: the match's own name for them, checked
+    for (const s of ["A", "B"])
+      (this.match?.players?.[s] ?? []).forEach((p, k) => {
+        if (p?.id && !plain.has(p.id))
+          plain.set(
+            p.id,
+            this.names.shown("player", p.name, playerDefault(k + 1)),
+          );
+      });
+    const apart = apartNames([...plain].map(([id, name]) => ({ id, name })));
+    this.shownCache = { members, doc, match: this.match, plain, apart };
+    return this.shownCache;
+  }
+
+  // A side's team name as the lobby shows it: the document's when it is a generated
+  // team name, else "Team A" / "Team B".
+  teamNameOf(side) {
+    const t = this.room?.doc?.teamNames?.[side];
+    return this.names.shown("team", t, teamDefault(side));
+  }
+
+  // The host picks a side's team name in the lobby (a side of several plays under it).
+  setTeamName(side, text) {
+    if (!this.room?.isHost() || !this.names.valid("team", text).ok) return;
+    this.write((d) => setTeamName(d, side, text));
+  }
+
+  // The host, in the lobby: a side of several with no team name gets one rolled, once,
+  // so everyone sees what it will play as (docs/MULTIPLAYER.md "Names").
+  rollTeamNames() {
+    const r = this.room;
+    if (!r?.isHost() || this.mode !== "lobby" || r.status !== "open") return;
+    const l = lobbyOf(r.doc);
+    const ids = new Set(r.members.map((m) => m.id));
+    for (const side of ["A", "B"]) {
+      const several = l.teams[side].filter((id) => ids.has(id)).length > 1;
+      const has = r.doc?.teamNames?.[side];
+      if (several && !this.names.valid("team", has).ok) {
+        // one write at a time, and a few tries at most should writes fail
+        if (this.rollingTeam || (this.teamRolls ?? 0) >= 3) return;
+        const text = this.names.roll("team").text;
+        this.rollingTeam = true;
+        this.teamRolls = (this.teamRolls ?? 0) + 1;
+        this.write((d) => setTeamName(d, side, text)).then((ok) => {
+          this.rollingTeam = false;
+          if (ok) this.teamRolls = 0;
+          this.renderLobby();
+        });
+        return;
+      }
     }
-    return "Someone";
+  }
+
+  // The lineup with every name checked: a player's presence name that is not a
+  // generated name or a default becomes "Player n" (n their place on the side, as
+  // the engine's lineup numbers a player with no name).
+  checkedLineup(lu) {
+    if (!lu) return lu;
+    const players = {};
+    for (const s of ["A", "B"])
+      players[s] = (lu.players[s] ?? []).map((p, k) =>
+        this.names.passes("player", p.name)
+          ? p
+          : { ...p, name: playerDefault(k + 1) },
+      );
+    return { ...lu, players };
   }
 
   renderLobby() {
@@ -650,11 +776,13 @@ export class Pitch {
       members: r.members,
       doc: r.doc,
       status: r.status,
-      nameOf: (id) => this.nameOf(id),
+      nameOf: (id) => this.lobbyNameOf(id),
+      teamName: (side) => this.teamNameOf(side),
       // the next match's engine: its options are the rows (the computer's level on 0.9)
       engine: this.roomEngine().engine,
     });
     this.lobbyEngine();
+    this.rollTeamNames();
   }
 
   // ---------- the room's engine (docs/ENGINES.md "Playing together") ----------
@@ -753,60 +881,39 @@ export class Pitch {
   }
 
   // The lobby's words when no engine is carried by the host and every player: who stands
-  // in the way and what to do, in a player's words. Version numbers only here, where they
-  // say what to get.
+  // in the way and what to do, in a player's words. The site plays only the newest
+  // engine (docs/ENGINES.md), so a player on an older one is told to update, and this
+  // page, when it is the older one, to reload. No version numbers: "the newest" says
+  // what to get.
   blockedText(e) {
     const r = this.room;
     const byId = new Map(r.members.map((m) => [m.id, m]));
     const carriedOf = (id) =>
       id === r.you ? this.carries : carriedBy(byId.get(id)?.me);
     const missing = [...new Set([...e.missing, ...e.unknown])];
-    const lu = lineup(r.doc, r.members);
-    const counted = [
-      r.host,
-      ...["A", "B"].flatMap((s) => (lu?.players[s] || []).map((p) => p.id)),
-    ].filter((id, i, all) => id != null && all.indexOf(id) === i);
-    const others = counted.filter((id) => !missing.includes(id));
-    // the engine the rest share: the newest every one of them carries
-    const lists = others.map(carriedOf);
-    const shared =
-      lists[0]?.find((mm) => lists.every((l) => l.includes(mm))) ?? null;
+    const mine = this.carries[0];
     const lines = [];
-    if (missing.includes(r.you)) {
-      const mine = this.carries[0];
+    if (missing.includes(r.you))
       lines.push(
-        shared && compareEngines(mine, shared) < 0
-          ? `This browser has an older version of Throwing Wood (${mine}) than the others here (${shared}), so the match cannot start. Reload the page to play.`
-          : shared
-            ? `The others here have an older version of Throwing Wood (${shared}) than this browser (${mine}), so the match cannot start. Ask them to reload the page or update the app.`
-            : "The players here have different versions of Throwing Wood, so the match cannot start. Everyone: reload the page or update the app.",
+        "This pitch needs the newest version of the game. Reload the page to update.",
       );
-    }
     const older = [];
     const newer = [];
-    const unknown = [];
     for (const id of missing) {
       if (id === r.you) continue;
       const list = carriedOf(id);
-      if (!list.length) unknown.push(id);
-      else if (shared && compareEngines(list[0], shared) > 0) newer.push(id);
+      if (list.length && compareEngines(list[0], mine) > 0) newer.push(id);
       else older.push(id);
     }
     const who = (ids) => namesLine(ids.map((id) => this.nameOf(id)));
     const has = (ids) => (ids.length > 1 ? "have" : "has");
-    const theirs = (ids) =>
-      [...new Set(ids.map((id) => carriedOf(id)[0]))].join(", ");
     if (older.length)
       lines.push(
-        `${who(older)} ${has(older)} an older version of Throwing Wood (${theirs(older)})${shared ? ` than this pitch plays (${shared})` : ""}, so the match cannot start. ${who(older)}: reload the page or update the app.`,
+        `${who(older)} ${has(older)} an older version of the game. This pitch needs the newest version of the game. ${who(older)}: update to play.`,
       );
-    if (newer.length)
+    if (newer.length && !missing.includes(r.you))
       lines.push(
-        `${who(newer)} ${has(newer)} a newer version of Throwing Wood (${theirs(newer)}) than the rest of this pitch (${shared}), so the match cannot start. Everyone else: reload the page or update the app, or ${who(newer)} can watch.`,
-      );
-    if (unknown.length)
-      lines.push(
-        `${who(unknown)} ${has(unknown)} a version of Throwing Wood too old to say which it is, so the match cannot start. ${who(unknown)}: reload the page or update the app.`,
+        `${who(newer)} ${has(newer)} a newer version of the game than this page. Reload the page to update, or ${who(newer)} can watch.`,
       );
     return lines.join(" ") || null;
   }
@@ -852,9 +959,10 @@ export class Pitch {
   async start(tries = 0) {
     const room = this.room;
     if (!room.isHost() || this.mode !== "lobby" || this.starting) return;
-    this.setName(this.lobby.typedName());
     const doc = room.doc;
-    const lu = lineup(doc, room.members);
+    // every name the match takes passes the check here first, so an honest host never
+    // starts a match the pitch server would refuse (docs/MULTIPLAYER.md "Names")
+    const lu = this.checkedLineup(lineup(doc, room.members));
     if (!lu) {
       this.lobby.say("Nobody is on a team yet.");
       return;
@@ -890,7 +998,7 @@ export class Pitch {
     if (!ok.ok) {
       const who = [...ok.differ, ...ok.unknown].map((id) => this.nameOf(id));
       this.lobby.say(
-        `${namesLine(who)} ${who.length > 1 ? "are" : "is"} on another version of Throwing Wood: reload to play.`,
+        `${namesLine(who)} ${who.length > 1 ? "are" : "is"} on another version of the game. This pitch needs the newest version of the game: update to play.`,
       );
       this.note("start-refused", ok.differ.length, ok.unknown.length);
       return;
@@ -911,6 +1019,16 @@ export class Pitch {
       },
       mm,
     );
+    // a side of several plays under the team name the host picked in the lobby (or
+    // one rolled now); a side of one under its player's name (matchOptions)
+    for (const s of ["A", "B"]) {
+      const t = opts.teams?.[s];
+      if (!t || lu.cpu === s || (lu.players[s] ?? []).length < 2) continue;
+      const picked = doc?.teamNames?.[s];
+      t.name = this.names.valid("team", picked).ok
+        ? picked
+        : this.names.roll("team").text;
+    }
     const n = lobbyOf(doc).n + 1;
     this.match = { players: lu.players, cpu: lu.cpu };
     this.matchMm = mm;
@@ -1274,6 +1392,24 @@ export class Pitch {
     const carried = reg ? reg.has(mm) : mm === ENGINE;
     const failed = this.engineFailed === mm;
     if (carried && reg && !failed && !reg.loaded(mm)) return this.waitFor(mm);
+    // a match whose names are not all generated names or defaults (a forged start: an
+    // honest host checks them, and so does the pitch server) is not shown: its
+    // snapshot is hashed, so its names cannot be put right here
+    if (carried && badNames(this.names, setupOfSnapshot(m.snap)).length) {
+      if (this.namesRefused !== m.n) {
+        this.namesRefused = m.n;
+        this.note("names-refused", m.n);
+        this.lobby?.hide();
+        this.cards.notice({
+          kicker: `PITCH ${this.code}`,
+          title: "Cannot show this match",
+          text: "This match has a name the game did not make, so it cannot be shown.",
+          actions: [["HOME", this.home, "go"]],
+          test: "names-refused",
+        });
+      }
+      return;
+    }
     this.mode = "match";
     this.arrivedOver = m.over ? m.n : null;
     this.match = {
@@ -1313,6 +1449,20 @@ export class Pitch {
     this.game.seat = this.seatFor(this.control);
     this.game.localSide = this.sideHere();
     this.syncView();
+    // a match on an engine this page does not carry (the site plays only the newest) is
+    // watched at most: its snapshot is drawn when this engine can read it, and the card
+    // says why it is not played; one it cannot read is not drawn at all
+    if (!carried) {
+      try {
+        this.game.adopt(m.snap);
+      } catch (err) {
+        this.note("adopt-refused", mm, String(err?.message || err));
+      }
+      this.note("start", m.n, m.seq);
+      this.showVersion(this.refused);
+      this.afterEnter();
+      return;
+    }
     this.game.adopt(m.snap);
     // a match that ended with no `over` on its last action: the engine says so, after
     // the winner card went up, so it goes up again as an arrival's
@@ -1434,7 +1584,7 @@ export class Pitch {
     const r = await fetchReplay({
       ...this.apiOpts(),
       code: this.code,
-      check: isReplay,
+      check: (r) => this.keptCheck(r),
     });
     const still =
       this.mode === "match" &&
@@ -1468,11 +1618,50 @@ export class Pitch {
       // a highlight reel of it (docs/REEL.md): with its replay only
       reel: data ? this.reelFor(m) : null,
       first: arrived,
-      teams: arrived ? teamsLine(m.players) : null,
+      teams: arrived ? teamsLine(m.players, this.names) : null,
     });
   }
 
   // ---------- a replay ----------
+
+  // Why a kept match will not play here: "old" (made on an engine the site no longer
+  // carries), "names" (a name the game did not make) or null (src/replay/player.js).
+  replayIssue(r) {
+    return replayProblem(r, {
+      engines: this.engines?.newest ? this.engines : null,
+      engine: this.newestEngine,
+    });
+  }
+
+  // A kept replay as the api answers it: one this engine reads, or one made on an
+  // engine the site no longer carries (shown with the one sentence, never played).
+  keptCheck(r) {
+    return this.replayIssue(r) === "old" || isReplay(r);
+  }
+
+  // The one sentence for a kept match that will not play, over whatever is up.
+  replayRefused(why) {
+    this.note("replay-refused", why);
+    const close = this.cards.notice({
+      kicker: `PITCH ${this.code}`,
+      title: "Cannot replay this match",
+      text: problemText(why),
+      actions: [
+        [
+          "OK",
+          () => {
+            close();
+            // back to what was up: the lobby, or the winner card
+            if (this.mode === "lobby") this.lobby?.show();
+            else if (this.game.need?.kind === "over")
+              this.onNeed(this.game.need);
+          },
+          "go",
+        ],
+      ],
+      test: "replay-refused",
+    });
+  }
 
   // WATCH REPLAY (the winner card) or WATCH THE LAST MATCH (the lobby): the match
   // played again here (src/replay/player.js), read only. The pitch stays joined; its
@@ -1484,6 +1673,8 @@ export class Pitch {
       this.mode !== "sealed"
     )
       return;
+    const why = this.replayIssue(data);
+    if (why) return this.replayRefused(why);
     // the match's own engine: at once when it is loaded (the newest always is), else
     // once it has loaded, if the page is still where it was
     const from = this.mode;
@@ -1887,11 +2078,15 @@ export class Pitch {
   }
 }
 
-// "Hanna, Ola v Per" for the winner card of a match this browser arrived at
-// after its end.
-function teamsLine(players) {
+// "Mighty Maple, Lucky Larch  v  Brave Birch" for the winner card of a match this
+// browser arrived at after its end, each name checked (a generated name or a default,
+// else "Player n").
+function teamsLine(players, names) {
   if (!players) return null;
-  const side = (s) => (players[s] || []).map((p) => p.name).join(", ");
+  const side = (s) =>
+    (players[s] || [])
+      .map((p, k) => names.shown("player", p?.name, playerDefault(k + 1)))
+      .join(", ");
   const a = side("A") || "The computer";
   const b = side("B") || "The computer";
   return `${a}  v  ${b}`;

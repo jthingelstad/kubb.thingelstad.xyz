@@ -10,7 +10,6 @@ import {
   SHARE_LIMITS,
   SHARE_WORDS,
   askShare,
-  clipName,
   nameFromMatch,
   nameProblem,
   shareMessage,
@@ -30,12 +29,14 @@ import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { devReelEngines } from "../../tools/reels-dev.mjs";
 import { bundleLua, engineVersion } from "../../tools/lua-bundle.mjs";
 import { playSolo, soloSetup } from "../../tools/reel/solo.mjs";
+import { namesOf } from "../../src/game/names.js";
 
 const sources = bundleLua();
 const engine = await Engine.create({ sources });
 useRoomEngine(engine);
 const played = await playSolo(soloSetup(2), sources);
 useRoomEngine(engine); // playSolo hands the room calls its own engine, now closed
+const names = namesOf(engine);
 
 // A finished match as the Game holds it (game.trail) and its `over` need.
 const trail = {
@@ -65,6 +66,7 @@ test("share: the card's words have no em dash and name no device", () => {
   // every why the server answers has its line
   for (const why of [
     "engine",
+    "name",
     "does-not-replay",
     "busy",
     "too-long",
@@ -84,27 +86,27 @@ test("share: the browser's limits are the api's", () => {
   );
 });
 
-test("share: the name field takes what the check takes, and says why not", () => {
-  for (const ok of ["Ann", "Riverside", "a".repeat(16), "Ünïcödé 🪵"])
-    assert.equal(nameProblem(ok), null, ok);
-  assert.equal(nameProblem(""), "empty");
-  assert.equal(nameProblem("   "), "empty");
-  assert.equal(nameProblem(" Ann"), "spaces");
-  assert.equal(nameProblem("You"), "you");
-  assert.equal(nameProblem("YOU"), "you");
-  assert.equal(nameProblem("a".repeat(17)), "long");
-  // 16 characters counted as the server counts them, not UTF-16 units
-  assert.equal(nameProblem("🪵".repeat(16)), null);
-  assert.equal(clipName("🪵".repeat(20)), "🪵".repeat(16));
-  assert.equal(clipName("abcdefghijklmnopqrs"), "abcdefghijklmnop");
+test("share: the name takes what the check takes: a generated name or a default", () => {
+  for (const ok of ["Mighty Maple", "Lucky Larch", "Player 1"])
+    assert.equal(nameProblem(names, ok), null, ok);
+  for (const bad of ["", "Ann", "Riverside", "You", "Wobbly Towers", null])
+    assert.equal(nameProblem(names, bad), "pick", String(bad));
+  assert.equal(SHARE_WORDS.name.pick, "Pick a name for your side.");
+  assert.equal(SHARE_WORDS.why.name, "Pick a name for your side.");
 });
 
-test("share: the field starts with the match's name, never the stand-in You", () => {
-  assert.equal(nameFromMatch(played.start), "Riverside");
-  const you = JSON.parse(played.start);
-  you.opts.teams.A.name = "You";
-  assert.equal(nameFromMatch(JSON.stringify(you)), "");
-  assert.equal(nameFromMatch("not json"), "");
+test("share: the name row starts with the match's name, else the device's", () => {
+  assert.equal(
+    nameFromMatch(names, played.start, "Lucky Larch"),
+    "Mighty Maple",
+  );
+  const typed = JSON.parse(played.start);
+  typed.opts.teams.A.name = "Riverside";
+  assert.equal(
+    nameFromMatch(names, JSON.stringify(typed), "Lucky Larch"),
+    "Lucky Larch",
+  );
+  assert.equal(nameFromMatch(names, "not json", "Lucky Larch"), "Lucky Larch");
 });
 
 test("share: only a finished match against the computer may be shared", () => {
@@ -122,7 +124,7 @@ test("share: only a finished match against the computer may be shared", () => {
 // ---------- the message ----------
 
 test("share: the message is the engine's rename, and passes the real check", async () => {
-  const made = shareMessage({ engine, trail, need, name: "Lakeside" });
+  const made = shareMessage({ engine, trail, need, name: "Lucky Larch" });
   assert.ok(made.message, JSON.stringify(made.why));
   const g = made.message.g;
   assert.equal(made.message.t, "share");
@@ -136,9 +138,9 @@ test("share: the message is the engine's rename, and passes the real check", asy
     "start",
   ]);
   const opts = JSON.parse(g.start).opts;
-  assert.equal(opts.teams.A.name, "Lakeside");
-  assert.equal(opts.teams.A.players[0].name, "Lakeside");
-  assert.ok(!g.start.includes("Riverside"), "the typed name stays here");
+  assert.equal(opts.teams.A.name, "Lucky Larch");
+  assert.equal(opts.teams.A.players[0].name, "Lucky Larch");
+  assert.ok(!g.start.includes("Mighty Maple"), "the old name is renamed away");
   assert.equal(g.log.length, played.log.length);
   assert.deepEqual(g.end, {
     winner: played.end.winner,
@@ -213,6 +215,7 @@ test("share: SHARE goes to checking, and a code hands over to the reel", () => {
 test("share: each why has its line, and none offers TRY AGAIN", () => {
   for (const why of [
     "engine",
+    "name",
     "does-not-replay",
     "busy",
     "too-long",
@@ -314,7 +317,7 @@ after(async () => {
 });
 
 const at = (s) => ({ url: s.apiUrl });
-const message = (name = "Lakeside") =>
+const message = (name = "Lucky Larch") =>
   shareMessage({ engine, trail, need, name }).message;
 
 // What the card shows for one real share.
@@ -338,7 +341,10 @@ test("share (server): a match gets a code, and the same match again the same cod
   const two = await askShare({ ...at(server), message: message() });
   assert.equal(two.code, one.code, "a share is idempotent");
   // another name is another match
-  const other = await askShare({ ...at(server), message: message("Hillside") });
+  const other = await askShare({
+    ...at(server),
+    message: message("Brave Birch"),
+  });
   assert.notEqual(other.code, one.code);
 });
 
@@ -350,7 +356,7 @@ test("share (server): the shared code reads as a finished pitch's replay, and it
     r.kept,
     server.api.store.items.get(`pitch#${sharedCode}|replay`).v,
   );
-  assert.equal(r.players.A[0].name, "Lakeside");
+  assert.equal(r.players.A[0].name, "Lucky Larch");
   const reel = await askReel({ ...at(server), code: sharedCode, v: r.kept });
   assert.equal(reel.v, r.kept);
   assert.equal(reel.reel?.state, "rendering", JSON.stringify(reel));
@@ -383,8 +389,14 @@ test("share (server): each refusal shows its line", async () => {
   assert.equal(got.a?.why, "engine");
   assert.equal(got.view.text, SHARE_WORDS.why.engine);
 
+  // name: a name the game did not make (a page that types one), "Pick a name"
+  got = await shown(server, message("Lakeside"));
+  assert.equal(got.a?.why, "name");
+  assert.equal(got.view.text, SHARE_WORDS.why.name);
+  assert.equal(got.view.text, "Pick a name for your side.");
+
   // does-not-replay: the end claimed is not the end the match reaches
-  const m = message("Cliffside");
+  const m = message("Calm Cedar");
   const wrong = {
     ...m,
     g: {
@@ -408,7 +420,7 @@ test("share (server): each refusal shows its line", async () => {
       throw new ShareBusy("busy");
     },
   });
-  got = await shown(busy, message("Seaside"));
+  got = await shown(busy, message("Happy Hazel"));
   assert.equal(got.a?.why, "busy");
   assert.equal(got.view.text, SHARE_WORDS.why.busy);
 
@@ -419,21 +431,21 @@ test("share (server): each refusal shows its line", async () => {
       throw new Error("broken");
     },
   });
-  got = await shown(broken, message("Brookside"));
+  got = await shown(broken, message("Gentle Ginkgo"));
   assert.equal(got.e?.code, "failed");
   assert.equal(got.view.text, SHARE_WORDS.failed);
   assert.equal(got.view.retry, true);
 
   // too-many: there is no connection to count shares on any more; only the site's web
   // ACL says it, as a bare 429
-  got = await shown(server, message("Parkside"), {
+  got = await shown(server, message("Jolly Juniper"), {
     fetch: async () => new Response("", { status: 429 }),
   });
   assert.equal(got.e?.code, "too-many");
   assert.equal(got.view.text, SHARE_WORDS.why["too-many"]);
 
   // too-long, from the server: past its own action ceiling, before any check
-  const long = message("Bayside");
+  const long = message("Eager Elm");
   const many = {
     ...long,
     g: {

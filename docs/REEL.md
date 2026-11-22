@@ -365,26 +365,26 @@ A match against the computer, before it is sent (`SHARE_WORDS` in `src/net/share
 Once shared, the reel card above takes over, with its link and COPY LINK shown from the
 start.
 
-| Where                       | Words                                                                                                                                          |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Button on the winner card   | MAKE A HIGHLIGHT REEL (MAKING YOUR REEL while it is checked, then the reel's)                                                                  |
-| Card title                  | Share this match                                                                                                                               |
-| What sharing does           | To make a reel, this match goes to throwingwood.com and gets its own link. Anyone with the link can watch the replay and the reel, for a year. |
-| The field                   | Name on the reel, empty with "Your team's name" greyed in it                                                                                   |
-| Under the field             | Your side is shown by this name. The other side is Computer. Nothing else about you is sent.                                                   |
-| When it was played          | The score sheet shows the day and time the match was played.                                                                                   |
-| Card buttons                | SHARE AND MAKE THE REEL (faded until the name will do), NOT NOW; after sending TRY AGAIN, BACK                                                 |
-| The name will not do        | Type a name for your side. / A reel needs a name, not "You". / Up to 16 characters. / No spaces at the start or end.                           |
-| While it is checked         | CHECKING THE MATCH, the slow bar, then "This takes a few seconds."                                                                             |
-| The link, once shared       | The link: https://throwingwood.com/p/<code>                                                                                                    |
-| `engine`                    | This match was played on another version of the game, so it cannot be shared.                                                                  |
-| `does-not-replay`           | This match did not pass the check, so it cannot be shared.                                                                                     |
-| `too-long` (known here too) | This match is too long to share.                                                                                                               |
-| `busy`                      | Sharing is busy right now. Try again later.                                                                                                    |
-| `unavailable`, unknown whys | Matches cannot be shared right now.                                                                                                            |
-| `too-many`                  | Too many matches shared at once. Try again later.                                                                                              |
-| The error `failed`          | This match could not be shared. (TRY AGAIN once, then "This match could not be shared. Not this time.")                                        |
-| No connection               | No connection. (TRY AGAIN as often as pressed)                                                                                                 |
+| Where                                | Words                                                                                                                                          |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Button on the winner card            | MAKE A HIGHLIGHT REEL (MAKING YOUR REEL while it is checked, then the reel's)                                                                  |
+| Card title                           | Share this match                                                                                                                               |
+| What sharing does                    | To make a reel, this match goes to throwingwood.com and gets its own link. Anyone with the link can watch the replay and the reel, for a year. |
+| The name                             | Name on the reel: the name row (the name, SHUFFLE, a picker and KEEP per word), starting with the name the match was played under              |
+| Under the field                      | Your side is shown by this name. The other side is Computer. Nothing else about you is sent.                                                   |
+| When it was played                   | The score sheet shows the day and time the match was played.                                                                                   |
+| Card buttons                         | SHARE AND MAKE THE REEL, NOT NOW; after sending TRY AGAIN, BACK                                                                                |
+| `name` (the server refused the name) | Pick a name for your side.                                                                                                                     |
+| While it is checked                  | CHECKING THE MATCH, the slow bar, then "This takes a few seconds."                                                                             |
+| The link, once shared                | The link: https://throwingwood.com/p/<code>                                                                                                    |
+| `engine`                             | This match was played on another version of the game, so it cannot be shared.                                                                  |
+| `does-not-replay`                    | This match did not pass the check, so it cannot be shared.                                                                                     |
+| `too-long` (known here too)          | This match is too long to share.                                                                                                               |
+| `busy`                               | Sharing is busy right now. Try again later.                                                                                                    |
+| `unavailable`, unknown whys          | Matches cannot be shared right now.                                                                                                            |
+| `too-many`                           | Too many matches shared at once. Try again later.                                                                                              |
+| The error `failed`                   | This match could not be shared. (TRY AGAIN once, then "This match could not be shared. Not this time.")                                        |
+| No connection                        | No connection. (TRY AGAIN as often as pressed)                                                                                                 |
 
 ## The server
 
@@ -493,7 +493,9 @@ under the stage throttle.
 plays the match through the engine release of that major.minor, from `start`:
 
 1. the start is a new match of a person (side A) against the computer (side B), and
-   side A's name is 1 to 16 characters and not "You";
+   side A's name is a generated player name or one of the engine's defaults
+   (`names.valid` on the match's engine; else `why: "name"`, since 2026-11-21: no name
+   is typed, the engine's docs/NAMES.md);
 2. every action is taken, none refused, and the match ends `over` with the winner and
    the number of throws the device claims;
 3. each of the computer's throws is made again by the engine from the snapshot before
@@ -871,16 +873,17 @@ ever has to draw something only the browser can.
 
 ## Privacy
 
-A reel shows the **team names only**, never member ids or anything else typed in the
-lobby. A side's name is what its players typed: for a player alone on a side, the name
-they typed. It is made from the kept replay, never from the private games
-bucket or the records.
+A reel shows the **team names only**, never member ids. Since 2026-11-21 every name is
+a generated one, made from the engine's word lists (the engine's docs/NAMES.md): a side
+of several plays under the team name its host picked, a player alone on a side under
+the name they picked, and nobody types one. A reel draws only a name the game makes (or
+a default: "Team A"), whatever a replay holds (`shownTeams` in `backend/reels/render.mjs`).
+It is made from the kept replay, never from the private games bucket or the records.
 
-A match against the computer is different in one way: its side's name is what the
-player typed for themself, so it may be their own name. So it is asked for again on the
-share card, under words that say it will be public, and only that name is sent and kept:
-the device writes it into the match before sending, so the typed one never leaves the
-device in a share. The other side is always Computer. The share sends no player
+A match against the computer is shared under the name picked on the share card, in its
+name row, under words that say it will be public; only that name is sent and kept (the
+device writes it into the match before sending), and the share check refuses any name
+the game did not make (`why: "name"`, "Pick a name for your side."). The other side is always Computer. The share sends no player
 name, member id, build, clock or user agent; the private record of the same match (the
 web's `game` message) is a separate thing, kept privately as before, and is not linked
 to the shared code. **Built, with one correction:** "build" holds (`client` is checked

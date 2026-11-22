@@ -16,7 +16,11 @@
 //
 // The pitch knows no Kubb. It keeps the members, the host, one lobby document
 // (compare-and-set), the match's head (sequence, hash, snapshot) and its action log,
-// and relays casts. Clients run the engine and cross-check hashes.
+// and relays casts. Clients run the engine and cross-check hashes. The one thing it
+// reads is names (PROTOCOL.md "Names"): a member's name that is not a generated name or
+// a default is dropped, and a lobby write or start naming one is refused.
+
+import { NAMES } from "./names.mjs";
 
 export const PITCH_CODE = /^[2-9a-hjkmnp-z]{8,24}$/;
 export const MEMBER_ID = /^[A-Za-z0-9_-]{8,40}$/;
@@ -433,7 +437,50 @@ function mergeMe(me, fields, L) {
       "too-big",
       `A member's fields are limited to ${L.meBytes} bytes.`,
     );
-  return next;
+  return checkedMe(next);
+}
+
+// A member's fields with its name checked (PROTOCOL.md "Names"): a `name` that is not a
+// generated player name or one of the engine's defaults is dropped, never refused, so
+// the member stays and everyone (the member too) shows them as "Player n", the
+// engine's name for a player with none.
+export function checkedMe(me) {
+  if (!isObject(me) || !("name" in me) || NAMES.passes("player", me.name))
+    return me;
+  const out = { ...me };
+  delete out.name;
+  return out;
+}
+
+// The names a lobby write or a start carries that do not pass (PROTOCOL.md "Names"):
+// the document's team names (`teamNames`, a generated team name each), the match header's
+// players (`doc.match.players`), and a start's `meta`: its players and its setup's teams
+// (a side of one is named after its player). [] when every one passes.
+export function badNames(doc, meta = null) {
+  const bad = [];
+  const player = (n) => {
+    if (n !== undefined && !NAMES.passes("player", n)) bad.push(n);
+  };
+  if (isObject(doc?.teamNames))
+    for (const v of Object.values(doc.teamNames))
+      if (!NAMES.passes("team", v)) bad.push(v);
+  const sides = (players) => {
+    if (!isObject(players)) return;
+    for (const list of Object.values(players))
+      if (Array.isArray(list)) for (const p of list) player(p?.name);
+  };
+  sides(doc?.match?.players);
+  sides(meta?.players);
+  const teams = meta?.setup?.teams;
+  if (isObject(teams))
+    for (const t of Object.values(teams)) {
+      if (!isObject(t)) continue;
+      const ps = Array.isArray(t.players) ? t.players : [];
+      if (t.name !== undefined && !NAMES.teamPasses(t.name, ps.length))
+        bad.push(t.name);
+      for (const p of ps) player(p?.name);
+    }
+  return bad;
 }
 
 // The earliest-joined connected player other than the host: who the host passes to.
@@ -658,6 +705,11 @@ function checkDocWrite(cx, who, msg) {
     throw new PitchError(
       "too-big",
       `The document is limited to ${L.docBytes} bytes.`,
+    );
+  if (badNames(msg.doc, msg.t === "start" ? msg.meta : null).length)
+    throw new PitchError(
+      "bad-name",
+      "A name here is not one the game makes. Pick names with the game.",
     );
 }
 
@@ -1227,7 +1279,8 @@ export function rebuildPitch({
       joined: r.joined,
       since: r.since,
       role: r.role,
-      me: r.me,
+      // a name kept from before names were checked is dropped as a new one would be
+      me: checkedMe(r.me),
       conn: null,
     });
     if (r.on) wasOn.push(r.id);

@@ -14,8 +14,8 @@
 //   shareView(s)  // { phase, line, text, bar, retry, form, code }
 //
 // What goes: the match's first snapshot and every action since, as the engine renames
-// them (`renameStart`: side A takes the name typed on the card, so the name typed for
-// the match never leaves the browser), the winner and the number of throws, the engine's
+// them (`renameStart`: side A takes the name picked on the card, a generated name from
+// the engine's word lists, as every name is), the winner and the number of throws, the engine's
 // version and `client: "web"` (checked by the server, then dropped: never stored, as
 // the iPhone's "ios" is not). No hashes, no member id, no clock of this browser's. The
 // match's own start, with the day and time it began, is part of the first snapshot.
@@ -28,7 +28,6 @@ export const SHARE_LIMITS = Object.freeze({
   bytes: 256 * 1024, // the whole message, as ASCII JSON
   actions: 1000,
   startBytes: 16 * 1024,
-  nameMax: 16, // characters (code points) of the name on the reel
   waitMs: 45000, // the server plays the match before answering: up to 20 s, and 30 s after the last part
 });
 
@@ -41,7 +40,6 @@ export const SHARE_WORDS = Object.freeze({
   about:
     "To make a reel, this match goes to throwingwood.com and gets its own link. Anyone with the link can watch the replay and the reel, for a year.",
   label: "Name on the reel",
-  placeholder: "Your team's name",
   sides:
     "Your side is shown by this name. The other side is Computer. Nothing else about you is sent.",
   when: "The score sheet shows the day and time the match was played.",
@@ -54,12 +52,10 @@ export const SHARE_WORDS = Object.freeze({
   notThisTime: "This match could not be shared. Not this time.",
   offline: "No connection.",
   name: {
-    empty: "Type a name for your side.",
-    you: 'A reel needs a name, not "You".',
-    long: "Up to 16 characters.",
-    spaces: "No spaces at the start or end.",
+    pick: "Pick a name for your side.",
   },
   why: {
+    name: "Pick a name for your side.",
     engine:
       "This match was played on another version of the game, so it cannot be shared.",
     "does-not-replay":
@@ -75,35 +71,28 @@ export const SHARE_WORDS = Object.freeze({
 // rest (busy, unavailable, too-many) let the card start over next time it is opened.
 const FINAL = new Set(["engine", "does-not-replay", "too-long"]);
 
-const codePoints = (s) => [...s].length;
-
 // The name as the share card takes it: null when it may go on the reel, else the
-// reason (a key of SHARE_WORDS.name). As backend/reels/check.mjs nameAllowed: 1 to 16
-// characters, no spaces around it, not "You" in any case. The card trims before asking.
-export function nameProblem(name) {
-  if (typeof name !== "string" || !name.trim()) return "empty";
-  if (name !== name.trim()) return "spaces";
-  if (codePoints(name) > SHARE_LIMITS.nameMax) return "long";
-  if (name.toLowerCase() === "you") return "you";
-  return null;
+// reason (a key of SHARE_WORDS.name). As the server's check (backend/reels/check.mjs
+// sidesOf): a generated player name, or one of the engine's defaults (names.valid's
+// `ok` or `default`). The card offers only the name row, so an honest page never sends
+// another. names: the engine's door (src/game/names.js).
+export function nameProblem(names, name) {
+  return typeof name === "string" && names.passes("player", name)
+    ? null
+    : "pick";
 }
 
-// What the field starts with: the name typed for the match, unless it was the game's
-// stand-in "You" (or nothing).
-export function nameFromMatch(start) {
+// What the name row starts with: the name the match was played under when it is a
+// generated name (the device's, since names are generated), else `fallback` (the
+// device's name now).
+export function nameFromMatch(names, start, fallback) {
   try {
     const n = JSON.parse(start)?.opts?.teams?.A?.name;
-    if (typeof n !== "string") return "";
-    const t = n.trim();
-    return nameProblem(t) ? "" : t;
+    return typeof n === "string" && names.valid("player", n).ok ? n : fallback;
   } catch {
-    return "";
+    return fallback;
   }
 }
-
-// Cut a typed name to 16 characters (code points, as the server counts them).
-export const clipName = (text) =>
-  [...String(text ?? "")].slice(0, SHARE_LIMITS.nameMax).join("");
 
 // Is this a match that may be shared: a finished match of the person (side A) against
 // the computer (side B), with its whole trail?
@@ -158,7 +147,7 @@ export function shareMessage({ engine, trail, need, name, id = 1 }) {
   const kept =
     asciiJson(log.map((e, i) => ({ a: e.a, h: hashes[i] ?? "" }))).length +
     asciiJson(trail.now ?? "").length;
-  // a margin for the name's length in the last snapshot, which is the typed one
+  // a margin for the name's length in the last snapshot, which is the one picked
   if (Number.isFinite(LOG_BUDGET) && kept - 4096 > LOG_BUDGET)
     return { why: "too-long", bytes };
   return { message, bytes };

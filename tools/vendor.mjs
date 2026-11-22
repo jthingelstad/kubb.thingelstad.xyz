@@ -28,7 +28,7 @@
 // hashes.json) as golden/. Tags are read from the engine checkout's git objects,
 // never its working tree.
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -365,6 +365,14 @@ function main(argv) {
         drop: flag("drop"),
       }))
         console.log(line);
+      // the names' word lists for the pitch server, from the newest engine
+      // (tools/names-words.mjs; `npm run check` holds them to it)
+      const words = spawnSync(
+        process.execPath,
+        [path.join(here, "tools", "names-words.mjs"), "write"],
+        { stdio: "inherit" },
+      );
+      if (words.status !== 0) throw new Error("names-words.json not written");
     } else if (mode === "drop") {
       for (const line of drop({ mm: args[0] })) console.log(line);
     } else if (mode !== "check") {

@@ -8,8 +8,8 @@
 //   checkShare({ g, sources, engine, engines })  (one engine: a set of one) ->
 //     { ok: true, engine, document, replay, actions, throws }   document and replay are
 //                 ASCII JSON text, built by the engine (replayDocument, replayOf)
-//     { ok: false, why, step }   why: "engine", "does-not-replay" or "too-long"; step names
-//                 the check that failed, for the log
+//     { ok: false, why, step }   why: "engine", "name", "does-not-replay" or "too-long";
+//                 step names the check that failed, for the log
 //
 // What it holds the match to (the engine's docs/SESSION.md "What a server can prove"):
 //
@@ -18,7 +18,9 @@
 //             still on an older minor shares on the engine it played
 //   start     a match's first snapshot, exactly what newMatch makes of its own options
 //             (checkStart); side A a person, side B the computer and named Computer; side
-//             A's team and player named 1 to 16 characters, not "You"
+//             A's team and player named with a generated player name or one of the
+//             engine's defaults (names.valid's `ok` or `default`, the engine's
+//             docs/NAMES.md section 6), else refused "name": "Pick a name"
 //   replay    every action taken in order (none refused), each of the computer's throws
 //             the one the engine makes again from the snapshot before it (checkCpu), each
 //             of the person's throws one the dial could make (checkThrows), the match over
@@ -47,22 +49,25 @@ export const SHARE_KEEP = Object.freeze({
   replayBytes: 256 * 1024,
 });
 
-export const NAME_MAX = 16; // characters (code points) of the shared side's name
 export const COMPUTER = "Computer";
 
-// A side's name as the share card allows it: 1 to 16 characters, no spaces around it,
-// and not "You" (the game's stand-in when nothing was typed).
-export function nameAllowed(name) {
-  if (typeof name !== "string" || !name || name !== name.trim()) return false;
-  const n = [...name].length;
-  return n >= 1 && n <= NAME_MAX && name.toLowerCase() !== "you";
+// A side's name as a share may carry it: a generated player name or one of the
+// engine's defaults ("Player 1", ...), as names.valid says on the match's own engine.
+// The share card offers only generated names (src/ui/share.js), so an honest client
+// never sends another. A side of one player is named after that player, so side A's
+// team name is checked as a player's.
+export function nameAllowed(engine, name) {
+  if (typeof name !== "string") return false;
+  const v = engine.call("names.valid", { kind: "player", text: name });
+  return !!(v.ok || v.default);
 }
 
 const no = (why, step) => ({ ok: false, why, step });
 
 // Side A a person under an allowed name, side B the computer under its own: read from
-// the start's options (before the replay) and the setup the engine made of them.
-function sidesOf(setup) {
+// the start's options (before the replay) and the setup the engine made of them. null
+// when they are; "name" for side A's name; else what is wrong.
+function sidesOf(setup, engine) {
   const cpu = setup?.cpu;
   if (!Array.isArray(cpu) || cpu.length !== 1 || cpu[0] !== "B")
     return "not a person against the computer";
@@ -70,8 +75,11 @@ function sidesOf(setup) {
   const b = setup.teams?.B;
   if (!a || !Array.isArray(a.players) || a.players.length < 1)
     return "side A has no player";
-  if (!nameAllowed(a.name) || !a.players.every((p) => nameAllowed(p?.name)))
-    return "side A's name";
+  if (
+    !nameAllowed(engine, a.name) ||
+    !a.players.every((p) => nameAllowed(engine, p?.name))
+  )
+    return "name";
   if (
     !b ||
     b.name !== COMPUTER ||
@@ -111,7 +119,9 @@ export async function checkShare({
     } catch {
       opts = null;
     }
-    if (sidesOf(opts)) return no("does-not-replay", "sides");
+    const sides = sidesOf(opts, e);
+    if (sides === "name") return no("name", "name");
+    if (sides) return no("does-not-replay", "sides");
     e.call("replayLoad", {
       start: g.start,
       log: g.log,
@@ -133,7 +143,9 @@ export async function checkShare({
     if (winner !== g.end.winner || info.thrown !== g.end.throws)
       return no("does-not-replay", "end");
     const { document } = e.call("replayDocument");
-    if (sidesOf(document?.match?.setup)) return no("does-not-replay", "sides");
+    const after = sidesOf(document?.match?.setup, e);
+    if (after === "name") return no("name", "name");
+    if (after) return no("does-not-replay", "sides");
     // past the engine's log budget the document drops its log: no replay to keep
     const replay = replayOf(document.match);
     if (!replay) return no("too-long", "log");

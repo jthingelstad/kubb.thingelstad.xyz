@@ -29,7 +29,7 @@ const count = (code, table) =>
 describe("PitchDO", () => {
   it("joins, relays an action without its snapshot, and keeps it", async () => {
     const code = newCode();
-    const a = await join(code, "anna", { me: { name: "Anna" } });
+    const a = await join(code, "anna", { me: { name: "Mighty Maple" } });
     expect(a.joined).toMatchObject({
       t: "joined",
       pitch: code,

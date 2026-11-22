@@ -61,8 +61,8 @@ async function join(
   await page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
   if (lobby) {
     await page.waitForSelector("[data-test=lobby]");
-    await page.fill("[data-test=lobby-name]", name);
-    await page.press("[data-test=lobby-name]", "Enter");
+    // the name a player picks in the lobby's name row
+    await page.evaluate((n) => window.__kubb.game.setPlayerName(n), name);
   }
   await page.waitForFunction(
     () => window.__kubb.pitch?.state().status === "open",
@@ -181,17 +181,19 @@ async function shot(page, name) {
 
 browserTest("two browsers on opposite teams play the same throws", async () => {
   const code = makePitchCode();
-  const host = await join(code, "Hanna");
-  const guest = await join(code, "Gus");
+  const host = await join(code, "Happy Hazel");
+  const guest = await join(code, "Gentle Ginkgo");
   await host.click("[data-test=join-A]");
   await guest.click("[data-test=join-B]");
   await waitFor(host, () =>
-    document.querySelector("[data-test=team-B]")?.textContent.includes("Gus"),
+    document
+      .querySelector("[data-test=team-B]")
+      ?.textContent.includes("Gentle Ginkgo"),
   );
   await waitFor(guest, () =>
     document
       .querySelector("[data-test=waiting]")
-      ?.textContent.includes("Hanna"),
+      ?.textContent.includes("Happy Hazel"),
   );
   // the guest sees the options read-only and no START
   assert.equal(
@@ -227,7 +229,7 @@ browserTest("two browsers on opposite teams play the same throws", async () => {
     guest,
     () =>
       document.querySelector("[data-test=status]")?.textContent ===
-      "HANNA THROWS",
+      "HAPPY HAZEL THROWS",
   );
   await guest.evaluate(() => {
     window.__played = 0;
@@ -286,7 +288,7 @@ browserTest("two browsers on opposite teams play the same throws", async () => {
   assert.deepEqual(guest.errors, []);
 
   // a third browser arrives mid-match: it adopts at once and watches
-  const late = await join(code, "Lou", "desktop", { lobby: false });
+  const late = await join(code, "Faithful Fir", "desktop", { lobby: false });
   await waitFor(late, () => window.__kubb.pitch.state().mode === "match");
   const [, , l] = await inStep([host, guest, late]);
   assert.equal(l.playing, null);
@@ -302,7 +304,9 @@ browserTest("two browsers on opposite teams play the same throws", async () => {
   await guest.click("[data-shout='TOK!']");
   await waitFor(host, () =>
     [...document.querySelectorAll(".shout")].some(
-      (e) => e.textContent.includes("Gus") && e.textContent.includes("TOK!"),
+      (e) =>
+        e.textContent.includes("Gentle Ginkgo") &&
+        e.textContent.includes("TOK!"),
     ),
   );
 
@@ -348,7 +352,7 @@ browserTest("two browsers on opposite teams play the same throws", async () => {
 
 browserTest("one person against the computer through the room", async () => {
   const code = makePitchCode();
-  const solo = await join(code, "Ada", "portrait");
+  const solo = await join(code, "Agreeable Ash", "portrait");
   await solo.click("[data-test=join-B]");
   await waitFor(solo, () =>
     document.querySelector(".team-a")?.textContent.includes("computer"),
@@ -391,7 +395,7 @@ browserTest("one person against the computer through the room", async () => {
 // same end, and goes back to the pitch; after REMATCH the lobby offers the last match.
 browserTest("a finished pitch plays its match again", async () => {
   const code = makePitchCode();
-  const solo = await join(code, "Ada");
+  const solo = await join(code, "Agreeable Ash");
   await solo.click("[data-test=join-B]");
   await waitFor(solo, () =>
     document.querySelector(".team-a")?.textContent.includes("computer"),
@@ -432,14 +436,17 @@ browserTest("a finished pitch plays its match again", async () => {
   await keptReplay(code);
 
   // a visitor after the end
-  const late = await join(code, "Vic", "desktop", { lobby: false });
+  const late = await join(code, "Eager Elm", "desktop", { lobby: false });
   await waitFor(late, () => !!document.querySelector("[data-test=winner]"));
   assert.equal(
     await late.getAttribute("[data-test=watch-replay]", "data-default"),
     "",
     "WATCH REPLAY is the main action",
   );
-  assert.match(await late.textContent("[data-test=winner-teams]"), /Ada/);
+  assert.match(
+    await late.textContent("[data-test=winner-teams]"),
+    /Agreeable Ash/,
+  );
   await shot(late, "replay-arrived");
   await late.click("[data-test=watch-replay]");
   await late.waitForSelector("[data-test=replay-bar]");
@@ -546,7 +553,7 @@ browserTest("a finished pitch plays its match again", async () => {
   );
 
   // a phone: the bar fits, no sideways scroll
-  const phone = await join(code, "Pia", "portrait", { lobby: false });
+  const phone = await join(code, "Kind Oak", "portrait", { lobby: false });
   await waitFor(
     phone,
     () => !document.querySelector("[data-test=lobby-replay]")?.hidden,
@@ -580,7 +587,7 @@ browserTest(
   "after the players leave, a finished pitch offers the replay the api keeps",
   async () => {
     const code = makePitchCode();
-    const solo = await join(code, "Ada");
+    const solo = await join(code, "Agreeable Ash");
     await solo.click("[data-test=join-B]");
     await waitFor(solo, () =>
       document.querySelector(".team-a")?.textContent.includes("computer"),
@@ -595,7 +602,7 @@ browserTest(
     const played = await pst(solo);
     await solo.context().close();
 
-    const late = await join(code, "Vic", "desktop", { lobby: false });
+    const late = await join(code, "Eager Elm", "desktop", { lobby: false });
     await waitFor(late, () => !!document.querySelector("[data-test=winner]"));
     await waitFor(
       late,
@@ -606,7 +613,10 @@ browserTest(
         window.__kubb.pitch.log.some((e) => e[1] === "kept"),
       ),
     );
-    assert.match(await late.textContent("[data-test=winner-teams]"), /Ada/);
+    assert.match(
+      await late.textContent("[data-test=winner-teams]"),
+      /Agreeable Ash/,
+    );
     await late.click("[data-test=watch-replay]");
     await late.waitForSelector("[data-test=replay-bar]");
     await late.click("[data-speed='4']");
@@ -630,19 +640,21 @@ browserTest(
 
 browserTest("the lobby on a phone, as a guest", async () => {
   const code = makePitchCode();
-  const host = await join(code, "Hanna");
+  const host = await join(code, "Happy Hazel");
   await host.click("[data-test=join-A]");
-  const guest = await join(code, "Gus", "portrait");
+  const guest = await join(code, "Gentle Ginkgo", "portrait");
   await guest.click("[data-test=join-B]");
   await waitFor(guest, () =>
-    document.querySelector("[data-test=team-A]")?.textContent.includes("Hanna"),
+    document
+      .querySelector("[data-test=team-A]")
+      ?.textContent.includes("Happy Hazel"),
   );
   const over = await guest.evaluate(
     () => document.documentElement.scrollWidth - window.innerWidth,
   );
   assert.ok(over <= 0, "no sideways scroll");
   await shot(guest, "lobby-guest-390");
-  const land = await join(code, "Lee", "landscape");
+  const land = await join(code, "Delightful Pine", "landscape");
   await shot(land, "lobby-guest-landscape");
   assert.ok(await land.locator("[data-test=waiting]").isVisible());
   for (const p of [host, guest, land]) await p.context().close();
@@ -652,7 +664,9 @@ browserTest(
   "an open game: listed on the web game’s page, joined from the list, taken off by the host",
   async () => {
     const code = makePitchCode();
-    const host = await join(code, "Hanna", "desktop", { query: "&open=1" });
+    const host = await join(code, "Happy Hazel", "desktop", {
+      query: "&open=1",
+    });
     const access = () =>
       host.evaluate(
         () =>
@@ -702,7 +716,7 @@ browserTest(
       mine.text,
       /^1 of 12 on the pitch · waiting to start · made just now$/,
     );
-    assert.ok(!mine.text.includes("Hanna"), "no names");
+    assert.ok(!mine.text.includes("Happy Hazel"), "no names");
 
     // JOIN from the list: the guest lands in the lobby, which says it is open
     await home.click(`a[href^="/p/${code}"]`);

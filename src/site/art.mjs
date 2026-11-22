@@ -152,7 +152,7 @@ ${king(84, 146, 136)}
 
 // One pitch's share image (1200 x 630; Jamie, 2026-11-16: "can we get the share
 // preview image to reflect the game that it is linked to?"): the wordmark, the two
-// teams by the names they typed, the state line, and the pitch from above with its
+// teams by their names (each checked: backend/pages/pitch.mjs), the state line, and the pitch from above with its
 // pieces as they stand, or as they fell (backend/pages/pitch.mjs piecesOf).
 //
 //   pitchCardImage({ teams: { A, B } | null, line, pieces })

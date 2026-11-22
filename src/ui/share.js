@@ -15,10 +15,10 @@
 import { h, button, clear } from "./dom.js";
 import { Reel } from "./reel.js";
 import { REEL_WORDS } from "../net/reel.js";
+import { nameRow } from "./name-row.js";
 import {
   SHARE_WORDS,
   askShare,
-  clipName,
   nameFromMatch,
   nameProblem,
   shareMessage,
@@ -36,7 +36,10 @@ export class Share {
     this.trail = game.trail; // the match as it ended, kept if a rematch starts
     this.need = game.need;
     this.state = shareStart();
-    this.name = nameFromMatch(this.trail?.start);
+    // the name row's: the name the match was played under, a generated name (the
+    // device's when that is not one)
+    this.names = game.names;
+    this.name = nameFromMatch(this.names, this.trail?.start, game.playerName);
     this.message = null; // the share as sent, sent again as it is on TRY AGAIN
     this.buttons = new Set();
     this.card = null;
@@ -83,8 +86,8 @@ export class Share {
   // SHARE AND MAKE THE REEL, and TRY AGAIN.
   send() {
     if (this.state.phase === "idle") {
-      const name = this.name.trim();
-      if (nameProblem(name)) return this.draw(true);
+      const name = this.name;
+      if (nameProblem(this.names, name)) return this.draw(true);
       let made;
       try {
         made = shareMessage({
@@ -220,13 +223,18 @@ export class Share {
 
   drawForm(body, tried) {
     const W = SHARE_WORDS;
-    const input = h("input.name", {
-      value: this.name,
-      placeholder: W.placeholder,
-      autocomplete: "off",
-      spellcheck: "false",
-      "aria-label": W.label,
-      "data-test": "share-name",
+    // the name row (src/ui/name-row.js): only a generated name can be picked, so the
+    // server's check (backend/reels/check.mjs) is never what stops an honest page
+    const row = nameRow({
+      names: this.names,
+      kind: "player",
+      text: this.name,
+      label: W.label,
+      key: "share-name",
+      onChange: (t) => {
+        this.name = t;
+        check(false);
+      },
     });
     const say = h("p.reel-text.share-say", {
       role: "status",
@@ -235,29 +243,15 @@ export class Share {
     const go = button(W.share, () => this.send(), "go", {
       "data-test": "share-send",
     });
-    // the name as the reel can take it: SHARE faded until it can, and why said once
-    // there is something to say (a name typed, or SHARE pressed)
     const check = (loud) => {
-      const problem = nameProblem(this.name.trim());
+      const problem = nameProblem(this.names, this.name);
       go.disabled = !!problem;
       go.setAttribute("aria-disabled", String(!!problem));
-      say.textContent =
-        problem && (loud || this.name.trim()) ? W.name[problem] : "";
+      say.textContent = problem && loud ? W.name[problem] : "";
     };
-    input.addEventListener("input", () => {
-      const clipped = clipName(input.value);
-      const long = clipped !== input.value;
-      if (long) input.value = clipped;
-      this.name = input.value;
-      check(false);
-      if (long) say.textContent = W.name.long;
-    });
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") this.send();
-    });
     body.append(
       h("p.reel-text", W.about),
-      h("label.opt.share-name", h("span.opt-label", W.label), input),
+      h("div.opt.share-name", h("span.opt-label", W.label), row.el),
       h("p.reel-text", W.sides),
       h("p.reel-text.share-when", W.when),
       say,
@@ -268,6 +262,6 @@ export class Share {
       ),
     );
     check(tried);
-    requestAnimationFrame(() => input.focus({ preventScroll: true }));
+    requestAnimationFrame(() => go.focus({ preventScroll: true }));
   }
 }

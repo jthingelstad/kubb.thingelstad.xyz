@@ -9,7 +9,7 @@
 // What is sent (`g` in the message): the mode; `client: "web"`; `engine`, the kubb-engine
 // version that played it; the build (package version, commit, the hashed Lua bundle's
 // name); the browser's clock; the match's
-// options as its first snapshot carries them (seed, teams, names typed, opening, ...); the
+// options as its first snapshot carries them (seed, teams, their names, opening, ...); the
 // first snapshot and every action applied since, with the engine's hash after each (start
 // + actions replay it, and the hashes say where this checkout's engine first goes another
 // way); the end (the winner, how it ended, the last hash); and the game file in Planet Kubb

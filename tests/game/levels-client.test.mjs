@@ -44,7 +44,7 @@ browserTest(
   async () => {
     // a device from before: its solo card's Level row said Pro, no level of its own
     const page = await open(env, "/p/abcdefgh?solo=1&nohowto=1", "desktop", {
-      prefs: { solo: { name: "Birch", level: "pro", wind: "off" } },
+      prefs: { solo: { name: "Brave Birch", level: "pro", wind: "off" } },
     });
     try {
       await page.waitForSelector("[data-test=options]");
@@ -64,11 +64,6 @@ browserTest(
         await page.textContent("[data-test=solo-opt-computer] .opt-label"),
         "Computer level",
       );
-      // MENU, opened from the card, has no level row
-      await page.click("[data-test=solo-you-menu]");
-      await page.waitForSelector("[data-test=menu-card]");
-      assert.equal(await page.locator("[data-test=menu-level]").count(), 0);
-      await page.keyboard.press("Escape");
       await page.click("[data-test=solo-opt-computer] [data-value=beginner]");
       await page.click("[data-test=start]");
       await waitPhase(page, "aim", 15000);
@@ -90,6 +85,14 @@ browserTest(
         ),
         "pro",
       );
+      // MENU has no level row
+      await page
+        .click("[data-test=handoff-go]", { timeout: 1000 })
+        .catch(() => {});
+      await page.click("[data-test=menu]");
+      await page.waitForSelector("[data-test=menu-card]");
+      assert.equal(await page.locator("[data-test=menu-level]").count(), 0);
+      await page.keyboard.press("Escape");
       assert.deepEqual(page.errors, []);
     } finally {
       await page.context().close();
@@ -114,8 +117,8 @@ async function join(code, name, level) {
   );
   await page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
   await page.waitForSelector("[data-test=lobby]");
-  await page.fill("[data-test=lobby-name]", name);
-  await page.press("[data-test=lobby-name]", "Enter");
+  // the name a player picks in the lobby's name row
+  await page.evaluate((n) => window.__kubb.game.setPlayerName(n), name);
   await page.waitForFunction(
     () => window.__kubb.pitch?.state().status === "open",
   );
@@ -126,8 +129,8 @@ browserTest(
   "a pitch: the host sets the computer's level, the computer throws at it",
   async () => {
     const code = makePitchCode();
-    const host = await join(code, "Hanna", "beginner");
-    const guest = await join(code, "Ola", "pro");
+    const host = await join(code, "Happy Hazel", "beginner");
+    const guest = await join(code, "Lucky Larch", "pro");
     try {
       // no level of your own in the lobby, neither a picker nor a line
       assert.equal(

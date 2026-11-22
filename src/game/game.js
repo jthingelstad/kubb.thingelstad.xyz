@@ -93,6 +93,7 @@ import { standSpan, groundAt } from "./stand-pad.js";
 import { prefs } from "./prefs.js";
 import { pacing } from "./pacing.js";
 import { loadName, saveName } from "./player-name.js";
+import { namesOf } from "./names.js";
 import { loadThrowLevel } from "./throw-level.js";
 import { NudgeTrigger, timeline, swingOf, captionFor } from "./nudge.js";
 import { coachFor, slowVerdict } from "./coach.js";
@@ -230,9 +231,11 @@ export class Game {
     // still passed and kept, so a match on a carried 0.9 engine, a shared pitch's
     // presence and older records see the value they always had
     this.level = loadThrowLevel(prefs);
-    // the player's name, this device's too (src/game/player-name.js): "" until
-    // typed once; the solo card and the lobby hear a change through onPlayerName
-    this.playerName = loadName(prefs);
+    // the player's name, this device's too (src/game/player-name.js): a generated
+    // name, rolled on the first run (the engine's names.*, src/game/names.js); the
+    // solo card, the lobby and MENU hear a change through onPlayerName
+    this.names = namesOf(this.engine);
+    this.playerName = loadName(prefs, this.names);
     this.nameWatch = new Set();
     // the throw's meter, this device's: the clock or the linear one (MENU)
     this.meter = prefs.get("meter", "clock") === "linear" ? "linear" : "clock";
@@ -1246,9 +1249,10 @@ export class Game {
     });
   }
 
-  // The device's name (Settings, or the first time a card asks for it).
+  // The device's name, picked in a name row (src/ui/name-row.js): Settings, the solo
+  // card or the lobby. Only a generated name is kept.
   setPlayerName(text) {
-    const name = saveName(prefs, text);
+    const name = saveName(prefs, this.names, text);
     if (name === this.playerName) return;
     this.playerName = name;
     for (const f of this.nameWatch) f(name);

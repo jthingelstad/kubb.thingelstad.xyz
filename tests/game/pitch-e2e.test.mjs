@@ -64,8 +64,8 @@ async function open(code, name, { lobby = true, query = "" } = {}) {
   await page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
   if (lobby) {
     await page.waitForSelector("[data-test=lobby]");
-    await page.fill("[data-test=lobby-name]", name);
-    await page.press("[data-test=lobby-name]", "Enter");
+    // the name a player picks in the lobby's name row
+    await page.evaluate((n) => window.__kubb.game.setPlayerName(n), name);
   }
   await page.waitForFunction(
     () => window.__kubb.pitch?.state().status === "open",
@@ -187,14 +187,16 @@ browserTest(
   "two players and an observer complete a turn; the observer's dial moves between samples",
   async (t) => {
     const code = makePitchCode();
-    const host = await open(code, "Hanna");
-    const guest = await open(code, "Gus");
+    const host = await open(code, "Happy Hazel");
+    const guest = await open(code, "Gentle Ginkgo");
     await host.click("[data-test=join-A]");
     await guest.click("[data-test=join-B]");
     await waitFor(host, () =>
-      document.querySelector("[data-test=team-B]")?.textContent.includes("Gus"),
+      document
+        .querySelector("[data-test=team-B]")
+        ?.textContent.includes("Gentle Ginkgo"),
     );
-    const watcher = await open(code, "Olle", {
+    const watcher = await open(code, "Calm Cedar", {
       lobby: false,
       query: "&observe=1",
     });

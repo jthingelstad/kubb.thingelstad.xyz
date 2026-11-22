@@ -1,9 +1,9 @@
 // The Scene in a real browser (src/render/scenes.js, docs/SCENES.md): a match option
 // on engine 0.9, a look only. The solo card keeps it with its options and the pitch
 // behind shows the pick; MENU sets the practice pitch's; on a pitch the host sets it
-// in the lobby (the room's `settings.scene`) and every page draws it. A pitch whose
-// next match runs on 0.8 has no Scene row and draws the day. ?scene= picks one off a
-// pitch, never on one.
+// in the lobby (the room's `settings.scene`) and every page draws it. ?scene= picks
+// one off a pitch, never on one. (A pitch on 0.8 had no Scene row; the site carries the
+// newest engine alone since 2026-11-21, so that test went with 0.8.)
 // Skipped with a notice when Playwright's Chromium is not installed.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -57,7 +57,7 @@ browserTest(
   "solo: the card restores its Scene, the pitch behind shows the pick, the match carries it",
   async () => {
     const page = await open(env, "/p/abcdefgh?solo=1&nohowto=1", "desktop", {
-      prefs: { solo: { name: "Birch", scene: "neon" } },
+      prefs: { solo: { name: "Brave Birch", scene: "neon" } },
     });
     try {
       await page.waitForSelector("[data-test=options]");
@@ -116,7 +116,7 @@ browserTest(
       env,
       "/p/abcdefgh?solo=1&nohowto=1&scene=day",
       "desktop",
-      { prefs: { solo: { name: "Birch", scene: "night" } } },
+      { prefs: { solo: { name: "Brave Birch", scene: "night" } } },
     );
     try {
       await page.waitForSelector("[data-test=options]");
@@ -141,7 +141,7 @@ browserTest(
   "an unknown saved scene is the day; watching the computer takes the card's scene",
   async () => {
     const page = await open(env, "/p/abcdefgh?solo=1&nohowto=1", "desktop", {
-      prefs: { solo: { name: "Birch", scene: "dusk" } },
+      prefs: { solo: { name: "Brave Birch", scene: "dusk" } },
     });
     try {
       await page.waitForSelector("[data-test=options]");
@@ -151,7 +151,7 @@ browserTest(
       await page.context().close();
     }
     const watch = await open(env, "/p/abcdefgh?watch=1&nohowto=1", "desktop", {
-      prefs: { solo: { name: "Birch", scene: "neon" } },
+      prefs: { solo: { name: "Brave Birch", scene: "neon" } },
     });
     try {
       await watch.waitForFunction(
@@ -217,8 +217,8 @@ async function join(code, name) {
   );
   await page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
   await page.waitForSelector("[data-test=lobby]");
-  await page.fill("[data-test=lobby-name]", name);
-  await page.press("[data-test=lobby-name]", "Enter");
+  // the name a player picks in the lobby's name row
+  await page.evaluate((n) => window.__kubb.game.setPlayerName(n), name);
   await page.waitForFunction(
     () => window.__kubb.pitch?.state().status === "open",
   );
@@ -238,8 +238,8 @@ browserTest(
   "a pitch on 0.9 or newer: the host sets the Scene, a guest and a late joiner see it, the match draws it on every page",
   async () => {
     const code = makePitchCode();
-    const host = await join(code, "Hanna");
-    const guest = await join(code, "Ola");
+    const host = await join(code, "Happy Hazel");
+    const guest = await join(code, "Lucky Larch");
     const pages = [host, guest];
     try {
       assert.equal(await checked(host, "lobby-opt-scene"), "day");
@@ -270,7 +270,7 @@ browserTest(
         ),
         "night",
       );
-      const late = await join(code, "Pia");
+      const late = await join(code, "Kind Oak");
       pages.push(late);
       await sceneShown(late, "Night");
       assert.equal((await drawn(late)).page, "night");
@@ -297,52 +297,6 @@ browserTest(
       for (const p of pages) assert.deepEqual(p.errors, []);
     } finally {
       await Promise.all(pages.map((p) => p.context().close()));
-    }
-  },
-);
-
-browserTest(
-  "a pitch whose next match runs on 0.8 has no Scene row and draws the day",
-  async () => {
-    const code = makePitchCode();
-    const host = await join(code, "Hanna");
-    const guest = await join(code, "Ola");
-    try {
-      await host.click("[data-test=join-A]");
-      await host.click("[data-test=lobby-opt-scene] [data-value=neon]");
-      await sceneShown(guest, "Neon");
-      await guest.click("[data-test=join-B]");
-      await guest.waitForFunction(
-        () => window.__kubb.pitch.room.me.engines?.length === 4,
-      );
-      // an iPhone tester's build: it carries 0.8 and 0.7 (room-engines.test.mjs)
-      await guest.evaluate(() => {
-        const p = window.__kubb.pitch;
-        p.speak = () => {};
-        p.room.setMe({ engine: "0.8+engines", engines: ["0.8", "0.7"] });
-      });
-      await host.waitForFunction(
-        () => window.__kubb.pitch.roomEngine().engine === "0.8",
-        null,
-        { timeout: 20000, polling: 50 },
-      );
-      await host.waitForSelector("[data-test=lobby-opt-scene]", {
-        state: "detached",
-        timeout: 20000,
-      });
-      assert.equal((await drawn(host)).page, "day");
-      await host.click("[data-test=lobby-start]");
-      await guest.waitForFunction(
-        () => window.__kubb.pitch.mode === "match",
-        null,
-        { timeout: 30000 },
-      );
-      const o = await matchOpts(host);
-      assert.equal(o.scene, undefined);
-      assert.equal((await drawn(host)).stage, "day");
-      assert.deepEqual(host.errors, []);
-    } finally {
-      await Promise.all([host, guest].map((p) => p.context().close()));
     }
   },
 );

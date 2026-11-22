@@ -1,5 +1,6 @@
 // Looking back at a match on its own engine (docs/ENGINES.md), with a second engine
-// registered from a fixture: the vendored sources with only the version changed, made
+// registered from a fixture (the site carries the newest alone since 2026-11-21; the
+// machinery for several stays, for an engine the owner decides to carry): the vendored sources with only the version changed, made
 // in a temporary directory at test time (tests/engine/engine-fixture.mjs). Both play
 // alike, so a match agrees hash for hash on either; what these pin is which engine
 // each path picks, and what records and reports say played.
@@ -23,6 +24,10 @@ import {
   writeEngineTree,
 } from "../engine/engine-fixture.mjs";
 
+const V = JSON.parse(
+  fs.readFileSync(new URL("../../vendor/engine.json", import.meta.url), "utf8"),
+).tag.replace(/^v/, "");
+const Vre = V.replaceAll(".", "\\.");
 const older = fs.mkdtempSync(path.join(os.tmpdir(), "kubb-older-engine-"));
 writeEngineTree(older, "0.6.9");
 test.after(() => fs.rmSync(older, { recursive: true, force: true }));
@@ -30,10 +35,10 @@ test.after(() => fs.rmSync(older, { recursive: true, force: true }));
 const twoEngines = () =>
   makeRegistry({
     engines: {
-      0.13: { version: "0.13.1", sources: bundleLua() },
+      0.13: { version: V, sources: bundleLua() },
       0.6: { version: "0.6.9", sources: bundleLua(older) },
     },
-    newest: "0.13.1",
+    newest: V,
     create: ({ sources }) => Engine.create({ sources }),
   });
 
@@ -78,7 +83,7 @@ test("the browser's registry: a carried engine for its matches, the newest for o
   const e = await p;
   assert.equal(e.version, "0.6.9");
   assert.equal(engineFor(engines, "0.6"), e);
-  assert.equal((await engineFor(engines, "0.5")).version, "0.13.1");
+  assert.equal((await engineFor(engines, "0.5")).version, V);
 });
 
 test("the tools' engines: each carried engine of a vendor folder, made once", async (t) => {
@@ -109,8 +114,8 @@ test("the tools' engines: each carried engine of a vendor folder, made once", as
     engineForMatch(engines, "0.7", { only: "0.5" }),
     /carries no engine 0\.5/,
   );
-  // this checkout's own vendor/: 0.13 and the 0.9, 0.8 and 0.7 it keeps beside it
-  assert.deepEqual(checkoutEngines().carried(), ["0.13", "0.9", "0.8", "0.7"]);
+  // this checkout's own vendor/: the newest alone (docs/ENGINES.md)
+  assert.deepEqual(checkoutEngines().carried(), ["0.13"]);
 });
 
 test("the engine a record says played it", () => {
@@ -137,10 +142,10 @@ test("games:replay plays each match on its own engine, or the newest, or --engin
     new RegExp(`${old.actions.length} actions on 0\\.6\\.9`),
   );
   assert.doesNotMatch(lines[0], /played on engine/);
-  assert.match(lines[1], /actions on 0\.13\.1/);
+  assert.match(lines[1], new RegExp(`actions on ${Vre}`));
   assert.match(
     lines[1],
-    /played on engine 0\.5\.0, this checkout runs 0\.13\.1/,
+    new RegExp(`played on engine 0\\.5\\.0, this checkout runs ${Vre}`),
   );
 
   said.length = 0;
@@ -150,8 +155,11 @@ test("games:replay plays each match on its own engine, or the newest, or --engin
     only: "0.13",
     log,
   });
-  assert.match(said[0], /through kubb-engine 0\.13\.1/);
-  assert.match(said[1], /actions on 0\.13\.1.*played on engine 0\.6\.9/);
+  assert.match(said[0], new RegExp(`through kubb-engine ${Vre}`));
+  assert.match(
+    said[1],
+    new RegExp(`actions on ${Vre}.*played on engine 0\\.6\\.9`),
+  );
 });
 
 test("a record names the engine that played and the bundle it came from", async () => {

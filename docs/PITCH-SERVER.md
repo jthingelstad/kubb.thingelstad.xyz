@@ -9,6 +9,10 @@ stack and stored games were deleted the same day (section 12). The parts: the pi
 `throwingwood-pitches-dev`; deploying and operating it: `backend/pitch-server/README.md`),
 and the AWS api it pushes to (`backend/api/`, stack `throwing-wood-pitches`).
 
+Since 2026-11-21 the pitch checks every name it can see against the engine's word lists
+(`backend/pitch-server/names.mjs`, PROTOCOL.md section 6a; the engine's docs/NAMES.md
+section 6): a member's typed name is dropped, a write or start naming one is refused.
+
 This is a working document. It holds what was decided, what was measured and what is
 still open, so the build can start on any machine without the conversation that led to
 it.
