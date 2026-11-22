@@ -1218,7 +1218,14 @@ through the engine's strict door (`Game.resumeMatch`, `restoreChecked`), checks 
 on the kept hash, and takes the trail from the match's own start, so the match is still
 recorded once, whole, when it ends; a save that is refused, on another engine
 major.minor or not whole is dropped and the card is the options card. NEW MATCH clears
-it. A finished match is cleared when it ends and never offered. One match a device;
+it. The save is written as each action is tracked, before its throw plays, so whether
+the match is over is the engine's (`over`): a kept match that is over (the page went
+during the winning throw, or its record was not kept) is never offered; the next load
+goes straight to its winner card, the trail in place before the view is entered, which
+records it once, whole. The save goes when its record is kept (at once with no api
+address); a send that fails leaves it, marked, for the next load to send again, once,
+and a second failure drops it with a console warning, so a record is never sent twice
+and never waits for ever. One match a device;
 watching the computer and practice keep nothing. Storage that is blocked or full skips
 the save and play goes on.
 

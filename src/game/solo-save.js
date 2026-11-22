@@ -12,12 +12,21 @@ import { prefs } from "./prefs.js";
 export const SAVE_KEY = "soloMatch";
 export const SAVE_VERSION = 1;
 
-// The save for a match being played (game.trail in a solo match), or null.
+// The save for a match (game.trail in a solo match), or null. It is written as each
+// action is tracked, before its throw plays, so the page's need may still be the one
+// before: whether the match is over is the engine's (`over`), and a match that is over
+// is kept, unrecorded, until its record is sent (main.js startSolo).
 export function saveOf(game, engine) {
   const t = game.trail;
   if (game.mode !== "match" || t?.kind !== "match" || !t.now) return null;
-  if (game.need?.kind === "over") return null;
+  let over = false;
+  try {
+    over = game.engine.need()?.kind === "over";
+  } catch {
+    over = game.need?.kind === "over";
+  }
   return {
+    over,
     v: SAVE_VERSION,
     engine,
     start: t.start,

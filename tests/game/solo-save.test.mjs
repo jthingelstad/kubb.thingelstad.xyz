@@ -19,9 +19,11 @@ const memory = () => {
     set: (k, v) => m.set(k, JSON.stringify(v)),
   };
 };
+// over: the engine's need (the page's may still be the throw before, mid-playback)
 const game = (over = false) => ({
   mode: "match",
-  need: { kind: over ? "over" : "throw", turn: 3 },
+  need: { kind: "throw", turn: 3 },
+  engine: { need: () => ({ kind: over ? "over" : "throw" }) },
   viewData: { scene: "beach" },
   trail: {
     kind: "match",
@@ -32,7 +34,7 @@ const game = (over = false) => ({
   },
 });
 
-test("a match being played is kept; a finished one, practice or watching is not", () => {
+test("a match is kept as it is played, and marked over by the engine's need", () => {
   const s = saveOf(game(), "0.15");
   assert.equal(s.v, SAVE_VERSION);
   assert.equal(s.engine, "0.15");
@@ -40,7 +42,10 @@ test("a match being played is kept; a finished one, practice or watching is not"
   assert.equal(s.snap, "{snap}");
   assert.deepEqual(s.hashes, ["h1"]);
   assert.equal(s.turn, 3);
-  assert.equal(saveOf(game(true), "0.15"), null, "over: never offered");
+  assert.equal(s.over, false);
+  // the winning throw is tracked before it plays: the page's need is still the throw,
+  // the engine's is over, and the save says so (it is never offered: main.js)
+  assert.equal(saveOf(game(true), "0.15").over, true);
   assert.equal(saveOf({ ...game(), mode: "practice" }, "0.15"), null);
 });
 

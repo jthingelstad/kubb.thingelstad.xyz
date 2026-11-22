@@ -2760,3 +2760,139 @@ browserTest(
     }
   },
 );
+
+// Codex on #117: a reload during the winning throw's playback kept the finished match
+// as one to RESUME, and resuming it recorded a match with no actions, then the whole
+// one again. The save says what the engine says (over), the trail is in place before
+// the view is entered, and a kept match that is over goes straight to its winner card,
+// recorded once, then cleared. A record that fails is tried once more on the next load,
+// then dropped (said in the console): never sent twice, never kept for ever.
+browserTest(
+  "reloads mid-throw, after the winning action and with the record failing: one whole record each",
+  async () => {
+    const rooms = await startPitchServer();
+    const games = keptUnder(rooms, "games/browser/");
+    const ctx = await env.browser.newContext(VIEWPORTS.desktop);
+    await ctx.addInitScript(() => {
+      if (sessionStorage.getItem("qa")) return;
+      sessionStorage.setItem("qa", "1");
+      localStorage.setItem("kubb:throwsMade", "5");
+      localStorage.setItem("kubb:howtoSeen", "true");
+    });
+    const page = await ctx.newPage();
+    const errors = [];
+    const warnings = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    page.on("console", (m) => {
+      if (m.type() === "warning") warnings.push(m.text());
+    });
+    const url = `${env.base}/p/abcdefgh?solo=1&nohowto=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`;
+    const load = async () => {
+      await page.goto(url);
+      await page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
+    };
+    const kept = () =>
+      page.evaluate(() => JSON.parse(localStorage.getItem("kubb:soloMatch")));
+    const startMatch = async () => {
+      await page.click("[data-test=start]");
+      await page.click("[data-test=handoff-go]");
+      await waitPhase(page, "aim", 10000);
+    };
+    const waitKept = (n) =>
+      page
+        .waitForFunction(
+          async () => {
+            const all = await Promise.all(window.__kubb.recorded);
+            return all.length > 0;
+          },
+          null,
+          { timeout: 10000 },
+        )
+        .then(async () => {
+          const deadline = Date.now() + 10000;
+          while (games.kept.length < n && Date.now() < deadline)
+            await page.waitForTimeout(100);
+          return games.kept.length;
+        });
+    try {
+      // 1. an ordinary throw, reloaded while it plays: offered, and the throw is in it
+      await load();
+      await startMatch();
+      await throwOnce(page);
+      await waitPhase(page, "play", 5000);
+      const mid = await page.evaluate(() => ({
+        hash: window.__kubb.game.engine.hash().hash,
+        n: window.__kubb.game.trail.actions.length,
+      }));
+      assert.equal((await kept()).over, false);
+      await load();
+      await page.click("[data-test=resume-go]");
+      await page.waitForFunction(() => window.__kubb.game.mode === "match");
+      assert.equal(
+        await page.evaluate(() => window.__kubb.game.engine.hash().hash),
+        mid.hash,
+      );
+      // 2. the winning action made, the page gone before its end was shown (as during
+      // the winning throw's playback): never offered, its winner card, one whole record
+      const before = await page.evaluate(() => {
+        const g = window.__kubb.game;
+        g.enter = () => {};
+        g.resign("A");
+        return g.trail.actions.length;
+      });
+      assert.equal((await kept()).over, true);
+      await load();
+      assert.equal(await page.locator("[data-test=resume]").count(), 0);
+      await page.waitForSelector("[data-test=winner]");
+      assert.equal(await waitKept(1), 1);
+      const rec = JSON.parse(games.kept[0].text).game;
+      assert.equal(
+        rec.actions.length,
+        before,
+        "the whole match, from its start",
+      );
+      assert.equal(rec.end.over, true);
+      assert.equal(await kept(), null, "cleared once kept");
+      await load();
+      await page.waitForSelector("[data-test=options]");
+      assert.equal(games.kept.length, 1, "not sent again");
+      // 3. a resign whose record fails: kept, sent on the next load, once
+      await page.route("**/api/game", (r) => r.abort());
+      await startMatch();
+      await page.click("[data-test=menu]");
+      await page.click("[data-test=menu-resign]");
+      await page.waitForSelector("[data-test=winner]");
+      await page.waitForFunction(() => Promise.all(window.__kubb.recorded));
+      await page.waitForFunction(
+        () => JSON.parse(localStorage.getItem("kubb:soloMatch"))?.tries === 1,
+      );
+      await page.unroute("**/api/game");
+      await load();
+      await page.waitForSelector("[data-test=winner]");
+      assert.equal(await waitKept(2), 2, "sent on the next load");
+      assert.equal(await kept(), null);
+      await load();
+      await page.waitForSelector("[data-test=options]");
+      assert.equal(games.kept.length, 2, "once");
+      // 4. failing twice: dropped, and said
+      await page.route("**/api/game", (r) => r.abort());
+      await startMatch();
+      await page.click("[data-test=menu]");
+      await page.click("[data-test=menu-resign]");
+      await page.waitForFunction(
+        () => JSON.parse(localStorage.getItem("kubb:soloMatch"))?.tries === 1,
+      );
+      await load();
+      await page.waitForSelector("[data-test=winner]");
+      await page.waitForFunction(
+        () => localStorage.getItem("kubb:soloMatch") === "null",
+      );
+      assert.ok(warnings.some((w) => /could not be recorded/.test(w)));
+      assert.equal(games.kept.length, 2);
+      assert.deepEqual(errors, []);
+    } finally {
+      await ctx.close();
+      await rooms.close();
+    }
+  },
+);

@@ -681,7 +681,10 @@ export class Game {
   // (A match's snapshot: the seam is for matches.)
   // A snapshot the pitch hands over goes through the engine's strict door: one whose
   // names the game did not make throws a NamesRefused and changes nothing.
-  adopt(snapshotText) {
+  // trail: the match's own trail to carry on with (a kept match, resumeMatch): checked
+  // against the restored hash and in place before the view is entered, so a listener
+  // that runs on entering (a match that is over records itself) sees the whole match.
+  adopt(snapshotText, trail = null) {
     this.engine.restoreChecked(snapshotText);
     this.mode = "match";
     this.nbSeed = null;
@@ -695,7 +698,14 @@ export class Game {
       // the snapshot was checked by the engine; a raising it does not say is by hand
     }
     this.engine.setControl(this.seat);
-    this.startTrail(snapshotText);
+    if (trail) {
+      if (
+        trail.hashes.length &&
+        this.engine.hash().hash !== trail.hashes.at(-1)
+      )
+        throw new Error("the kept match does not end on its own hash");
+      this.trail = trail;
+    } else this.startTrail(snapshotText);
     this.queue.length = 0;
     this.play = null;
     this.enter(this.engine.view());
@@ -748,21 +758,18 @@ export class Game {
   // record it sends when it ends is the whole match. Throws when the snapshot is refused
   // or does not end on the kept hash; the caller drops the save then.
   resumeMatch(save) {
-    this.adopt(save.snap);
-    if (this.engine.hash().hash !== save.hashes.at(-1) && save.hashes.length)
-      throw new Error("the kept match does not end on its own hash");
-    this.trail = {
+    this.shownCards.clear();
+    this.result = null;
+    resetAutoRaise(this.autoRaise);
+    this.adopt(save.snap, {
       kind: "match",
       start: save.start,
       actions: [...save.actions],
       hashes: [...save.hashes],
       before: null,
       now: save.snap,
-    };
-    this.shownCards.clear();
-    this.result = null;
-    resetAutoRaise(this.autoRaise);
-    this.enter(this.engine.view());
+      recorded: false,
+    });
   }
 
   mayAct(need = this.need) {
