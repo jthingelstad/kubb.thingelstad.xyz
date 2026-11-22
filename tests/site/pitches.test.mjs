@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
-import { gamesBucketOf, pulledPath } from "../../tools/games.mjs";
+import { gamesBucketOf, pulledPath, TEST_PITCHES } from "../../tools/games.mjs";
 
 const json = async (file) => JSON.parse(await fs.readFile(file, "utf8"));
 const pitches = await json("infra/pitches.json");
@@ -87,7 +87,17 @@ test("the pitches table and games bucket", () => {
     Rules: [{ ObjectOwnership: "BucketOwnerEnforced" }],
   });
   assert.equal(bucket.Properties.VersioningConfiguration, undefined);
-  assert.equal(bucket.Properties.LifecycleConfiguration, undefined);
+  // kept for good, but for the dev Worker's pushes (games/dev/), test play, 14 days
+  assert.deepEqual(bucket.Properties.LifecycleConfiguration, {
+    Rules: [
+      {
+        Id: "DevPushesExpire",
+        Status: "Enabled",
+        Prefix: "games/dev/",
+        ExpirationInDays: 14,
+      },
+    ],
+  });
   const [tls] = R.GamesBucketPolicy.Properties.PolicyDocument.Statement;
   assert.equal(tls.Effect, "Deny");
   assert.deepEqual(tls.Condition, { Bool: { "aws:SecureTransport": "false" } });
@@ -124,6 +134,7 @@ test("the api role: exactly its grants, no wildcard resource", () => {
     by.RecordGames.Resource.map((r) => r["Fn::Sub"]),
     [
       "${GamesBucket.Arn}/games/pitch/*",
+      "${GamesBucket.Arn}/games/dev/pitch/*",
       "${GamesBucket.Arn}/games/browser/*",
       "${GamesBucket.Arn}/reports/*",
     ],
@@ -245,6 +256,28 @@ test("the pull tools: the pitches games bucket once it is on, its push layout", 
   const browser = "games/browser/2026-11-21/1763700000000-abcd2345.json.gz";
   assert.equal(pulledPath(browser).length, 3);
   assert.equal(pulledPath(browser, { room: "abcdefgh" }), null);
+  // test play stays out unless --dev: the dev Worker's pushes and the known test
+  // pitches that predate the dev prefix (2026-11-22)
+  const devPush = "games/dev/pitch/abcdefgh/1763700000000/0001-000002.json.gz";
+  assert.equal(pulledPath(devPush), null);
+  assert.deepEqual(pulledPath(devPush, { dev: true }), [
+    "dev",
+    "pitch",
+    "abcdefgh",
+    "1763700000000",
+    "0001-000002.json.gz",
+  ]);
+  assert.deepEqual(TEST_PITCHES, [
+    "qatrnmtgx",
+    "qawn6mk9tp",
+    "qawnbszxah",
+    "qawnyk9xtg",
+  ]);
+  for (const code of TEST_PITCHES) {
+    const key = `games/pitch/${code}/1763800000000/0001-000003.json.gz`;
+    assert.equal(pulledPath(key), null, code);
+    assert.equal(pulledPath(key, { dev: true }).length, 4, code);
+  }
   for (const bad of [
     "games/abcdefgh/1763700000000-000002.json.gz", // the old rooms server's
 

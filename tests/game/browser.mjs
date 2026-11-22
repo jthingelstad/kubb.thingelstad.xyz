@@ -34,6 +34,48 @@ export const VIEWPORTS = {
   },
 };
 
+// The browser tests play only against servers on this machine: a pitch server or api
+// anywhere else (the dev Worker in the cloud pushes into the live games bucket) is
+// refused before a page is opened. 2026-11-22: a QA run's pages opened four pitches on
+// the dev Worker, whose starts and actions are now in the recorded games for good.
+const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+export function assertLocal(address, what = "server") {
+  if (address == null || address === "") return;
+  let host;
+  try {
+    host = new URL(address, "http://127.0.0.1").hostname;
+  } catch {
+    throw new Error(
+      `The browser tests refuse a ${what} they cannot read: ${address}`,
+    );
+  }
+  if (!LOCAL_HOSTS.has(host))
+    throw new Error(
+      `The browser tests play only against servers on this machine; this ${what} is ${address}. ` +
+        'A pitch on the cloud dev Worker is recorded with the live games (AGENTS.md "Recorded games").',
+    );
+}
+
+// A page path's own overrides (?pitchserver=, ?api=) must be local too.
+export function assertLocalPath(pathAndQuery) {
+  const url = new URL(pathAndQuery, "http://127.0.0.1");
+  assertLocal(url.searchParams.get("pitchserver"), "pitch server");
+  assertLocal(url.searchParams.get("api"), "api");
+}
+
+// The pitch server and api a built page is given (its kubb-config block): local only.
+export async function assertLocalBuild(root) {
+  const html = await fs.readFile(`${root}/pitch/index.html`, "utf8");
+  const m = html.match(
+    /<script type="application\/json" id="kubb-config">([\s\S]*?)<\/script>/,
+  );
+  if (!m) throw new Error(`${root}/pitch/index.html carries no kubb-config`);
+  const config = JSON.parse(m[1]);
+  assertLocal(config.pitchUrl, "pitch server");
+  // the api is the page's own origin ("/api"), which the test's preview serves
+  assertLocal(config.apiUrl, "api");
+}
+
 // Each test file runs in its own process, so two may build at once: the build
 // runs under a lock, and each process serves its own copy of what it built
 // (build/test-dist-<pid>, removed on close), so another file's rebuild never
@@ -49,6 +91,7 @@ export async function serve({ build = true, page = null } = {}) {
       await fs.cp("dist", root, { recursive: true });
     });
   }
+  await assertLocalBuild(root);
   const server = await startPreview({ port: 0, root, page });
   const base = `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch();
@@ -111,6 +154,7 @@ export async function open(
     for (const [k, v] of Object.entries(prefs))
       localStorage.setItem(`kubb:${k}`, JSON.stringify(v));
   }, prefs);
+  assertLocalPath(path);
   const page = await ctx.newPage();
   page.errors = [];
   page.on("console", (m) => {

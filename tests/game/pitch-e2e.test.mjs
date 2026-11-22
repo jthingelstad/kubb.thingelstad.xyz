@@ -11,7 +11,14 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
-import { serve, sweep, swing, VIEWPORTS, played } from "./browser.mjs";
+import {
+  serve,
+  sweep,
+  swing,
+  VIEWPORTS,
+  played,
+  assertLocal,
+} from "./browser.mjs";
 import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { makePitchCode } from "../../src/net/pitch-client.js";
 
@@ -31,6 +38,9 @@ let env, local, pitchUrl, apiUrl;
 before(async () => {
   if (!available) return;
   if (process.env.KUBB_E2E_PITCH && process.env.KUBB_E2E_API) {
+    // a server on this machine only (`wrangler dev`): never the cloud dev Worker
+    assertLocal(process.env.KUBB_E2E_PITCH, "pitch server");
+    assertLocal(process.env.KUBB_E2E_API, "api");
     pitchUrl = process.env.KUBB_E2E_PITCH;
     apiUrl = process.env.KUBB_E2E_API;
   } else {

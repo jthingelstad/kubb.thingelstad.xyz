@@ -22,8 +22,9 @@ export const TINYLYTICS_SITE = "gXy1ayRzgXUVfn_G3nvb";
 // docs/PITCH-SERVER.md section 11), kept as this one value: the deploy build gives it
 // to the page and the CSP allows it (src/site/csp.mjs).
 export const PITCH_URL = "wss://throwingwood-pitches.throwingwood.workers.dev";
-// Every other build (local, preview, CI) talks to the dev Worker; `npm run dev` runs
-// the server on this machine instead (tools/dev.mjs sets KUBB_PITCH_URL to it).
+// The dev Worker: only a build asked for it by name (KUBB_DEV_WORKER=true,
+// tools/build.mjs pitchUrl) talks to it; every other non-production build talks to the
+// server on this machine (LOCAL_PITCH_URL), which `npm run dev` runs.
 export const DEV_PITCH_URL =
   "wss://throwingwood-pitches-dev.throwingwood.workers.dev";
 export const LOCAL_PITCH_URL = "ws://127.0.0.1:8797"; // wrangler dev, backend/pitch-server

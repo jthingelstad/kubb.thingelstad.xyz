@@ -35,6 +35,7 @@ import { robotsTxt } from "../src/site/robots.mjs";
 import {
   API_URL,
   DEV_PITCH_URL,
+  LOCAL_PITCH_URL,
   GAME_READY,
   PITCH_URL,
   NEWSLETTER_URL,
@@ -59,12 +60,19 @@ const lastCommit = (paths) =>
 const hash = (bytes) =>
   createHash("sha256").update(bytes).digest("hex").slice(0, 12);
 
-// The pitch server the client is given: PITCH_URL in the deploy build, the dev
-// Worker in every other, and KUBB_PITCH_URL over either (npm run dev points it at
-// the server on this machine, tools/dev.mjs).
+// The pitch server the client is given: PITCH_URL in the deploy build; in every other
+// build (local, preview, the browser tests, CI) the pitch server on this machine
+// (LOCAL_PITCH_URL, `npm run dev`'s), so a page built here never opens a pitch on a
+// server in the cloud by default. The dev Worker in the cloud only when asked for by
+// name (KUBB_DEV_WORKER=true, for a deliberate test across two devices: its pitches are
+// marked and kept apart, backend/api/API.md "Dev pushes"). KUBB_PITCH_URL over all.
+// (2026-11-22: the default was the dev Worker, which pushed into the live games bucket;
+// a QA run's pages, built by the browser tests into the dist/ a running `npm run dev`
+// served, played four pitches there.)
 export function pitchUrl(production, env = process.env) {
   if (env.KUBB_PITCH_URL) return env.KUBB_PITCH_URL;
-  return production ? PITCH_URL : DEV_PITCH_URL;
+  if (production) return PITCH_URL;
+  return env.KUBB_DEV_WORKER === "true" ? DEV_PITCH_URL : LOCAL_PITCH_URL;
 }
 
 // A file under dist/assets/, named <name>-<hash><ext>.
