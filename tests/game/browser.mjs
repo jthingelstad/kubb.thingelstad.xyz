@@ -97,8 +97,16 @@ export async function played(ctx) {
 
 // A page on `path`, with its console errors collected in page.errors.
 // prefs: the player's saved choices (src/game/prefs.js), set before it loads.
-export async function open(env, path, kind = "desktop", { prefs = {} } = {}) {
-  const ctx = await env.browser.newContext(VIEWPORTS[kind]);
+// init: a script run before the page's own (addInitScript); context: more of the
+// context's options (reducedMotion, ...).
+export async function open(
+  env,
+  path,
+  kind = "desktop",
+  { prefs = {}, init = null, context = {} } = {},
+) {
+  const ctx = await env.browser.newContext({ ...VIEWPORTS[kind], ...context });
+  if (init) await ctx.addInitScript(init);
   await ctx.addInitScript((prefs) => {
     for (const [k, v] of Object.entries(prefs))
       localStorage.setItem(`kubb:${k}`, JSON.stringify(v));

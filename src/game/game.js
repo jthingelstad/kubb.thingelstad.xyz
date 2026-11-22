@@ -51,6 +51,11 @@ import {
   project,
 } from "./draw.js";
 import { Stage } from "../render/scenes.js";
+import {
+  Neighbours,
+  neighboursWanted,
+  tune as neighboursTune,
+} from "./neighbours.js";
 import { optionRows } from "../net/lobby.js";
 import { flagFor } from "./rulings.js";
 import { viewFit } from "../render/camera.js";
@@ -184,8 +189,19 @@ export class Game {
     onAction = null,
     cards = null,
     look = null,
+    neighbours = null,
   }) {
     this.engine = engine;
+    // The Tournament's live neighbours (src/game/neighbours.js): { workerUrl, luaUrl,
+    // wasmUrl } where the page can run them, else null (the still pitches). `nb` is
+    // the field while one is live, `nbSeed` the match's seed it is opened with (null:
+    // read it again), `nbSide` the side whose frame the pitch is drawn in.
+    this.nbOpts =
+      neighbours?.workerUrl && typeof Worker === "function" ? neighbours : null;
+    this.nb = null;
+    this.nbFailed = false;
+    this.nbSeed = null;
+    this.nbSide = "A";
     // the scenes draw where pieces strike the ground (src/render/impacts.js)
     engine?.setImpacts?.(true);
     // the match's scene (src/render/scenes.js), from its view's `scene`;
@@ -342,6 +358,7 @@ export class Game {
 
   newPractice(opts = {}) {
     this.mode = "practice";
+    this.nbSeed = null;
     const v = this.engine.newPractice({ level: this.level, ...opts });
     this.engine.setLevel(this.level);
     this.trail = {
@@ -354,6 +371,7 @@ export class Game {
 
   newMatch(opts) {
     this.mode = "match";
+    this.nbSeed = null;
     // MENU's Raising row is shown for a match that raises by hand (src/ui/menu.js)
     this.matchRaising = opts?.raising === "auto" ? "auto" : "hand";
     this.engine.newMatch(opts);
@@ -520,6 +538,8 @@ export class Game {
   adopt(snapshotText) {
     this.engine.restoreChecked(snapshotText);
     this.mode = "match";
+    this.nbSeed = null;
+    this.nbSide = null; // a restored pitch's frame is read from its pieces
     try {
       const r = JSON.parse(snapshotText)?.opts?.raising;
       if (r) this.matchRaising = r === "auto" ? "auto" : "hand";
@@ -598,6 +618,10 @@ export class Game {
     this.dialNext = null;
     this.cancelSwipe();
     const n = this.need;
+    // the frame the pitch is in: the last throw's thrower's (the engine's
+    // Session.frameSide), Team A's for practice
+    if (this.mode !== "match") this.nbSide = "A";
+    else if (n.kind === "throw" && n.side) this.nbSide = n.side;
     if (n.kind === "throw") {
       this.phase = "aim";
       this.nudge.aimBegan();
@@ -736,6 +760,7 @@ export class Game {
 
   destroy() {
     this.stop();
+    this.endNeighbours();
     for (const [el, ev, fn, o] of this.listeners)
       el.removeEventListener(ev, fn, o);
     this.listeners = [];
@@ -743,6 +768,7 @@ export class Game {
 
   tick(dt, now) {
     if (!this.quiet) this.resizeIfNeeded();
+    this.sceneryTick(this.frozen ? 0 : dt);
     if (!this.quiet && this.observing) {
       // real time: a paused or sped-up replay's camera moves as the viewer does
       this.freeCam.k = viewFit(this.view).k;
@@ -1656,6 +1682,14 @@ export class Game {
     camera = this.viewCam(camera);
     if (!this.pinnedLook)
       this.stage.use(this.shownScene ?? this.viewData?.scene);
+    // the live neighbours, turned with the pitch while it is in Team B's frame (the
+    // wide view is always in the world frame: session/wide.lua)
+    const field =
+      this.nb && this.stage.id === "tournament"
+        ? this.nb.field(!this.wide && this.frameSide() === "B")
+        : null;
+    if (field) scene = { ...scene, neighbours: field };
+    this.nbDrawn = field ? { camera, field } : null;
     this.stage.draw(
       this.ctx,
       this.view,
@@ -1663,6 +1697,90 @@ export class Game {
       scene,
       performance.now() / 1000,
     );
+  }
+
+  // ---------- the Tournament's neighbours ----------
+
+  // Once a tick, with the match's own dt (0 while a replay is paused): open the live
+  // field on entering a Tournament match, practice, replay or watch; close it, and end
+  // its worker, on leaving; post the clock, stopped under a card and in a hidden tab
+  // (whose ticks are `quiet`, or none at all). docs/SCENES.md "Tournament".
+  sceneryTick(dt) {
+    const scene = this.pinnedLook
+      ? this.stage.id
+      : (this.shownScene ?? this.viewData?.scene);
+    const want = neighboursWanted({
+      scene,
+      mode: this.mode,
+      reduced: !!this.reducedMotion?.matches,
+      available: !!this.nbOpts,
+      failed: this.nbFailed,
+      modal: this.modal > 0,
+      open: !!this.nb,
+    });
+    if (!want) return this.endNeighbours();
+    if (this.nbSeed == null) this.nbSeed = this.seedNow();
+    const key = String(this.nbSeed);
+    if (!this.nb) this.nb = new Neighbours(this.nbOpts);
+    if (this.nb.key !== key)
+      this.nb.open({ seed: this.nbSeed, layout: neighboursTune.layout }, key);
+    this.nb.tick(this.modal > 0 || this.quiet ? 0 : dt);
+    if (this.nb.failed) {
+      this.nbFailed = true;
+      this.endNeighbours();
+    }
+  }
+
+  // Where each live neighbour's piece in the air is on the canvas, CSS px, as last
+  // drawn: [{ id, kind, x, y }] (the tests and the screenshots look for a throw).
+  neighboursInFlight() {
+    const d = this.nbDrawn;
+    if (!d || !this.view) return [];
+    const out = [];
+    for (const p of d.field) {
+      const rec = this.nb?.fieldData?.byId.get(p.id)?.rec;
+      if (!rec) continue;
+      for (const q of p.pieces) {
+        if (q.z < 0.2) continue;
+        const v = projectView(this.view, d.camera, p.x + q.x, p.y + q.y, q.z);
+        if (v && v[0] >= 0 && v[1] >= 0 && v[0] <= this.W && v[1] <= this.H)
+          out.push({ id: p.id, kind: q.kind, x: v[0], y: v[1] });
+      }
+    }
+    return out;
+  }
+
+  endNeighbours() {
+    if (!this.nb) return;
+    this.nb.destroy();
+    this.nb = null;
+  }
+
+  // The match's seed, so a shared match's phones can show the same tournament; 1
+  // where there is none to read (practice).
+  seedNow() {
+    try {
+      const seed = JSON.parse(this.engine.snapshot())?.opts?.seed;
+      if (Number.isInteger(seed)) return seed;
+    } catch {
+      // practice, or no session yet
+    }
+    return 1;
+  }
+
+  // The side whose frame the pitch is drawn in. A restored match's (adopt) is read
+  // from its base kubbs, once: Team A's stand at y = 0 in Team A's frame.
+  frameSide() {
+    if (this.nbSide) return this.nbSide;
+    let a = 0,
+      b = 0;
+    for (const it of this.items || []) {
+      if (it.kind !== "kubb" || !/^a/.test(it.id ?? "")) continue;
+      if (Math.abs(it.y) < 0.6) a++;
+      else if (Math.abs(it.y - 8) < 0.6) b++;
+    }
+    this.nbSide = b > a ? "B" : "A";
+    return this.nbSide;
   }
 
   begin() {

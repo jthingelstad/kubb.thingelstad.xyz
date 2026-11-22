@@ -151,7 +151,7 @@ address or home path in `dist/`, no account id in Markdown).
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `0.15.0 (0.15.1)`, at the foot of
+the full version of the newest engine the site carries, `0.16.0 (0.15.1)`, at the foot of
 every reading page and of MENU, with "Also plays ..." under it in MENU only while older
 engines are carried (none today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
@@ -702,6 +702,16 @@ labels are plain words.
   where pieces strike its floor, from the engine's ground impacts (`setImpacts`); a piece
   spinning faster than the frames is drawn as a spin. `?scene=` picks one off a pitch,
   never on one. Batons stay plain. docs/SCENES.md.
+- **The Tournament is live** (web 0.16.0, engine 0.15.1's `neighbours.*`; the owner,
+  2026-11-21: "a grid of pitches that are all live"): in a Tournament match, practice,
+  replay, embed or watch the pitches round the player's play computer-against-computer
+  matches, as scenery, in a second engine in a Web Worker
+  (`src/engine/neighbours-worker.js`, a same-origin hashed module the CSP already lets
+  in; `src/game/neighbours.js` is the page's half). The match's seed opens it; the match
+  clock, stopped under a card and in a hidden tab, drives it; the page never waits on
+  it, and anything that fails leaves the still pitches. Never for another scene, with
+  reduced motion, in the reel renderer or on a share card; no sound, no team names.
+  docs/SCENES.md "The Tournament's live neighbours".
 - **Kid matches** (engine 0.15; Jamie, 2026-11-21: "kid level is for kids to have fun
   with kubb"): Kid on the Computer row makes the match a Kid match; the web draws the Kid
   line (dots and two cones) on the pitch and the minimap, says "Kid match" on the

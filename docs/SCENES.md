@@ -4,15 +4,15 @@ A scene is how a match looks, and since Kubb Engine 0.14 also where it is played
 engine owns the scenes (its docs/SESSION.md "Scenes", docs/notes/scenes.md) and decides
 each one's surfaces and kubb set. Seven, in the engine's order:
 
-| id           | shown         | ground              | set       | the look (`src/render/`)                                                                                                                                                                                   |
-| ------------ | ------------- | ------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `day`        | Park          | grass               | Classic   | the pitch as it has always been drawn (`world.js`)                                                                                                                                                         |
-| `beach`      | Beach         | sand                | Classic   | a sand pitch by the sea: a hot sky and a low sun over the water, foam 3 m past the far baseline, wet sand, striped umbrellas and towels, dune grass, a sail; sand puffs (`beach.js`)                       |
-| `night`      | Camping       | grass               | (glowing) | a moonlit clearing under the stars, glowing lines and pieces, stardust (`night.js`)                                                                                                                        |
-| `neon`       | Techno        | grid                | (neon)    | a near-black glossy floor with a faint grid that mirrors the pieces, one light per side, a ribbon of light behind the thrown piece, haze at the horizon, a ring at every strike (`neon.js`)                |
-| `minnesota`  | Minnesota     | snow                | Minnesota | a winter park: a pale cold sky and low sun, snowbanks a metre off the sidelines, pines with snow on their tiers and bare birches, falling snow, slate-blue shadows; snow sprays (`minnesota.js`)           |
-| `tournament` | Tournament    | grass               | USA       | the player's pitch roped off with pennants among neighbouring pitches with their own pieces and players, people watching past the far rope, flip scoreboards with numbers only, a canopy (`tournament.js`) |
-| `bw`         | Black & White | grass, sand or snow | Classic   | the Playdate's own 1-bit look: white ground, black ink and shadows, dither patterns for every grey and for each surface's rough, the controls black and white (`mono.js`)                                  |
+| id           | shown         | ground              | set       | the look (`src/render/`)                                                                                                                                                                                                                                                  |
+| ------------ | ------------- | ------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `day`        | Park          | grass               | Classic   | the pitch as it has always been drawn (`world.js`)                                                                                                                                                                                                                        |
+| `beach`      | Beach         | sand                | Classic   | a sand pitch by the sea: a hot sky and a low sun over the water, foam 3 m past the far baseline, wet sand, striped umbrellas and towels, dune grass, a sail; sand puffs (`beach.js`)                                                                                      |
+| `night`      | Camping       | grass               | (glowing) | a moonlit clearing under the stars, glowing lines and pieces, stardust (`night.js`)                                                                                                                                                                                       |
+| `neon`       | Techno        | grid                | (neon)    | a near-black glossy floor with a faint grid that mirrors the pieces, one light per side, a ribbon of light behind the thrown piece, haze at the horizon, a ring at every strike (`neon.js`)                                                                               |
+| `minnesota`  | Minnesota     | snow                | Minnesota | a winter park: a pale cold sky and low sun, snowbanks a metre off the sidelines, pines with snow on their tiers and bare birches, falling snow, slate-blue shadows; snow sprays (`minnesota.js`)                                                                          |
+| `tournament` | Tournament    | grass               | USA       | the player's pitch roped off with pennants among neighbouring pitches playing live computer matches of their own ("The Tournament's live neighbours"), people watching past the far rope off to the sides, flip scoreboards with numbers only, a canopy (`tournament.js`) |
+| `bw`         | Black & White | grass, sand or snow | Classic   | the Playdate's own 1-bit look: white ground, black ink and shadows, dither patterns for every grey and for each surface's rough, the controls black and white (`mono.js`)                                                                                                 |
 
 Camping and Techno draw their own sets over the engine's Classic (the glowing set, the
 neon solids), as they always have. Night, Neon and every new look are our own designs: no
@@ -122,8 +122,90 @@ between it and the pitch.
 
 The Tournament's neighbours are data drawn by one function, `drawNeighbours(ctx, cam,
 kx, B, pitches)` (`NEIGHBOURS`, or a scene's own `neighbours`): each pitch's place and
-its pieces and people in its own frame, so a later engine that makes them live hands it
-their pieces as they stand.
+its pieces and people in its own frame. Since web 0.16.0 they are live (below).
+
+## The Tournament's live neighbours
+
+The pitches round the player's play real computer-against-computer matches, as scenery
+(the owner, 2026-11-21: "a grid of pitches that are all live"; engine 0.15.1's
+`neighbours.*`, its docs/SESSION.md "Neighbours", docs/CLIENTS.md "0.15.1 on top" and
+docs/notes/tournament.md). Nothing in them touches the player's match, its engine, its
+snapshot or its hashes.
+
+- **A second engine in a Web Worker.** `src/engine/neighbours-worker.js` is its own
+  esbuild entry, a same-origin hashed module (`/assets/neighbours-<hash>.js`, the
+  pages' config `neighboursUrl`), started with `new Worker(url, { type: "module" })`.
+  It loads wasmoon and the same Lua bundle and import shim as the page
+  (`Engine.create` with `tune: null`: no `useTune`, no `setClient`) and sets
+  `__kubbClock` to `performance.now`. Its messages are in
+  `src/engine/neighbours-host.js`: `open`, `advance`, `view`, `close`, each answered
+  once, in order, with the engine's own JSON text. The site's CSP needed nothing new:
+  `worker-src 'self'` lets the module in, and under the same policy the worker
+  compiles wasmoon by `'wasm-unsafe-eval'` and fetches the VM and the bundle from
+  `'self'` (`tests/site/site.test.mjs` pins it).
+- **When.** On entering a match, practice, replay or watch in the Tournament scene the
+  Game (`sceneryTick`, gated by `neighboursWanted` in `src/game/neighbours.js`) opens
+  `neighbours.open({ seed: <the match's seed>, scene: "tournament" })`: the ring of 8
+  round the pitch (`layout: "grid"`) in every window and view. The engine's `"row"` is
+  never asked for: with the thrower's camera it puts every neighbour outside the aim
+  picture, so a phone on its side would show no tournament at all, and the wide view
+  reads better across the grid's nearer side row too. A new match or a restored one
+  with another seed opens it again. Leaving the scene or the match closes it and ends
+  the worker. No worker is ever started for another scene,
+  under a card (a card over an open field only stops its clock), with
+  `prefers-reduced-motion` (the still `NEIGHBOURS` as before), or once the worker has
+  failed.
+- **The clock.** Once a frame the page posts the match clock (seconds since the field
+  opened), stopped under a card, in a hidden tab (no frames, or the unattended timer's
+  quiet ticks) and while a replay is paused, at real speed whatever the replay's speed.
+  The worker answers with `neighbours.advance({ now, budgetMs: 2 })`'s events. The page
+  never waits: one advance is in flight at a time (the clock keeps moving and the next
+  ask carries it), a field not open within 20 s or an answer not back within 10 s ends
+  the worker, and until the field is open, or after a failure, the still pitches are
+  drawn.
+- **The model** (`Field`): each pitch's items from the events; a `throw` plays its
+  recording with `playRecording`, copied line for line from the engine's
+  `tests/node/neighbours.test.mjs`, at `t = now - event.at`, its last poses kept as
+  the items at its end (`tests/engine/neighbours.test.mjs` holds the page's model to
+  `neighbours.view`). Between throws the phase says what the people do
+  (`peopleOf`): each team (three figures at most) behind its baseline in a shirt from
+  its name, the thrower at `from` with the arm up as the throw goes, on `walk` the side
+  that threw going out for its batons and the other for its felled kubbs and back, on
+  `raise` a figure at the kubbs being stood up, on `over` the winners' arms going up,
+  on `setup` the new teams walking on. Team names are never drawn. The two pitches in
+  line with the player's (straight ahead and behind) play without their people: at
+  real scale a person a few metres past the far kubbs stands taller on the screen than
+  anything the player aims at, and one behind over the near end (the iPhone does the
+  same). For the same reason the scene's own scoreboard and people watching stand
+  past the far rope off to the sides, in the gaps between the pitches, never straight
+  behind the far kubbs (they loomed over the target in a Kid match, the thrower 2 m
+  forward), and the still pitches ahead have no people either. The canopy stands
+  beyond the grid's far row (y = 26).
+- **The frame.** Each pitch is drawn at its `offset`. While the player's pitch is in
+  Team B's frame (the thrower's view of Team B's throws: the last throw's side, the
+  engine's `Session.frameSide`; read from the base kubbs once for a restored match) the
+  whole field turns half about (0, 4): `(ox + x, oy + y)` is drawn at
+  `(-(ox + x), 8 - (oy + y))`, axes turned with it (`fieldFor`). The wide view is in
+  the world frame (session/wide.lua), so it never turns.
+- **Far detail.** A live piece is its long axis drawn as a thick stroke in the wood's
+  colour over a thin ink one, with the USA set's head on a kubb and the crown on the
+  king (`posedPiece` in `src/render/tournament.js`): three strokes at most, no shadow,
+  no faces, whatever way it lies or flies. A pitch whose middle is in front of the
+  camera and wholly off the frame is not drawn. The engine's spacing stands (8 m across,
+  12 m ahead).
+- **Not here.** No sound. The reel renderer and its stills (`backend/reels/`) and the
+  share cards keep the still neighbours: they build no worker and pass no
+  `neighbours`.
+- **Where it shows.** The cameras look down at the player's pitch, so the field is
+  mostly round the edges: the pitch ahead playing on behind the bunting at the top of
+  the thrower's view (upright; on its side only once the camera follows a throw), the pitch beside it across the top of the wide view on a wide window, and all
+  of it once a watcher zooms the free camera out. That is on purpose: they are a
+  tournament going on round you, not a second thing to watch.
+- **Costs** (headless Chromium, an M-class Mac, watching in the wide view): drawing the
+  eight live pitches adds about 0.1 ms a frame over none (0.05 to 0.15 ms; 0.16 ms
+  with the free camera zoomed out to show them all), at 1280x800 and at 390x844; the
+  worker's answers average about 95 bytes (one a frame: about 6 KB a second at 60
+  frames), the largest about 4.5 KB (a throw's recording), and the opening is 12 KB.
 
 ## Ground impacts, the spin
 

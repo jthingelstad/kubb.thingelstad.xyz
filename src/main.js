@@ -110,6 +110,16 @@ engines.onLoad((engine, mm) =>
   mm === engines.newest ? useRoomEngine(engine) : useOlderEngine(engine),
 );
 
+// The Tournament's live neighbours (src/game/neighbours.js): their worker, and the
+// bundle it loads, the newest engine's, as the page's own engine does.
+const neighbours = config.neighboursUrl
+  ? {
+      workerUrl: config.neighboursUrl,
+      luaUrl: config.engines?.[engines.newest]?.luaUrl ?? config.luaUrl,
+      wasmUrl: config.wasmUrl,
+    }
+  : null;
+
 async function makeEngine() {
   if (!engines.newest) throw new Error("this build has no Lua sources");
   const [engine] = await Promise.all([
@@ -130,7 +140,14 @@ async function bootEmbed() {
     makeGame: async () => {
       const engine = await makeEngine();
       const cards = new Cards(ui);
-      const game = new Game({ engine, canvas, ui, sound: null, cards });
+      const game = new Game({
+        engine,
+        canvas,
+        ui,
+        sound: null,
+        cards,
+        neighbours,
+      });
       game.onError = fail;
       game.start();
       return game;
@@ -159,7 +176,15 @@ async function boot() {
   const engine = await makeEngine();
   const sound = new Sound(config.sounds || "/sounds/");
   const cards = new Cards(ui);
-  const game = new Game({ engine, canvas, ui, sound, cards, swipeEnabled });
+  const game = new Game({
+    engine,
+    canvas,
+    ui,
+    sound,
+    cards,
+    swipeEnabled,
+    neighbours,
+  });
   game.onError = fail;
   const howto = (onDone) => showHowto(ui, game, onDone);
   const code = pitchCode();

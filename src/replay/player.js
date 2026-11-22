@@ -226,6 +226,7 @@ export class ReplayPlayer {
     const g = this.game;
     g.cards?.close();
     const v = g.engine.replayLoad(this.data);
+    g.nbSeed = null; // the Tournament's neighbours follow the replayed match's seed
     this.info = v.replay;
     this.ended = false;
     this.restored = false;

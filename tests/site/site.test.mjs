@@ -491,6 +491,37 @@ test("the optional pitch association is served directly as JSON", async (t) => {
   });
 });
 
+// The Tournament's live neighbours run a second engine in a Web Worker
+// (src/engine/neighbours-worker.js), a same-origin hashed module the build writes under
+// /assets/. The policy the site already sends lets it in: worker-src 'self' loads it,
+// and the worker, under the same policy (CloudFront's default behaviour serves /assets/
+// with the Headers policy), compiles wasmoon by 'wasm-unsafe-eval' and fetches the VM
+// and the Lua bundle from 'self'. No inline worker, no new origin, no stack change.
+test("the CSP lets the neighbours' worker in: worker-src 'self', wasm, connect 'self'", async () => {
+  for (const policy of [contentSecurityPolicy(), embedSecurityPolicy()]) {
+    const dir = (name) =>
+      policy
+        .split("; ")
+        .find((d) => d.startsWith(`${name} `))
+        ?.split(" ")
+        .slice(1) ?? [];
+    assert.ok(dir("worker-src").includes("'self'"), policy);
+    assert.ok(dir("script-src").includes("'self'"));
+    assert.ok(dir("script-src").includes("'wasm-unsafe-eval'"));
+    assert.ok(dir("connect-src").includes("'self'"));
+  }
+  // the default behaviour (/assets/ among it) carries the policy, as the pages do
+  const template = await json("infra/site.json");
+  const dist = template.Resources.Distribution.Properties.DistributionConfig;
+  assert.deepEqual(dist.DefaultCacheBehavior.ResponseHeadersPolicyId, {
+    Ref: "Headers",
+  });
+  // the build names the worker as its own hashed entry and gives the pages its address
+  const build = await fs.readFile("tools/build.mjs", "utf8");
+  assert.match(build, /neighbours: "src\/engine\/neighbours-worker\.js"/);
+  assert.match(build, /neighboursUrl: assets\.neighbours/);
+});
+
 test("published files are typed and cached right", () => {
   const wasm = prepareObject("assets/glue-abc.wasm", Buffer.from("x"));
   assert.equal(wasm.ContentType, "application/wasm");
@@ -547,8 +578,8 @@ test("the version label: package.json's version and the newest engine's, never t
   const sha = "a2659b744210e4c5baa5b69c672e11ec87f9bfab";
   const release = releaseOf(pkg.version, sha, carried);
   assert.equal(release.text, `${pkg.version} (${carried[0].version})`);
-  // this checkout: 0.15.0 on 0.15.0, the one engine it carries (docs/ENGINES.md)
-  assert.equal(release.text, "0.15.0 (0.15.1)");
+  // this checkout: 0.16.0 on 0.15.1, the one engine it carries (docs/ENGINES.md)
+  assert.equal(release.text, "0.16.0 (0.15.1)");
   assert.equal(release.detail, null);
   // more than one carried (when the owner decides one is supported): "Also plays"
   const two = [carried[0], { ...carried[0], mm: "0.9", version: "0.9.0" }];
@@ -557,7 +588,7 @@ test("the version label: package.json's version and the newest engine's, never t
   // one engine carried: no detail
   assert.equal(releaseOf("0.2.0", sha, carried.slice(0, 1)).detail, null);
   const foot = footer(release.text);
-  assert.match(foot, /data-release>Version 0\.15\.0 \(0\.15\.1\)<\/p>/);
+  assert.match(foot, /data-release>Version 0\.16\.0 \(0\.15\.1\)<\/p>/);
   assert.ok(!foot.includes(sha.slice(0, 7)));
 });
 
