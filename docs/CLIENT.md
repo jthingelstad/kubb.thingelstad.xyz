@@ -1306,15 +1306,16 @@ min }`, the start's shape; session.lua `applyThrow` and `resign`) and subtracts 
   on that offset (`stampOn`), part of the action, so every browser applies the same stamp
   and a resigner two time zones away, or a daylight-saving change mid-match, still gives
   the true length. A start without the offset (made before) gets no stamp, and a stamp
-  before the start or past `MAX_MINUTES` (12 hours) is not made. A person's throw is made
-  inside the engine's `frame` and cannot carry one, and the computer's throws are left
-  unstamped, so a length is exact or not shown: the winner card shows one from 1 min to
-  `MAX_MINUTES`, and the sheet shown leaves out a Duration of 0 or less or past it (the
-  record keeps the engine's file). What the engine should do: let `frame` and `cpuAction`
-  take `at` and put it on the throw action they make; carry the start's UTC instant (or
-  offset) as a field of its own and take `at` as a UTC instant, so it reckons the length
-  itself whatever the clocks; and give minutes `nil` (no Duration header) when no action
-  carried a stamp, rather than the start.
+  before the start or past `MAX_MINUTES` (12 hours) is not made. Since engine 0.18.0
+  every action is stamped (its docs/SESSION.md "Actions" `at`): `Game.stamp` is the one
+  place, passed as `at` on every `frame` (so the throws the engine makes, a person's and
+  the computer's, carry it) and put on the raise, punish and resign actions the page
+  makes; every browser takes the stamp from the action, so all write the same End and
+  Duration. A finished match with no stamp has no End or Duration at all and the winner
+  card's `minutes` is nil: the winner card shows a length from 1 min to `MAX_MINUTES`,
+  and the sheet shown still leaves out an older match's untrue `0m` (the record keeps the
+  engine's file). What the engine could still do: carry the start's UTC instant as a
+  field of its own and take `at` as a UTC instant, so it reckons the length itself.
 
 ## Recording
 
