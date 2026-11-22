@@ -138,7 +138,12 @@ export async function buildSite({
   // The client. wasmoon's Node-only branches import Node modules it never
   // reaches in a browser; they stay external.
   const result = await build({
-    entryPoints: { main: "src/main.js" },
+    // the Tournament's neighbours run a second engine in a worker of their own, a
+    // same-origin hashed module (src/engine/neighbours-worker.js)
+    entryPoints: {
+      main: "src/main.js",
+      neighbours: "src/engine/neighbours-worker.js",
+    },
     bundle: true,
     format: "esm",
     platform: "browser",
@@ -156,10 +161,13 @@ export async function buildSite({
   const assets = {};
   for (const [file, meta] of Object.entries(result.metafile.outputs)) {
     const url = `/${path.relative("dist", file).split(path.sep).join("/")}`;
-    if (meta.entryPoint && file.endsWith(".js")) assets.main = url;
+    if (meta.entryPoint === "src/main.js" && file.endsWith(".js"))
+      assets.main = url;
+    else if (meta.entryPoint && file.endsWith(".js")) assets.neighbours = url;
     else if (file.endsWith(".css")) assets.css = url;
   }
   if (!assets.main) throw new Error("esbuild wrote no client entry");
+  if (!assets.neighbours) throw new Error("esbuild wrote no neighbours worker");
 
   const commit = process.env.GITHUB_SHA || git("rev-parse", "HEAD") || null;
   const engine = carried[0].version;
@@ -173,6 +181,7 @@ export async function buildSite({
     apiUrl: API_URL,
     wasmUrl: await hashedAsset("node_modules/wasmoon/dist/glue.wasm", "glue"),
     luaUrl: engines[newest].luaUrl,
+    neighboursUrl: assets.neighbours,
     engine,
     engines,
     release,

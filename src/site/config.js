@@ -23,6 +23,9 @@
 //   release:  { version: "0.1.0", web, engine, text }, the release this
 //             page is (src/site/release.js); /version.json is the deployed one
 //   sounds:   "/sounds/",         knock-1.wav to knock-9.wav
+//   neighboursUrl: "/assets/neighbours-<hash>.js", the worker the Tournament's live
+//             neighbours run in (src/engine/neighbours-worker.js); a page built
+//             without it draws the still ones
 // }
 //
 // The page carries them as a JSON data block (no inline script: the site's
