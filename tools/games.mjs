@@ -258,42 +258,54 @@ export async function openGamesBucket() {
   };
 }
 
+// The prefixes a pull lists: everything, or one pitch's folder, and with --dev that
+// pitch's folder under games/dev/ too (a dev pitch's records are only there).
+export function pullPrefixes({ room, dev = false } = {}) {
+  if (!room) return [PREFIX];
+  return [
+    `${PREFIX}${PITCH_DIR}/${room}/`,
+    ...(dev ? [`${PREFIX}${DEV_DIR}/${PITCH_DIR}/${room}/`] : []),
+  ];
+}
+
 async function pull({ room, since, dir, dev }) {
   const { s3, bucket, ListObjectsV2Command, GetObjectCommand } =
     await openGamesBucket();
   const after = since ? Date.parse(since) : 0;
   if (Number.isNaN(after)) throw new Error(`--since ${since} is not a date`);
-  let token;
   let got = 0;
   let had = 0;
-  do {
-    const page = await s3.send(
-      new ListObjectsV2Command({
-        Bucket: bucket,
-        Prefix: room ? `${PREFIX}${PITCH_DIR}/${room}/` : PREFIX,
-        ContinuationToken: token,
-      }),
-    );
-    for (const { Key } of page.Contents ?? []) {
-      const rest = pulledPath(Key, { room, since: after, dev });
-      if (!rest) continue;
-      const file = path.join(dir, ...rest);
-      try {
-        await fs.access(file);
-        had++;
-        continue;
-      } catch {
-        // not here yet
-      }
-      const object = await s3.send(
-        new GetObjectCommand({ Bucket: bucket, Key }),
+  for (const Prefix of pullPrefixes({ room, dev })) {
+    let token;
+    do {
+      const page = await s3.send(
+        new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix,
+          ContinuationToken: token,
+        }),
       );
-      await fs.mkdir(path.dirname(file), { recursive: true });
-      await fs.writeFile(file, await object.Body.transformToByteArray());
-      got++;
-    }
-    token = page.NextContinuationToken;
-  } while (token);
+      for (const { Key } of page.Contents ?? []) {
+        const rest = pulledPath(Key, { room, since: after, dev });
+        if (!rest) continue;
+        const file = path.join(dir, ...rest);
+        try {
+          await fs.access(file);
+          had++;
+          continue;
+        } catch {
+          // not here yet
+        }
+        const object = await s3.send(
+          new GetObjectCommand({ Bucket: bucket, Key }),
+        );
+        await fs.mkdir(path.dirname(file), { recursive: true });
+        await fs.writeFile(file, await object.Body.transformToByteArray());
+        got++;
+      }
+      token = page.NextContinuationToken;
+    } while (token);
+  }
   console.log(`${got} new records in ${dir} (${had} already here)`);
 }
 
