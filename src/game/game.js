@@ -1508,10 +1508,13 @@ export class Game {
         cl = L.safe.left + 12;
         cw = L.minimap.x - 8 - cl;
       } else {
+        // short of the meter at the right edge (its prompt and the coach)
         const a = L.minimap.x + L.minimap.width + 12;
+        const b =
+          L.meterSide === "right" ? L.dial.x - 12 : L.W - L.safe.right - 12;
         const half = L.W / 2 - a;
         cl = a;
-        cw = half >= 160 ? 2 * half : L.W - L.safe.right - 12 - a;
+        cw = half >= 160 && a + 2 * half <= b ? 2 * half : b - a;
       }
     }
     const ck = cl == null ? "" : `${Math.round(cl)}:${Math.round(cw)}`;
