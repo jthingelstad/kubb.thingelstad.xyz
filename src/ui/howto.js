@@ -74,6 +74,8 @@ export function shouldShowHowto() {
 export function showHowto(root, game = null, onDone = null) {
   let i = 0;
   let raf = 0;
+  // where the keyboard was, to go back to when the guide closes
+  const opener = document.activeElement;
   let t0 = performance.now();
   // the picture is the meter on the screen: the linear one is tall and narrow
   const linear = game?.L?.meter === "linear";
@@ -174,6 +176,16 @@ export function showHowto(root, game = null, onDone = null) {
     if (game) game.modal = Math.max(0, game.modal - 1);
     window.removeEventListener("keydown", esc);
     onDone?.();
+    // the keyboard goes to the card the guide stood over (a first visit's hand-off,
+    // which waited out of sight under it), else back where it was
+    requestAnimationFrame(() => {
+      const under = root.querySelector(".card-layer [data-default]");
+      const back =
+        opener && opener !== document.body && opener.isConnected
+          ? opener
+          : null;
+      (under ?? back)?.focus({ preventScroll: true });
+    });
   }
   const esc = (e) => {
     if (e.key === "Escape") done();
