@@ -15,13 +15,14 @@
 //   Automatic, the computer's own raises, watching the computer) and the punishment
 //   kubbs it places come with no need and no action: engine 0.16.0 hands them out on the
 //   next throw need (`setup.settled`: each kubb's id, the end chosen, and its lying and
-//   standing poses in the raise view's frame), and `settledClips(settled, { around })`
-//   makes their clips, in its order, at the same pace and tip. After a restore there is
-//   none (the kubbs already stand).
+//   standing poses in the raise view's frame; since 0.17.0 also `others` and `king`, the
+//   surroundings as the raise by hand has them), and `settledClips(settled)` makes their
+//   clips, in its order, at the same pace and tip. After a restore there is none (the
+//   kubbs already stand).
 //
 //   const pace = liftPace(of);          // { lead, beat, tip } s for a raise of `of` kubbs
 //   const clip = actionClip(need, a);   // { need, i, final, items(u) } or null
-//   const clips = settledClips(n.setup.settled, { around }); // the engine's own
+//   const clips = settledClips(n.setup.settled);                // the engine's own
 //   clip.items(u)                        // the pieces at u (0 to 1) of the clip
 import { poseItem, settleItems } from "./scenes.js";
 import { tiltItem } from "./raise-touch.js";
@@ -128,12 +129,17 @@ export function actionClip(need, action, opts = {}) {
 // raise view draws in (the world frame in the wide view, each entry `frame: "world"`):
 // they are drawn as given, never compared with the pitch or turned.
 //
-// around: the other pieces to draw with them, in that same frame. The list carries only
-// its own kubbs, so in the thrower's view (where the throw need's items are in the next
-// thrower's frame, the other team's) that is the king alone, which stands on the
-// pitch's centre in either frame; in the wide view, where the list and the view are
-// both the world's, it is the view's items. A kubb of the list is drawn lying before
-// its turn and standing after it, whatever `around` holds for it.
+// Since engine 0.17.0 each entry carries its surroundings, `others` ({ id, pose }, every
+// other piece as it stood when that kubb was raised, the list's own kubbs among them:
+// those done standing, those to come lying) and `king`, in the entry's own frame, as
+// raiseInfo gives them for a raise by hand (punishInfo's for a punishment kubb): an entry
+// is drawn as the raise-by-hand view draws its need, the kubb from `lying` to `standing`
+// with `others` and `king` round it, entry by entry. Nothing is taken from the throw
+// need's items, compared or turned.
+//
+// around (an entry without `others` only: none on engine 0.17): the other pieces to draw
+// with it, in that same frame, and the list's other kubbs lying before their turn and
+// standing after it.
 export function settledClips(settled, { around = [], reduced = false } = {}) {
   const list = Array.isArray(settled?.list) ? settled.list : [];
   const done = list
@@ -176,6 +182,16 @@ export function settledClips(settled, { around = [], reduced = false } = {}) {
       final: d.final,
       footprints: [],
       items(u) {
+        const kubb = liftKubb(need, d.i, d.final, u, { reduced });
+        if (Array.isArray(d.e.others)) {
+          // the entry's own surroundings, as given (engine 0.17.0)
+          const items = d.e.others
+            .filter((o) => o?.pose && o.id !== d.e.id)
+            .map((o) => poseItem(o.id, "kubb", o.pose));
+          if (d.e.king) items.push(poseItem("king", "king", d.e.king));
+          items.push(kubb);
+          return items;
+        }
         const items = rest.slice();
         for (let j = 0; j < done.length; j++) {
           if (j === k) continue;
@@ -184,7 +200,7 @@ export function settledClips(settled, { around = [], reduced = false } = {}) {
           // a punishment kubb is not on the pitch before it is placed
           else if (!o.placed) items.push(poseItem(o.e.id, "kubb", o.lying));
         }
-        items.push(liftKubb(need, d.i, d.final, u, { reduced }));
+        items.push(kubb);
         return items;
       },
     };
