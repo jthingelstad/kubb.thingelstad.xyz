@@ -17,11 +17,29 @@ the calls that are not live (replays, reels, shares, reports, records) are the a
 | `src/net/seats.js`                | Cached wrappers over the engine's seat and actor rules.                                               |
 | `src/net/room-engine.js`          | The bridge: `engine.call("pitch.<name>", args).value` on the newest engine or a named one.            |
 | `src/ui/lobby.js`                 | `Lobby`, the lobby card.                                                                              |
+| `src/ui/welcome.js`               | The welcome card a device new to the game sees before the lobby ("The welcome", below).               |
 | `tools/pitch-dev.mjs`             | The pitch core and the api on this machine, for `npm run dev` and the tests (see Tests).              |
 | `tests/net/pitch-client.test.mjs` | The socket against the pitch core: resume, retries, every socket dropped, refusals, two clients.      |
 | `tests/net/aim.test.mjs`          | The aim maths.                                                                                        |
 | `tests/game/multiplayer.test.mjs` | Playwright: real browsers against the local pitch server (see Tests).                                 |
 | `tests/game/pitch-e2e.test.mjs`   | Playwright: two players and an observer complete a turn; the observer's dial moves between samples.   |
+
+## The welcome
+
+A device that has never played (no throw of its own kept: `firstVisit`, the `throwsMade`
+pref the nudge counts) arriving on someone else's pitch sees one card before the lobby
+(the Throwing Wood 1.0 design, "Pitch link welcome"; `src/ui/welcome.js`, its words in
+`WELCOME_WORDS`): the game's name as a chip, "<host> invited you to a game of kubb" (the
+host's name as the lobby shows it, "You’re invited to a game of kubb" until the pitch
+says), the landing page's two sentences on kubb, "You will be" over the device's
+generated name with SHUFFLE (a pick is sent at once, as in the lobby), JOIN THE GAME
+(the lobby), and the quiet JUST WATCH (the same link with `?observe=1`,
+docs/OBSERVER.md) and HOW TO THROW (the how-to, then the welcome again). The page has
+joined the pitch underneath, so the host sees the name. The host who made the pitch
+(`room.isHost()` at `v` 0) goes straight to the lobby, and a device that has played
+before never sees it; the first visit's automatic HOW TO THROW is not shown on a pitch
+link to a new device (the welcome offers it). Arriving mid-match, the match takes the
+screen; JOIN THE GAME then only closes the card.
 
 ## The lobby
 
@@ -30,15 +48,15 @@ browser's member id (`kubb.member` in localStorage) as a `player` with
 `me = { name, level, engine, engines }`. `engine` is the
 vendored engine's major.minor (`"0.3"`), read from `room.constants`. The lobby card shows:
 
-- **You**: your name, this device's generated name (`kubb:name`), in its name row
-  (docs/CLIENT.md "Names"): a pick here or in MENU is kept as the device's name and sent
-  at once (`me.name`). No level is shown: from engine 0.13 every person throws on one
+- **You are**: your name, this device's generated name (`kubb:name`), and SHUFFLE on one
+  line (the name row, docs/CLIENT.md "Names"): a pick here or in MENU's Settings is kept
+  as the device's name and sent at once (`me.name`). No level is shown: from engine 0.13 every person throws on one
   meter. `me.level` is still sent, the device's stored level (`kubb:level`, Club when
   never chosen); it changes nothing on 0.13.
 - **Team A** (marigold) and **Team B** (violet), up to six a side, in throwing order, each
   member with a dot for connected and HOST and YOU tags (two with one name: the second
   "II", "Names" below). A side of several shows the name it plays as, the host's to pick
-  in a name row. JOIN A, JOIN B, or WATCH INSTEAD to sit out. An empty side says "The computer plays this side." when the other has
+  in a name row (the name and SHUFFLE). JOIN A, JOIN B, or WATCH INSTEAD (quiet) to sit out. An empty side says "The computer plays this side." when the other has
   someone.
 - **Watching**: everyone in the room on neither team.
 - **SHARE THE LINK**: `navigator.share` where there is one, else the clipboard.
@@ -46,12 +64,15 @@ vendored engine's major.minor (`"0.3"`), read from `room.constants`. The lobby c
   Open ("Listed under Open games on the web game’s page: anyone can join."; that list is on the landing page, `/#play`, since the 1.0 design). The host picks;
   everyone else reads it. Starting a pitch from the landing page (`/#play`) with Open picked arrives as
   `/p/<code>?open=1`, and the new pitch's host (at `v` 0) writes it open.
-- **The match** options: surface, opening, raising, wind, kubb set. The host sets them
+- **The match** options, each a segmented bar: the computer's level, surface, opening,
+  raising, wind and the scene; no kubb set since the 1.0 design (the scene decides the
+  set, as on the solo card: `HIDDEN_ROWS` in `src/ui/lobby.js`; the room's set stays as
+  it is, Classic unless an older page chose another). The host sets them
   (and the host's choices are remembered as `kubb:pitchOptions` for their next pitch);
   everyone else reads them.
-- **START** for the host, allowed with at least one player on one team; everyone else
-  reads "Waiting for <host> to start." START stays in reach at the bottom while the
-  card scrolls.
+- **HOME** (quiet) at the left and **START** (go) at the right for the host, allowed with
+  at least one player on one team; everyone else reads "Waiting for <host> to start."
+  The row stays in reach at the bottom while the card scrolls.
 
 Teams change only between matches. A member who leaves the pitch for good is taken off their team by the host's browser.
 
@@ -425,6 +446,11 @@ keep these the same, or the two disagree on screen:
   name is refused. `tests/pitch-server/names.test.mjs`: the server's word lists are the
   engine's, its check agrees with `names.valid` on every name and thousands of near
   misses, and the drop and refusals.
+- `tests/game/welcome-client.test.mjs`: a device new to the game sees the welcome, naming
+  the host, with SHUFFLE, HOW TO THROW and back, and JOIN THE GAME into the lobby under
+  the name picked; a device that has played, and a new host, go straight to the lobby;
+  JUST WATCH reopens the link as an observer. The pitch tests' own browsers are devices
+  that have played (`played` in `tests/game/browser.mjs`).
 - `tests/game/room-engines.test.mjs` and `tests/net/room-engines.test.mjs`: one engine
   carried; a player on an older client is told on both sides and START stays off.
 
