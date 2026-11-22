@@ -100,6 +100,13 @@ test("the rules page and HOW TO THROW name the controls the game has", () => {
   assert.ok(!/beside the (dial|meter)/.test(words), "how-to: beside the meter");
 });
 
+test('no page or card sends a player to "the web game\'s page"', async () => {
+  // since the 1.0 design / is the landing page and the game's page with it: the
+  // words say the home page (QA, 2026-11-22)
+  for (const f of ["src/ui/lobby.js", "src/net/pitch.js", "src/site/pages.mjs"])
+    assert.ok(!(await fs.readFile(f, "utf8")).includes("web game’s page"), f);
+});
+
 test("a pitch at any code is the one game page", () => {
   assert.equal(request("/p/abcd2345").uri, "/pitch/index.html");
   assert.equal(request("/p/abcd2345/").uri, "/pitch/index.html");

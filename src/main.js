@@ -367,7 +367,6 @@ function startPractice(game, cards, asked) {
   });
   const kubbs = button("KUBBS", () => pick(true), "small", {
     "aria-pressed": "false",
-    "aria-label": "Kubbs (drilling)",
     "data-test": "drill",
   });
   const mark = () => {

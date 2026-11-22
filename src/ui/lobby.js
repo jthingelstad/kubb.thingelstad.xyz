@@ -35,7 +35,7 @@ export const ACCESS = [
 ];
 export const ACCESS_NOTE = {
   invite: "Only people with the link can join.",
-  open: "Listed under Open games on the web game’s page: anyone can join.",
+  open: "Listed under Open games on the home page: anyone can join.",
 };
 
 export class Lobby {

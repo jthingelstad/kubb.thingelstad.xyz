@@ -420,7 +420,7 @@ export class Pitch {
     this.cards.notice({
       kicker: `PITCH ${this.code}`,
       title: "No game here",
-      text: "Nobody is playing on this pitch. Open games are listed on the web game’s page.",
+      text: "Nobody is playing on this pitch. Open games are listed on the home page.",
       actions: [
         ["JOIN THIS PITCH", () => this.joinPitch(), "go"],
         ["HOME", this.home],
@@ -503,9 +503,9 @@ export class Pitch {
     const text = {
       full: "This pitch has as many people on it as it takes, every one of them connected. Start a pitch of your own, or try again when someone leaves.",
       "bad-room":
-        "That is not a pitch's link. Pitch links come from Start a pitch on the web game’s page.",
+        "That is not a pitch's link. Pitch links come from Start a pitch on the home page.",
       "no-pitch":
-        "Nobody has started this pitch. Pitch links come from Start a pitch on the web game’s page.",
+        "Nobody has started this pitch. Pitch links come from Start a pitch on the home page.",
       replaced: "This pitch is open in another tab or window of this browser.",
     }[code];
     this.cards.notice({
@@ -683,7 +683,7 @@ export class Pitch {
     );
   }
 
-  // The host: open (listed on the web game’s page) or invite only.
+  // The host: open (listed on the home page) or invite only.
   setAccess(open) {
     if (!this.room.isHost()) return;
     this.write((d) => setAccess(d, open));
