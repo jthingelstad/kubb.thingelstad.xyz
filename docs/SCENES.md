@@ -202,8 +202,9 @@ snapshot or its hashes.
   of it once a watcher zooms the free camera out. That is on purpose: they are a
   tournament going on round you, not a second thing to watch.
 - **Costs** (headless Chromium, an M-class Mac, watching in the wide view): drawing the
-  eight live pitches adds about 0.1 ms a frame over none (0.05 to 0.15 ms; 0.16 ms
-  with the free camera zoomed out to show them all), at 1280x800 and at 390x844; the
+  eight live pitches adds 0.05 to 0.2 ms a frame over none (the still pitches cost
+  about half that), the free camera zoomed out to show them all included, at 1280x800
+  and at 390x844, in the wide view and the thrower's; the
   worker's answers average about 95 bytes (one a frame: about 6 KB a second at 60
   frames), the largest about 4.5 KB (a throw's recording), and the opening is 12 KB.
 
