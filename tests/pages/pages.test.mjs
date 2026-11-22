@@ -476,7 +476,7 @@ test("a pitch just made: its host's name from the first moment, round plates, TA
   assert.equal(png.readUInt32BE(16), 1200);
 });
 
-test("readPitch: a match in play costs one read; a finished one reads its replay, then its reel", async () => {
+test("readPitch: a match in play costs one read; a finished one reads its open record and replay together, then its reel", async () => {
   const code = "abcd2345";
   const pk = `pitch#${code}`;
   const items = {
@@ -526,6 +526,7 @@ test("readPitch: a match in play costs one read; a finished one reads its replay
   const s = pitchState(await readPitch(item, code));
   assert.deepEqual(asked, [
     [pk, "state", "rev,made,n,seq,over,z,hash,names,cpu,level,exp"],
+    [pk, "open", "made,host,exp"],
     [pk, "replay", "v,made,n,s,hash,cpu,level,exp"],
     [pk, "reel", "v,state,wide,exp"],
   ]);
@@ -558,6 +559,91 @@ test("readPitch: a match in play costs one read; a finished one reads its replay
   // nothing at all
   delete items.replay;
   assert.equal(pitchState(await readPitch(item, code)).state, "none");
+});
+
+// Codex on web PR #108: a finished pitch idle-wiped after 48 hours keeps its state and
+// replay a year; its link used again makes a new pitch (a later `made`), whose open
+// record must win over the retained final, on the preview and on the page itself.
+test("a reused link: a newer open record wins over a retained finished match, through readPitch and the page", async () => {
+  const code = "abcd2345";
+  const later = M + 3 * 24 * 3600 * 1000;
+  const items = {
+    state: {
+      rev: 9,
+      made: M,
+      n: r.n,
+      seq: r.log.length,
+      over: true,
+      z: gzipSync(r.snap),
+      hash: r.hash,
+      exp: 2e9,
+    },
+    replay: {
+      v: M + 1000,
+      made: M,
+      n: r.n,
+      s: gzipSync(r.snap),
+      hash: r.hash,
+      exp: 2e9,
+    },
+    open: { made: later, host: "Cheerful Cedar", exp: 2e9 },
+  };
+  const asked = [];
+  const item = async (_pk, sk) => {
+    asked.push(sk);
+    return items[sk] ?? null;
+  };
+  const records = await readPitch(item, code);
+  const s = pitchState(records);
+  assert.deepEqual(s, { state: "waiting", v: later, host: "Cheerful Cedar" });
+  assert.deepEqual(asked, ["state", "open", "replay"], "no reel read for it");
+  // the old pitch's own open record (the same made) does not hide its final
+  items.open = { made: M, host: "Cheerful Cedar", exp: 2e9 };
+  assert.equal(pitchState(await readPitch(item, code)).state, "over");
+  // nor does an open older than a later match's state
+  items.open = { made: M - 1, host: "Cheerful Cedar", exp: 2e9 };
+  assert.equal(pitchState(await readPitch(item, code)).state, "over");
+  // the page and the embed of the reused link: the new pitch, waiting for players
+  const handle = createPages({
+    load: async () => records,
+    base: async (file) =>
+      file === "/embed/index.html"
+        ? base.replace("<title>", "<title>embed ")
+        : base,
+    render: async () => Buffer.from("png"),
+    site: ORIGIN,
+  });
+  const get = async (url) => {
+    const out = { status: 0, body: "" };
+    await handle(
+      { url, method: "GET" },
+      {
+        writeHead(status) {
+          out.status = status;
+        },
+        end(body) {
+          out.body = body == null ? "" : String(body);
+        },
+      },
+    );
+    return out;
+  };
+  const page = await get(`/pitch/index.html?pitch=${code}`);
+  assert.equal(page.status, 200);
+  assert.equal(
+    meta(page.body, "og:title"),
+    "Cheerful Cedar is waiting for players · Kubb: Throwing Wood",
+  );
+  assert.match(page.body, /Waiting for players\. Join the pitch\./);
+  assert.doesNotMatch(page.body, /Final:/);
+  assert.match(page.body, new RegExp(`/og/${code}\\.png\\?v=${later}`));
+  const embed = await get(`/embed/index.html?pitch=${code}`);
+  const st = JSON.parse(
+    embed.body.match(/id="kubb-pitch">([^<]*)</)[1].replace(/\\u003c/g, "<"),
+  );
+  assert.equal(st.state, "waiting");
+  assert.equal(st.final, null);
+  assert.equal(st.match, null, "no older kept replay is played for it");
 });
 
 test("a finished reel: one more GetItem, og:video tags on the pitch page, the image kept", async () => {
