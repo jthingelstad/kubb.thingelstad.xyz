@@ -43,7 +43,19 @@ import {
 import { watchFreshness } from "./net/freshness.js";
 import { showUpdate } from "./ui/update.js";
 import { startEmbed, embedCode } from "./embed/embed.js";
-import { sceneFromQuery, sceneId, takesScene } from "./render/scenes.js";
+import {
+  sceneFromQuery,
+  sceneId,
+  takesScene,
+  SCENE_NAMES,
+} from "./render/scenes.js";
+import {
+  saveOf,
+  writeSave,
+  readSave,
+  clearSave,
+  RESUME_WORDS,
+} from "./game/solo-save.js";
 
 const config = readConfig();
 const ui = document.getElementById("ui");
@@ -403,6 +415,9 @@ const takesComputer = () => MATCH_OPTIONS.some(([k]) => k === "computer");
 function startSolo(game, cards, { sheet, record, menu, asked }) {
   game.seat = { sides: ["A"], cpu: true };
   game.localSide = "A";
+  // the match is kept on the device after every action (src/game/solo-save.js)
+  const keep = () => writeSave(saveOf(game, engines.newest));
+  game.onTracked = keep;
   // MAKE A HIGHLIGHT REEL on the winner card: the match is shared (with the name picked
   // on the share card) only when that card's SHARE is pressed (src/ui/share.js). Not
   // while watching the computer against itself (docs/REEL.md), nor in practice.
@@ -452,10 +467,13 @@ function startSolo(game, cards, { sheet, record, menu, asked }) {
         min: now.getMinutes(),
       },
     });
+    keep();
   };
   game.onNeed = (need) => {
     cards.tick(game);
     if (need.kind === "over") {
+      // a finished match is never offered back
+      clearSave();
       record();
       share?.destroy();
       share =
@@ -472,18 +490,39 @@ function startSolo(game, cards, { sheet, record, menu, asked }) {
       });
     }
   };
-  // PLAY NOW on the landing page (?play=1, src/site/landing.mjs): a device with no
-  // kept match options plays at once on FIRST_MATCH, kept as the card's options as
-  // START keeps them, so the next PLAY NOW opens the card; else the card as ever.
-  if (params.get("play") === "1" && !soloKept(prefs.get("solo", null))) {
-    prefs.set("solo", FIRST_MATCH);
-    play({ ...FIRST_MATCH, name: game.playerName });
-    return;
-  }
-  // a pitch behind the options card
-  const kept = soloSaved(asked ? { scene: asked } : null);
-  game.newPractice({ surface: kept.surface, ...sceneOpt(kept.scene) });
-  options();
+  const begin = () => {
+    // PLAY NOW on the landing page (?play=1, src/site/landing.mjs): a device with no
+    // kept match options plays at once on FIRST_MATCH, kept as the card's options as
+    // START keeps them, so the next PLAY NOW opens the card; else the card as ever.
+    if (params.get("play") === "1" && !soloKept(prefs.get("solo", null))) {
+      prefs.set("solo", FIRST_MATCH);
+      play({ ...FIRST_MATCH, name: game.playerName });
+      return;
+    }
+    // a pitch behind the options card
+    const kept = soloSaved(asked ? { scene: asked } : null);
+    game.newPractice({ surface: kept.surface, ...sceneOpt(kept.scene) });
+    options();
+  };
+  // a match in progress kept on this device: RESUME or NEW MATCH (PLAY NOW too)
+  const save = readSave(engines.newest);
+  if (!save) return begin();
+  game.newPractice({ ...sceneOpt(save.scene) });
+  cards.resume(save, RESUME_WORDS, SCENE_NAMES[save.scene] ?? null, {
+    resume: () => {
+      try {
+        game.resumeMatch(save);
+      } catch (err) {
+        console.warn("The kept match could not be resumed:", err);
+        clearSave();
+        begin();
+      }
+    },
+    fresh: () => {
+      clearSave();
+      begin();
+    },
+  });
 }
 
 // ---------- the computer against itself ----------

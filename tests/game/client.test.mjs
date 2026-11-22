@@ -16,6 +16,7 @@ import {
   watchThrows,
   dialGeometry,
   nextFrame,
+  VIEWPORTS,
 } from "./browser.mjs";
 import { linearGeometry } from "../../src/render/linear.js";
 import { tune as layoutTune } from "../../src/game/layout.js";
@@ -2620,6 +2621,142 @@ browserTest(
       } finally {
         await page.context().close();
       }
+    }
+  },
+);
+
+// QA, 2026-11-22: reloading a match against the computer lost it (and, recorded only
+// at its end, it was never recorded). It is kept on the device after every action and
+// offered back: RESUME carries on from the same hash with the whole trail, so the match
+// is still recorded once, whole; NEW MATCH clears it; a finished match is not offered.
+browserTest("a match against the computer survives a reload", async () => {
+  const ctx = await env.browser.newContext(VIEWPORTS.desktop);
+  await ctx.addInitScript(() => {
+    if (sessionStorage.getItem("qa")) return;
+    sessionStorage.setItem("qa", "1");
+    localStorage.setItem("kubb:throwsMade", "5");
+    localStorage.setItem("kubb:howtoSeen", "true");
+  });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const ready = () =>
+    page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
+  try {
+    await page.goto(`${env.base}/p/abcdefgh?solo=1&nohowto=1`);
+    await ready();
+    assert.equal(await page.locator("[data-test=resume]").count(), 0);
+    await page.click("[data-test=start]");
+    await page.click("[data-test=handoff-go]");
+    await waitPhase(page, "aim", 10000);
+    await throwOnce(page);
+    await waitPhase(page, "play", 5000);
+    await page.evaluate(() => window.__kubb.game.skip());
+    await waitPhase(page, "aim", 10000);
+    const before = await page.evaluate(() => ({
+      hash: window.__kubb.game.engine.hash().hash,
+      actions: window.__kubb.game.trail.actions.length,
+    }));
+    assert.ok(before.actions >= 1);
+    // reloaded: the card, then RESUME
+    await page.reload();
+    await ready();
+    await page.waitForSelector("[data-test=resume]");
+    assert.match(
+      await page.textContent("[data-test=resume-text]"),
+      /kept on this device \(Park, turn 1\)/,
+    );
+    await page.click("[data-test=resume-go]");
+    await page.waitForFunction(() => window.__kubb.game.mode === "match");
+    const after = await page.evaluate(() => ({
+      hash: window.__kubb.game.engine.hash().hash,
+      actions: window.__kubb.game.trail.actions.length,
+      start: window.__kubb.game.trail.start.length > 0,
+    }));
+    assert.equal(after.hash, before.hash, "the same match, the same hash");
+    assert.equal(after.actions, before.actions, "the whole trail");
+    // PLAY NOW with a match in progress offers it too; NEW MATCH clears it
+    await page.goto(`${env.base}/p/abcdefgh?solo=1&play=1&nohowto=1`);
+    await ready();
+    await page.waitForSelector("[data-test=resume]");
+    await page.click("[data-test=resume-go]");
+    await page.waitForFunction(() => window.__kubb.game.mode === "match");
+    // it ends (RESIGN): recorded once, whole, and the save is gone
+    if (await page.locator("[data-test=handoff-go]").count())
+      await page.click("[data-test=handoff-go]");
+    await page.click("[data-test=menu]");
+    await page.click("[data-test=menu-resign]");
+    await page.waitForSelector("[data-test=winner]");
+    const rec = await page.evaluate(() => ({
+      n: window.__kubb.recorded.length,
+      kept: localStorage.getItem("kubb:soloMatch"),
+      actions: window.__kubb.game.trail.actions.length,
+    }));
+    assert.equal(rec.n, 1, "recorded once");
+    assert.equal(
+      rec.actions,
+      before.actions + 1,
+      "the whole match: and the resign",
+    );
+    assert.equal(rec.kept, "null", "a finished match is not kept");
+    await page.reload();
+    await ready();
+    assert.equal(await page.locator("[data-test=resume]").count(), 0);
+    // a new match kept, then NEW MATCH: cleared, the options card
+    await page.click("[data-test=start]");
+    await page.click("[data-test=handoff-go]");
+    await waitPhase(page, "aim", 10000);
+    await page.reload();
+    await ready();
+    await page.click("[data-test=resume-new]");
+    await page.waitForSelector("[data-test=options]");
+    assert.equal(
+      await page.evaluate(() => localStorage.getItem("kubb:soloMatch")),
+      "null",
+    );
+    // a save that does not end on its own hash is refused, and the card is the options
+    await page.click("[data-test=start]");
+    await page.click("[data-test=handoff-go]");
+    await waitPhase(page, "aim", 10000);
+    await throwOnce(page);
+    await waitPhase(page, "play", 5000);
+    await page.evaluate(() => {
+      window.__kubb.game.onTracked = null;
+      const s = JSON.parse(localStorage.getItem("kubb:soloMatch"));
+      s.hashes[s.hashes.length - 1] = "forged";
+      localStorage.setItem("kubb:soloMatch", JSON.stringify(s));
+    });
+    await page.reload();
+    await ready();
+    await page.click("[data-test=resume-go]");
+    await page.waitForSelector("[data-test=options]");
+    assert.deepEqual(errors, []);
+  } finally {
+    await ctx.close();
+  }
+});
+
+browserTest(
+  "blocked storage never stops a match against the computer",
+  async () => {
+    const page = await open(env, "/p/abcdefgh?solo=1&play=1", "desktop", {
+      init: () => {
+        Storage.prototype.setItem = () => {
+          throw new DOMException("full", "QuotaExceededError");
+        };
+      },
+    });
+    try {
+      // a first visit (nothing could be kept): the guide over the hand-off
+      await page.waitForSelector("[data-test=howto]");
+      await page.click("[data-test=howto-close]");
+      await page.click("[data-test=handoff-go]");
+      await waitPhase(page, "aim", 10000);
+      await throwOnce(page);
+      await waitPhase(page, "play", 5000);
+      assert.deepEqual(page.errors, []);
+    } finally {
+      await page.context().close();
     }
   },
 );

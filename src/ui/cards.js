@@ -410,6 +410,31 @@ export class Cards {
   // ---------- a plain notice (a pitch that cannot be reached) ----------
 
   // { kicker, title, text, actions: [[label, fn, kind?]], test }
+  // A kept match against the computer (src/game/solo-save.js): RESUME (go) and NEW
+  // MATCH. words: RESUME_WORDS; sceneName the scene's shown name.
+  resume(save, words, sceneName, { resume, fresh }) {
+    let close;
+    const el = h(
+      "div.card.resume-card",
+      { "data-test": "resume", role: "dialog", "aria-label": words.title },
+      h("p.kicker", words.kicker),
+      h("h2.display", words.title),
+      h("p", { "data-test": "resume-text" }, words.text(save, sceneName)),
+      h(
+        "div.card-foot",
+        button(words.fresh, () => (close(), fresh()), "", {
+          "data-test": "resume-new",
+        }),
+        button(words.resume, () => (close(), resume()), "go", {
+          "data-default": true,
+          "data-test": "resume-go",
+        }),
+      ),
+    );
+    close = this.show(el);
+    return close;
+  }
+
   notice({ kicker = null, title, text, actions = [], test = "notice" }) {
     const el = h(
       "div.card.notice-card",
