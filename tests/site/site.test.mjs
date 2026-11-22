@@ -93,6 +93,9 @@ test("the rules page and HOW TO THROW name the controls the game has", () => {
   for (const gone of ["SIDE VIEW", "SEND FEEDBACK", "MENU, Meter"])
     assert.ok(!rules.includes(gone), `rules: ${gone}`);
   assert.match(rules, /ARC open, or hold Shift/);
+  // a tap on the meter throws nothing (the nudge counts it as a fumble): the circle
+  // starting on a good target is what the old line meant
+  assert.ok(!rules.includes("only touch the meter"));
   const words = JSON.stringify(HOWTO_STEPS);
   assert.ok(!/beside the (dial|meter)/.test(words), "how-to: beside the meter");
 });

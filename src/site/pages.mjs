@@ -113,7 +113,7 @@ function rules({ tinylytics, config = {} }) {
       <tr><th scope="row">MENU, FEEDBACK</th><td>Tell us a throw looked wrong, or anything else.</td></tr>
     </tbody>
   </table>
-  <p>If you only touch the meter, you get a good throw at the nearest kubb.</p>
+  <p>Or just throw: the circle starts on a good target.</p>
 </section>`;
   return page({
     path: "/rules/",
