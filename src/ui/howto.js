@@ -104,7 +104,7 @@ export function showHowto(root, game = null, onDone = null) {
       next,
     ),
   );
-  const scrim = h("div.scrim", card);
+  const scrim = h("div.scrim.howto-scrim", card);
   root.append(scrim);
   if (game) game.modal++;
 

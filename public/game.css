@@ -1053,6 +1053,14 @@ body.game {
 #ui .menu-scrim {
   z-index: 5;
 }
+/* HOW TO THROW on a first visit opens over the first hand-off: it stands above the card
+   layer, and the hand-off's short card waits out of sight until the guide is closed */
+#ui .howto-scrim {
+  z-index: 5;
+}
+#ui:has(> .howto-scrim) .card-layer > .scrim.at-foot {
+  visibility: hidden;
+}
 .panel-host > *,
 .card-layer > * {
   pointer-events: auto;
