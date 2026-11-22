@@ -1056,6 +1056,21 @@ test("robots.txt: crawlers stay off per-match addresses, link previews do not", 
     );
 });
 
+test("/engine/ says what is true of old matches", () => {
+  // QA, 2026-11-22: it promised "last month's match still plays back just as it
+  // happened", untrue since the site carries the newest engine alone. Sources: the
+  // engine's docs/VERSIONING.md "Playing together" (a match belongs to its
+  // major.minor for its whole life) and "Carrying several engines" (the supported set
+  // is the newest minor; a kept match from an engine no longer carried says it was
+  // made on an older version and cannot be replayed); a reel already made is a stored
+  // video (docs/ENGINES.md "Looking back at a match", tests/reel/engines.test.mjs).
+  const html = PAGES.find((p) => p.path === "/engine/").render({ config: {} });
+  assert.ok(!html.includes("still plays back"));
+  assert.ok(!html.includes("Old matches still work"));
+  assert.match(html, /can no longer be replayed/);
+  assert.match(html, /newest version only/);
+});
+
 test("/engine/ counts the golden corpus the site vendors", () => {
   const html = PAGES.find((p) => p.path === "/engine/").render({});
   assert.deepEqual(GOLDEN_COUNT, { matches: 19, hashes: 724 });
