@@ -198,14 +198,18 @@ of a live resource. A site check holds new templates and tools to it.
   `backend/pitch-server/PROTOCOL.md`, tests in `tests/pitch-server/`), and the Worker with
   `PitchDO` and `LobbyDO` over it (`backend/pitch-server/src/`, its Workers-pool tests in
   `backend/pitch-server/test/`, run by the `check` job; production Worker
-  `throwingwood-pitches`, dev `throwingwood-pitches-dev`, deployed by hand:
-  `backend/pitch-server/README.md`). Its secrets files are rendered from the committed
-  `.dev.vars.tpl` and `.prod.vars.tpl` with 1Password (`op inject`); the rendered files
-  are gitignored and never committed. The AWS function the pitch server pushes to and
+  `throwingwood-pitches`, dev `throwingwood-pitches-dev`, not deployed by a merge:
+  `backend/pitch-server/deploy.sh production` or `dev`, which needs no 1Password and no
+  person: it reads `PUSH_SECRET` and the dev `DEV_KEY` from Secrets Manager as
+  `cloud-engineer` into its own environment and hands `cf deploy` a file of references,
+  so no secret is written to disk; `backend/pitch-server/README.md`). The older way
+  renders `.dev.vars` and `.prod.vars` from the committed templates with 1Password
+  (`op inject`); those files are gitignored and never committed. The AWS function the pitch server pushes to and
   the apps call over HTTPS is `throwing-wood-api` (`backend/api/`, contract
   `backend/api/API.md`, tests in `tests/api/`).
 - `infra/pitches.json` (stack `throwing-wood-pitches`, created 2026-11-21): that function,
-  its URL, role, logs and push secret, and its own table and private games bucket, behind
+  its URL, role, logs and push secret, the dev Worker's key, and its own table and private
+  games bucket, behind
   `"pitchesStack"` in `infra/deployment.json` (on). The old WebSocket rooms stack, its
   table and its games bucket were deleted on 2026-11-21 with every old stored game
   (`docs/PITCH-SERVER.md` section 12); `docs/ROOMS.md` is kept as the record.

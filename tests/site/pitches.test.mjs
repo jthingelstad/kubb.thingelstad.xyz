@@ -20,6 +20,7 @@ test("the pitches stack: exactly these resources, named throwing-wood", () => {
       GamesBucket: "AWS::S3::Bucket",
       GamesBucketPolicy: "AWS::S3::BucketPolicy",
       PushSecret: "AWS::SecretsManager::Secret",
+      DevKey: "AWS::SecretsManager::Secret",
       ApiLogGroup: "AWS::Logs::LogGroup",
       ApiRole: "AWS::IAM::Role",
       ApiFunction: "AWS::Lambda::Function",
@@ -30,6 +31,11 @@ test("the pitches stack: exactly these resources, named throwing-wood", () => {
   );
   assert.equal(R.ApiFunction.Properties.FunctionName, "throwing-wood-api");
   assert.equal(R.PushSecret.Properties.Name, "throwing-wood/push-secret");
+  // the dev Worker's key, generated here so a deploy needs no person
+  // (backend/pitch-server/deploy.sh); no role is given it, least of all the api's
+  assert.equal(R.DevKey.Properties.Name, "throwing-wood/pitch-dev-key");
+  assert.ok(R.DevKey.Properties.GenerateSecretString);
+  assert.ok(!JSON.stringify(R.ApiRole).includes("DevKey"));
   assert.equal(
     R.ApiLogGroup.Properties.LogGroupName,
     "/aws/lambda/throwing-wood-api",
