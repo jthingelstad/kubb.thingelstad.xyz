@@ -1,8 +1,10 @@
 // A match in a scene, shared and made into a reel (docs/SCENES.md, docs/REEL.md): the
 // start a solo device sends names its scene (the engine's `scene`, engine 0.9 on), the
 // renderer's check keeps it in the document and the replay it hands the room, and the
-// reel of that replay is drawn in it. A scene this copy does not draw is drawn as the
-// day; the physics never reads it, so the match is the same throw for throw.
+// reel of that replay is drawn in it. A scene id the engine does not list is Park (since
+// engine 0.14 it is not kept); the physics never reads it, so the match is the same throw
+// for throw. The renderer's own fallback for a listed scene it does not draw is
+// tests/game/scenes.test.mjs's.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import fs from "node:fs";
@@ -68,17 +70,13 @@ test("a night match shared from a device keeps its scene to the reel", async () 
   assert.equal(await reelScene(replay), "night");
 });
 
-test("a day match's reel is the day; a scene this copy does not draw is the day", async () => {
+test("a day match's reel is the day; an unlisted scene is the day", async () => {
   assert.equal(day.out.ok, true);
   assert.equal(JSON.parse(day.out.replay).setup.scene, undefined);
   assert.equal(await reelScene(JSON.parse(day.out.replay)), "day");
+  // since engine 0.14 a named id the catalogue lacks is Park and is not kept
   const { out } = await shared("dusk");
   assert.equal(out.ok, true, JSON.stringify(out));
-  const replay = JSON.parse(out.replay);
-  assert.equal(
-    replay.setup.scene,
-    "dusk",
-    "kept as sent: the engine takes any id",
-  );
-  assert.equal(await reelScene(replay), "day");
+  assert.equal(JSON.parse(out.replay).setup.scene, undefined);
+  assert.equal(await reelScene(JSON.parse(out.replay)), "day");
 });
