@@ -669,7 +669,7 @@ browserTest("the lobby on a phone, as a guest", async () => {
 });
 
 browserTest(
-  "an open game: listed on the web game’s page, joined from the list, taken off by the host",
+  "an open game: listed on the home page, joined from the list, taken off by the host",
   async () => {
     const code = makePitchCode();
     const host = await join(code, "Happy Hazel", "desktop", {

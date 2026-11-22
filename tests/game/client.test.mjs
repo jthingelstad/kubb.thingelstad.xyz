@@ -2438,3 +2438,19 @@ browserTest(
     }
   },
 );
+
+// QA, 2026-11-22: practice's KUBBS was "Kubbs (drilling)" to a screen reader, a
+// Playdate word; its name is the word on it.
+browserTest("practice's KUBBS is named by its word", async () => {
+  const page = await open(env, "/practice/?nohowto=1");
+  await waitPhase(page, "aim", 10000);
+  const name = await page
+    .getByRole("button", { name: "KUBBS", exact: true })
+    .count();
+  assert.equal(name, 1);
+  assert.equal(
+    await page.getAttribute("[data-test=drill]", "aria-label"),
+    null,
+  );
+  await page.context().close();
+});
