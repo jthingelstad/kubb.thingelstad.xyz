@@ -76,8 +76,8 @@ function rules({ tinylytics, config = {} }) {
   ${GAME_READY ? "" : `<p class="notice">The game is still being built; this is how its throw is designed to work.</p>`}
   <p>You throw with the meter, low on the screen beside the pitch. It can be a clock or a straight track (MENU, Meter). It can sit on the left or the right (MENU, Meter side).</p>
   <ol class="throw-steps">
-    <li><strong>Pull back to the orange mark.</strong> On the clock, drag the knob from the bottom up the left side. On the track, drag the knob down. Go at any speed. How far back you go is the power.</li>
-    <li><strong>Flick through and let go on the blue mark.</strong> Swing quickly back through the bottom and up, and let go on the blue mark. Where you let go is the arc. A slow flick throws short.</li>
+    <li><strong>Pull back to the stripes.</strong> On the clock, drag the knob from the bottom up the left side. On the track, drag the knob down. Go at any speed. How far back you go is the power.</li>
+    <li><strong>Flick through and let go on the solid mark.</strong> Swing quickly back through the bottom and up, and let go on the solid mark. Where you let go is the arc. A slow flick throws short.</li>
     <li><strong>Or change your mind.</strong> Bring the knob back to the bottom slowly and nothing is thrown.</li>
   </ol>
   <p>Your finger does not have to cover the meter. You can drag outside the clock’s ring, or stroke anywhere low on the screen with the track. For your first few throws, and after a slow one, the meter tells you what to do next. Your last throw’s marks stay on it as faint knobs.</p>

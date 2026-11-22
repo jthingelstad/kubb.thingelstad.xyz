@@ -28,27 +28,27 @@ const STEPS = [
   {
     swipe: [
       "Pull down to wind back",
-      "Pull straight down until the dial’s arm reaches the orange mark. A deeper pull gives you more power.",
+      "Pull straight down until the dial’s arm reaches the stripes. A deeper pull gives you more power.",
     ],
     linear: [
       "Draw back",
-      "Drag the knob down to the orange mark. How far back is how hard you throw.",
+      "Drag the knob down to the stripes. How far back is how hard you throw.",
     ],
     title: "Wind back up the left",
-    text: "Drag up the left side to the orange mark. How far back is how hard you throw.",
+    text: "Drag up the left side to the stripes. How far back is how hard you throw.",
     arm: (t) => -10 - 110 * ease(Math.min(1, t)),
   },
   {
     swipe: [
       "Flick up and lift",
-      "Flick straight up past where you started. Lift at the blue mark to release. Return slowly to let the arm down.",
+      "Flick straight up past where you started. Lift at the solid mark to release. Return slowly to let the arm down.",
     ],
     linear: [
       "Fling forward and let go",
-      "Sweep quickly up through the middle, then let go on the blue mark. Where you let go is the arc.",
+      "Sweep quickly up through the middle, then let go on the solid mark. Where you let go is the arc.",
     ],
     title: "Swing through and let go",
-    text: "Sweep quickly down through the bottom and up the right, then let go on the blue mark. Where you let go is the arc.",
+    text: "Sweep quickly down through the bottom and up the right, then let go on the solid mark. Where you let go is the arc.",
     arm: (t) => (t < 0.6 ? -120 + 210 * ease(t / 0.6) : 90),
     release: true,
   },
