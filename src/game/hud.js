@@ -427,7 +427,7 @@ export class Hud {
         st.caption === "stand"
           ? standCaption(aim.thrower, aim)
           : st.caption
-            ? captionOf(st.caption, kubb)
+            ? captionOf(st.caption, kubb, p, aim.controls?.arc)
             : null;
       this.showCaption(cap, p);
       // one voice at a time: a held slider's caption wins

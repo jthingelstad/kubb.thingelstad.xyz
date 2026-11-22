@@ -84,30 +84,105 @@ export function controlOf(controls, what, kubb) {
     ? c
     : null;
 }
+// ---------- the drive (engine 0.16) ----------
+//
+// From engine 0.16 a baton's ARC reaches down through flat to a downward drive
+// (the engine's docs/notes/throw.md "The drive"): `arc.min` is the throw's floor,
+// which moves with the circle and the stance (0 at a kubb a metre away, about 12 at
+// 4 m, the knee from about 5 m), and `arc.knee` (15, half past 5) is where the drive
+// begins. Under the knee the planned loft falls on a steeper line and the baton does
+// not turn end over end. A thrown kubb has no drive: its range starts at the knee.
+export const drive = {
+  // of the track the part under the knee takes when the floor is 0; less as the floor
+  // rises toward the knee, none once it is there. A linear track would give the whole
+  // drive (15 degrees of release out of 165) 9% of ARC, too little for a thumb.
+  share: 0.3,
+  // (the word shows where the part is tall enough for it: game.css hides it in a
+  // part under 44 px, so a short part is marked, not named)
+  word: "DRIVE",
+};
+
+// The knee of an ARC control, or null where it has no drive part (a kubb's, an
+// engine before 0.16, or a floor at the knee: nothing under it is offered).
+export function kneeOf(c) {
+  const k = c?.knee;
+  if (!Number.isFinite(k) || !(k > c.min + 1e-6) || !(k < c.max)) return null;
+  return k;
+}
+// The share of the track under the knee (0 when there is none).
+export function driveShare(c) {
+  const k = kneeOf(c);
+  if (k === null) return 0;
+  return drive.share * clamp01((k - c.min) / k);
+}
+// Is this plan a drive (a release under the knee)?
+export function isDrive(plan, c) {
+  const k = c?.knee;
+  return Number.isFinite(k) && Number.isFinite(plan?.release)
+    ? plan.release < k - 1e-6
+    : false;
+}
+
 // The value for a place on the track (0 the bottom or left end, 1 the top or
-// right), any value in the range, and a value's place.
-export const valueAt = (c, f) => c.min + clamp01(f) * (c.max - c.min);
-export const fractionOf = (c, v) =>
-  clamp01(((v ?? c.default ?? c.min) - c.min) / (c.max - c.min));
+// right), any value in the range, and a value's place. An ARC with a drive part is
+// two straight scales joined at the knee: the floor to the knee on the lowest
+// driveShare of the track, the knee to the top on the rest.
+export function valueAt(c, f) {
+  const u = clamp01(f);
+  const kf = driveShare(c);
+  if (!(kf > 0)) return c.min + u * (c.max - c.min);
+  const k = c.knee;
+  return u < kf
+    ? c.min + (u / kf) * (k - c.min)
+    : k + ((u - kf) / (1 - kf)) * (c.max - k);
+}
+export function fractionOf(c, v) {
+  const x = Math.max(c.min, Math.min(c.max, v ?? c.default ?? c.min));
+  const kf = driveShare(c);
+  if (!(kf > 0)) return clamp01((x - c.min) / (c.max - c.min));
+  const k = c.knee;
+  return x < k
+    ? clamp01(((x - c.min) / (k - c.min)) * kf)
+    : clamp01(kf + ((x - k) / (c.max - k)) * (1 - kf));
+}
 // The marks: a small one at every tick, a full one at every step, and the long
 // heavy one at the middle of a side slider (0) and ARC's normal throw (3
 // o'clock), as the step scale has them.
+// ARC's marks (engine 0.16) are on the clock's own degrees, every tick from the first
+// over the floor, which moves (0, 5, 10 ... a full mark every step from 0), and the
+// knee is a mark of its own (`knee`); the ones under it are the drive's (`drive`).
 export function controlMarks(c, what) {
-  const n = Math.round((c.max - c.min) / c.tick);
-  if (!(n > 0) || n > 200) return [];
-  const centre = what === "arc" ? limits.releaseNormal : 0;
+  const arc = what === "arc";
+  const from = arc ? Math.ceil(c.min / c.tick - 1e-6) * c.tick : c.min;
+  const n = Math.floor((c.max - from) / c.tick + 1e-6);
+  if (!(n >= 0) || !(c.tick > 0) || n > 200) return [];
+  const centre = arc ? limits.releaseNormal : 0;
   const on = (v, by) => Math.abs(v / by - Math.round(v / by)) < 1e-6;
+  const knee = arc ? kneeOf(c) : null;
   const out = [];
   for (let i = 0; i <= n; i++) {
-    const v = c.min + i * c.tick;
+    const v = from + i * c.tick;
     const mid = Math.abs(v - centre) < 1e-6;
-    out.push({
+    const atKnee = knee !== null && Math.abs(v - knee) < 1e-6;
+    const m = {
       f: fractionOf(c, v),
       long: mid,
-      centre: mid && what !== "arc",
-      minor: !mid && !(c.step > 0 && on(v - c.min, c.step)),
-    });
+      centre: mid && !arc,
+      minor:
+        !mid && !atKnee && !(c.step > 0 && on(arc ? v : v - c.min, c.step)),
+    };
+    if (atKnee) m.knee = true;
+    if (knee !== null && v < knee - 1e-6) m.drive = true;
+    out.push(m);
   }
+  if (knee !== null && !out.some((m) => m.knee))
+    out.push({
+      f: fractionOf(c, knee),
+      long: false,
+      centre: false,
+      minor: false,
+      knee: true,
+    });
   return out;
 }
 // A value as the header shows it: whole degrees, a spin to a tenth of a tap.
@@ -119,7 +194,24 @@ function shown(v, kubb) {
 
 // The header's words: ARC 32° from the plan's loft; TILT 10R, SPIN 2L,
 // TILT 0, and since 0.9 values between the steps: TILT 7R, SPIN 1.3L.
-export const arcLabel = (plan) => `ARC ${Math.round(plan?.loft ?? 0)}°`;
+// A drive (engine 0.16, a release under the knee) says so: DRIVE 3°, DRIVE −5° (the
+// loft is the launch's, under 0 when the baton leaves the hand going down).
+const degrees = (v) => {
+  const r = Math.round(v ?? 0);
+  return r < 0 ? `\u2212${-r}` : `${r === 0 ? 0 : r}`;
+};
+export const arcLabel = (plan, c = null) =>
+  isDrive(plan, c)
+    ? `${drive.word} ${degrees(plan?.loft)}°`
+    : `ARC ${Math.round(plan?.loft ?? 0)}°`;
+// For a screen reader: "Arc, 32 degrees"; "Arc, 3 degrees, drive"; "Arc, 5 degrees
+// down, drive". sep: what follows "Arc" (the plate says "Arc, 32 degrees", the
+// slider "Arc 32 degrees").
+export function arcValueText(plan, c = null, sep = ", ") {
+  const r = Math.round(plan?.loft ?? 0);
+  const v = r < 0 ? `${-r} degrees down` : `${r === 0 ? 0 : r} degrees`;
+  return `Arc${sep}${v}${isDrive(plan, c) ? ", drive" : ""}`;
+}
 const sideOf = (plan, kubb, c) =>
   c ? c.value || 0 : kubb ? plan?.spin || 0 : plan?.tilt || 0;
 export function sideLabel(plan, kubb, c = null) {
@@ -144,15 +236,26 @@ export function sideValueText(plan, kubb, c = null) {
 // tester, 2026-11-19: "I can't tell what tilt does at all", and no word on
 // how arc and tilt affect the toss; Jamie: "Have the UI show it not a
 // separate how to page". The HUD sets them in capitals, as its chips are.
+// From engine 0.16 a baton's lower arc drives in (the owner, 2026-11-22: "A real
+// player would throw hard at a tight group this close"): the baton's caption says
+// what a lower arc does now, and under the knee what a drive is. A kubb has no
+// drive and keeps its words.
 export const CAPTIONS = {
-  arc: "A higher arc drops in steeper. A lower one skids in.",
+  arc: "A higher arc drops in steeper. A lower arc drives in harder.",
+  drive: "A drive goes in low and hard, with no flip.",
+  kubbArc: "A higher arc drops in steeper. A lower one skids in.",
   tilt: "Tilt leans the baton to steer it through a group.",
   spin: "Spin keeps a drilled kubb steady in the air.",
 };
 
-// The caption for a held slider (what: "arc" | "side"), or null.
-export function captionOf(what, kubb) {
-  if (what === "arc") return { key: "arc", text: CAPTIONS.arc };
+// The caption for a held slider (what: "arc" | "side"), or null. plan and c (the
+// ARC control): a baton's plan under the knee is a drive.
+export function captionOf(what, kubb, plan = null, c = null) {
+  if (what === "arc") {
+    if (kubb) return { key: "arc", text: CAPTIONS.kubbArc };
+    if (isDrive(plan, c)) return { key: "drive", text: CAPTIONS.drive };
+    return { key: "arc", text: CAPTIONS.arc };
+  }
   if (what === "side")
     return kubb
       ? { key: "spin", text: CAPTIONS.spin }
@@ -231,7 +334,7 @@ export class PlanSlider {
     this.lane.replaceChildren(
       ...list.map((m) => {
         const t = h(
-          `div.slider-tick${m.long ? ".long" : ""}${m.centre ? ".centre" : ""}${m.minor ? ".minor" : ""}`,
+          `div.slider-tick${m.long ? ".long" : ""}${m.centre ? ".centre" : ""}${m.minor ? ".minor" : ""}${m.knee ? ".knee" : ""}${m.drive ? ".drive" : ""}`,
         );
         t.style.setProperty("--at", String(m.f));
         return t;
@@ -305,6 +408,32 @@ export class PlanSlider {
     });
   }
 
+  // ARC's drive part (engine 0.16): the track under the knee tinted and named DRIVE,
+  // from the floor the engine gives this frame; none where the floor is the knee.
+  driveZone(c) {
+    const kf = driveShare(c);
+    const k = kneeOf(c);
+    const named = kf > 0 && k > c.min;
+    this.set("drive", `${Math.round(kf * 1000)}:${named}`, () => {
+      if (!(kf > 0)) {
+        this.zone?.remove();
+        this.zone = null;
+        this.el.classList.remove("drives");
+        return;
+      }
+      if (!this.zone) {
+        this.zone = h("div.slider-drive", h("span.slider-drive-word"));
+        this.run.insertBefore(this.zone, this.run.firstChild);
+      }
+      this.zone.firstChild.textContent = named ? drive.word : "";
+      this.zone.style.setProperty(
+        "--knee",
+        String(Math.round(kf * 1000) / 1000),
+      );
+      this.el.classList.add("drives");
+    });
+  }
+
   // The slider is hidden while it is held (MENU opened with another finger,
   // a throw began): the hold ends here and the game is told, so its side
   // view does not wait for a release that will be ignored.
@@ -361,18 +490,26 @@ export class PlanSlider {
   // is the value the engine gives for the next kubb, so it shows as it is.
   updateControl(plan, kubb, c) {
     const what = this.vertical ? "arc" : kubb ? "spin" : "tilt";
-    this.set("scale", `${what}:${c.min}:${c.max}:${c.tick}:${c.step}`, () => {
-      this.cache.delete("kind");
-      this.marks(controlMarks(c, this.vertical ? "arc" : "side"));
-    });
+    // the floor moves with the circle and the stance (engine 0.16): the marks follow
+    // it to a tenth of a degree
+    const lo = Math.round(c.min * 10) / 10;
+    this.set(
+      "scale",
+      `${what}:${lo}:${c.max}:${c.tick}:${c.step}:${c.knee}`,
+      () => {
+        this.cache.delete("kind");
+        this.marks(controlMarks(c, this.vertical ? "arc" : "side"));
+      },
+    );
     const f = this.drag ? this.drag.f : fractionOf(c, c.value);
     const d = !this.vertical && kubb ? 10 : 1;
     const round = (v) => Math.round(v * d) / d;
     this.set(
       "text",
-      this.vertical ? arcLabel(plan) : sideLabel(plan, kubb, c),
+      this.vertical ? arcLabel(plan, c) : sideLabel(plan, kubb, c),
       (t) => (this.head.textContent = t),
     );
+    if (this.vertical) this.driveZone(c);
     this.set("f", Math.round(f * 1000) / 1000, (v) =>
       this.el.style.setProperty("--f", String(v)),
     );
@@ -389,9 +526,7 @@ export class PlanSlider {
     );
     this.set(
       "vt",
-      this.vertical
-        ? `Arc ${Math.round(plan?.loft ?? 0)} degrees`
-        : sideValueText(plan, kubb, c),
+      this.vertical ? arcValueText(plan, c, " ") : sideValueText(plan, kubb, c),
       (v) => this.el.setAttribute("aria-valuetext", v),
     );
   }

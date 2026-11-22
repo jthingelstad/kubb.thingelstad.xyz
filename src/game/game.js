@@ -99,6 +99,7 @@ import {
   sideStepAt,
   sideStepOf,
   valueAt,
+  isDrive,
 } from "./plan-sliders.js";
 import { standSpan, groundAt } from "./stand-pad.js";
 import { prefs } from "./prefs.js";
@@ -107,7 +108,7 @@ import { loadName, saveName } from "./player-name.js";
 import { namesOf } from "./names.js";
 import { loadThrowLevel } from "./throw-level.js";
 import { NudgeTrigger, timeline, swingOf, captionFor } from "./nudge.js";
-import { coachFor, slowVerdict } from "./coach.js";
+import { coachFor, slowVerdict, shortDrive } from "./coach.js";
 import {
   gainFor,
   panFor as neighbourPan,
@@ -288,6 +289,7 @@ export class Game {
     this.remote = null;
     this.result = null; // the last throw's flag, verdicts, rest text
     this.coachSlow = false; // this player's last throw was SLOW (coach.js)
+    this.coachShort = false; // ... was a drive that fell SHORT (coach.js)
     this.shownCards = new Set();
     this.listeners = [];
     this.panX = 200;
@@ -1222,9 +1224,12 @@ export class Game {
     this.liftState = null;
     const tl = rec.timeline || {};
     const pid = rec.projectile && rec.projectile.id;
+    const aim = this.out?.aim;
     this.play = {
       rec,
       local,
+      // a drive (engine 0.16, ARC under its knee): its SHORT verdict is coached
+      drive: !!local && isDrive(aim?.plan, aim?.controls?.arc),
       t: 0,
       done: false,
       hold: 0,
@@ -1287,7 +1292,10 @@ export class Game {
           restText: r.restText,
           age: 0,
         };
-        if (p.local) this.coachSlow = slowVerdict(r.verdicts);
+        if (p.local) {
+          this.coachSlow = slowVerdict(r.verdicts);
+          this.coachShort = shortDrive(r.verdicts, p.drive);
+        }
       } else p.t += dt * (s.speed || 1);
     } else {
       p.hold += dt;
@@ -1327,13 +1335,19 @@ export class Game {
     if (after && this.phase === "aim") after();
   }
 
-  // The engine's own raises between the throw just played and the next, as clips: none
-  // until the engine hands them out (lift.js settledClips, waiting for engine 0.16.0's
-  // `setup.settled`); the page never works them out by turning the pitch itself.
+  // The engine's own raises between the throw just played and the next, as clips, from
+  // engine 0.16.0's `setup.settled` (lift.js settledClips); the page never works them
+  // out by turning the pitch itself. Around them: the view's items where they are in the
+  // list's frame (the wide view: both the world's), else the king alone.
   settledLifts(p, v) {
     const n = v?.need;
     if (!p || n?.kind !== "throw" || !this.watchLifts()) return [];
-    return settledClips(n.setup?.settled);
+    const st = n.setup?.settled;
+    if (!st?.list?.length) return [];
+    const items = v.items || [];
+    const world = !!this.wide && st.list.every((e) => e.frame === "world");
+    const around = world ? items : items.filter((it) => it.id === "king");
+    return settledClips(st, { around, reduced: this.reduced });
   }
 
   // ---------- raise and punishment ----------
@@ -1955,7 +1969,8 @@ export class Game {
     let n = 0;
     for (const c of cues) {
       if (!c.offset) continue;
-      const g = gainFor(Math.hypot(c.offset.x, c.offset.y), c.kind);
+      const g =
+        gainFor(Math.hypot(c.offset.x, c.offset.y), c.kind) * (c.level ?? 1);
       if (!g) continue;
       const x = turned ? -c.offset.x : c.offset.x;
       const y = (turned ? -c.offset.y : c.offset.y) + 4;
@@ -2114,7 +2129,12 @@ export class Game {
       coach =
         watching || this.nudgeShown
           ? null
-          : coachFor({ throws: this.nudge.throws, slow: this.coachSlow, dial });
+          : coachFor({
+              throws: this.nudge.throws,
+              slow: this.coachSlow,
+              short: this.coachShort,
+              dial,
+            });
     }
     const res =
       this.result && this.result.age < tune.flagFor ? this.result : null;

@@ -173,7 +173,12 @@ export class Field {
         p.rec = ev.recording;
         p.recAt = ev.at;
         for (const c of cuesOf(ev.recording))
-          this.cues.push({ id: p.id, kind: c.kind, at: ev.at + c.t });
+          this.cues.push({
+            id: p.id,
+            kind: c.kind,
+            level: c.level ?? 1,
+            at: ev.at + c.t,
+          });
         this.cues.sort((a, b) => a.at - b.at);
         p.side = ev.side;
         if (ev.from) p.from[ev.side] = ev.from;

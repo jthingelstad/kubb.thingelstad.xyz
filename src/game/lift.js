@@ -12,14 +12,16 @@
 //   AUTO ALL, REST OF GAME, MENU's Raising: Automatic, and any raise another browser
 //   sent: a shared pitch's other player, or a replay): `actionClip(need, action)`.
 // - The kubbs the engine raises itself between two throws (a match started with Raising:
-//   Automatic, the computer's own raises, watching the computer) come with no need and
-//   no action: `settledClips(settled)` is their seam, and returns none until the engine
-//   hands out what it raised (engine 0.16.0's `setup.settled` on the throw need: each
-//   kubb's id, the end chosen, and its lying and standing poses in the raise view's
-//   frame). Until then those raises are shown as before: the kubbs stand at once.
+//   Automatic, the computer's own raises, watching the computer) and the punishment
+//   kubbs it places come with no need and no action: engine 0.16.0 hands them out on the
+//   next throw need (`setup.settled`: each kubb's id, the end chosen, and its lying and
+//   standing poses in the raise view's frame), and `settledClips(settled, { around })`
+//   makes their clips, in its order, at the same pace and tip. After a restore there is
+//   none (the kubbs already stand).
 //
 //   const pace = liftPace(of);          // { lead, beat, tip } s for a raise of `of` kubbs
 //   const clip = actionClip(need, a);   // { need, i, final, items(u) } or null
+//   const clips = settledClips(n.setup.settled, { around }); // the engine's own
 //   clip.items(u)                        // the pieces at u (0 to 1) of the clip
 import { poseItem, settleItems } from "./scenes.js";
 import { tiltItem } from "./raise-touch.js";
@@ -117,13 +119,74 @@ export function actionClip(need, action, opts = {}) {
 
 // ---------- the engine's own raises, between two throws ----------
 
-// The clips of the kubbs the engine raised itself before a throw, from that throw need's
-// `setup.settled` (`n.setup.settled`). Engine 0.15.1 never fills it (core/match keeps the
-// count on the match, not the setup), so this returns [] and those raises stand at once,
-// as before web 0.17.0. Engine 0.16.0 is to fill it with, for each kubb raised, its id,
-// the end chosen and its lying and standing poses in the frame the raise view draws in;
-// a clip is then made from those poses alone, as actionClip makes one from a need.
-export function settledClips(settled) {
-  void settled;
-  return [];
+// The clips of the kubbs the engine raised and placed itself before a throw (engine
+// 0.16.0's `setup.settled` on that throw need: the computer's raises, a match with
+// Raising: Automatic, a punishment kubb it placed), in the order done: each raised kubb
+// tipped from its `lying` pose onto its end (`which`, 1 the +axis end as core/raising
+// has it) and standing where the engine stood it (`standing`); a punishment kubb tipped
+// up where it was placed (`pose`). The poses are the raiser's view frame, the frame the
+// raise view draws in (the world frame in the wide view, each entry `frame: "world"`):
+// they are drawn as given, never compared with the pitch or turned.
+//
+// around: the other pieces to draw with them, in that same frame. The list carries only
+// its own kubbs, so in the thrower's view (where the throw need's items are in the next
+// thrower's frame, the other team's) that is the king alone, which stands on the
+// pitch's centre in either frame; in the wide view, where the list and the view are
+// both the world's, it is the view's items. A kubb of the list is drawn lying before
+// its turn and standing after it, whatever `around` holds for it.
+export function settledClips(settled, { around = [], reduced = false } = {}) {
+  const list = Array.isArray(settled?.list) ? settled.list : [];
+  const done = list
+    .map((e) => {
+      if (e?.kind === "raise" && e.lying && e.standing)
+        return {
+          e,
+          lying: { ...e.lying, standing: false },
+          final: { ...e.standing, standing: true },
+          i: e.which === 2 ? 1 : 0,
+        };
+      if (e?.kind === "punish" && e.pose)
+        return {
+          e,
+          lying: { ...e.pose, standing: false },
+          final: { ...e.pose, standing: true },
+          i: 0,
+          placed: true,
+        };
+      return null;
+    })
+    .filter(Boolean);
+  if (!done.length) return [];
+  const ids = new Set(done.map((d) => d.e.id));
+  const rest = (around || []).filter((it) => it && !ids.has(it.id));
+  return done.map((d, k) => {
+    // a need of the raise view's shape: the kubb lying, no footprints (tiltItem tips
+    // it toward its end along its own axis)
+    const need = {
+      kind: "raise",
+      side: d.e.side,
+      kubb: d.e.id,
+      pose: d.lying,
+      ends: [],
+      settled: true,
+    };
+    return {
+      need,
+      i: d.i,
+      final: d.final,
+      footprints: [],
+      items(u) {
+        const items = rest.slice();
+        for (let j = 0; j < done.length; j++) {
+          if (j === k) continue;
+          const o = done[j];
+          if (j < k) items.push(poseItem(o.e.id, "kubb", o.final));
+          // a punishment kubb is not on the pitch before it is placed
+          else if (!o.placed) items.push(poseItem(o.e.id, "kubb", o.lying));
+        }
+        items.push(liftKubb(need, d.i, d.final, u, { reduced }));
+        return items;
+      },
+    };
+  });
 }

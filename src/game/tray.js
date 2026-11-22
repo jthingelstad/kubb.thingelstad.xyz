@@ -12,7 +12,14 @@
 // The pure part (the plates' words and pictures) is exported for tests; Tray
 // is the DOM, the keys and the pointer.
 import { h } from "../ui/dom.js";
-import { arcLabel, sideLabel, sideValueText, leanOf } from "./plan-sliders.js";
+import {
+  arcLabel,
+  arcValueText,
+  sideLabel,
+  sideValueText,
+  leanOf,
+  isDrive,
+} from "./plan-sliders.js";
 import { standSpan, fractionOf, standValueText } from "./stand-pad.js";
 
 export const PLATES = ["arc", "side", "stand"];
@@ -25,8 +32,8 @@ export function plateWords(key, aim = {}) {
   const kubb = aim.projectile === "kubb";
   const controls = aim.controls || null;
   if (key === "arc") {
-    const loft = Math.round(plan.loft ?? 0);
-    return { head: arcLabel(plan), label: `Arc, ${loft} degrees` };
+    const c = controls?.arc || null;
+    return { head: arcLabel(plan, c), label: arcValueText(plan, c) };
   }
   if (key === "side") {
     const c = controls ? (kubb ? controls.spin : controls.tilt) : null;
@@ -49,6 +56,14 @@ export function platePicture(key, aim = {}) {
   const plan = aim.plan || {};
   const ink = "var(--ink)";
   if (key === "arc") {
+    // a drive (engine 0.16): from the hand, high at the left, down into the kubb's
+    // face at the right, falling from the start when the loft is under 0; nothing
+    // assumes the arc rises first
+    if (isDrive(plan, aim.controls?.arc)) {
+      const loft = Math.max(-15, Math.min(7, plan.loft ?? 0));
+      const mid = (10 - loft * 0.9).toFixed(1);
+      return `<path d="M6 10 Q35 ${mid} 60 23" fill="none" stroke="${ink}" stroke-width="3" stroke-dasharray="5 4" stroke-linecap="round"/><rect x="60" y="16" width="6" height="14" rx="1" fill="var(--knob-face)" stroke="${ink}" stroke-width="2"/>`;
+    }
     const lift = Math.max(3, Math.min(26, (plan.loft ?? 32) * 0.55));
     return `<path d="M6 28 Q35 ${(28 - 2 * lift).toFixed(1)} 64 28" fill="none" stroke="${ink}" stroke-width="3" stroke-dasharray="5 4" stroke-linecap="round"/>`;
   }

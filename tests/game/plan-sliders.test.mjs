@@ -19,6 +19,11 @@ import {
   valueAt,
   fractionOf,
   controlMarks,
+  arcValueText,
+  drive,
+  driveShare,
+  kneeOf,
+  isDrive,
 } from "../../src/game/plan-sliders.js";
 
 test("ARC: the track is the engine's release range, up is higher", () => {
@@ -61,11 +66,15 @@ test("the words read as the buttons did", () => {
 });
 
 test("the held slider's caption: the iPhone's words, TILT or SPIN by the piece", () => {
+  // engine 0.16: a baton's lower arc drives in; a kubb has no drive
   assert.equal(
     captionOf("arc", false).text,
+    "A higher arc drops in steeper. A lower arc drives in harder.",
+  );
+  assert.equal(
+    captionOf("arc", true).text,
     "A higher arc drops in steeper. A lower one skids in.",
   );
-  assert.equal(captionOf("arc", true).text, CAPTIONS.arc);
   assert.equal(
     captionOf("side", false).text,
     "Tilt leans the baton to steer it through a group.",
@@ -168,4 +177,88 @@ test("0.9 controls: a mark at every tick, full ones at the steps, the middle lon
   assert.equal(a.length, 31);
   assert.equal(a.filter((x) => x.long).length, 1, "the normal throw");
   assert.equal(a.filter((x) => x.centre).length, 0);
+});
+
+// Engine 0.16's drive: ARC's floor moves (aim.controls.arc.min) and the knee (15) is
+// where the drive begins (the engine's docs/SESSION.md "The controls").
+const ARC16 = (min) => ({
+  min,
+  max: 165,
+  default: 60,
+  value: Math.max(min, 60),
+  knee: 15,
+  tick: 5,
+  step: 15,
+  unit: "deg",
+  scope: "throw",
+});
+
+test("0.16 ARC: the drive takes the foot of the track, more the lower the floor", () => {
+  // 1.5 m: the floor is 0.3; the drive is under 30% of the track
+  const near = ARC16(0.3);
+  assert.equal(kneeOf(near), 15);
+  assert.ok(Math.abs(driveShare(near) - drive.share * (14.7 / 15)) < 1e-9);
+  assert.equal(valueAt(near, 0), 0.3, "the foot is the floor, never under it");
+  assert.equal(valueAt(near, 1), 165);
+  assert.ok(Math.abs(valueAt(near, driveShare(near)) - 15) < 1e-9, "the knee");
+  for (const v of [0.3, 4, 14.9, 15, 32, 90, 165])
+    assert.ok(Math.abs(valueAt(near, fractionOf(near, v)) - v) < 1e-9, `${v}`);
+  assert.equal(fractionOf(near, -5), 0, "under the floor: the foot");
+  // 4 m: the floor is about 12.3, a sliver
+  const four = ARC16(12.3);
+  assert.ok(driveShare(four) > 0 && driveShare(four) < 0.06);
+  // 8 m: the floor is the knee; nothing under it is offered and the track is linear
+  const far = ARC16(15);
+  assert.equal(kneeOf(far), null);
+  assert.equal(driveShare(far), 0);
+  assert.equal(valueAt(far, 0), 15);
+  assert.ok(Math.abs(valueAt(far, 0.5) - 90) < 1e-9);
+  // a kubb's ARC (no knee) and the tilt keep their straight track
+  assert.equal(kneeOf(CONTROLS.arc), null);
+  assert.ok(Math.abs(valueAt(CONTROLS.tilt, 0.6789) - 7.156) < 1e-9);
+});
+
+test("0.16 ARC: marks on the clock's degrees from the floor up, the knee heavy", () => {
+  const near = controlMarks(ARC16(0.3), "arc");
+  // 5, 10 ... 165 (0 is under the floor)
+  assert.equal(near.length, 33);
+  assert.deepEqual(
+    near.filter((m) => m.knee).map((m) => m.f),
+    [fractionOf(ARC16(0.3), 15)],
+  );
+  assert.equal(near.filter((m) => m.drive).length, 2, "5 and 10");
+  assert.equal(near.filter((m) => m.long).length, 1, "3 o'clock");
+  // 4 m: the knee is still marked, no drive ticks under it but the floor's own
+  const four = controlMarks(ARC16(12.3), "arc");
+  assert.equal(four.filter((m) => m.knee).length, 1);
+  assert.equal(four.filter((m) => m.drive).length, 0);
+  // 8 m: no knee and no drive
+  const far = controlMarks(ARC16(15), "arc");
+  assert.equal(far.filter((m) => m.knee || m.drive).length, 0);
+  assert.equal(far.length, 31);
+});
+
+test("0.16 ARC: a release under the knee is a DRIVE, said so on the plate and to a screen reader", () => {
+  const c = ARC16(0.3);
+  const lob = { release: 60, loft: 22 };
+  const low = { release: 12, loft: 2.7 };
+  const down = { release: 6, loft: -4.6 };
+  assert.equal(isDrive(lob, c), false);
+  assert.equal(isDrive(low, c), true);
+  assert.equal(
+    isDrive(down, null),
+    false,
+    "an engine with no knee has no drive",
+  );
+  assert.equal(arcLabel(lob, c), "ARC 22°");
+  assert.equal(arcLabel(low, c), "DRIVE 3°");
+  assert.equal(arcLabel(down, c), "DRIVE \u22125°");
+  assert.equal(arcValueText(lob, c), "Arc, 22 degrees");
+  assert.equal(arcValueText(low, c), "Arc, 3 degrees, drive");
+  assert.equal(arcValueText(down, c), "Arc, 5 degrees down, drive");
+  assert.equal(arcValueText(down, c, " "), "Arc 5 degrees down, drive");
+  assert.equal(captionOf("arc", false, down, c).text, CAPTIONS.drive);
+  assert.equal(captionOf("arc", false, down, c).key, "drive");
+  assert.equal(captionOf("arc", false, lob, c).text, CAPTIONS.arc);
+  assert.equal(captionOf("arc", true, down, c).text, CAPTIONS.kubbArc);
 });

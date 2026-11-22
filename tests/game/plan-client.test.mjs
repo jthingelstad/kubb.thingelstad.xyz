@@ -537,7 +537,7 @@ browserTest(
       assert.equal(c.what, "arc");
       assert.equal(
         c.text,
-        "A higher arc drops in steeper. A lower one skids in.",
+        "A higher arc drops in steeper. A lower arc drives in harder.",
       );
       assert.equal(c.baton, false);
       assert.ok(
@@ -673,3 +673,150 @@ for (const [kind, prefs, name] of [
     }
   });
 }
+
+// Engine 0.16's drive (src/game/plan-sliders.js, docs/SYSTEM.md "The drive"): a person's
+// baton 1.5 m from a group off the advantage line (tests/fixtures/snap-advantage.json,
+// a computer match's position with Team A handed to a person). ARC's range comes from
+// aim.controls.arc every frame: at 1.5 m it starts at the floor, the drive part is
+// tinted and named; at 8 m the floor is the knee and nothing under it is offered; and it
+// follows while the circle is moved with the plate open.
+const ADVANTAGE = fs.readFileSync("tests/fixtures/snap-advantage.json", "utf8");
+
+async function advantagePage(kind) {
+  const page = await open(env, "/p/abcdefgh?solo=1&play=1&nohowto=1", kind, {
+    prefs: {
+      solo: {
+        scene: "day",
+        computer: "beginner",
+        opening: "246",
+        raising: "hand",
+        wind: "none",
+      },
+      throwsMade: 9,
+    },
+  });
+  const start = page.getByRole("button", { name: "START", exact: true });
+  if (await start.count()) await start.first().click();
+  await page.waitForFunction(
+    () => window.__kubb.game.mode === "match" && window.__kubb.game.need,
+  );
+  await page
+    .getByRole("button", { name: "THROW", exact: true })
+    .first()
+    .click({ timeout: 10000 });
+  await waitPhase(page, "aim");
+  await page.evaluate((s) => window.__kubb.game.adopt(s), ADVANTAGE);
+  await waitPhase(page, "aim");
+  return page;
+}
+
+// stand d metres short of the nearest field kubb (or a far base kubb), aimed at it
+const standAt = (page, d) =>
+  page.evaluate((d) => {
+    const g = window.__kubb.game;
+    const v = g.engine.view();
+    const items = v.items;
+    const t =
+      d >= 7.5
+        ? items.find((i) => i.kind === "kubb" && i.y > 7.5 && i.z > 0.07)
+        : v.need.setup.targets
+            .map((id) => items.find((i) => i.id === id))
+            .sort((a, b) => a.y - b.y)[0];
+    g.engine.setStance(t.x, Math.max(0, Math.min(v.aim.forwardY, t.y - d)));
+    const r = g.engine.setTarget(t.x, t.y, true);
+    g.out = { ...g.out, aim: r.aim, camera: r.camera };
+    return { x: t.x, y: t.y, stand: r.aim.thrower, dist: r.aim.plan.dist };
+  }, d);
+
+const arcState = (page) =>
+  page.evaluate(() => {
+    const el = document.querySelector("[data-test=arc]");
+    const a = window.__kubb.game.out.aim;
+    return {
+      c: a.controls.arc,
+      plan: a.plan,
+      min: Number(el.getAttribute("aria-valuemin")),
+      now: Number(el.getAttribute("aria-valuenow")),
+      text: el.getAttribute("aria-valuetext"),
+      head: el.querySelector(".slider-head").textContent,
+      band: document.querySelector("[data-test=arc-plate] .plate-head")
+        .textContent,
+      zone: !!el.querySelector(".slider-drive"),
+      word: el.querySelector(".slider-drive-word")?.textContent ?? null,
+      knee: el.querySelectorAll(".slider-tick.knee").length,
+    };
+  });
+
+browserTest(
+  "0.16 ARC reaches the drive at 1.5 m, offers nothing under the knee at 8 m, and follows the circle",
+  async () => {
+    const page = await advantagePage("portrait");
+    try {
+      const near = await standAt(page, 1.5);
+      assert.ok(Math.abs(near.dist - 1.5) < 1e-6, `${near.dist}`);
+      await openPlate(page, "arc");
+      await nextFrame(page);
+      let s = await arcState(page);
+      assert.ok(s.c.min < 1 && s.c.knee === 15, `floor ${s.c.min}`);
+      assert.equal(s.min, Math.round(s.c.min), "the range starts at the floor");
+      assert.ok(s.plan.release < 15 && s.plan.loft < 0, "the default drives");
+      assert.equal(s.head, `DRIVE −${Math.round(-s.plan.loft)}°`);
+      assert.equal(s.band, s.head, "the closed plate's band says the same");
+      assert.match(s.text, /^Arc \d+ degrees down, drive$/);
+      assert.equal(s.zone, true);
+      assert.equal(s.word, "DRIVE");
+      assert.equal(s.knee, 1);
+      // Home goes to the floor, never under it; the keys step from there
+      await page.focus("[data-test=arc]");
+      await page.keyboard.press("Home");
+      await nextFrame(page);
+      s = await arcState(page);
+      assert.ok(Math.abs(s.plan.release - s.c.min) < 1e-6, "at the floor");
+      await page.keyboard.press("ArrowDown");
+      await nextFrame(page);
+      assert.ok((await arcState(page)).plan.release >= s.c.min - 1e-9);
+      await page.keyboard.press("ArrowUp");
+      await nextFrame(page);
+      s = await arcState(page);
+      assert.ok(s.plan.release > s.c.min, "a tick up from the floor moves");
+      // a press at the foot of the track is the floor, at the knee the knee
+      await page.evaluate(() => window.__kubb.game.engine.freshPlan());
+      await page.keyboard.press("Escape");
+      // the circle moved out with the plate open: the floor rises to the knee and the
+      // drive part goes
+      const stand = near.stand;
+      await openPlate(page, "arc");
+      let last = -1;
+      for (const dd of [1.5, 2.5, 4, 5.25]) {
+        await page.evaluate(
+          ({ x, y }) => {
+            const g = window.__kubb.game;
+            const r = g.engine.setTarget(x, y, false);
+            g.out = { ...g.out, aim: r.aim, camera: r.camera };
+          },
+          { x: stand.x, y: stand.y + dd },
+        );
+        await nextFrame(page);
+        await nextFrame(page);
+        s = await arcState(page);
+        assert.equal(s.min, Math.round(s.c.min), `${dd} m: the floor`);
+        assert.ok(s.c.min >= last - 1e-6, `${dd} m: the floor rises`);
+        last = s.c.min;
+        assert.equal(s.zone, s.c.min < 15 - 1e-6, `${dd} m: the drive part`);
+      }
+      // 8 m from the baseline at a base kubb: the floor is the knee
+      await page.keyboard.press("Escape");
+      await standAt(page, 8);
+      await openPlate(page, "arc");
+      await nextFrame(page);
+      s = await arcState(page);
+      assert.equal(s.c.min, 15);
+      assert.equal(s.zone, false);
+      assert.equal(s.knee, 0);
+      assert.match(s.head, /^ARC \d+°$/);
+      assert.deepEqual(page.errors, []);
+    } finally {
+      await page.context().close();
+    }
+  },
+);

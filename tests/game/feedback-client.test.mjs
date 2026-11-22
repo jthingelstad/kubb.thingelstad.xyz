@@ -358,7 +358,7 @@ browserTest(
 );
 
 browserTest(
-  "with reduced motion the kubbs still stand one at a time; the engine's own raises stand at once until the engine hands them out",
+  "with reduced motion the kubbs still stand one at a time; the engine's own raises are watched in its order, and a watcher's zen pause follows",
   async () => {
     const page = await soloAim(
       "portrait",
@@ -374,15 +374,29 @@ browserTest(
     await page.context().close();
 
     // the computer against itself raising automatically: its last kubb thrown in, then
-    // the engine stands them itself. Those raises have no need and no action, and wait
-    // for the engine to hand them out (engine 0.16.0's setup.settled; lift.js
-    // settledClips): today they stand at once, as before web 0.17.0, never watched
+    // the engine stands them itself, with no need and no action. Engine 0.16.0 hands
+    // them out (setup.settled; lift.js settledClips): each is watched, in its order,
+    // and a watcher's zen pause before the next throw still comes after them
     const watch = await soloAim("portrait", { solo: { ...SOLO("day").solo } });
     await watch.evaluate((snap) => {
       const g = window.__kubb.game;
-      window.__lifted = false;
+      g.zen = {
+        before: [1.5, 1.5],
+        turn: [0, 0],
+        change: [0, 0],
+        holdAfter: 0.5,
+      };
+      window.__lifted = [];
+      window.__zenAfter = null;
+      let was = null;
       const look = () => {
-        if (g.phase === "lift") window.__lifted = true;
+        if (g.phase === "lift" && g.liftState) {
+          const id = g.liftState.clips[g.liftState.k]?.need?.kubb;
+          if (id && window.__lifted.at(-1) !== id) window.__lifted.push(id);
+        }
+        if (was === "lift" && g.phase !== "lift")
+          window.__zenAfter = g.zenPause;
+        was = g.phase;
         requestAnimationFrame(look);
       };
       look();
@@ -393,11 +407,20 @@ browserTest(
       null,
       { timeout: 60000 },
     );
-    assert.equal(await watch.evaluate(() => window.__lifted), false);
-    assert.equal(
-      await watch.evaluate(() => window.__kubb.game.need.setup.kind),
-      "baton",
+    const settled = await watch.evaluate(
+      () => window.__kubb.game.need.setup.settled,
     );
+    assert.ok(settled?.list?.length > 0, "the engine says what it raised");
+    assert.deepEqual(
+      await watch.evaluate(() => window.__lifted),
+      settled.list.map((x) => x.id),
+      "each kubb watched, in the engine's order",
+    );
+    assert.ok(
+      (await watch.evaluate(() => window.__zenAfter)) > 1,
+      "the zen pause comes after the watched raise",
+    );
+    assert.deepEqual(watch.errors, []);
     await watch.context().close();
   },
 );

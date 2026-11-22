@@ -40,8 +40,10 @@ function axisTo(need, i) {
       dy = e.pose.y - need.pose.y;
     const l = Math.hypot(dx, dy);
     if (l > 1e-6) return [dx / l, dy / l];
-    if (i === 1) [ux, uy] = [-ux, -uy];
   }
+  // no footprint to go by (the engine's own raises, lift.js settledClips): end 1 is
+  // the +axis end and end 2 the -axis end, as core/raising has them
+  if (i === 1) [ux, uy] = [-ux, -uy];
   return [ux, uy];
 }
 

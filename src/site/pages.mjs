@@ -97,7 +97,7 @@ function rules({ tinylytics, config = {} }) {
     <caption class="label">Before the throw</caption>
     <tbody>
       <tr><th scope="row">Tap or drag the pitch, or the arrow keys</th><td>Aim. The circle is where the throw should land. A tap puts it there. A drag moves it at half your finger’s speed, so you can see it.</td></tr>
-      <tr><th scope="row">ARC, or R and F</th><td>A higher arc drops in steeper. A lower one skids in.</td></tr>
+      <tr><th scope="row">ARC, or R and F</th><td>A higher arc drops in steeper. A lower arc drives in harder: close to a kubb ARC goes down into DRIVE, where the baton leaves your hand low and hard and does not flip.</td></tr>
       <tr><th scope="row">TILT, or Q and E</th><td>Tilt leans the baton to steer it through a group. For a kubb it is SPIN, which keeps it steady in the air.</td></tr>
       <tr><th scope="row">ARC open, or hold Shift</th><td>The side view: the camera out over your shoulder, with the arc drawn. Sliding TILT shows it too.</td></tr>
       <tr><th scope="row">STAND, or A and D, W and S</th><td>Where you stand. Drag the ring along your line or back from it. When there is an advantage line, you can go up to it.</td></tr>
