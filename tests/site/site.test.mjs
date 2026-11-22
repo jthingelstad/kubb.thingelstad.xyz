@@ -98,6 +98,8 @@ test("the rules page and HOW TO THROW name the controls the game has", () => {
   assert.ok(!rules.includes("only touch the meter"));
   const words = JSON.stringify(HOWTO_STEPS);
   assert.ok(!/beside the (dial|meter)/.test(words), "how-to: beside the meter");
+  // one word for the round meter, the one Settings uses: the clock
+  assert.ok(!/\bdial/i.test(words), "how-to: dial");
 });
 
 test('no page or card sends a player to "the web game\'s page"', async () => {
