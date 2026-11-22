@@ -110,8 +110,9 @@ together, six at most, each computer at its own level (the engine's docs/PITCH.m
 "Computer seats"). The lobby's parts (`src/ui/lobby.js` `seatRow`, `game.css` `.seat`):
 
 - **ADD COMPUTER** (plain, small, 17 px) under JOIN in each team's panel, the host's only:
-  a seat last in that team's throwing order at **Club**, its name rolled from the host's
-  own draw (`pitch.addComputer`). Off when the team holds six, people and seats together;
+  a seat last in that team's throwing order at **Club**, its name a generated player name
+  from the host's own draw that nobody on the pitch has (`pitch.addComputer` with
+  `name`; the engine keeps a seat's name unlike the other seats' only). Off when the team holds six, people and seats together;
   the count in the team's head is of both (`3 of 6`).
 - **A seat's row, the host's**, in its place in the team's list (members and seats in
   throwing order), three lines inside the team's panel, 6 px apart, a 2 px ink rule over
@@ -137,8 +138,9 @@ up`, `Move Bold Birch down`, `Move Bold Birch to Team B`, `Remove Bold Birch`; A
   comes back when Kid is switched off), and the team's panel says `Kid match: every
 computer plays as Kid.` (Inter 14, muted).
 - **The teams**: side by side as before; with any seat on the pitch on a card under
-  **600 px** wide, one over the other, so a seat's row has the card's width (a 390 px
-  phone: 330 px inside the panel). Two teams of six on a phone upright scroll inside the
+  **540 px** inside (a container query on the lobby card), one over the other, so a
+  seat's row has the card's width (a 390 px phone: about 320 px inside the panel); the
+  desktop's 640 px card keeps them side by side. Two teams of six on a phone upright scroll inside the
   card; START's row stays at the foot.
 - **The Computer row** (the level of the computer on an empty side): `An empty side plays
 as` with Kid, Beginner, Club, Pro, shown only while a side has nobody and no seat. With
@@ -339,12 +341,15 @@ phase):
   pitch before its turn). The list's kubbs before the one tipping stand, the ones after
   it still lie. The poses are the raiser's view frame, drawn as given on the raise view
   (`raiseCamera` of the lying pose): never compared with the pitch and never turned.
-  - **What is drawn round them.** The raiser is the defender, never the next thrower, so
-    in the thrower's view the throw need's items are in the other team's frame and only
-    the king (on the pitch's centre in either frame) is drawn with the list's kubbs. In
-    the wide view every entry says `frame: "world"` and the view's items are the world's
-    too, so the whole pitch is drawn round them. (The list carries no other pieces: see
-    "What the engine could add".)
+  - **What is drawn round them** (since engine 0.17.0, web 0.21.0). Each entry carries
+    its own surroundings, `others` (`{ id, pose }`: every other kubb on the pitch as it
+    stood while that kubb was raised, the list's own among them, those done standing
+    and those to come lying) and `king`, in the entry's frame, as `raiseInfo` gives them
+    for a raise by hand (`punishInfo` for a punishment kubb). An entry is drawn as the
+    raise-by-hand view draws its need: the kubb from `lying` to `standing` with `others`
+    and `king` round it, entry by entry (`settledClips`). Nothing is taken from the
+    throw need's items, compared or turned. (On 0.16 the list carried only its own kubbs,
+    so the thrower's view drew them with the king alone.)
   - After a restore there is none: the kubbs already stand. Watching the computer keeps
     its zen pause, which comes after the clips (the next throw need is entered when they
     end).
@@ -367,13 +372,6 @@ phase):
   watching pace (zen) adds its own pause after.
 - **Reduced motion**: no tip: each kubb lies for half its beat, then stands where the
   engine put it, still one at a time.
-- **What the engine could add** (for the engine's next minor; nothing waits on it): each
-  `setup.settled` entry's neighbours as `raiseInfo` gives a raise by hand (`others` and
-  `king`, in the same raiser's frame), or the pitch's items in the raiser's frame before
-  the first entry. Without them the thrower's view draws the engine's raises with the
-  list's own kubbs and the king only: a kubb standing near them from an earlier turn,
-  and the raiser's base kubbs, are not on the raise view while they are watched. The
-  page cannot add them without turning the throw need's items, which it never does.
 
 ## The drive (engine 0.16)
 

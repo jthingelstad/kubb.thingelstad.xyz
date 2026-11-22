@@ -114,6 +114,12 @@ const game = new Game({ engine, canvas, ui, sound, cards, seat, onAction });
   and the engine's cards name them; a card for someone else's turn has a WATCH button and
   closes itself after 2.5 s.
 
+A computer player in a team (engine 0.17, docs/MULTIPLAYER.md "Computer players") is the
+computer's throw like a computer side's: `need.cpu`, thrown in the browser whose seat has
+`cpu: true` (the host's) and reported by `onAction`; `seat.mayAct` never gives it to a
+person. The hand-off card adds "Bold Birch throws first · computer · Pro" when the turn
+opens with one (`handoffCpu`, from `card.handoff.throwerCpu`).
+
 Solo is only this seam with no network: `seat = { sides: ["A"], cpu: true }`, the local
 player owns team A and this browser runs the computer as B (`src/main.js` `startSolo`).
 A shared pitch is the same seam with the pitch server behind it: `src/net/pitch.js` joins
@@ -762,8 +768,9 @@ header's row on a wide screen, clear of the target, the tray, the minimap and th
   raises, watching) and a punishment kubb it places are watched the same way since web
   0.19.0, from engine 0.16.0's `setup.settled` on the next throw need, in its order
   (`lift.js` `settledClips`, `Game.settledLifts`): each kubb's poses are the raiser's
-  frame, drawn as given, with the king round them (the wide view: the whole pitch, both
-  the world's); after a restore there is none. `src/game/lift.js` (pure), numbers in
+  frame, drawn as given, and since web 0.21.0 (engine 0.17.0) each entry's own
+  surroundings (`others`, `king`) round it, as the raise-by-hand view draws its need;
+  after a restore there is none. `src/game/lift.js` (pure), numbers in
   docs/SYSTEM.md "Watching a raise".
 - **Punishment**: drag or tap the kubb in the defender's half; the stakes and the king carry
   keep-out circles and a refused spot says why (TOO NEAR A STAKE); PLACE IT when allowed.
@@ -857,8 +864,12 @@ header's row on a wide screen, clear of the target, the tray, the minimap and th
   minimap the same dots and cones), the hand-off says "Kid match · throw from the cones"
   (the king shot: "Kid match · the king from your line"; `handoffKid`), STAND's caption
   speaks of the Kid line, and the flag after a throw follows the ruling's codes
-  (`flagFor` in `src/game/rulings.js`): KING BACK UP (`kingUp`), OUT TWICE: PLACED
-  (`placed`), and a counted helicopter shows what it knocked down (`helicopterCounts`).
+  (`flagFor` in `src/game/rulings.js`): OUT TWICE: PLACED (`placed`), and a counted
+  helicopter shows what it knocked down (`helicopterCounts`). A king stood back up is
+  the engine's own flag since 0.17.0, read as it comes: KING BACK UP, or the kubbs it
+  felled ("1 DOWN"); the page no longer rebuilds it from the ruling. A computer player
+  in a Kid match is the Kid computer, and the lobby's seats read Kid (docs/MULTIPLAYER.md
+  "Computer players").
   Nothing tells a child they got a punishment or lost when they did not. A kept
   `computer: "kid"` stays Kid (`soloOptions`).
 - **Ground impacts and the spin** (engine 0.14; `src/render/impacts.js`). The game asks
@@ -873,8 +884,10 @@ header's row on a wide screen, clear of the target, the tray, the minimap and th
   drawn plain.
 - **The header** (the 1.0 design; `hud.js`, `headerLine`, `headerName`): one plate at the
   top left. Over the name, in the label's capitals, "Turn 4 · baton 2 of 6" ("kubb 1 of 3"
-  throwing kubbs in), with what the thrower aims at when it is not the base kubbs ("· 2
-  field kubbs", "· at the king"); practice: "Batons · 5 base kubbs", "Kubbs · target 2.3
+  throwing kubbs in; a kubb rethrown counted in its own round, "rethrow 1 of 1", from the
+  rail's `rethrow`, since engine 0.17.0), with what the thrower aims at when it is not
+  the base kubbs ("· 2 field kubbs", "· at the king"), and "· computer · Pro" while a
+  computer player throws (engine 0.17, `need.setup.thrower.cpu`); practice: "Batons · 5 base kubbs", "Kubbs · target 2.3
   m". The name in sentence case (the engine's rail says it in capitals; the header takes
   the team's and the thrower's names from the need). Then the kubbs standing in each half
   as two numbers on the team colours, A marigold and B violet (the need's `standing`,

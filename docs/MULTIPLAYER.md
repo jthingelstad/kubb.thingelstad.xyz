@@ -53,11 +53,13 @@ vendored engine's major.minor (`"0.3"`), read from `room.constants`. The lobby c
   as the device's name and sent at once (`me.name`). No level is shown: from engine 0.13 every person throws on one
   meter. `me.level` is still sent, the device's stored level (`kubb:level`, Club when
   never chosen); it changes nothing on 0.13.
-- **Team A** (marigold) and **Team B** (violet), up to six a side, in throwing order, each
-  member with a dot for connected and HOST and YOU tags (two with one name: the second
-  "II", "Names" below). A side of several shows the name it plays as, the host's to pick
-  in a name row (the name and SHUFFLE). JOIN A, JOIN B, or WATCH INSTEAD (quiet) to sit out. An empty side says "The computer plays this side." when the other has
-  someone.
+- **Team A** (marigold) and **Team B** (violet), up to six a side, people and computer
+  players together ("Computer players", below), in throwing order, each member with a
+  dot for connected and HOST and YOU tags (two with one name: the second "II", "Names"
+  below). A side of several shows the name it plays as, the host's to pick in a name row
+  (the name and SHUFFLE). JOIN A, JOIN B, or WATCH INSTEAD (quiet) to sit out; the
+  host's ADD COMPUTER under each. An empty side (nobody and no computer seat) says "The
+  computer plays this side." when the other has someone.
 - **Watching**: everyone in the room on neither team.
 - **SHARE THE LINK**: `navigator.share` where there is one, else the clipboard.
 - **Who can join**: Invite only ("Only people with the link can join.", the default) or
@@ -71,10 +73,62 @@ vendored engine's major.minor (`"0.3"`), read from `room.constants`. The lobby c
   (and the host's choices are remembered as `kubb:pitchOptions` for their next pitch);
   everyone else reads them.
 - **HOME** (quiet) at the left and **START** (go) at the right for the host, allowed with
-  at least one player on one team; everyone else reads "Waiting for <host> to start."
+  at least one player or computer seat on one team (a START the engine's `startCheck`
+  refuses for the lineup, a pitch with no person in it, says the engine's own sentence,
+  its `text`, in the lobby's note); everyone else reads "Waiting for <host> to start."
   The row stays in reach at the bottom while the card scrolls.
 
 Teams change only between matches. A member who leaves the pitch for good is taken off their team by the host's browser.
+
+## Computer players
+
+The owner, 2026-11-22: "In online play we should be able to add computer players to the
+match, with a specified level. I may have three friends and we want to play a team of
+three computers (two at club and one at pro). Or we want to play 2 v 2 where Tyler and I
+each have a pro computer player as a partner." Since engine 0.17 (its docs/PITCH.md
+"Computer seats", docs/SESSION.md "Computer players") a team holds people, computers or
+both, six at most together, each computer at its own level. The numbers and words are
+docs/SYSTEM.md "Computer seats".
+
+- **The seat.** A computer player sits in its team's list in its place in the throwing
+  order by a seat id no member can have (`"cpu:1"`), its record in the document's
+  top-level `computers` (`{ level, name }`). The host's ADD COMPUTER writes
+  `pitch.addComputer` (at Club, named by the engine from the host's own draw), the
+  seat's level bar `setComputerLevel` (Beginner, Club, Pro), ↑ ↓ and TO A / TO B
+  `moveComputer` (a place in the order, or last on the other team) and REMOVE
+  `removeComputer`, through `src/net/lobby.js` like every lobby write. Everyone else
+  reads the row, "Bold Birch · computer · Pro". A row whose id `isSeat` says is a seat is
+  drawn from `computers`, never looked up as a member; its name shows only where
+  `names.check({ document, members })` passes `computers.<id>.name`, else "Computer".
+- **Kid.** The Computer setting is the match's: Kid there with any computer in the match
+  makes a Kid match, every computer plays as the Kid computer, and the seats read Kid
+  (each keeps its own level, which comes back when Kid is switched off). The Computer
+  row is "An empty side plays as" while a side has nobody and no seat; with no empty
+  side and a seat on the pitch it is a "Kid match" Off / On switch; with neither it is
+  not shown.
+- **START.** `lineup` has each seat in its place (`cpu: true`, its level); a side of
+  computers only is not empty. `startCheck` refuses a lineup with no person, a team over
+  six or a seat's bad level, with `why` and a sentence, `text`, which the lobby shows.
+  The match header's `players` keep `cpu` and `level` on computer players, and a team of
+  several (people, computers or both) plays under the host's team name.
+- **Who throws.** The team's throwing order decides every throw, so a computer partner
+  takes its share of the batons, and the kubbs go round a team with a computer in it
+  turn by turn. A computer player's throw is the host's browser's (`control.cpu`, the
+  engine's `need.cpu`): no person ever gets controls for it, and everyone else sees it
+  arrive as the host's action. A host change mid-throw gives the new host's browser
+  `control.cpu`: it adopts the pitch's snapshot and throws (`refreshSeat`).
+- **What the rules give the team.** A team with a person on it raises and places
+  punishment kubbs by its people (any of them connected); a team of computers does it
+  itself, at its strongest player's level, and the raises are watched from the next
+  throw need's `setup.settled` (docs/SYSTEM.md "Watching a raise").
+- **What is shown.** The header's line ends "· computer · Pro" while a computer player
+  throws, the status pill says "BOLD BIRCH THROWS · COMPUTER · PRO", and the hand-off
+  (and the watched turn's banner) adds "Bold Birch throws first · computer · Pro" when
+  the turn opens with one (`card.handoff.throwerCpu`). The winner card, the score sheet
+  (`[Throw Levels]` names each computer player with its level), the replay, the embed,
+  the share card and the reel name computer players by their generated names: the
+  engine's, from the match.
+- **Open games.** `openListing`'s `seats` is the twelve places less the seats.
 
 ## The document
 
@@ -460,10 +514,34 @@ keep these the same, or the two disagree on screen:
   the name picked; a device that has played, and a new host, go straight to the lobby;
   JUST WATCH reopens the link as an observer. The pitch tests' own browsers are devices
   that have played (`played` in `tests/game/browser.mjs`).
+- `tests/net/computer-seats.test.mjs`: the seat wrappers (add, level, move within and
+  across, remove, null to undefined), six a team counting seats, the owner's two
+  lineups, the open listing's seats, START with no person refused in the engine's
+  words, a Kid pitch, a refused seat name, and the words.
+- `tests/game/computer-seats-client.test.mjs`: the owner's two examples in two and three
+  browsers, played until every seat has thrown, a person has raised and (three people
+  against two club and one pro) the computers' team has raised itself; no person is
+  ever given a computer's throw; the header, pill and hand-off name the computer; then
+  the host leaves mid-throw of a computer, the next host's browser throws it, and the old
+  host comes back in step; the 2 v 2's winner card and score sheet name every player.
+  The lobby: a seat added, re-levelled (said once; the keyboard kept), moved across and
+  removed, six a team, START with no person, two full teams on a phone upright, Kid with
+  seats; and the pitch server's refusal of a typed seat name.
+  `KUBB_SEAT_SHOTS=<dir>` saves the screenshots.
 - `tests/game/room-engines.test.mjs` and `tests/net/room-engines.test.mjs`: one engine
   carried; a player on an older client is told on both sides and START stays off.
 
 ## Not done yet
+
+- **A solo team** (a person with a computer partner on one device, no pitch). The engine
+  plays it already (`newMatch` with `{ cpu: true, level }` entries and no `cpu` option;
+  `setControl` is not needed). What the web would need: the solo card to take a lineup
+  (a team list per side with ADD COMPUTER and the seat rows, from the lobby's parts but
+  with no document: local state the card owns), `startSolo` to pass those teams instead
+  of `cpu: "B"`, the Game's seat for one device acting for every person and the
+  computer (`seat.sides` both, `cpu` true), and the solo hand-off and pass cards for a
+  team of several on one device; the kept match and its resume card (`soloKept`) to
+  keep the lineup. No engine change.
 
 - A team picks its next thrower only as the engine's order names them; the engine's
   `thrower` action (choosing among `need.candidates`) has no control yet.
