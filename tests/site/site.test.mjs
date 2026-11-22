@@ -39,7 +39,13 @@ import { PITCH_CODE } from "../../backend/pitch-server/core.mjs";
 import { PITCH_CODE as API_CODE } from "../../backend/api/checks.mjs";
 import { releaseOf } from "../../tools/build.mjs";
 import { carriedEngines } from "../../tools/lua-bundle.mjs";
-import { NAV, footNav, footer } from "../../src/site/layout.mjs";
+import {
+  NAV,
+  LOADING,
+  footNav,
+  footer,
+  gamePage,
+} from "../../src/site/layout.mjs";
 import {
   LOVE,
   GOLDEN_COUNT,
@@ -57,6 +63,26 @@ const json = async (file) => JSON.parse(await fs.readFile(file, "utf8"));
 const viewer = await loadViewerRequest();
 const request = (address) =>
   viewer({ request: cloudfrontRequest(new URL(address, "https://x")) });
+
+test("the game page paints its loading card before the client arrives", () => {
+  // On a slow phone the bundle takes seconds: the page itself carries the card, so
+  // the first paint is not a bare green field (QA, 2026-11-22). With no script the
+  // noscript block hides it.
+  const html = gamePage({
+    path: "/practice/",
+    title: "t",
+    description: "d",
+    config: {},
+    script: "/assets/main.js",
+  });
+  assert.ok(html.includes(`<div id="ui">${LOADING}</div>`));
+  assert.match(LOADING, /data-test="loading"/);
+  assert.match(LOADING, /Setting out the pitch/);
+  assert.match(
+    html,
+    /<noscript>\s*<style>\.loading \{ display: none; \}<\/style>/,
+  );
+});
 
 test("a pitch at any code is the one game page", () => {
   assert.equal(request("/p/abcd2345").uri, "/pitch/index.html");

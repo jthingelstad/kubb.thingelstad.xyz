@@ -155,6 +155,12 @@ ${analytics(tinylytics)}
 `;
 }
 
+// The loading card, in the page itself so the first paint shows it: on a slow phone the
+// client's bundle takes seconds to arrive, and until then the page was a bare green
+// field. src/main.js takes this one (its words are the same) and removes it once the
+// game is up; with no script the noscript block hides it.
+export const LOADING = `<div class="loading" data-test="loading" role="status"><h1 class="display loading-title">Kubb<span>Throwing Wood</span></h1><p class="loading-text">Setting out the pitch...</p></div>`;
+
 // The game page: /p/<code> (a pitch; CloudFront serves /pitch/index.html for
 // every code) and /practice/. The client fills #pitch and #ui.
 export function gamePage({
@@ -180,8 +186,9 @@ ${styles.map((href) => `<link rel="stylesheet" href="${href}">`).join("\n")}
 </head>
 <body class="${bodyClass}">
 <canvas id="pitch" aria-label="The pitch"></canvas>
-<div id="ui"></div>
+<div id="ui">${LOADING}</div>
 <noscript>
+  <style>.loading { display: none; }</style>
   <div class="noscript">
     <h1 class="display">Kubb needs JavaScript</h1>
     <p>The game runs in your browser: the pitch is drawn by a script and the Kubb is the Playdate game’s own code. Turn JavaScript on for this site to play.</p>
