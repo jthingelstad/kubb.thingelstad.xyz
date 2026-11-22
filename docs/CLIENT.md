@@ -133,11 +133,13 @@ browsers slow a hidden tab's timers to once a minute after a few minutes), drawi
 nothing and skipping each throw's playback.
 
 Phases (`game.phase`): `aim` (a throw is wanted: this browser's, or the computer's shown
-as WATCH), `play` (a recording playing back), `raise`, `punish`, `over`.
+as WATCH), `play` (a recording playing back), `raise`, `punish`, `lift` (a raise being
+watched: "Match flow"), `over`. Actions from elsewhere wait behind `play` and `lift`.
 
 In the Tournament scene each tick also posts the match clock to the neighbours' worker
 (`Game.sceneryTick`): stopped under a card, in a hidden tab and while a replay is paused,
-never waited on (docs/SCENES.md "The Tournament's live neighbours").
+never waited on, and plays the other pitches' sounds that are due
+(`Game.neighbourSounds`; docs/SCENES.md "The Tournament's live neighbours").
 
 ## The throw
 
@@ -584,9 +586,11 @@ delta over dt, so a varying dt is honest.
 
 On a landscape screen the renderer's scale rule holds. A tall canvas (a phone upright)
 would show the 400 x 240 frame as a thin band, so the client passes its own mapping as
-`view.fit` (docs/RENDER.md): `worldFit` zooms to 1.3 times the width fit, anchors the
-target half a third of the way down, and pans across (eased) to keep the target circle in
-sight; the pan holds while the circle is dragged. The raise and punishment scenes use
+`view.fit` (docs/RENDER.md): `worldFit` zooms to 1.3 times the width fit, places the far
+baseline at 41% of the height (its frame y read from each throw's aim camera,
+`Game.farFrameY`; 33% of a fixed frame y until web 0.17.0, which left the far kubbs at
+30% and under the verdict), and pans across (eased) to keep the target circle in sight;
+the pan holds while the circle is dragged. The raise and punishment scenes use
 `stillFit`, the whole width (the raise zoomed 1.8 on its kubb). Every un-projection goes
 through the same `view.fit`, so a finger lands where it points (tested in
 `layout.test.mjs`).
@@ -604,7 +608,9 @@ nothing else moves. The raise needs no lift: its kubb, both numbers and a drag a
 sit near frame y 91, far above the bar. Taller canvases and tall screens are unchanged.
 
 The raise and punishment cameras are the client's own (`src/game/scenes.js`): across the
-lying kubb from the defender's side, and high over the defender's baseline.
+lying kubb from the defender's side, and high over the defender's baseline. Since web
+0.17.0 the raise camera stands twice as far off (2.3 m back, 2.1 m up), so twice the
+ground shows round the kubb: its numbers in docs/SYSTEM.md "The raise view".
 
 ## The wide view
 
@@ -667,6 +673,8 @@ burst inverts the screen. Each piece's first touch plays a knock: one of
 `public/sounds/knock-1..9.wav`, a random take, never the last one and preferably not one
 still sounding, at a rate of 1 +- 0.06, so knocks together overlap as different takes. The
 king gets a short chord. Audio unlocks on the first pointer down; mute is remembered.
+In the Tournament the other pitches are heard too, quiet and far (`Sound.distant`,
+docs/SCENES.md).
 
 After a throw the flag (1 DOWN, MISS, ...) and the verdict chips (power, release,
 steadiness and side; only for this browser's throws) show, and the rest distance in
@@ -675,7 +683,11 @@ PULLED LEFT, PULLED RIGHT) in a `.chip.off`: inverted like the flag (ink with pa
 larger and heavier, and ahead of the on-target chips (POWER ON, ARC ON, STEADY, STRAIGHT),
 which keep the plain paper pill (`verdictChips` in `src/game/hud.js`). Tyler's report,
 2026-11-16: a long throw's POWER LONG read just like POWER ON under a MISS, and three
-throws he took for perfect had been judged long.
+throws he took for perfect had been judged long. The verdict never stops an aim (web
+0.17.0): it takes no presses, goes at the first aim input (`Game.aimInput`), else 3.5 s
+after the throw rests (`tune.flagFor`), and stands under the header upright or in the
+header's row on a wide screen, clear of the target, the tray, the minimap and the meter
+(`layout.js` `verdictBox`; docs/SYSTEM.md "The verdict").
 
 ## Match flow
 
@@ -708,7 +720,7 @@ throws he took for perfect had been judged long.
   (`src/game/raise-touch.js`, pure; `Game.raisePick`, `Game.raiseDragTo`). AUTO is the
   engine's choice for this kubb. With more than one kubb still
   to raise the panel also has AUTO ALL: the rest of this turn's are stood on the engine's
-  choice, one every 0.7 s so each is seen. REST OF GAME, on the panel by hand and beside
+  choice, one after another, each watched (below). REST OF GAME, on the panel by hand and beside
   BY HAND while AUTO ALL runs, does that for every kubb for the rest of the match (it was
   also MENU's Raising row until the settings restructure: raising is a match option, so
   the part-way choice is on the raise controls, not in the device's settings). While it is
@@ -717,7 +729,22 @@ throws he took for perfect had been judged long.
   team, held while a card or the menu is open, and given back to the player if the
   engine refuses a raise. It is not kept on the device: a match that always raises
   itself is the match's own Raising option (the solo card, the lobby), which never asks.
-  `src/game/auto-raise.js` (pure, its 0.7 s in `tune`), `Game.autoRaiseTick`.
+  `src/game/auto-raise.js` (pure, its 0.4 s in `tune`), `Game.autoRaiseTick`.
+- **Watching a raise** (web 0.17.0; the owner, 2026-11-22: "When you hit auto to raise
+  kubbs you should watch the computer raise them."): every raise not made by hand here is
+  shown on the raise view, each kubb tipped up onto its end with the hand's own tip, one
+  after another: AUTO, AUTO ALL, REST OF GAME and MENU's Raising (`Game.raise(null, {
+watch })`, `Game.raiseAuto`), a `raise` from another browser (`applyRemote`) or a
+  replay's log (`ReplayPlayer.step`), and the kubbs the engine raised itself between a
+  turn's last kubb thrown in and its first baton (`Game.settledLifts`, from the pieces:
+  a match raising automatically, the computer's raises, watching). The action is applied
+  and sent first, then the clip plays (`Game.showAction`, `startLifts`, `liftFrame`,
+  phase `lift`), then the next view is entered: the actions and their order are what
+  they were. 0.4 s before the first kubb, half a second a kubb, 4 s at most in all;
+  actions arriving meanwhile wait and hurry it; a tap or a key skips to the end and
+  stands the rest of the turn's at once; a hidden tab shows none; reduced motion stands
+  each kubb without tipping, still one at a time. `src/game/lift.js` (pure), numbers in
+  docs/SYSTEM.md "Watching a raise".
 - **Punishment**: drag or tap the kubb in the defender's half; the stakes and the king carry
   keep-out circles and a refused spot says why (TOO NEAR A STAKE); PLACE IT when allowed.
 - **The panel on a phone on its side** (a screen 460 px high or less): the raise and
@@ -1303,7 +1330,7 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
 - **The label** (`src/site/release.js`): every app shows its own version with the Kubb
   Engine's beside it, `<app version> (<engine version>)` (Jamie, 2026-11-20). On the web
   that is `package.json`'s version and the full version of the newest engine the page
-  carries: `0.16.0 (0.15.1)`. Nothing but that engine's version is in the parentheses: an
+  carries: `0.17.0 (0.15.1)`. Nothing but that engine's version is in the parentheses: an
   older engine the page still plays would be only in the detail, `Also plays ...` (none
   today: the site carries the newest alone, `docs/ENGINES.md`), and the
   web commit never shows. The release is `{ version, web, engine, also, text, detail }`
@@ -1311,7 +1338,7 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
   `releaseOf`) reads the version from `package.json`, the web commit from `GITHUB_SHA` in
   CI or `git rev-parse HEAD`, and the engines from the vendored set; it puts the release
   in the game pages' config (`config.release`) and writes it as `/version.json`.
-- **Shown** small, in the shared type tokens: "Version 0.16.0 (0.15.1)" at the foot of
+- **Shown** small, in the shared type tokens: "Version 0.17.0 (0.15.1)" at the foot of
   every reading page (beside the link to the engine page), and the label at the foot of
   MENU in the game, with "Also plays ..." under it only while an older engine is carried.
 - **Exact identity** is the web commit: freshness (below) compares it, and a feedback

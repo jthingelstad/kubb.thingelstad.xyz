@@ -151,7 +151,7 @@ address or home path in `dist/`, no account id in Markdown).
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `0.16.0 (0.15.1)`, at the foot of
+the full version of the newest engine the site carries, `0.17.0 (0.15.1)`, at the foot of
 every reading page and of MENU, with "Also plays ..." under it in MENU only while older
 engines are carried (none today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
@@ -588,6 +588,14 @@ the finger goes, until the next press. `src/game/nudge.js` (pure, its numbers in
 `tune`) and `src/render/nudge.js`; drawing only, never fed to the engine, sent or
 recorded. docs/CLIENT.md "The throw".
 
+The verdict (the flag and its chips after a throw) never stops an aim (the owner,
+2026-11-22: "the display stays on the screen for a while keeping the player from being able
+to aim at times"): it takes no presses, goes at the first aim input, else 3.5 s after the
+throw rests, and stands under the header upright (the thrower's view fitted with the far
+baseline at 41% of the height, below it) or in the header's row on a wide screen, never
+over the target, the tray, the minimap or the meter. `layout.js` `verdictBox`,
+docs/SYSTEM.md "The verdict".
+
 The coach line (a tester, 2026-11-19: "Does it matter how quickly or slowly I track my
 finger"; Jamie: "Have the UI show it not a separate how to page"): over the meter's prompt,
 for a device with fewer than 3 throws and for the throw after a SLOW verdict, a line that
@@ -613,6 +621,18 @@ menu) is the same choice. It is the player's own choice on a match that raises
 by hand, kept only for that match: `src/game/auto-raise.js`, docs/CLIENT.md "Match flow".
 The panel keeps two slots in every state (the 1.0 design): the automatic choices plain at
 the left, the one confirming action (PLACE IT) go at the right.
+
+Every raise not made by hand is watched (the owner, 2026-11-22: "When you hit auto to
+raise kubbs you should watch the computer raise them."): on the raise view each kubb tips
+up onto the engine's end with the hand's own tip, one after another, 0.4 s before the
+first and half a second a kubb, 4 s at most: AUTO, AUTO ALL, REST OF GAME, MENU's
+Automatic, another browser's or a replay's raises, and the kubbs the engine raises itself
+(a match raising automatically, the computer, watching). The action is sent before its
+clip, so the actions and their order never change; a tap or key skips.
+`src/game/lift.js`, docs/SYSTEM.md "Watching a raise". The raise camera stands twice as
+far off as it first did (the owner, the same day: "We need to see about twice as much to
+know how to raise them."), the kubb's touch target still 44 px or more (docs/SYSTEM.md
+"The raise view").
 
 By hand, the player touches the kubb itself (Jamie, 2026-11-19: "similar to on the
 Playdate where you can use the crank to raise the kubbs, on touch, you should be able to
@@ -710,8 +730,13 @@ labels are plain words.
   in; `src/game/neighbours.js` is the page's half). The match's seed opens it; the match
   clock, stopped under a card and in a hidden tab, drives it; the page never waits on
   it, and anything that fails leaves the still pitches. Never for another scene, with
-  reduced motion, in the reel renderer or on a share card; no sound, no team names.
-  docs/SCENES.md "The Tournament's live neighbours".
+  reduced motion, in the reel renderer or on a share card; no team names. Since web
+  0.17.0 (the owner, 2026-11-22: "Tournament mode should not have people. Just pitches
+  with live play. We should hear the sounds from the other pitches.") nobody is drawn
+  in the Tournament, on the pitches or watching, raised and fresh pieces rise rather than
+  pop, and the other pitches are heard: the game's knocks at each topple, landing and
+  king, quiet with distance and panned, three at most, never near the player's own knock
+  (`src/game/neighbour-sound.js`). docs/SCENES.md "The Tournament's live neighbours".
 - **Kid matches** (engine 0.15; Jamie, 2026-11-21: "kid level is for kids to have fun
   with kubb"): Kid on the Computer row makes the match a Kid match; the web draws the Kid
   line (dots and two cones) on the pitch and the minimap, says "Kid match" on the

@@ -119,6 +119,7 @@ export const tune = {
   verdictTall: 132,
   verdictTallWide: 104,
   verdictAdv: 34, // px the box moves down under the line's chip, upright
+  verdictCompactW: 260, // px: a box narrower takes the compact chips (game.css)
   headerW: 0.4,
   headerMaxW: 400,
   mapGap: 8,

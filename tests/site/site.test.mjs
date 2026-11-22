@@ -578,8 +578,8 @@ test("the version label: package.json's version and the newest engine's, never t
   const sha = "a2659b744210e4c5baa5b69c672e11ec87f9bfab";
   const release = releaseOf(pkg.version, sha, carried);
   assert.equal(release.text, `${pkg.version} (${carried[0].version})`);
-  // this checkout: 0.16.0 on 0.15.1, the one engine it carries (docs/ENGINES.md)
-  assert.equal(release.text, "0.16.0 (0.15.1)");
+  // this checkout: 0.17.0 on 0.15.1, the one engine it carries (docs/ENGINES.md)
+  assert.equal(release.text, "0.17.0 (0.15.1)");
   assert.equal(release.detail, null);
   // more than one carried (when the owner decides one is supported): "Also plays"
   const two = [carried[0], { ...carried[0], mm: "0.9", version: "0.9.0" }];
