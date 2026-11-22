@@ -2415,3 +2415,26 @@ browserTest(
     await page.context().close();
   },
 );
+
+// QA, 2026-11-22: a device that came in by a pitch link's welcome threw without ever
+// seeing the guide, so reloading the pitch mid-match opened HOW TO THROW over its
+// turn while the others waited. The automatic guide is for a device with no throws.
+browserTest(
+  "a device that has thrown gets no automatic HOW TO THROW",
+  async () => {
+    for (const [path, throwsMade, shown] of [
+      ["/practice/", 3, false],
+      ["/practice/", 0, true],
+    ]) {
+      const page = await open(env, path, "desktop", { prefs: { throwsMade } });
+      await page.waitForTimeout(500);
+      assert.equal(
+        await page.locator("[data-test=howto]").count(),
+        shown ? 1 : 0,
+        `${throwsMade} throws`,
+      );
+      assert.deepEqual(page.errors, []);
+      await page.context().close();
+    }
+  },
+);

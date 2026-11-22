@@ -321,10 +321,13 @@ async function boot() {
   game.start();
   document.body.dataset.ready = "1";
   // a device new to the game on a pitch link has the welcome card, which offers
-  // HOW TO THROW itself (src/ui/welcome.js)
+  // HOW TO THROW itself (src/ui/welcome.js); and a device that has thrown has
+  // learnt (it came in by a pitch's welcome and never saw the guide): reloading a
+  // shared pitch mid-match must not put the guide over its turn
   const welcomed = mode === "pitch" && firstVisit(prefs);
   if (
     shouldShowHowto() &&
+    firstVisit(prefs) &&
     !params.has("nohowto") &&
     !watching &&
     !observing &&
