@@ -2630,6 +2630,9 @@ browserTest(
 // offered back: RESUME carries on from the same hash with the whole trail, so the match
 // is still recorded once, whole; NEW MATCH clears it; a finished match is not offered.
 browserTest("a match against the computer survives a reload", async () => {
+  // an api to keep the record: a finished match's save goes once its record is kept
+  const rooms = await startPitchServer();
+  const api = `&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`;
   const ctx = await env.browser.newContext(VIEWPORTS.desktop);
   await ctx.addInitScript(() => {
     if (sessionStorage.getItem("qa")) return;
@@ -2643,7 +2646,7 @@ browserTest("a match against the computer survives a reload", async () => {
   const ready = () =>
     page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
   try {
-    await page.goto(`${env.base}/p/abcdefgh?solo=1&nohowto=1`);
+    await page.goto(`${env.base}/p/abcdefgh?solo=1&nohowto=1${api}`);
     await ready();
     assert.equal(await page.locator("[data-test=resume]").count(), 0);
     await page.click("[data-test=start]");
@@ -2676,7 +2679,7 @@ browserTest("a match against the computer survives a reload", async () => {
     assert.equal(after.hash, before.hash, "the same match, the same hash");
     assert.equal(after.actions, before.actions, "the whole trail");
     // PLAY NOW with a match in progress offers it too; NEW MATCH clears it
-    await page.goto(`${env.base}/p/abcdefgh?solo=1&play=1&nohowto=1`);
+    await page.goto(`${env.base}/p/abcdefgh?solo=1&play=1&nohowto=1${api}`);
     await ready();
     await page.waitForSelector("[data-test=resume]");
     await page.click("[data-test=resume-go]");
@@ -2689,7 +2692,6 @@ browserTest("a match against the computer survives a reload", async () => {
     await page.waitForSelector("[data-test=winner]");
     const rec = await page.evaluate(() => ({
       n: window.__kubb.recorded.length,
-      kept: localStorage.getItem("kubb:soloMatch"),
       actions: window.__kubb.game.trail.actions.length,
     }));
     assert.equal(rec.n, 1, "recorded once");
@@ -2698,7 +2700,11 @@ browserTest("a match against the computer survives a reload", async () => {
       before.actions + 1,
       "the whole match: and the resign",
     );
-    assert.equal(rec.kept, "null", "a finished match is not kept");
+    await page.waitForFunction(
+      () => localStorage.getItem("kubb:soloMatch") === "null",
+      null,
+      { timeout: 10000 },
+    );
     await page.reload();
     await ready();
     assert.equal(await page.locator("[data-test=resume]").count(), 0);
@@ -2733,6 +2739,7 @@ browserTest("a match against the computer survives a reload", async () => {
     assert.deepEqual(errors, []);
   } finally {
     await ctx.close();
+    await rooms.close();
   }
 });
 
