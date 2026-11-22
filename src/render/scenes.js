@@ -57,14 +57,15 @@ const SWITCHED = new Set(SCENES);
 //
 // SCENE_NAMES is the one table of the names a player sees for each scene id, on
 // every surface that names one (the solo card's tiles, the lobby, practice's MENU).
-// The 1.0 design shows Day, Night and Neon as Park, Camping and Techno; whether
-// that comes in 1.0 or with the scene catalogue is still the owner's to decide, so
-// today's names stay until then. Renaming is this table alone: the stored ids
-// ("day", "night", "neon") never change. The iPhone keeps the same table.
+// Since the 1.0 design the day, the night and the neon are shown as Park, Camping
+// and Techno (the owner, 2026-11-22: "Park camping and techno."). Renaming is this
+// table alone: the stored ids ("day", "night", "neon": settings.scene, prefs,
+// ?scene=, recorded games) never change, so nothing kept or shared breaks. The
+// iPhone keeps the same table.
 export const SCENE_NAMES = {
-  day: "Day",
-  night: "Night",
-  neon: "Neon",
+  day: "Park",
+  night: "Camping",
+  neon: "Techno",
 };
 export const SCENE_ROW = [
   "scene",

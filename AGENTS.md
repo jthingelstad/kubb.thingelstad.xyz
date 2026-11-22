@@ -675,11 +675,12 @@ labels are plain words.
   for the turn and nothing on the page resets it. (The step buttons were for 0.8 and
   0.7, no longer carried.)
 - **Scenes** (Jamie, 2026-11-20: "i absolutely adore the two new scenes! lets make it
-  real"). A scene is a look only: Day, Night and Neon, a match option, Scene, from engine
+  real"). A scene is a look only: the day, the night and the neon (shown as Park, Camping
+  and Techno), a match option, Scene, from engine
   0.9 (the engine keeps the id in `settings.scene` and `view.scene` and never reads it).
-  The names a player sees are one table, `SCENE_NAMES` in `src/render/scenes.js`: the 1.0
-  design shows them as Park, Camping and Techno, and whether that is 1.0 or later is the
-  owner's to decide, so they stay Day, Night and Neon until then. The solo card has them
+  The names a player sees are one table, `SCENE_NAMES` in `src/render/scenes.js`: Park,
+  Camping and Techno since the 1.0 design (the owner, 2026-11-22: "Park camping and
+  techno."); the stored ids stay `day`, `night` and `neon`. The solo card has them
   as three picture tiles drawn by the game (`Game.sceneThumb`) and decides the kubb set
   by them (no Kubbs row since the 1.0 design: the night and the neon play their own
   sets, the day Classic; the lobby leaves the row out too); watching the computer takes

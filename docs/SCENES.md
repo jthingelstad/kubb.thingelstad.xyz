@@ -45,13 +45,16 @@ drawing from above of its own and stays the day's for now.
 ## Picking one: the Scene option
 
 Scene is a match option on engine 0.9, the way Computer level is: one row, Scene,
-with Day, Night and Neon (`SCENE_ROW` in `src/render/scenes.js`; the engine takes any
-id and lists none, so the labels are the web's). Day is the default and is what every
-match before it was. Each choice carries a small picture of its scene, and the pitch
+shown as Park, Camping and Techno for the ids `day`, `night` and `neon` (`SCENE_NAMES`
+and `SCENE_ROW` in `src/render/scenes.js`, the one table of shown names since the 1.0
+design; the engine takes any id and lists none, so the labels are the web's; the stored
+ids never change). The day (Park) is the default and is what every match before it was.
+On the solo card the choice is three picture tiles drawn by the game; in the lobby and
+practice's MENU each choice carries a small picture of its scene, and the pitch
 behind the card or lobby shows the pick while it is chosen (`Game.showScene`), skin
 and all.
 
-- **Play the computer**: the solo card's last row, kept with the card's options
+- **Play the computer**: the solo card's Scene tiles, kept with the card's options
   (prefs `solo.scene`). The match starts with `scene` (`newMatch`), so its view, its
   recording and a share of it carry it.
 - **Watch the computer**: the solo card's saved Scene.

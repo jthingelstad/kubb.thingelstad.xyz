@@ -744,7 +744,7 @@ throws he took for perfect had been judged long.
   and on a pitch the host's row (engine 0.9 on). A device's older choices move across
   once: the device level is the `level` pref, else the solo card's old Level, else Club;
   the solo card's old Level becomes its Computer level.
-- **The scene** (docs/SCENES.md): Scene (Day, Night, Neon), a look only. The solo card's
+- **The scene** (docs/SCENES.md): Scene (Park, Camping, Techno: the ids `day`, `night`, `neon`, shown through `SCENE_NAMES`), a look only. The solo card's
   last row (prefs `solo.scene`, passed as `scene`; watching the computer takes it), MENU's
   row on the practice pitch (prefs `practiceScene`; a change starts the practice again
   in it), and on a pitch the host's row, shown while the next match's engine takes a
