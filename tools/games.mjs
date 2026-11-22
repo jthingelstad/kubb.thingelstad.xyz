@@ -8,6 +8,9 @@
 //       to build/games/browser/<day>/, and every push of a shared pitch,
 //       games/pitch/<code>/<made>/<n>-<seq>.json.gz, to build/games/pitch/<code>/<made>/.
 //       Run as the cloud-engineer identity. --room <code> pulls only that pitch.
+//       Test play is left out unless --dev: the dev Worker's pushes (games/dev/pitch/...,
+//       to build/games/dev/pitch/...) and the known test pitches (TEST_PITCHES), which
+//       predate that prefix.
 //   node tools/games.mjs replay [--dir build/games] [--throws] [--engine <major.minor>]
 //       restores every one-browser match at its start and applies each recorded action
 //       to an engine of THIS checkout, comparing its hash with the one the player's
@@ -33,6 +36,20 @@ import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 
 const PREFIX = "games/";
+export const DEV_DIR = "dev";
+
+// Pitches known to be test play that went into the live games before the dev Worker's
+// pushes were kept apart (games/dev/): a QA pass's online matches on the cloud dev
+// Worker, 2026-11-22, 12:51 to 13:10 UTC, about 270 records. The owner left them where
+// they are; analysis skips them (pull, and anything reading build/games/pitch/), and
+// `--dev` takes them in. The engine's Gym reader keeps the same list.
+export const TEST_PITCHES = Object.freeze([
+  "qatrnmtgx",
+  "qawn6mk9tp",
+  "qawnbszxah",
+  "qawnyk9xtg",
+]);
+export const isTestPitch = (code) => TEST_PITCHES.includes(code);
 
 // A one-browser match's record (backend/api/records.mjs: { t, game }, game as
 // src/net/record.js sends it) as { mode, t, start, actions, hashes, end, name }, or null
@@ -180,9 +197,16 @@ export function gamesBucketOf(config) {
 // a key that is not a record: games/browser/<day>/<ms>-<random>.json.gz and
 // games/pitch/<code>/<made>/<n>-<seq>.json.gz (the api function's pushes). `since` (ms)
 // compares the record's own time: a one-browser match's stamp, a push's pitch made time.
-export function pulledPath(key, { room, since = 0 } = {}) {
+// `dev`: take test play too (the dev Worker's games/dev/pitch/... and TEST_PITCHES).
+export function pulledPath(key, { room, since = 0, dev = false } = {}) {
   if (!key.startsWith(PREFIX)) return null;
-  const rest = key.slice(PREFIX.length).split("/");
+  let rest = key.slice(PREFIX.length).split("/");
+  let devKey = false;
+  if (rest[0] === DEV_DIR) {
+    if (!dev) return null;
+    devKey = true;
+    rest = rest.slice(1);
+  }
   const name = rest.at(-1);
   let t;
   if (
@@ -191,7 +215,7 @@ export function pulledPath(key, { room, since = 0 } = {}) {
     /^\d{4}-\d{2}-\d{2}$/.test(rest[1]) &&
     /^\d{13}-[a-z0-9]{8}\.json\.gz$/.test(name)
   ) {
-    if (room) return null;
+    if (room || devKey) return null;
     t = Number(name.slice(0, 13));
   } else if (
     rest.length === 4 &&
@@ -201,9 +225,11 @@ export function pulledPath(key, { room, since = 0 } = {}) {
     /^\d{4}-\d{6}\.json\.gz$/.test(name)
   ) {
     if (room && rest[1] !== room) return null;
+    if (!dev && isTestPitch(rest[1])) return null;
     t = Number(rest[2]);
   } else return null;
-  return t < since ? null : rest;
+  if (t < since) return null;
+  return devKey ? [DEV_DIR, ...rest] : rest;
 }
 
 // The games bucket as the cloud-engineer identity, after checking the account
@@ -232,7 +258,7 @@ export async function openGamesBucket() {
   };
 }
 
-async function pull({ room, since, dir }) {
+async function pull({ room, since, dir, dev }) {
   const { s3, bucket, ListObjectsV2Command, GetObjectCommand } =
     await openGamesBucket();
   const after = since ? Date.parse(since) : 0;
@@ -249,7 +275,7 @@ async function pull({ room, since, dir }) {
       }),
     );
     for (const { Key } of page.Contents ?? []) {
-      const rest = pulledPath(Key, { room, since: after });
+      const rest = pulledPath(Key, { room, since: after, dev });
       if (!rest) continue;
       const file = path.join(dir, ...rest);
       try {
@@ -344,11 +370,12 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     dir: flag("dir") ?? "build/games",
     throws: rest.includes("--throws"),
     engine: flag("engine"),
+    dev: rest.includes("--dev"),
   };
   if (mode === "pull") await pull(opts);
   else if (mode === "replay") await replay(opts);
   else
     throw new Error(
-      "Usage: node tools/games.mjs pull [--room <code>] | replay",
+      "Usage: node tools/games.mjs pull [--room <code>] [--dev] | replay",
     );
 }

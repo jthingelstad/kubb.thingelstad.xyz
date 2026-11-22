@@ -127,6 +127,22 @@ the kept replay fixture: `node tools/replay-fixture.mjs` writes it again), the b
 resolve through the real viewer request function, required tags, no inline script, no email
 address or home path in `dist/`, no account id in Markdown).
 
+- **What a build talks to.** The deploy build (`KUBB_PRODUCTION=true`) gives the page
+  the production pitch server; every other build (local, `npm run build` with `npm run
+preview`, the browser tests, CI) gives it the pitch server on this machine
+  (`LOCAL_PITCH_URL`, ws://127.0.0.1:8797, which `npm run dev` runs), and its api is the
+  page's own origin (`/api`): the local stand-in under `npm run dev`, nothing under a
+  bare preview (404). The preview's CSP lets a page reach only this machine and the dev
+  Worker, so no page served here can post a record, report or share to the live api.
+  The cloud dev Worker is only for a deliberate test across two devices, asked for by
+  name (`KUBB_DEV_WORKER=true npm run build`); it marks everything it pushes and the api
+  keeps that apart, under `games/dev/`, for 14 days (backend/api/API.md "Dev pushes").
+  **A test never opens a pitch on the cloud dev Worker**: the browser tests refuse any
+  pitch server or api that is not on 127.0.0.1 or localhost before a page is opened
+  (`assertLocal`, `assertLocalBuild` in `tests/game/browser.mjs`; `KUBB_E2E_PITCH` too).
+  (2026-11-22: the default was the dev Worker, which then pushed into the live games; a
+  QA run's pages, rebuilt by the browser tests into the `dist/` a running `npm run dev`
+  served, played four pitches there.)
 - `npm run build` writes `dist/`: `public/`, the client bundled by esbuild from
   `src/main.js` into `dist/assets/` (hashed names, source maps), wasmoon's `glue.wasm` and
   the Lua sources (`tools/lua-bundle.mjs` writes `build/lua-sources-<major.minor>.json`, one
@@ -284,7 +300,12 @@ recorded to improve the the game. we don't need to record iPhone against compute
 iPhone app records no match against the computer unless the player shares it.
 
 - `npm run games:pull` (as `cloud-engineer`) fetches new records; `--room <code>`,
-  `--since <date>`.
+  `--since <date>`. Test play is left out unless `--dev`: the dev Worker's pushes
+  (`games/dev/`, kept 14 days; no default build, test or CI run reaches the dev Worker:
+  "Build and check") and the known test pitches that predate that prefix
+  (`TEST_PITCHES` in `tools/games.mjs`: `qatrnmtgx`, `qawn6mk9tp`, `qawnbszxah`,
+  `qawnyk9xtg`, a QA pass's matches of 2026-11-22, left where they are on the owner's
+  word). Only the deploy build's pages and the production Worker write real records.
 - `npm run games:replay` plays every recorded match through this checkout's engine (the
   match's own where the checkout carries it, else the newest; `docs/ENGINES.md`) and
   says which actions end on another hash than the players' browsers committed. After a
