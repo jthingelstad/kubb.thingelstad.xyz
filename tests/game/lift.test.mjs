@@ -102,9 +102,10 @@ test("with reduced motion the kubb does not tip: it lies, then stands", () => {
 });
 
 // The engine's own raises (a match raising automatically, the computer's, watching):
-// engine 0.16.0 hands them out on the next throw need (setup.settled), and each becomes
-// a clip in the list's order, the kubb lying where the engine says it lay and standing
-// where it stood it, in the raiser's frame as given.
+// the engine hands them out on the next throw need (setup.settled), and each becomes a
+// clip in the list's order, the kubb lying where the engine says it lay and standing
+// where it stood it, in the raiser's frame as given; since 0.17.0 with its own
+// surroundings (`others`, `king`), drawn as the raise by hand draws its need.
 const near = (a, b, e = 1e-9) => Math.abs(a - b) <= e;
 
 async function autoMatch({ wide = false, seed = 7 } = {}) {
@@ -145,10 +146,9 @@ test("the engine's own raises: a clip a kubb, in its order, from its own poses",
     const list = st.list;
     assert.equal(list.length, st.raised + st.punished);
     // the raiser is the defender, never the next thrower: its frame is not the view's,
-    // so only the king (on the pitch's centre either way) is drawn round them
+    // so nothing is taken from the view: each entry brings its own surroundings
     for (const x of list) assert.notEqual(x.side, v.need.side);
-    const king = v.items.filter((it) => it.id === "king");
-    const clips = settledClips(st, { around: king });
+    const clips = settledClips(st, { around: v.items });
     assert.equal(clips.length, list.length);
     clips.forEach((c, k) => {
       const x = list[k];
@@ -166,12 +166,23 @@ test("the engine's own raises: a clip a kubb, in its order, from its own poses",
       // part way: tipped toward its end, as the hand's drag tips it
       const mid = at(0.35);
       assert.ok(mid.z > lie.z && mid.z < up.z + 0.02);
-      // the kubbs before it stand, the ones after still lie, and the king is there
-      const ids = c.items(0.5).map((it) => it.id);
-      assert.ok(ids.includes("king"));
+      // round it: the entry's own others and king, as given (engine 0.17.0), and
+      // nothing of the view's (the next thrower's frame)
+      assert.ok(Array.isArray(x.others) && x.others.length > 0);
+      assert.ok(x.king);
+      const items = c.items(0.5);
+      assert.equal(items.length, x.others.length + 2);
+      for (const o of x.others) {
+        const it = items.find((q) => q.id === o.id);
+        assert.ok(it, `${o.id} drawn`);
+        assert.ok(near(it.x, o.pose.x) && near(it.y, o.pose.y), `${o.id} as given`);
+      }
+      const king = items.find((it) => it.id === "king");
+      assert.ok(near(king.x, x.king.x) && near(king.y, x.king.y));
+      // the list's kubbs before it stand among its others, the ones after still lie
       list.forEach((o, j) => {
-        if (j === k) return;
-        const it = c.items(0.5).find((p) => p.id === o.id);
+        if (j === k || o.kind !== "raise") return;
+        const it = items.find((p) => p.id === o.id);
         assert.ok(it, `${o.id} drawn`);
         assert.equal(it.z > 0.07, j < k, `${o.id} ${j < k ? "up" : "down"}`);
       });
@@ -185,9 +196,10 @@ test("the engine's own raises in the wide view: the world frame, drawn with the 
   assert.ok(seen.length >= 1);
   for (const { v, st } of seen) {
     for (const x of st.list) assert.equal(x.frame, "world");
-    // both the world's: the view's pieces are drawn round them, and once every kubb
-    // is up the clip's last moment is the pitch as the view has it
-    const clips = settledClips(st, { around: v.items });
+    // the entries' own surroundings, in the world frame too: once every kubb is up the
+    // clip's last moment is the pitch as the view has it
+    for (const x of st.list) assert.ok(Array.isArray(x.others));
+    const clips = settledClips(st);
     const end = clips.at(-1).items(1);
     for (const it of v.items) {
       const got = end.find((q) => q.id === it.id);
@@ -236,6 +248,7 @@ test("a punishment kubb the engine placed is stood up where it was put, and noth
       },
     ],
   };
+  // (written without the 0.17 surroundings: the list's own kubbs are drawn round)
   const clips = settledClips(st);
   assert.equal(clips.length, 2);
   // the punishment kubb is not on the pitch while the raise before it plays

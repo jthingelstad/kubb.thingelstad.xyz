@@ -416,10 +416,12 @@ test("Kid rulings' flags: the king back up, a kubb placed, a helicopter that cou
     flag,
     ruling: { short, parts: codes.map((code) => ({ code })) },
   });
+  // the king stood back up (engine 0.17.0): the engine's own flag, read as it comes
   assert.equal(
-    flagFor(r("MISS", "KING BACK UP", "miss", "kingUp")),
+    flagFor(r("KING BACK UP", "KING BACK UP", "miss", "kingUp")),
     "KING BACK UP",
   );
+  assert.equal(flagFor(r("1 DOWN", "KING BACK UP", "base", "kingUp")), "1 DOWN");
   assert.equal(
     flagFor(r(null, "OUT TWICE: PLACED", "placed")),
     "OUT TWICE: PLACED",

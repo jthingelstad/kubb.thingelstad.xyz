@@ -1406,9 +1406,10 @@ export class Game {
   }
 
   // The engine's own raises between the throw just played and the next, as clips, from
-  // engine 0.16.0's `setup.settled` (lift.js settledClips); the page never works them
-  // out by turning the pitch itself. Around them: the view's items where they are in the
-  // list's frame (the wide view: both the world's), else the king alone.
+  // the engine's `setup.settled` (lift.js settledClips); the page never works them out
+  // by turning the pitch itself. Since engine 0.17.0 each entry carries its own
+  // surroundings (`others`, `king`), drawn as given; `around` (the view's items where
+  // they are in the list's frame, else the king alone) is for an entry without them.
   settledLifts(p, v) {
     const n = v?.need;
     if (!p || n?.kind !== "throw" || !this.watchLifts()) return [];
