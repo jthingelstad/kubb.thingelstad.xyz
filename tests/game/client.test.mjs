@@ -408,7 +408,8 @@ browserTest(
 // Raising (src/game/auto-raise.js): the panel, MENU's row and the game's
 // frame together. A raise is stood in for the engine's (a match takes a
 // minute to reach one): `need` as the engine gives it, and game.raise
-// recording what it was asked. The timing itself is auto-raise.test.mjs's.
+// recording what it was asked. The timing itself is auto-raise.test.mjs's, and the
+// watched raise's feedback-client.test.mjs's.
 browserTest(
   "raising: AUTO ALL for the turn, MENU's Raising and REST OF GAME for the match, BY HAND back",
   async () => {
@@ -462,7 +463,9 @@ browserTest(
     assert.ok(await has("raise-hand"));
     assert.ok(await has("raise-auto-game"));
     await page.waitForFunction(() => window.__raised.length === 3);
-    assert.ok(Date.now() - t0 > 1800, "one at a time, not all at once");
+    // the first lies its wait; the rest follow at once here, where the stand-in raise
+    // has no clip to watch (the real pace is feedback-client.test.mjs's)
+    assert.ok(Date.now() - t0 >= 350, "the first after its wait");
     assert.deepEqual(await page.evaluate(() => window.__raised), [
       null,
       null,
