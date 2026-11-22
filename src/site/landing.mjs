@@ -528,8 +528,9 @@ function engine({ tinylytics, config = {} }) {
   <p>We also played three full matches between a browser and an iPhone, on grass, sand and snow. Every throw matched. The Playdate does its math its own way, so it plays alone.</p>
 </section>
 <section class="frame prose" aria-labelledby="versions">
-  <h2 class="display" id="versions">Old matches still work</h2>
-  <p>A change that could move a throw gets a new engine version. Each match keeps the version it started on. So do its replay and its reel. That is why last month’s match still plays back just as it happened.</p>
+  <h2 class="display" id="versions">Every match keeps its engine</h2>
+  <p>A change that could move a throw gets a new engine version. A match belongs to the version it started on for its whole life: its play, its replay, its reel and its score sheet.</p>
+  <p>The site plays the newest version only. A match made on an older one says so, and that it can no longer be replayed. A highlight reel already made is a video, so it still plays.</p>
 </section>
 <section class="frame prose" aria-labelledby="notation">
   <h2 class="display" id="notation">What the scorekeeper writes</h2>
