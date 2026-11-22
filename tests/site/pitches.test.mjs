@@ -6,7 +6,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
-import { gamesBucketOf, pulledPath, TEST_PITCHES } from "../../tools/games.mjs";
+import {
+  gamesBucketOf,
+  pulledPath,
+  pullPrefixes,
+  TEST_PITCHES,
+} from "../../tools/games.mjs";
 
 const json = async (file) => JSON.parse(await fs.readFile(file, "utf8"));
 const pitches = await json("infra/pitches.json");
@@ -266,6 +271,17 @@ test("the pull tools: the pitches games bucket once it is on, its push layout", 
     "abcdefgh",
     "1763700000000",
     "0001-000002.json.gz",
+  ]);
+  // one pitch with --dev lists its folder under games/dev/ too: a dev pitch's records
+  // are only there
+  assert.deepEqual(pullPrefixes(), ["games/"]);
+  assert.deepEqual(pullPrefixes({ dev: true }), ["games/"]);
+  assert.deepEqual(pullPrefixes({ room: "abcdefgh" }), [
+    "games/pitch/abcdefgh/",
+  ]);
+  assert.deepEqual(pullPrefixes({ room: "abcdefgh", dev: true }), [
+    "games/pitch/abcdefgh/",
+    "games/dev/pitch/abcdefgh/",
   ]);
   assert.deepEqual(TEST_PITCHES, [
     "qatrnmtgx",
