@@ -40,15 +40,15 @@ test("a learner is coached until the device has made 3 throws", () => {
 
 test("the lines follow the stroke and use the meter's own words", () => {
   const at = (dial) => coachFor({ throws: 0, dial: { ...BAND, ...dial } }).line;
-  assert.equal(at({ phase: "idle" }), "PULL BACK TO THE ORANGE MARK");
+  assert.equal(at({ phase: "idle" }), "PULL BACK TO THE STRIPES");
   assert.equal(at({ phase: "winding", back: 60 }), "NO RUSH GOING BACK");
   assert.equal(
     at({ phase: "winding", back: 120 }),
-    "NOW FLICK FAST AND STOP ON THE BLUE MARK",
+    "NOW FLICK FAST AND STOP ON THE SOLID MARK",
   );
   assert.equal(
     at({ phase: "swinging", back: 120 }),
-    "NOW FLICK FAST AND STOP ON THE BLUE MARK",
+    "NOW FLICK FAST AND STOP ON THE SOLID MARK",
   );
 });
 
@@ -74,4 +74,17 @@ test("only the engine's SLOW power verdict counts as a slow flick", () => {
     assert.equal(slowVerdict({ power, release: "ON" }), false);
   assert.equal(slowVerdict(null), false);
   assert.equal(slowVerdict(undefined), false);
+});
+
+// The 1.0 design (the owner's decision of 2026-11-21, with the iPhone's
+// Coach.swift): the meter's marks are named by their shape, never their colour.
+test("the coach names the marks by shape: the stripes and the solid mark", () => {
+  assert.deepEqual(LINES, {
+    rest: "PULL BACK TO THE STRIPES",
+    winding: "NO RUSH GOING BACK",
+    band: "NOW FLICK FAST AND STOP ON THE SOLID MARK",
+    slow: "SLOW FLICK. FLICK FASTER.",
+  });
+  for (const line of Object.values(LINES))
+    assert.doesNotMatch(line, /ORANGE|BLUE|RED|COLOU?R/, line);
 });

@@ -1,37 +1,126 @@
+// The hand-off card's words (src/ui/handoff-words.js; the 1.0 design,
+// "Hand-off"): the title, and the one line that says what the thrower faces,
+// from the session's need, each state its own words.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { watcherBases } from "../../src/ui/handoff-words.js";
+import {
+  countWord,
+  fieldToClear,
+  handoffLine,
+  handoffTitle,
+  HANDOFF_LINES,
+} from "../../src/ui/handoff-words.js";
 
-const need = { teams: { A: "North", B: "South" } };
+// A baton need as the session gives it (its setup and the engine's hand-off
+// card, whose pieces are in the receiving team's view frame).
+const batons = ({ of = 6, kingShot = false, pieces = [] } = {}) => ({
+  kind: "throw",
+  setup: { kind: "baton", projectile: "baton", of, kingShot },
+  card: { kind: "handoff", handoff: { batons: of, kubbs: 0, pieces } },
+});
+const field = (y, down = false) => ({ kind: "field", x: 0, y, down });
+const base = (y, down = false) => ({ kind: "base", x: 0, y, down });
 
-test("a watcher's bases name both teams, the far team first", () => {
-  // to B, from A: the map is B's view frame, A's base at the far end (the top)
-  const c = {
-    to: "B",
-    toName: "South",
-    from: "A",
-    fromName: "North",
-    base: [3, 5],
-    baseText: ["YOUR BASE 5", "THEIRS 3"],
-  };
-  assert.deepEqual(watcherBases(c, need), ["NORTH BASE 3", "SOUTH BASE 5"]);
-  // to A: South is the far team
-  assert.deepEqual(
-    watcherBases({ ...c, to: "A", from: "B", base: [4, 2] }, need),
-    ["SOUTH BASE 4", "NORTH BASE 2"],
+test("counts are words up to ten, digits past it", () => {
+  assert.deepEqual([0, 1, 2, 3, 6, 10, 11].map(countWord), [
+    "no",
+    "one",
+    "two",
+    "three",
+    "six",
+    "ten",
+    "11",
+  ]);
+});
+
+test("a turn of batons with field kubbs to clear first", () => {
+  const two = batons({ pieces: [field(6), field(6.5), base(8)] });
+  assert.deepEqual(handoffLine(two), {
+    state: "batons-field",
+    text: "Six batons. Two field kubbs to clear first.",
+  });
+  const one = batons({ pieces: [field(6), field(5, true), base(8)] });
+  assert.equal(
+    handoffLine(one).text,
+    "Six batons. One field kubb to clear first.",
+  );
+  // a field kubb in the thrower's own half is not in the way
+  assert.equal(fieldToClear({ pieces: [field(2), field(6)] }), 1);
+});
+
+test("a turn of batons with no field kubbs standing: the base kubbs", () => {
+  assert.deepEqual(handoffLine(batons({ pieces: [base(8), field(6, true)] })), {
+    state: "batons-base",
+    text: "Six batons. Aim for the base kubbs.",
+  });
+  // the 2-4-6 opening's first turn
+  assert.equal(
+    handoffLine(batons({ of: 2 })).text,
+    "Two batons. Aim for the base kubbs.",
+  );
+  assert.equal(
+    handoffLine(batons({ of: 1 })).text,
+    "One baton. Aim for the base kubbs.",
   );
 });
 
-test("the first turn has no `from`: the other team, named from the need", () => {
-  const c = { to: "A", toName: "North", turn: 1, base: [5, 5] };
-  assert.deepEqual(watcherBases(c, need), ["SOUTH BASE 5", "NORTH BASE 5"]);
-  // and with no team names at all, the engine's own fallback
-  assert.deepEqual(watcherBases(c, null), ["TEAM B BASE 5", "NORTH BASE 5"]);
+test("every base kubb of the other side down: the king", () => {
+  assert.deepEqual(handoffLine(batons({ of: 4, kingShot: true })), {
+    state: "batons-king",
+    text: "Four batons. Go for the king.",
+  });
 });
 
-test("never the engine's YOUR or THEIRS, and nothing without the counts", () => {
-  const c = { to: "A", from: "B", base: [5, 5], baseText: ["YOUR BASE 5"] };
-  for (const t of watcherBases(c, need)) assert.doesNotMatch(t, /YOUR|THEIRS/);
-  assert.deepEqual(watcherBases({ to: "A" }, need), []);
-  assert.deepEqual(watcherBases(null, need), []);
+test("an inkast: the kubbs to throw into the other half", () => {
+  const toss = (of) => ({
+    kind: "throw",
+    setup: { kind: "toss", projectile: "kubb", of },
+    card: { kind: "handoff", handoff: { batons: 6, kubbs: of } },
+  });
+  assert.deepEqual(handoffLine(toss(3)), {
+    state: "inkast",
+    text: "Throw three kubbs into the other half.",
+  });
+  assert.equal(
+    handoffLine(toss(1)).text,
+    "Throw one kubb into the other half.",
+  );
+});
+
+test("a raise by hand, and the punishment kubbs the design's list left out", () => {
+  assert.deepEqual(handoffLine({ kind: "raise" }, { raise: 2 }), {
+    state: "raise",
+    text: "Stand your kubbs up.",
+  });
+  assert.deepEqual(handoffLine({ kind: "punish" }, { punish: 1 }), {
+    state: "punish",
+    text: "Place one punishment kubb.",
+  });
+  assert.equal(
+    handoffLine({ kind: "punish" }, { punish: 2 }).text,
+    "Place two punishment kubbs.",
+  );
+  // nothing to say: no line
+  assert.deepEqual(handoffLine(null), { state: null, text: "" });
+  assert.deepEqual(handoffLine({ kind: "over" }), { state: null, text: "" });
+});
+
+test("every line is in the one table", () => {
+  assert.deepEqual(Object.keys(HANDOFF_LINES), [
+    "batons",
+    "field",
+    "base",
+    "king",
+    "inkast",
+    "raise",
+    "punish",
+  ]);
+});
+
+test("the title: Your turn, or the name's", () => {
+  assert.equal(handoffTitle("Mighty Maple", true), "Your turn");
+  assert.equal(handoffTitle("Mighty Maple", false), "Mighty Maple’s turn");
+  assert.equal(handoffTitle("North", false), "North’s turn");
+  assert.equal(handoffTitle("Lucky Larches", false), "Lucky Larches’ turn");
+  assert.equal(handoffTitle("", false), "Their turn");
 });

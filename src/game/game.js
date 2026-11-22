@@ -82,6 +82,7 @@ import {
   tune as raiseTune,
 } from "./raise-touch.js";
 import { Hud } from "./hud.js";
+import { TEAM } from "../render/palette.js";
 import {
   controlOf,
   releaseAt,
@@ -196,10 +197,11 @@ export class Game {
     this.modal = 0; // cards and overlays open: no input, no engine time
     this.keys = new Set();
     // the engine's plan view, which the screen calls the side view: held
-    // (Shift), toggled (SIDE VIEW), or shown while a plan slider is dragged
-    // and `tune.slidePeek` after (`slidePeekUntil`)
+    // (Shift), shown while ARC's plate is open (the tray, src/game/tray.js;
+    // SIDE VIEW is no longer a button), or while a plan slider is dragged and
+    // `tune.slidePeek` after (`slidePeekUntil`)
     this.planHeld = false;
-    this.planToggle = false;
+    this.planOpen = false;
     this.slide = null; // a plan slider held: { what, f, dirty }
     this.slidePeekUntil = 0;
     this.slideLast = null; // the last slider held: its caption shows through the peek
@@ -311,8 +313,9 @@ export class Game {
       skip: () => this.skip(),
       stand: (fx, fy, phase) => this.standAt(fx, fy, phase),
       standKey: (dx, dy) => this.standStep(dx, dy),
+      open: (key) => this.plateOpened(key),
+      railHeight: (h) => this.setRailH(h),
     });
-    this.bindPlanView(this.hud.sideView);
     this.bindInput();
     this.resize();
   }
@@ -919,20 +922,38 @@ export class Game {
   planWanted(now = performance.now()) {
     return (
       this.planHeld ||
-      this.planToggle ||
+      this.planOpen ||
       !!this.slide ||
       now < this.slidePeekUntil
     );
   }
 
   // A throw begins (a press on the meter, its finger track or throw zone):
-  // the side view goes at once, the toggle's and the half second after a
+  // the side view goes at once, an open plate's and the half second after a
   // slider's. The engine takes no swing while the plan view is wanted
   // (session/throw aimFrame), so a throw started right after a slider was
-  // let go would lose its backswing otherwise.
+  // let go would lose its backswing otherwise. (A press outside the tray has
+  // already closed an open plate: tray.js.)
   planOff() {
-    this.planToggle = false;
+    if (this.planOpen) this.hud.tray.setOpen(null);
+    this.planOpen = false;
     this.slidePeekUntil = 0;
+  }
+
+  // A plate opened or closed in the tray (key: "arc", "side", "stand" or
+  // null): ARC open is the side view, until it closes.
+  plateOpened(key) {
+    this.sound?.unlock();
+    this.nudge.input();
+    this.planOpen = key === "arc";
+  }
+
+  // The header's height as the page draws it (hud.js): the minimap stands
+  // under it (layout.js minimapBox), so a new height lays the screen out again.
+  setRailH(h) {
+    if (!(h > 0) || h === this.railH) return;
+    this.railH = h;
+    if (this.W) this.resize();
   }
 
   // A plan slider (src/game/plan-sliders.js): pressed, dragged, let go at f
@@ -1308,6 +1329,17 @@ export class Game {
   // The meter on the screen: the linear one where the player chose it and it
   // has room (layout.js), else the clock.
   drawMeter(st) {
+    // what the meter says, for the HUD's stand-ins (a screen reader, the
+    // keyboard's Tab order) and for tests (window.__kubb.game.meterShown)
+    this.meterShown = {
+      prompt:
+        this.L.meter === "linear"
+          ? LINEAR_WORDS[st.prompt] || st.prompt || null
+          : st.prompt || null,
+      distance: st.distance || null,
+      faded: !!st.faded,
+      promptFill: st.promptFill || null,
+    };
     if (this.L.meter !== "linear")
       return drawDial(this.ctx, this.L.dial, { ...st, track: this.L.track });
     const prompt = LINEAR_WORDS[st.prompt] || st.prompt;
@@ -1431,7 +1463,12 @@ export class Game {
       },
       this.swipeLayout,
       this.meter,
-      { side: this.meterSide, coarse: this.coarse, header: this.header },
+      {
+        side: this.meterSide,
+        coarse: this.coarse,
+        header: this.header,
+        railH: this.railH,
+      },
     );
     // a held knob is let go when the meter under it changes (a phone turned
     // on its side mid-swing): its place on one is no angle on the other
@@ -1457,9 +1494,43 @@ export class Game {
     const root = typeof document !== "undefined" && document.documentElement;
     if (!root?.style) return;
     const r = this.wide ? { left: 0, right: 0 } : meterRoom(this.L);
-    const key = `${r.left}:${r.right}`;
+    // the header's fixed width (layout.js headerBox): the minimap stands
+    // under its right end
+    const rw = this.L?.header ? Math.round(this.L.header.width) : null;
+    // the flag and the verdicts keep off the header and the minimap: upright
+    // left of the minimap, on a wide screen right of the header's end (centred
+    // on the screen where that leaves them room)
+    const L = this.L;
+    let cl = null;
+    let cw = null;
+    if (L?.minimap && !this.wide) {
+      if (L.tall) {
+        cl = L.safe.left + 12;
+        cw = L.minimap.x - 8 - cl;
+      } else {
+        const a = L.minimap.x + L.minimap.width + 12;
+        const half = L.W / 2 - a;
+        cl = a;
+        cw = half >= 160 ? 2 * half : L.W - L.safe.right - 12 - a;
+      }
+    }
+    const ck = cl == null ? "" : `${Math.round(cl)}:${Math.round(cw)}`;
+    const key = `${r.left}:${r.right}:${rw}:${L?.tall}:${L?.meter}:${L?.meterSide}:${ck}`;
     if (this.roomKey === key) return;
     this.roomKey = key;
+    root.classList?.toggle("center-placed", !!ck);
+    if (ck) {
+      root.style.setProperty("--center-l", `${Math.round(cl)}px`);
+      root.style.setProperty("--center-w", `${Math.round(cw)}px`);
+    }
+    if (rw) root.style.setProperty("--rail-w", `${rw}px`);
+    // upright, SKIP takes the bottom corner away from a linear meter
+    root.classList?.toggle(
+      "skip-left",
+      !!this.L?.tall &&
+        this.L.meter === "linear" &&
+        this.L.meterSide === "right",
+    );
     root.classList?.toggle("meter-room", !!(r.left || r.right));
     root.style.setProperty("--meter-l", `${r.left}px`);
     root.style.setProperty("--meter-r", `${r.right}px`);
@@ -1599,6 +1670,18 @@ export class Game {
         if (st.prompt === "FLICK!") st.prompt = "FLICK UP!";
       }
       if (watching && !st.prompt) st.prompt = "WATCH";
+      if (watching) {
+        // a turn this player watches (the computer's, or someone else's on
+        // a shared pitch): the meter faded, its WATCH on the thrower's team
+        // colour (the 1.0 design: "the header, a WATCH tab in the computer's
+        // colour and the faded meter")
+        const team = TEAM[this.need?.side];
+        st.faded = true;
+        if (team && st.prompt === "WATCH") {
+          st.promptFill = team.fill;
+          st.promptInk = team.text;
+        }
+      } else st.distance = distanceWords(aim);
       this.drawMeter(st);
       if (nudge) this.drawNudgeOn(nudge, st);
       // the coach is words for the thrower: not while watching, nor over
@@ -1615,9 +1698,11 @@ export class Game {
       need: this.need,
       aiming: !this.modal && !this.cards?.open,
       mayAct: may && !watching,
-      plan: this.planHeld || this.planToggle,
       practice: this.mode === "practice",
       watching,
+      // the meter says WATCH itself (on the thrower's colour): no pill too
+      meterWatch: watching && !wide,
+      meter: wide ? null : this.meterShown,
       flag: res && res.flag,
       verdicts: res && res.verdicts,
       restText: res && res.restText,
@@ -2289,17 +2374,19 @@ export class Game {
     else return;
     e.preventDefault();
   }
+}
 
-  // SIDE VIEW: a toggle for every pointer (Jamie, 2026-11-19: "Plan View"
-  // is "a super weird label"; a mouse had to hold it). Shift held peeks.
-  bindPlanView(btn) {
-    btn.addEventListener("pointerdown", (e) => {
-      this.sound?.unlock();
-      e.preventDefault();
-      this.nudge.input();
-      this.planToggle = !this.planToggle;
-    });
-  }
+// The throw's distance as the meter shows it beside the prompt (the 1.0
+// design: "the throw's distance to the nearest metre on an inverted tab"):
+// the plan's own distance, from the stance to the circle (session aimView's
+// plan.dist), else the two points' (an older engine), in the canvas's capitals.
+export function distanceWords(aim) {
+  const p = aim?.plan;
+  let d = Number.isFinite(p?.dist) ? p.dist : null;
+  if (d == null && aim?.marker && aim?.thrower)
+    d = Math.hypot(aim.marker.x - aim.thrower.x, aim.marker.y - aim.thrower.y);
+  if (!Number.isFinite(d)) return null;
+  return `${Math.max(1, Math.round(d))} M`;
 }
 
 // A key pressed in a text box is the text's, not the camera's.

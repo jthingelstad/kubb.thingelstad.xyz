@@ -131,16 +131,6 @@ body.game {
   transform: none;
 }
 
-.btn.plan {
-  font-size: 15px;
-  padding: 4px 9px;
-  background: var(--wood);
-}
-.btn.plan.view.on {
-  background: var(--ink);
-  color: var(--paper);
-}
-
 /* ---------- the HUD ---------- */
 
 #ui .hud {
@@ -156,7 +146,11 @@ body.game {
   color: var(--ink);
   top: calc(var(--safe-top) + 10px);
   left: calc(var(--safe-left) + 12px + var(--meter-l));
-  max-width: max(44vw, 260px);
+  /* a fixed width for the layout (layout.js headerBox, set by the game as
+     --rail-w): the minimap stands under its right end and never moves */
+  box-sizing: border-box;
+  width: var(--rail-w, auto);
+  max-width: var(--rail-w, max(44vw, 260px));
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   grid-template-areas:
@@ -175,12 +169,29 @@ body.game {
    way out. A watched turn's banner leaves it. */
 #ui:has(
     > .scrim,
-    .card-layer > .scrim:not(.banner),
+    .card-layer > .scrim:not(.banner, .at-foot),
     .menu-scrim,
     .sheet-scrim,
     .report-scrim
   )
   .hud-rail {
+  visibility: hidden;
+}
+/* the hand-off's short card at the foot: the header stands over its dim, whole */
+#ui:has(.card-layer > .scrim.at-foot) .hud-rail {
+  z-index: 5;
+}
+/* nothing of the aim's controls shows round a card that dims the pitch (the
+   lobby or the options card over the practice pitch on a short window): the
+   tray, SKIP, the coach and the caption go with the header */
+#ui:has(
+    > .scrim,
+    .card-layer > .scrim:not(.banner),
+    .menu-scrim,
+    .sheet-scrim,
+    .report-scrim
+  )
+  :is(.plans, .skip-btn, .coach, .plan-caption, .meter-proxy) {
   visibility: hidden;
 }
 .rail-what {
@@ -260,6 +271,12 @@ body.game {
   max-width: 92vw;
   text-align: center;
 }
+.center-placed .center {
+  left: var(--center-l);
+  width: var(--center-w);
+  max-width: none;
+  transform: none;
+}
 .flag {
   padding: 4px 18px 6px;
   border: 3px solid var(--ink);
@@ -277,6 +294,7 @@ body.game {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: center;
   gap: 6px;
 }
 .chip {
@@ -290,16 +308,26 @@ body.game {
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
-/* an off-target verdict (LONG, SHORT, SHAKY, PULLED LEFT, ...): inverted like
-   the flag, larger and heavier, so it cannot read as an on-target chip */
+/* an off-target verdict (LONG, SHORT, SHAKY, PULLED LEFT, ...): first, inverted
+   like the flag, 18 px, with an arrow that says which way it went (the 1.0
+   design, "Verdict"), so it cannot read as an on-target chip */
 .chip.off {
-  padding: 3px 11px 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 5px;
+  border-radius: var(--radius-control);
   background: var(--ink);
   color: var(--paper);
   box-shadow: 3px 3px 0 rgba(22, 19, 15, 0.45);
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 900;
   letter-spacing: 0.05em;
+}
+.verdict-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
 }
 .rest {
   padding: 2px 10px;
@@ -340,68 +368,158 @@ body.game {
   white-space: nowrap;
 }
 
-/* The plan beside the meter (hud.js place): the ARC and TILT sliders
-   (src/game/plan-sliders.js), SIDE VIEW and STAND (src/game/stand-pad.js).
-   On a wide screen one block: TILT over STAND, and ARC over SIDE VIEW by
-   the meter, so the block is no taller than TILT and STAND (it stays under
-   the linear meter's prompt and clear of the target on a short screen). On a tall one split either side of the
-   throwing line: ARC over SIDE VIEW on the left, TILT over STAND on the
-   right, each column's top and foot level with the other's. */
+/* stand-ins over the canvas's prompt, meter and minimap (hud.js proxies): a
+   place for the keyboard's focus ring and a screen reader's words, never a
+   press */
+.meter-proxy {
+  position: absolute;
+  border-radius: var(--radius-control);
+  pointer-events: none;
+}
+#ui .meter-proxy {
+  pointer-events: none;
+}
+
+/* The tray (the 1.0 design, "Aim layout"; src/game/tray.js, layout.js
+   trayAt, hud.js place): ARC, TILT (or SPIN) and STAND as three plates of one
+   size, --plate-w by --plate-h (86 by 60 on a phone, 104 by 70 wider), stacked
+   --plate-gap apart at the screen's edge away from the meter, its foot fixed.
+   A plate is its value on a wooden band over a small picture; a tap opens it
+   (data-open): it grows up from its place into its control, and in toward the
+   middle at the right edge, the others still showing (or covered, .cover,
+   where the room is short). The controls inside are plan-sliders.js and
+   stand-pad.js. */
 .plans {
   position: absolute;
-  display: grid;
-  grid-template-columns: 124px 70px;
-  grid-template-areas:
-    "side arc"
-    "stand arc"
-    "stand view";
-  gap: 8px;
-  align-items: end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--plate-gap, 8px);
 }
-.plans.mirror {
-  grid-template-columns: 70px 124px;
-  grid-template-areas:
-    "arc side"
-    "arc stand"
-    "view stand";
+.plans.at-right {
+  align-items: flex-end;
 }
 #ui .plans {
   pointer-events: none;
 }
-.plans .btn,
-.plans .slider {
+.plate {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: var(--plate-w, 86px);
+  height: var(--plate-h, 60px);
+  border: var(--line) solid var(--ink);
+  border-radius: var(--radius-control);
+  background: var(--baton);
+  color: var(--ink);
+  box-shadow: var(--shadow-control);
   pointer-events: auto;
 }
-.plans > .slider.arc {
-  grid-area: arc;
-  align-self: stretch;
+.plate-toggle {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
 }
-.plans > .slider.side {
-  grid-area: side;
+.plate-head {
+  display: block;
+  flex: none;
+  border-bottom: var(--line) solid var(--ink);
+  border-radius: 3px 3px 0 0;
+  background: var(--wood);
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 17px;
+  line-height: 22px;
+  letter-spacing: 0.02em;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
-.plans > .btn.view {
-  grid-area: view;
+.plate-pic {
+  display: grid;
+  flex: 1 1 auto;
+  place-items: center;
+  min-height: 0;
 }
-.plans > .slider.stand {
-  grid-area: stand;
-  align-self: stretch;
+.plate-pic svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
 }
-/* SIDE VIEW under ARC on a wide screen: two short lines in its narrow column */
-.plans:not(.split) > .btn.view {
-  padding-left: 2px;
-  padding-right: 2px;
-  line-height: 1;
+/* the focus ring round the whole plate, not clipped inside it */
+#ui .plate :focus-visible {
+  outline: none;
 }
-.plans.split {
-  grid-template-columns: 88px 1fr 88px;
-  grid-template-areas:
-    "arc . side"
-    "arc . stand"
-    "view . stand";
+.plate:has(:focus-visible) {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
 }
-.plans.split > .slider.arc,
-.plans.split > .slider.stand {
-  align-self: stretch;
+/* closed: the control is out of sight; open: the band closes it again, the
+   picture gives way to the control, which fills the plate */
+.plate > .slider {
+  display: none;
+}
+.plate[data-open] {
+  z-index: 1;
+}
+.plate[data-open] .plate-toggle {
+  flex: none;
+}
+.plate[data-open] .plate-pic {
+  display: none;
+}
+.plate[data-open] > .slider {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  border: 0;
+  border-radius: 0 0 3px 3px;
+  box-shadow: none;
+  background: var(--paper);
+}
+.plate .slider-head {
+  display: none;
+}
+.plate-arc[data-open] {
+  width: var(--open-arc-w);
+  height: var(--open-arc-h);
+}
+.plate-side[data-open] {
+  width: var(--open-side-w);
+  height: var(--open-side-h);
+}
+.plate-stand[data-open] {
+  width: var(--open-stand-w);
+  height: var(--open-stand-h);
+}
+/* where the room over the tray is short the open plate covers the others,
+   from the column's foot up */
+.plate[data-open].cover {
+  position: absolute;
+  bottom: 0;
+}
+.plans.at-left .plate[data-open].cover {
+  left: 0;
+}
+.plans.at-right .plate[data-open].cover {
+  right: 0;
+}
+.plate[data-open] .slider-body,
+.plate[data-open] .slider.vertical .slider-body {
+  min-height: 0;
 }
 
 /* STAND: the throwing line from above (src/game/stand-pad.js). The run is
@@ -538,29 +656,24 @@ body.game {
 .coach[hidden] {
   display: none;
 }
-.coach-lead,
-.coach-line {
+/* one style (the 1.0 design): an inverted ink chip over the prompt, the SLOW
+   lead (if any) on its own line inside it */
+.coach-chip {
+  display: inline-flex;
+  flex-direction: column;
   box-sizing: border-box;
   max-width: 100%;
-  padding: 3px 8px 4px;
+  padding: 5px 10px 6px;
   border: 2px solid var(--ink);
-  border-radius: 4px;
-  box-shadow: 2px 2px 0 var(--ink);
-  font-size: 14px;
+  border-radius: var(--radius-control);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 15px;
   font-weight: 800;
   line-height: 1.25;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   text-wrap: balance;
-}
-.coach-line {
-  background: var(--paper);
-  color: var(--ink);
-}
-/* the SLOW verdict's chip, carried to the next throw */
-.coach-lead {
-  background: var(--ink);
-  color: var(--paper);
 }
 .coach-lead[hidden] {
   display: none;
@@ -755,31 +868,25 @@ body.game {
   margin-top: -6px;
   border-left-color: var(--ink);
 }
-/* the block left of the meter (mirror: ARC on the block's left) or the
-   split's left column: the lane toward the screen's centre */
-.plans.mirror .slider.vertical .slider-slot,
-.plans.split .slider.vertical .slider-slot {
+/* the tray at the left edge: ARC's lane of marks toward the screen's centre
+   (the right), away from the thumb on the knob */
+.plans.at-left .slider.vertical .slider-slot {
   left: calc(32% - var(--slot) / 2);
 }
-.plans.mirror .slider.vertical .slider-stem,
-.plans.split .slider.vertical .slider-stem {
+.plans.at-left .slider.vertical .slider-stem {
   left: calc(32% - 1.5px);
 }
-.plans.mirror .slider.vertical .slider-knob,
-.plans.split .slider.vertical .slider-knob {
+.plans.at-left .slider.vertical .slider-knob {
   left: 32%;
 }
-.plans.mirror .slider.vertical .slider-lane,
-.plans.split .slider.vertical .slider-lane {
+.plans.at-left .slider.vertical .slider-lane {
   left: 70%;
 }
-.plans.mirror .slider.vertical .slider-tick,
-.plans.split .slider.vertical .slider-tick {
+.plans.at-left .slider.vertical .slider-tick {
   right: auto;
   left: 0;
 }
-.plans.mirror .slider.vertical .slider-index,
-.plans.split .slider.vertical .slider-index {
+.plans.at-left .slider.vertical .slider-index {
   left: auto;
   right: calc(30% + 1px);
   border-left-color: transparent;
@@ -849,10 +956,14 @@ body.game {
   display: none;
 }
 
+/* SKIP (the 1.0 design: a plain button of normal size): the top right corner
+   on a wide screen, moved in beside a linear meter that reaches the header row;
+   upright, the bottom corner away from the meter (the right beside the clock,
+   the left beside a linear meter at the right: .skip-left, set by the game) */
 .skip-btn {
   position: absolute;
   right: calc(var(--safe-right) + 12px + var(--meter-r));
-  top: calc(var(--safe-top) + 64px);
+  top: calc(var(--safe-top) + 10px);
 }
 
 .tray {
@@ -1022,33 +1133,27 @@ body.game {
   word-break: break-word;
 }
 
-.handoff-body {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 14px;
-  align-items: start;
+/* the hand-off (the 1.0 design): a short card at the foot of the screen, the
+   title, one line, one go button across it; the header shows over the dim */
+.scrim.at-foot {
+  justify-content: flex-end;
 }
-.handoff .took {
-  font-weight: 700;
+.scrim.at-foot > * {
+  margin: 0 auto;
 }
-.handoff .lines {
-  margin: 0 0 8px;
-  padding: 0;
-  list-style: none;
-  font-family: var(--display);
-  font-weight: 900;
-  font-size: 22px;
-  line-height: 1.15;
+.card.handoff.short {
+  width: min(420px, 100%);
 }
-.handoff .bases {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+.card .handoff-line {
+  margin: 2px 0 0;
+  font-size: 18px;
+  line-height: 1.35;
 }
-.card-map {
-  display: block;
-  width: 120px;
-  height: 200px;
+.card.handoff.short .row {
+  margin-top: 12px;
+}
+.scrim.banner .card.handoff.short .row {
+  margin-top: 8px;
 }
 .winner .stats {
   font-weight: 800;
@@ -2242,17 +2347,26 @@ body.embed .replay-controls {
     /* the foot of the header, with 4 px under it (its height from the HUD) */
     --below-rail: calc(var(--safe-top) + 14px + var(--rail-h, 64px));
   }
-  /* the header takes the width the minimap leaves it (layout.js: the minimap is
-     min(78px, 19vw) wide, 14 px off the right edge), 8 px short of it */
+  /* the header spans the safe width (layout.js headerBox), the minimap under
+     its right end */
   .hud-rail {
-    max-width: calc(
-      100vw - var(--safe-left) - var(--safe-right) - 34px - min(78px, 19vw)
+    max-width: var(
+      --rail-w,
+      calc(100vw - var(--safe-left) - var(--safe-right) - 24px)
     );
   }
   .tray {
     top: calc(var(--below-rail) + 8px);
     left: calc(var(--safe-left) + 12px);
     right: auto;
+  }
+  .skip-btn {
+    top: auto;
+    bottom: calc(var(--safe-bottom) + 12px);
+  }
+  .skip-left .skip-btn {
+    right: auto;
+    left: calc(var(--safe-left) + 12px);
   }
   .center {
     top: calc(var(--below-rail) + 50px);
@@ -2284,12 +2398,6 @@ body.embed .replay-controls {
   .howto-body {
     grid-template-columns: 1fr;
     justify-items: center;
-  }
-  .handoff-body {
-    grid-template-columns: 1fr;
-  }
-  .card-map {
-    justify-self: center;
   }
 }
 
@@ -2449,11 +2557,10 @@ body.embed .replay-controls {
 }
 
 /* ---------- a touchscreen: every control 48 px to a finger (the 1.0 design's
-   touch size; never under 44). Last, over each control's own height. The plan's
-   plates, ARC, TILT, STAND and SIDE VIEW, keep their size: the aim layout is the
-   next stage's. ---------- */
+   touch size; never under 44). Last, over each control's own height. The
+   tray's plates are 86 by 60 at their smallest. ---------- */
 @media (pointer: coarse) {
-  .btn:not(.plan),
+  .btn,
   .seg-btn,
   .name-step-btn {
     min-height: 48px;

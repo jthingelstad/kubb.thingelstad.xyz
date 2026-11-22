@@ -7,8 +7,9 @@
 import { h, button } from "../ui/dom.js";
 import { PlanSlider, captionOf, leanOf } from "./plan-sliders.js";
 import { StandPad, standCaption } from "./stand-pad.js";
+import { Tray } from "./tray.js";
 import { linearGeometry, tabRect } from "../render/linear.js";
-import { tune as layoutTune } from "./layout.js";
+import { tune as layoutTune, clockShapes } from "./layout.js";
 import { dialGeometry, tune as dialTune } from "../render/dial.js";
 
 // The verdict chips under the flag, from the core's words (throwplan.lua
@@ -16,7 +17,11 @@ import { dialGeometry, tune as dialTune } from "../render/dial.js";
 // "ARC ON", steadiness STEADY, the side STRAIGHT. Anything else is off
 // target and reads as the plain word (LONG, SHORT, SLOW, LOW, HIGH, SHAKY,
 // PULLED LEFT): inverted, larger and first, so a long throw under MISS
-// cannot pass for a good one (Tyler's report, 2026-11-16).
+// cannot pass for a good one (Tyler's report, 2026-11-16). Since the 1.0
+// design ("Verdict") an off word is 18 px with an arrow that says which way
+// it went, so it is not told by inversion alone: down for SHORT and LOW, up
+// for LONG and HIGH, left and right for PULLED, a wavy line for SHAKY, a
+// clock hand for SLOW.
 const VERDICT_ON = {
   power: { on: "ON", label: "POWER" },
   release: { on: "ON", label: "ARC" },
@@ -24,8 +29,35 @@ const VERDICT_ON = {
   side: { on: "STRAIGHT", label: "" },
 };
 
-// [{ text, off }] for the HUD's chips: the off-target ones first, each group
-// in the order power, release, steadiness, side.
+export const VERDICT_ICON = {
+  SHORT: "down",
+  LOW: "down",
+  LONG: "up",
+  HIGH: "up",
+  "PULLED LEFT": "left",
+  "PULLED RIGHT": "right",
+  SHAKY: "wavy",
+  SLOW: "clock",
+};
+
+// The arrows, 14 by 14, drawn in the chip's own type colour.
+const ICON_PATH = {
+  down: '<path d="M7 1V12M2 7.5L7 12.5L12 7.5"/>',
+  up: '<path d="M7 13V2M2 6.5L7 1.5L12 6.5"/>',
+  left: '<path d="M13 7H2M6.5 2L1.5 7L6.5 12"/>',
+  right: '<path d="M1 7H12M7.5 2L12.5 7L7.5 12"/>',
+  wavy: '<path d="M1 7.5C2.5 3.5 4 3.5 5 7.5S7.5 11.5 9 7.5S11.5 3.5 13 7.5"/>',
+  clock: '<circle cx="7" cy="7" r="5.6"/><path d="M7 7V3.4M7 7L9.8 8.6"/>',
+};
+
+export function verdictIconSvg(icon) {
+  const d = ICON_PATH[icon];
+  if (!d) return "";
+  return `<svg class="verdict-icon" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+}
+
+// [{ text, off, icon }] for the HUD's chips: the off-target ones first, each
+// group in the order power, release, steadiness, side.
 export function verdictChips(vs) {
   if (!vs) return [];
   const off = [];
@@ -35,9 +67,24 @@ export function verdictChips(vs) {
     if (!word) continue;
     if (word === v.on)
       on.push({ text: v.label ? `${v.label} ${word}` : word, off: false });
-    else off.push({ text: word, off: true });
+    else off.push({ text: word, off: true, icon: VERDICT_ICON[word] || null });
   }
   return [...off, ...on];
+}
+
+// The verdict as a screen reader hears it, once: the off words first, then the
+// flag, then the on-target words. "Short. Miss. Arc on, steady, straight."
+export function verdictSpeech(flag, vs) {
+  const chips = verdictChips(vs);
+  const sentence = (t) => {
+    const l = String(t).toLowerCase().replace(/!+$/, "");
+    return l.charAt(0).toUpperCase() + l.slice(1);
+  };
+  const parts = chips.filter((c) => c.off).map((c) => `${sentence(c.text)}.`);
+  if (flag) parts.push(`${sentence(flag)}.`);
+  const on = chips.filter((c) => !c.off).map((c) => c.text.toLowerCase());
+  if (on.length) parts.push(`${sentence(on.join(", "))}.`);
+  return parts.join(" ");
 }
 
 // The rail's counts in plain words. The engine's rail is the Playdate's
@@ -91,6 +138,21 @@ export function headerName(railName, need = null) {
     .replace(/(^|[\s:])([a-z])/g, (m, a, b) => a + b.toUpperCase());
 }
 
+// The minimap as one image for a screen reader: the kubbs standing in each
+// half, by team, and how far out the target is. "Map of the pitch: Mighty
+// Maple 5 kubbs standing, Computer 4. The target is 8 metres out."
+export function mapSummary(st, distance = null) {
+  const need = st.need;
+  const sd = need?.standing;
+  const t = need?.teams || {};
+  let text = "Map of the pitch";
+  if (!st.practice && sd && Number.isInteger(sd.A) && Number.isInteger(sd.B))
+    text += `: ${t.A || "Team A"} ${sd.A} ${sd.A === 1 ? "kubb" : "kubbs"} standing, ${t.B || "Team B"} ${sd.B}`;
+  text += ".";
+  if (distance) text += ` The target is ${distance} out.`;
+  return text;
+}
+
 export class Hud {
   constructor(root, actions) {
     this.root = root;
@@ -123,40 +185,61 @@ export class Hud {
         if (!hgt || hgt === this.railH) return;
         this.railH = hgt;
         document.documentElement.style.setProperty("--rail-h", `${hgt}px`);
+        // the minimap stands under it (layout.js minimapBox)
+        this.actions.railHeight?.(hgt);
       });
       this.railObs.observe(this.rail);
     }
     this.center = h(
       "div.hud.center",
-      h("div.flag", { "data-test": "flag" }),
-      h("div.verdicts"),
+      h("div.flag", { "data-test": "flag", "aria-hidden": "true" }),
+      h("div.verdicts", { "data-test": "verdicts", "aria-hidden": "true" }),
       h("div.rest"),
     );
+    // the verdict for a screen reader, said once (verdictSpeech)
+    this.said = h("div.visually-hidden", {
+      role: "status",
+      "aria-live": "polite",
+      "data-test": "verdict-said",
+    });
     this.status = h("div.hud.status", { "data-test": "status" });
+    // Stand-ins over what the canvas draws, for a screen reader and the
+    // keyboard (the 1.0 design's order: the header, the prompt and distance,
+    // the meter, the tray, the minimap as one image with a spoken summary).
+    // They take no presses: the canvas under them does.
+    const proxy = (test) =>
+      h("div.meter-proxy", { tabindex: "0", role: "img", "data-test": test });
+    this.promptProxy = proxy("prompt-proxy");
+    this.meterProxy = proxy("meter-proxy");
+    this.mapProxy = proxy("map-proxy");
     this.adv = h("div.hud.adv");
 
     const a = actions;
     // the plan: ARC and TILT (or SPIN) as sliders (src/game/plan-sliders.js)
     this.arc = new PlanSlider("arc", { onSlide: a.slide, onKey: a.step });
     this.side = new PlanSlider("side", { onSlide: a.slide, onKey: a.step });
-    // SIDE VIEW: the camera out over the thrower's shoulder, the planned
-    // arc dashed (the engine's plan view, the Playdate's held B)
-    this.sideView = button("SIDE VIEW", null, "plan view", {
-      "aria-label": "Side view",
-      "aria-pressed": "false",
-      "data-test": "side-view",
-    });
     // STAND: where the thrower stands, dragged on a picture of the line
     // (src/game/stand-pad.js; it replaced WALK, the Playdate's held A)
     this.stand = new StandPad({ onStand: a.stand, onKey: a.standKey });
-    this.plans = h(
-      "div.plans",
-      { "data-test": "plans" },
-      this.arc.el,
-      this.side.el,
-      this.sideView,
-      this.stand.el,
+    // the tray (src/game/tray.js, the 1.0 design): the three as plates of one
+    // size at the screen's edge away from the meter, each opened by a tap;
+    // ARC open is the side view (SIDE VIEW is no longer a button)
+    this.tray = new Tray(
+      { arc: this.arc, side: this.side, stand: this.stand },
+      {
+        onOpen: (key) => {
+          this.cache.delete("capPlace");
+          this.cache.delete("coachPlace");
+          a.open?.(key);
+        },
+        onKey: (key, [dx, dy]) => {
+          if (key === "stand") a.standKey(dx * 0.25, dy * 0.25);
+          else if (key === "arc" && dy) a.step("arc", dy, true);
+          else if (key === "side" && dx) a.step("side", dx, true);
+        },
+      },
     );
+    this.plans = this.tray.el;
     // what the held slider does (plan-sliders.js CAPTIONS), above the plan
     // where the finger on a slider is not, with a baton that leans by the
     // tilt while TILT is held
@@ -177,24 +260,29 @@ export class Hud {
     this.caption.hidden = true;
     // the throw's coach (coach.js): a line over the meter's prompt that
     // follows the stroke, for a learner and after a SLOW flick
+    // in one style (the 1.0 design): one inverted ink chip, the SLOW lead
+    // and the line in it, never pills of their own
     this.coachLead = h("span.coach-lead");
     this.coachLine = h("span.coach-line");
     this.coach = h(
       "div.hud.coach",
       { "data-test": "coach", role: "status" },
-      this.coachLead,
-      this.coachLine,
+      h("span.coach-chip", this.coachLead, this.coachLine),
     );
     this.coach.hidden = true;
-    this.skip = button("SKIP", () => a.skip(), "small skip-btn", {
+    this.skip = button("SKIP", () => a.skip(), "skip-btn", {
       "data-test": "skip",
     });
     root.append(
       this.rail,
       this.center,
+      this.said,
       this.status,
       this.adv,
+      this.promptProxy,
+      this.meterProxy,
       this.plans,
+      this.mapProxy,
       this.caption,
       this.coach,
       this.skip,
@@ -270,9 +358,24 @@ export class Hud {
     if (this.cache.get(verdicts) !== vtext) {
       this.cache.set(verdicts, vtext);
       verdicts.replaceChildren(
-        ...chips.map((c) => h(c.off ? "span.chip.off" : "span.chip", c.text)),
+        ...chips.map((c) => {
+          const el = h(c.off ? "span.chip.off" : "span.chip");
+          if (c.icon) {
+            el.dataset.icon = c.icon;
+            el.innerHTML = verdictIconSvg(c.icon);
+          }
+          el.append(c.text);
+          return el;
+        }),
       );
       verdicts.hidden = !vtext;
+    }
+    // said once to a screen reader, the off word first (the chips and the
+    // flag are hidden from it: this line is the verdict)
+    const said = vtext || st.flag ? verdictSpeech(st.flag, st.verdicts) : "";
+    if (this.cache.get("said") !== said) {
+      this.cache.set("said", said);
+      if (said) this.said.textContent = said;
     }
 
     // who acts, on a shared pitch (st.who from game.whoActs): YOUR THROW,
@@ -280,7 +383,13 @@ export class Hud {
     const who = !st.slow && !st.playing ? st.who : null;
     this.text(
       this.status,
-      st.slow ? "SLOW MOTION" : who ? who.text : st.watching ? "WATCH" : "",
+      st.slow
+        ? "SLOW MOTION"
+        : who
+          ? who.text
+          : st.watching && !st.meterWatch
+            ? "WATCH"
+            : "",
     );
     const cls = who ? (who.mine ? "mine" : "theirs") : "";
     if (this.cache.get("statusCls") !== cls) {
@@ -291,6 +400,7 @@ export class Hud {
     // the advantage line's words are the thrower's; the wide view draws the line
     this.text(this.adv, st.aiming && !st.wide ? aim.advText || "" : "");
 
+    this.proxies(st);
     const showPlans = !!st.aiming && st.mayAct;
     this.show(this.plans, showPlans);
     if (showPlans) {
@@ -299,13 +409,8 @@ export class Hud {
       // engine 0.9 on: each slider's range and value from the engine
       this.arc.update(p, kubb, aim.controls);
       this.side.update(p, kubb, aim.controls);
-      const on = !!st.plan;
-      if (this.cache.get("sideView") !== on) {
-        this.cache.set("sideView", on);
-        this.sideView.classList.toggle("on", on);
-        this.sideView.setAttribute("aria-pressed", String(on));
-      }
       this.stand.update(aim);
+      this.tray.update(aim);
       this.place(st.layout);
       const cap =
         st.caption === "stand"
@@ -317,6 +422,7 @@ export class Hud {
       // one voice at a time: a held slider's caption wins
       this.showCoach(cap ? null : st.coach || null);
     } else {
+      this.tray.setOpen(null);
       this.arc.cancel();
       this.side.cancel();
       this.stand.cancel();
@@ -326,13 +432,77 @@ export class Hud {
     this.show(this.skip, !!st.playing);
   }
 
-  // The held slider's caption (cap: { key, text } or null), placed above the
-  // plan's block: across it where the plan is split, else at least 330 px
-  // wide from the block's edge away from the meter (or, at a wide
-  // touchscreen's edge, from the block's edge at the screen's edge, so it
-  // grows toward the middle). The block is measured
-  // only when the caption appears or the layout changes. Beside the linear
-  // meter it also stays above the meter's prompt tab.
+  // The stand-ins' words and places: the prompt with the distance, the meter,
+  // and the minimap's summary, each over what the canvas draws there, shown
+  // while the meter is (st.meter: game.meterShown; null in the wide view).
+  proxies(st) {
+    const L = st.layout;
+    const m = st.meter;
+    const on = !!(L && m && !st.playing);
+    this.show(this.promptProxy, on && !!m.prompt);
+    this.show(this.meterProxy, on);
+    this.show(this.mapProxy, on && !!L.minimap);
+    if (!on) return;
+    const sentence = (t) => {
+      const l = String(t || "")
+        .toLowerCase()
+        .replace(/[!↓]+/g, "")
+        .trim();
+      return l.charAt(0).toUpperCase() + l.slice(1);
+    };
+    const metres = (d) => {
+      const n = parseInt(d, 10);
+      return `${n} ${n === 1 ? "metre" : "metres"}`;
+    };
+    const kind = L.meter === "linear" ? "Linear meter" : "Clock meter";
+    const words = {
+      prompt: m.prompt
+        ? `${sentence(m.prompt)}${m.distance ? `, ${metres(m.distance)}` : ""}`
+        : "",
+      meter: st.watching
+        ? `${kind}, shown for watching only.`
+        : `${kind}. Draw back to the stripes, then flick and let go on the solid mark.`,
+      map: mapSummary(st, m.distance ? metres(m.distance) : null),
+    };
+    for (const [k, el] of [
+      ["prompt", this.promptProxy],
+      ["meter", this.meterProxy],
+      ["map", this.mapProxy],
+    ]) {
+      if (this.cache.get(`proxy:${k}`) === words[k]) continue;
+      this.cache.set(`proxy:${k}`, words[k]);
+      el.setAttribute("aria-label", words[k]);
+    }
+    const key = `${L.W}x${L.H}:${L.meter}:${L.meterSide}:${L.dial.x}:${L.dial.y}:${L.minimap?.x}:${L.minimap?.y}`;
+    if (this.cache.get("proxyPlace") === key) return;
+    this.cache.set("proxyPlace", key);
+    const put = (el, r) => {
+      if (!r) return;
+      Object.assign(el.style, {
+        left: `${r.x}px`,
+        top: `${r.y}px`,
+        width: `${r.width}px`,
+        height: `${r.height}px`,
+      });
+    };
+    put(
+      this.promptProxy,
+      L.meter === "linear"
+        ? tabRect(linearGeometry(L.dial, L.meterSide))
+        : clockShapes(L).prompt,
+    );
+    put(this.meterProxy, L.dial);
+    put(this.mapProxy, L.minimap);
+  }
+
+  // The held slider's caption (cap: { key, text } or null): over the tray,
+  // growing from the screen's edge the tray stands at toward the middle, at
+  // least 330 px wide where there is the room. Where an open plate has taken
+  // the room over the tray (under its ceiling: the header, the minimap) it
+  // stands beside the open plate's top on its inner side instead. Never onto
+  // the meter: a tall canvas's linear meter bounds it, and beside it over the
+  // prompt tab it is lifted above the tab. Measured only when the caption
+  // appears, a plate opens or closes, or the layout changes.
   showCaption(cap, plan = null) {
     const key = cap ? cap.key : "";
     if (this.cache.get("capKey") !== key) {
@@ -354,42 +524,59 @@ export class Hud {
       }
     }
     const L = this.cache.get("placeL");
-    const pk = this.cache.get("place");
-    if (!L || this.cache.get("capPlace") === pk) return;
+    const pk = `${this.cache.get("place")}:${this.tray.open}`;
+    if (!L || !L.tray || this.cache.get("capPlace") === pk) return;
     this.cache.set("capPlace", pk);
     const r = this.plans.getBoundingClientRect();
     const s = this.caption.style;
-    const split = L.side === "both";
-    // it grows away from the meter beside it, or from the screen's edge
-    // the block is at (a wide touchscreen, L.planEdge)
-    const toRight = L.planEdge ? L.planEdge === "left" : L.side === "right";
-    // and above the linear meter's prompt tab, which hangs toward the plan,
-    // where the caption's span reaches it (the block at the far edge of a
-    // phone on its side leaves the tab well clear), and above a minimap
-    // stacked over the block (layout.js planAt)
-    let top = r.top;
-    if (L.meter === "linear") {
-      const t = tabRect(linearGeometry(L.dial, L.meterSide));
-      const w = Math.max(r.width, 330);
-      const x0 = split ? r.left : toRight ? r.left : r.right - w;
-      const x1 = split ? r.right : x0 + w;
-      if (split || (x0 < t.x + t.width + 8 && x1 > t.x - 8))
-        top = Math.min(top, t.y - 4);
-    }
-    if (L.mapStacked && L.minimap) top = Math.min(top, L.minimap.y);
-    s.bottom = `${L.H - top + 8}px`;
-    this.caption.classList.toggle("split", split);
-    this.caption.classList.toggle("from-left", !split && toRight);
-    if (split) {
-      s.left = `${r.left}px`;
-      s.right = `${L.W - r.right}px`;
-      s.width = "";
+    const t = L.tray;
+    const fromLeft = t.edge === "left";
+    // the room toward the middle: on a wide canvas planClear short of the
+    // throwing line; on a tall one up to the other edge, or the linear meter
+    const tallLinear = L.tall && L.meter === "linear";
+    const reach = (x0) =>
+      fromLeft
+        ? (L.tall
+            ? tallLinear
+              ? L.dial.x - 8
+              : L.W - L.safe.right - 8
+            : L.W / 2 - layoutTune.planClear) - x0
+        : x0 -
+          (L.tall
+            ? tallLinear
+              ? L.dial.x + L.dial.width + 8
+              : L.safe.left + 8
+            : L.W / 2 + layoutTune.planClear);
+    const capH = 52;
+    const above = r.top - 8 - capH >= t.ceiling;
+    let top, x0, w;
+    if (above) {
+      x0 = fromLeft ? r.left : r.right;
+      w = Math.min(Math.max(r.width, 330), reach(x0));
+      top = r.top;
+      if (L.meter === "linear" && !L.tall) {
+        const tab = tabRect(linearGeometry(L.dial, L.meterSide));
+        const a = fromLeft ? x0 : x0 - w;
+        if (a < tab.x + tab.width + 8 && a + w > tab.x - 8)
+          top = Math.min(top, tab.y - 4);
+      }
+      s.top = "";
+      s.bottom = `${L.H - top + 8}px`;
     } else {
-      const w = Math.max(r.width, 330);
-      s.width = `${w}px`;
-      s.left = toRight ? `${r.left}px` : "";
-      s.right = toRight ? "" : `${L.W - r.right}px`;
+      // beside the open plate, its top level with the plate's
+      const open = this.tray.open && this.tray.plates[this.tray.open].el;
+      const o = open ? open.getBoundingClientRect() : r;
+      x0 = fromLeft ? o.right + t.gap : o.left - t.gap;
+      w = Math.min(330, reach(x0));
+      s.bottom = "";
+      s.top = `${Math.max(t.ceiling, o.top)}px`;
     }
+    w = Math.max(160, w);
+    this.caption.classList.remove("split");
+    this.caption.classList.toggle("from-left", fromLeft);
+    s.width = `${w}px`;
+    s.left = fromLeft ? `${x0}px` : "";
+    s.right = fromLeft ? "" : `${L.W - x0}px`;
   }
 
   // The coach line (coach: { stage, lead, line } or null) just over the
@@ -455,9 +642,11 @@ export class Hud {
     s.top = under != null ? `${under}px` : "";
     this.coach.dataset.align = align;
     if (align === "center") {
-      const w = Math.min(max, 2 * Math.min(anchor - lo, hi - anchor));
+      // centred over the prompt where it can be; a plate beside it (an open
+      // one) moves it over rather than squeezing it
+      const w = Math.min(max, hi - lo);
       s.width = `${w}px`;
-      s.left = `${anchor - w / 2}px`;
+      s.left = `${Math.max(lo, Math.min(hi - w, anchor - w / 2))}px`;
       s.right = "";
     } else if (align === "right") {
       const w = Math.min(max, anchor - lo);
@@ -472,65 +661,34 @@ export class Hud {
     }
   }
 
-  // The plan beside the meter, on its inner side: in one block to its left
-  // (L.side "left") or right ("right") on a wide screen, ARC's tall plate
-  // next to the meter and TILT, SIDE VIEW and STAND stacked beside it
-  // ("mirror" when the block is right of the meter); split either side of
-  // the throwing line ("both") on a tall one, ARC over SIDE VIEW on the
-  // left and TILT over STAND on the right. Beside the linear meter (at the
-  // right or left edge) a tall screen's are split across what is left of
-  // the bottom; round a touchscreen's clock with its finger track
-  // (L.plansFoot) they stand above the track. On a wide touchscreen the
-  // block is at the screen's edge away from the meter instead (L.planEdge,
-  // layout.js planAt), the same way round: TILT and STAND at the screen's
-  // edge, ARC and SIDE VIEW toward the middle.
+  // The tray at the screen's edge away from the meter (layout.js trayAt):
+  // its foot at L.tray.foot, at the left or right edge, the plates' size and
+  // each open plate's size as CSS variables (game.css .plans), so an open
+  // plate grows up from its place, and in toward the middle at the right edge.
   place(L) {
-    if (!L) return;
-    const key = `${L.W}x${L.H}:${L.side}:${L.planEdge}:${L.meter}:${L.meterSide}:${L.plansFoot}`;
+    if (!L || !L.tray) return;
+    const t = L.tray;
+    const o = t.open;
+    const key = `${L.W}x${L.H}:${t.edge}:${t.x}:${t.foot}:${t.plateW}:${o.arc.height}:${o.side.width}:${o.stand.height}:${L.meter}:${L.meterSide}`;
     if (this.cache.get("place") === key) return;
     this.cache.set("place", key);
     this.cache.set("placeL", L);
-    const d = L.dial;
     const s = this.plans.style;
-    this.plans.classList.toggle("split", L.side === "both");
-    this.plans.classList.toggle("mirror", L.side === "right");
-    s.width = "";
-    if (L.side === "both" && L.meter === "linear") {
-      const left = L.meterSide === "left";
-      s.left = left ? `${d.x + d.width + 6}px` : `${L.safe.left + 8}px`;
-      s.right = left ? `${L.safe.right + 8}px` : `${L.W - d.x + 6}px`;
-      s.top = "";
-      s.bottom = `${L.H - (d.y + d.height) + 10}px`;
-    } else if (L.side === "both" && L.plansFoot != null) {
-      s.left = `${L.safe.left + 8}px`;
-      s.right = `${L.safe.right + 8}px`;
-      s.top = "";
-      s.bottom = `${L.H - L.plansFoot}px`;
-    } else if (L.side === "both") {
-      s.left = `${L.safe.left + 8}px`;
-      s.right = `${L.safe.right + 8}px`;
-      s.top = `${L.plansY + d.height * 0.18}px`;
-      s.bottom = "";
-    } else if (L.planEdge === "left") {
-      s.left = `${L.plan.x}px`;
-      s.right = "";
-      s.top = "";
-      s.bottom = `${L.H - (L.plan.y + L.plan.height)}px`;
-    } else if (L.planEdge === "right") {
-      s.left = "";
-      s.right = `${L.W - (L.plan.x + L.plan.width)}px`;
-      s.top = "";
-      s.bottom = `${L.H - (L.plan.y + L.plan.height)}px`;
-    } else if (L.side === "right") {
-      s.left = `${d.x + d.width + 6}px`;
-      s.right = "";
-      s.top = "";
-      s.bottom = `${L.H - (L.plansY + d.height) + 10}px`;
-    } else {
-      s.left = "";
-      s.right = `${L.W - d.x + 6}px`;
-      s.top = "";
-      s.bottom = `${L.H - (L.plansY + d.height) + 10}px`;
+    const px = (v) => `${Math.round(v * 10) / 10}px`;
+    this.plans.classList.toggle("at-left", t.edge === "left");
+    this.plans.classList.toggle("at-right", t.edge === "right");
+    this.plans.classList.toggle("phone", t.plateW < 100);
+    s.left = t.edge === "left" ? px(t.x) : "";
+    s.right = t.edge === "right" ? px(L.W - t.x - t.plateW) : "";
+    s.top = "";
+    s.bottom = px(L.H - t.foot);
+    s.setProperty("--plate-w", px(t.plateW));
+    s.setProperty("--plate-h", px(t.plateH));
+    s.setProperty("--plate-gap", px(t.gap));
+    for (const k of ["arc", "side", "stand"]) {
+      s.setProperty(`--open-${k}-w`, px(o[k].width));
+      s.setProperty(`--open-${k}-h`, px(o[k].height));
+      this.tray.plates[k].el.classList.toggle("cover", !!o[k].cover);
     }
   }
 }

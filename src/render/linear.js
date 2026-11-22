@@ -14,7 +14,9 @@
 // finger on it never hide a target. The body is the whole height of its box: the prompt
 // is beside it, not above, because the track's length is the meter's room.
 //
-// st is the dial's state (render/dial.js).
+// st is the dial's state (render/dial.js), its distance, prompt colours and
+// fade included. The power band is striped and the release band solid, both
+// with ink end-marks (the 1.0 design, "Meter"), as on the clock.
 import { UI, HUD, FONT } from "./palette.js";
 import { ghostKnob, overFrom, tune as dialTune } from "./dial.js";
 
@@ -59,6 +61,7 @@ export const tune = {
   // px past the body's outer edge that a finger still grabs the knob on a
   // wide touchscreen, where only the knob's channel grabs (knobHit)
   chanOuter: 6,
+  tabAllow: 7,
 };
 
 // ---------- geometry (also for input) ----------
@@ -143,10 +146,11 @@ export function knobHit(g, px, py, reach, channel = false) {
 }
 
 // The prompt tab's rect at the knob's home, as wide as its longest words
-// could make it (5 of its heights, the nudge's allowance), its shadow
-// included: what the coach line and the plan keep clear of.
+// could make it with the distance tab beside it (tabAllow of its heights: the
+// nudge's 5 and the distance's 2), its shadow included: what the coach line,
+// the tray and the minimap keep clear of.
 export function tabRect(g) {
-  const w = g.promptH * 5;
+  const w = g.promptH * tune.tabAllow;
   return {
     x: g.tabDir < 0 ? g.left - w : g.right + g.sh,
     y: g.y0 - g.promptH / 2,
@@ -236,7 +240,8 @@ function dots(ctx, g, span, a0, a1, color, step) {
   ctx.restore();
 }
 
-function hatch(ctx, g, span, a0, a1, color, step, weight) {
+// Diagonal lines across a band: falling right (dir 1) or rising (dir -1).
+function hatch(ctx, g, span, a0, a1, color, step, weight, dir = 1) {
   ctx.save();
   band(ctx, g, span, a0, a1);
   ctx.clip();
@@ -247,8 +252,8 @@ function hatch(ctx, g, span, a0, a1, color, step, weight) {
   const y1 = Math.max(armY(g, a0), armY(g, a1));
   const h = y1 - y0;
   for (let d = -h; d < span[1] - span[0] + h; d += step) {
-    ctx.moveTo(span[0] + d, y0);
-    ctx.lineTo(span[0] + d + h, y1);
+    ctx.moveTo(span[0] + d, dir > 0 ? y0 : y1);
+    ctx.lineTo(span[0] + d + h, dir > 0 ? y1 : y0);
   }
   ctx.stroke();
   ctx.restore();
@@ -264,17 +269,22 @@ function across(ctx, g, c, a, lw) {
   ctx.stroke();
 }
 
-// A target: light across the channel, deep across the lane, ink edges.
-function target(ctx, g, c, a0, a1, fill, deep, lw) {
+// A target: light across the channel, deep across the lane, solid (the
+// release band) or striped on paper (the power band), with heavy ink
+// end-marks across the whole inside at both edges.
+function target(ctx, g, c, a0, a1, fill, deep, lw, striped = false) {
+  const step = Math.max(4, g.w * 0.11);
   band(ctx, g, c.chan, a0, a1);
-  ctx.fillStyle = fill;
+  ctx.fillStyle = striped ? UI.paper : fill;
   ctx.fill();
+  if (striped) hatch(ctx, g, c.chan, a0, a1, fill, step, 0.5);
   band(ctx, g, c.lane, a0, a1);
-  ctx.fillStyle = deep;
+  ctx.fillStyle = striped ? UI.paper : deep;
   ctx.fill();
+  if (striped) hatch(ctx, g, c.lane, a0, a1, deep, step, 0.5);
   ctx.strokeStyle = UI.ink;
-  across(ctx, g, c, a0, lw);
-  across(ctx, g, c, a1, lw);
+  across(ctx, g, c, a0, lw * dialTune.endMark);
+  across(ctx, g, c, a1, lw * dialTune.endMark);
 }
 
 // The live peak: a solid dot in the lane.
@@ -291,8 +301,10 @@ function laneDot(ctx, g, c, a, r, lw) {
 }
 
 // The prompt: a tab hung off the body on the lane's side at home, its inner
-// end tucked under the frame so it is one piece with the body.
-function tab(ctx, g, c, y, h, text, inverted) {
+// end tucked under the frame so it is one piece with the body; the distance,
+// inverted, beside its free end (the 1.0 design). colors: the prompt's own
+// fill and ink (the computer's WATCH on its team's colour), or null.
+function tab(ctx, g, c, y, h, text, inverted, distance = null, colors = null) {
   ctx.font = `900 ${Math.round(h * 0.74)}px ${FONT.display}`;
   ctx.textBaseline = "middle";
   ctx.textAlign = "center";
@@ -307,15 +319,32 @@ function tab(ctx, g, c, y, h, text, inverted) {
   ctx.beginPath();
   ctx.roundRect(left + sh, y - h / 2 + sh, Math.abs(x1 - x0), h, radii);
   ctx.fill();
-  ctx.fillStyle = inverted ? UI.ink : HUD.prompt;
+  ctx.fillStyle = colors?.fill || (inverted ? UI.ink : HUD.prompt);
   ctx.strokeStyle = UI.ink;
   ctx.lineWidth = Math.max(1.5, h * 0.1);
   ctx.beginPath();
   ctx.roundRect(left, y - h / 2, Math.abs(x1 - x0), h, radii);
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = inverted ? UI.paper : HUD.promptInk;
+  ctx.fillStyle = colors?.ink || (inverted ? UI.paper : HUD.promptInk);
   ctx.fillText(text, (x0 + x1) / 2 + (c.dir * g.fr) / 4, y + h * 0.05);
+  if (!distance) return;
+  // the distance: an inverted tab of its own, a little off the free end
+  const dw = ctx.measureText(distance).width + h * 0.8;
+  const gap = h * 0.25;
+  const d0 = x0 + c.dir * gap;
+  const dl = Math.min(d0, d0 + c.dir * dw);
+  ctx.fillStyle = UI.drop;
+  ctx.beginPath();
+  ctx.roundRect(dl + sh, y - h / 2 + sh, dw, h, r);
+  ctx.fill();
+  ctx.fillStyle = UI.ink;
+  ctx.beginPath();
+  ctx.roundRect(dl, y - h / 2, dw, h, r);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = UI.paper;
+  ctx.fillText(distance, dl + dw / 2, y + h * 0.05);
 }
 
 export function drawLinear(ctx, rect, st, side = "right") {
@@ -330,6 +359,7 @@ export function drawLinear(ctx, rect, st, side = "right") {
   ctx.save();
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
+  if (st.faded) ctx.globalAlpha = dialTune.fade;
 
   // the body: hard shadow, ink frame
   ctx.fillStyle = UI.ink;
@@ -364,16 +394,19 @@ export function drawLinear(ctx, rect, st, side = "right") {
   }
   const over = overFrom(st);
   if (over != null && over < R) {
-    hatch(
-      ctx,
-      g,
-      c.chan,
-      -R,
-      -over,
-      HUD.over,
-      Math.max(3, g.chanW * 0.16),
-      0.28,
-    );
+    // cross-hatched: the stripes are the power band's alone
+    for (const dir of [1, -1])
+      hatch(
+        ctx,
+        g,
+        c.chan,
+        -R,
+        -over,
+        HUD.over,
+        Math.max(3, g.chanW * 0.16),
+        0.24,
+        dir,
+      );
     band(ctx, g, c.lane, -R, -over);
     ctx.fillStyle = HUD.over;
     ctx.fill();
@@ -382,7 +415,17 @@ export function drawLinear(ctx, rect, st, side = "right") {
   }
   // the targets: power behind the knob's home, release ahead of it
   if (st.powerHi > st.powerLo)
-    target(ctx, g, c, -st.powerHi, -st.powerLo, HUD.power, HUD.powerDeep, lw);
+    target(
+      ctx,
+      g,
+      c,
+      -st.powerHi,
+      -st.powerLo,
+      HUD.power,
+      HUD.powerDeep,
+      lw,
+      true,
+    );
   if (st.releaseHi > st.releaseLo)
     target(
       ctx,
@@ -538,8 +581,21 @@ export function drawLinear(ctx, rect, st, side = "right") {
   ctx.arc(c.kc, ky, kr * 0.14, 0, Math.PI * 2);
   ctx.fill();
 
+  ctx.globalAlpha = 1;
   if (st.prompt)
-    tab(ctx, g, c, g.y0, g.promptH, st.prompt, st.prompt.endsWith("!"));
+    tab(
+      ctx,
+      g,
+      c,
+      g.y0,
+      g.promptH,
+      st.prompt,
+      st.prompt.endsWith("!"),
+      st.distance || null,
+      st.promptFill || st.promptInk
+        ? { fill: st.promptFill, ink: st.promptInk }
+        : null,
+    );
   ctx.restore();
   return g;
 }

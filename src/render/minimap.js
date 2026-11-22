@@ -14,15 +14,22 @@
 //   surface     'grass' | 'sand' | 'snow'
 import { UI, TEAM, AIM, HUD, FONT, groundOf } from "./palette.js";
 
+// The plaque is a plate like the tray's (the 1.0 design, "Minimap"): a 3 px
+// ink line, round corners of 6 px and a 3 px ink shadow. The teams are told
+// apart by shape as well as colour (the design's "Teams"): Team A's kubbs are
+// circles, Team B's squares.
 export const tune = {
   pad: 0.06, // of the plaque's width: paper round the pitch
-  frame: 2.5, // px, the ink frame
-  shadow: 3, // px, the hard drop shadow
+  frame: 3, // px, the ink line (a plate's)
+  shadow: 3, // px, the hard ink shadow (a plate's)
+  radius: 6, // px, the corners (a control's)
   label: 0.15, // the wind label's height, of the plaque's width
 };
 
 // The pitch's box in rect: { x, y, w, h, s } with s px per metre, and the
-// mapping to it.
+// mapping to it. The plaque hangs from rect's top (under the wind's label
+// when there is one), so a minimap under the header stays put whatever its
+// width leaves of rect's height.
 export function minimapGeometry(rect, withLabel = true) {
   const labelH = withLabel ? rect.width * tune.label * 1.25 : 0;
   const s = Math.min(
@@ -33,7 +40,7 @@ export function minimapGeometry(rect, withLabel = true) {
     ph = 8 * s;
   const pad = 5 * s * tune.pad;
   const x = rect.x + (rect.width - tune.shadow - pw) / 2;
-  const y = rect.y + rect.height - tune.shadow - tune.frame - pad - ph;
+  const y = rect.y + labelH + tune.frame + pad;
   return { x, y, w: pw, h: ph, s, pad };
 }
 
@@ -51,22 +58,29 @@ export function drawMinimap(ctx, rect, st) {
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
 
-  // the plaque: rough round the pitch, an ink frame and a hard shadow
+  // the plaque: rough round the pitch, a plate's ink line, corners and shadow
   const fx = g.x - pad - tune.frame,
     fy = g.y - pad - tune.frame,
     fw = g.w + 2 * (pad + tune.frame),
     fh = g.h + 2 * (pad + tune.frame);
-  ctx.fillStyle = UI.drop;
-  ctx.fillRect(fx + tune.shadow, fy + tune.shadow, fw, fh);
+  const rr = tune.radius;
   ctx.fillStyle = UI.ink;
-  ctx.fillRect(fx, fy, fw, fh);
+  ctx.beginPath();
+  ctx.roundRect(fx + tune.shadow, fy + tune.shadow, fw, fh, rr);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect(fx, fy, fw, fh, rr);
+  ctx.fill();
   ctx.fillStyle = G.rough;
-  ctx.fillRect(
+  ctx.beginPath();
+  ctx.roundRect(
     fx + tune.frame,
     fy + tune.frame,
     fw - 2 * tune.frame,
     fh - 2 * tune.frame,
+    Math.max(1, rr - tune.frame),
   );
+  ctx.fill();
   ctx.fillStyle = G.pitch;
   ctx.fillRect(g.x, g.y, g.w, g.h);
 
@@ -126,6 +140,13 @@ export function drawMinimap(ctx, rect, st) {
       ctx.fillStyle = "rgba(22, 19, 15, 0.25)";
       ctx.fillRect(x - r * 1.4, yy - r * 0.7, r * 2.8, r * 1.4);
       ctx.strokeRect(x - r * 1.4, yy - r * 0.7, r * 2.8, r * 1.4);
+    } else if (!king && p.team === "A") {
+      // Team A: a circle, as large as Team B's square reads
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.arc(x, yy, r * 1.12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
     } else {
       ctx.fillStyle = fill;
       ctx.fillRect(x - r, yy - r, 2 * r, 2 * r);

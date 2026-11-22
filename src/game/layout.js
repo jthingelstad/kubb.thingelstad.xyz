@@ -68,29 +68,46 @@ export const tune = {
   // is shrunk by this and raised so a finger can go round outside its rim
   // all the way (dial.js tune.trackOut), 6 o'clock included
   trackShrink: 0.87,
-  // CSS px a column of plan buttons takes beside the screen's edge (the
-  // buttons are about 86 wide, 8 off the edge): they sit above the track
-  planColW: 100,
-  // The plan block on a wide canvas (hud.js place; game.css .plans: TILT
-  // over STAND in a 124 px column, ARC over SIDE VIEW in a 70 px one, 8 px
-  // apart). layout.js measures nothing, so these are the block's CSS size;
-  // tests/game/plan-client.test.mjs holds the real block to them.
-  planW: 202,
-  planH: 168,
-  // On a wide touchscreen the block is at the screen's edge away from the
-  // meter, for the other hand (Jamie, 2026-11-19: "in landscape the tilt,
-  // arc, stand controls should be pushed to the left hand side of the
-  // screen so the user can control those with the left hand and the throw
-  // with the right hand"): this many px inside the safe area, its foot
-  // level with the meter's foot as beside it (planFoot above the meter's
-  // box's foot). The minimap goes on its inner side, `planGap` from it, its
-  // foot where it was; the two must stay `planClear` px short of the
-  // throwing line (the screen's centre) or the block stays by the meter.
-  planEdge: 8,
-  planFoot: 10,
-  planBeside: 6, // px between the meter and the block beside it
-  planGap: 12,
+  // The tray (the 1.0 design, "Aim layout"; layoutFor, trayAt): ARC, TILT
+  // and STAND as three plates of one size, 86 by 60 on a phone and 104 by 70
+  // wider, stacked with plateGap between, at the screen's edge away from the
+  // meter, trayEdge inside the safe area (the header's left edge), its foot
+  // trayFoot above the meter's box's foot (upright beside the clock: above
+  // the face, or its finger track, trayClear off it, and above the prompt).
+  // layout.js measures nothing: these are the plates' CSS size, and
+  // tests/game/plan-client.test.mjs holds the page to them.
+  plateW: { phone: 86, wide: 104 },
+  plateH: { phone: 60, wide: 70 },
+  plateGap: 8,
+  trayEdge: 12,
+  trayFoot: 10,
+  trayClear: 6,
+  shadow: 3, // a plate's hard shadow
+  // the touch size a plate never goes under where a short screen squeezes
+  // the column (the 1.0 design: 48 to a finger, never under 44)
+  touchMin: 48,
+  mouseMin: 44,
+  // the clock's prompt plate with the distance tab beside it, as wide as its
+  // longest words could make it: this many of the plate's heights
+  promptAllow: 9,
+  // An open plate grows up from its place (the column's foot stays): ARC to
+  // openArcH, TILT or SPIN to openSideH and STAND to openStandH, the last two
+  // also in toward the middle to openSideW (never nearer the throwing line,
+  // the screen's centre, than planClear). Where the room under the tray's
+  // ceiling leaves an open plate under openMin with the other two showing, it
+  // covers them instead.
+  openArcH: { phone: 256, wide: 300 },
+  openSideW: { phone: 200, wide: 240 },
+  openSideH: 84,
+  openStandH: { phone: 150, wide: 180 },
+  openMin: 100,
   planClear: 24,
+  // the header (headerBox): railTop under the safe top; on a wide canvas
+  // headerW of its width, railMinW to headerMaxW; the minimap mapGap under it
+  railTop: 10,
+  headerW: 0.4,
+  headerMaxW: 400,
+  mapGap: 8,
   // A wide canvas's linear meter (a phone on its side: the player's choice of
   // meter holds when the phone turns; Jamie, 2026-11-19: "Bug: On iPhone if I
   // turn on linear and then rotate it goes back to the circular swing."). Its
@@ -104,30 +121,21 @@ export const tune = {
   // but the track's floor (the web's is lower: linear.js wideMinTravel).
   linearTopWide: 10,
   meterGap: 10,
-  // a minimap stacked over the plan block (a narrow wide canvas beside the
-  // linear meter) keeps this many px under the header row, or is not drawn
-  stackedMapGap: 10,
   // the header row's plates in CSS px (headerPlates), measured in the
   // browser (tests/game/client.test.mjs holds the page to them). Since the 1.0
-  // design MENU (64) is a word inside the header's plate at the top left; the
-  // right corner holds SKIP (59) alone, at plateEdge from the right, or the
-  // tray, its right edge at trayRight: practice's BATONS | KUBBS and RESET
-  // (230) or the watch view's THROWER'S VIEW (93). The header at plateEdge
-  // from the left: practice's at most railPracticeW (215 measured: "BATONS ·
-  // 5 BASE KUBBS" over "Practice" and MENU), its widest while watching, the
-  // line "TURN 12 · BATON 6 OF 6 · 10 FIELD KUBBS" over North or South with
-  // the two numbers and MENU (railCountsW), and a match's up to game.css's
-  // max(44vw, 260px), never under that; headerGap px kept between the header
-  // and the right corner's row
+  // design MENU (64) is a word inside the header's plate at the top left, and
+  // the header has a fixed width (headerBox); the right corner holds SKIP
+  // (skipW, a plain button of normal size since stage 3) alone, at plateEdge
+  // from the right, or the tray, its right edge at trayRight: practice's
+  // BATONS | KUBBS and RESET (230) or the watch view's THROWER'S VIEW (93);
+  // headerGap px kept between the header and the right corner's row
   plateEdge: 12,
   menuW: 64,
-  skipW: 60,
+  skipW: 80,
   trayRight: 12,
   trayW: { practice: 232, watch: 95 },
-  railPracticeW: 218,
-  railMaxW: 0.44,
   railMinW: 260,
-  railCountsW: 360,
+  railPracticeW: 218, // practice's header: "BATONS · 5 BASE KUBBS" over Practice and MENU
   headerGap: 8,
 };
 
@@ -246,24 +254,18 @@ export function meterRoom(L) {
 }
 
 // The header row's two plates as the page places them, with meterRoom's
-// shift: `rail` (top left, its widest) and `row` (top right: MENU with SKIP
-// under it, and the tray to their left in practice or while watching).
+// shift: `rail` (the header, top left) and `row` (top right: SKIP, or the tray
+// in practice or while watching).
 // `header` is what the page's header holds: "practice", "watch" or null (a
 // match). In CSS px.
 export function headerPlates(L, header = null) {
   const t = tune;
   const s = L.safe;
   const r = L.meterRoom || { left: 0, right: 0 };
-  // practice's rail has one count; watching's teams are North and South;
-  // a match's names are the players' own, so its rail may reach its widest
-  // the header is never wider than game.css lets it be: max(44vw, 260px)
-  const railMax = Math.max(L.W * t.railMaxW, t.railMinW);
-  const railW =
-    header === "practice"
-      ? Math.min(t.railPracticeW, railMax)
-      : header === "watch"
-        ? Math.min(t.railCountsW, railMax)
-        : railMax;
+  // the header's fixed box (headerBox), at its place after meterRoom's shift
+  const head =
+    L.header ||
+    headerBox(L.W, s, L.tall, t.railBox - 10, r.left, header, r.right);
   // MENU is in the header's plate since the 1.0 design: the right corner holds
   // SKIP alone, or the tray
   const reach = t.trayW[header]
@@ -271,12 +273,7 @@ export function headerPlates(L, header = null) {
     : t.plateEdge + t.skipW;
   const top = s.top + 10;
   return {
-    rail: {
-      x: s.left + t.plateEdge + r.left,
-      y: top,
-      width: railW,
-      height: t.railBox - 10,
-    },
+    rail: { ...head },
     row: {
       x: L.W - s.right - r.right - reach,
       y: top,
@@ -297,28 +294,73 @@ function headerFits(L, header) {
   return rail.x + rail.width + tune.headerGap <= row.x;
 }
 
+// The header's box (the 1.0 design: one plate at the top left, railTop under
+// the safe top, `railH` tall as the page measures it). Its width is fixed for
+// the layout, so the minimap under its right end never moves: across the whole
+// safe width on a tall canvas; on a wide one headerW of the canvas, kept between
+// railMinW and headerMaxW and, where it can, planClear short of the throwing
+// line; in practice (one count, no numbers: mode "practice") the same where
+// its corner's row (BATONS | KUBBS, RESET) leaves it room, else down to
+// railPracticeW.
+// game.css reads it as --rail-w. `left` is meterRoom's shift.
+function headerBox(W, s, tall, railH, left = 0, mode = null, right = 0) {
+  const t = tune;
+  const x = s.left + t.plateEdge + left;
+  // practice's corner row (BATONS | KUBBS and RESET) at the top right
+  const row = W - s.right - right - t.trayRight - t.trayW.practice;
+  const wide = Math.max(
+    t.railMinW,
+    Math.min(t.headerMaxW, W * t.headerW, W / 2 - t.planClear - x),
+  );
+  const width = tall
+    ? W - s.left - s.right - 2 * t.plateEdge
+    : mode === "practice"
+      ? Math.min(wide, Math.max(t.railPracticeW, row - t.headerGap - x))
+      : wide;
+  return { x, y: s.top + t.railTop, width, height: railH };
+}
+
+// The minimap (the 1.0 design: "Its place is under the header's right end in
+// every layout; it does not move while a control is held"): its right edge
+// with the header's, mapGap under it. Its size is as before: min(78, 19%) of
+// a tall canvas's width, 8.5% of a wide one's (56 to 118, at most 16% of the
+// height), twice as tall less a twentieth.
+function minimapBox(W, H, tall, header) {
+  const mw = tall
+    ? Math.min(78, W * 0.19)
+    : Math.max(56, Math.min(118, W * 0.085, H * 0.16));
+  return {
+    x: header.x + header.width - mw,
+    y: header.y + header.height + tune.mapGap,
+    width: mw,
+    height: mw * 1.95,
+  };
+}
+
 // The screen's regions in CSS px. safe = { top, right, bottom, left }.
 // `meter` is the player's ("clock" or "linear"); the layout's own `meter` is
 // the one drawn, the clock where the linear one has no room.
 // opts.side ("right", the default, or "left": MENU, Side) is the edge the
 // meter sits at: the linear meter at either edge, the clock lower right or
-// lower left on a wide canvas (the minimap takes the other bottom corner);
-// a tall canvas's clock is centred either way. opts.coarse: the screen is
-// a touchscreen, so a tall canvas's clock leaves room for a finger to go
-// round outside its rim (the layout's `track`). opts.header: what the
-// page's header row holds, "practice", "watch" or null (headerPlates).
-// The layout's `side` is where the plan buttons go: "left" or "right" of
-// the meter, or "both" (split either side of the throwing line). On a wide
-// canvas `plan` is the block's rect and `planEdge` the screen edge it is
-// anchored at on a touchscreen ("left" or "right"; null beside the meter):
-// planAt.
+// lower left on a wide canvas; a tall canvas's clock is centred either way.
+// opts.coarse: the screen is a touchscreen, so a tall canvas's clock leaves
+// room for a finger to go round outside its rim (the layout's `track`).
+// opts.header: what the page's header row holds, "practice", "watch" or null
+// (headerPlates). opts.railH: the header's height as the page measures it
+// (railBox less its 10 px before it is measured).
+//
+// The throw's set-up is the tray (the 1.0 design, "Aim layout"): ARC, TILT and
+// STAND as three plates of one size in a column at the screen's edge away from
+// the meter (trayAt), `L.tray`; `L.plan` is its closed column and `L.planEdge`
+// ("left" or "right") the edge it stands at. `L.header` is the header's box and
+// `L.minimap` the minimap under its right end.
 export function layoutFor(
   W,
   H,
   safe = {},
   swipe = false,
   meter = "clock",
-  { side: edge = "right", coarse = false, header = null } = {},
+  { side: edge = "right", coarse = false, header = null, railH = null } = {},
 ) {
   const s = { top: 0, right: 0, bottom: 0, left: 0, ...safe };
   const m = tune.margin;
@@ -326,9 +368,11 @@ export function layoutFor(
   const phone = Math.min(W, H) < 520;
   const onLeft = edge === "left";
   const meterSide = onLeft ? "left" : "right";
-  let dial, minimap, side;
+  const rh = Number.isFinite(railH) && railH > 0 ? railH : tune.railBox - 10;
+  const head = headerBox(W, s, tall, rh, 0, header);
+  const minimap = minimapBox(W, H, tall, head);
+  let dial;
   let track = false;
-  let plansFoot = null;
   if (tall) {
     const S = Math.min(W * 0.6, H * 0.32, 300);
     const h = S * 1.2;
@@ -338,19 +382,10 @@ export function layoutFor(
       width: S,
       height: h,
     };
-    const mw = Math.min(78, W * 0.19);
-    minimap = {
-      x: W - s.right - m - mw,
-      y: s.top + tune.railH + m + 4,
-      width: mw,
-      height: mw * 1.95,
-    };
-    side = "both";
     if (coarse && !swipe) {
       // the finger track: shrink the clock a little and raise it until the
       // track's outer edge clears the bottom (and the sides), so a finger
-      // can go all the way round outside the rim; the plan buttons go
-      // above the track, where it is narrower than the screen
+      // can go all the way round outside the rim
       const S2 = S * tune.trackShrink;
       const h2 = S2 * 1.2;
       dial = { x: (W - S2) / 2, y: dial.y + h - h2, width: S2, height: h2 };
@@ -358,11 +393,6 @@ export function layoutFor(
       const out = g.r * dialTune.trackOut;
       const floor = H - s.bottom - m * 0.5;
       dial.y -= Math.max(0, g.cy + out - floor);
-      // the buttons' inner edge is planColW in from the screen's edge: the
-      // track's top there is `rise` above the dial's centre
-      const dx = g.cx - (s.left + tune.planColW);
-      const rise = dx < out ? Math.sqrt(out * out - dx * dx) : 0;
-      plansFoot = dialGeometry(dial).cy - rise - m * 0.5;
       track = true;
     }
   } else {
@@ -374,167 +404,242 @@ export function layoutFor(
       width: S,
       height: h,
     };
-    const mw = Math.max(56, Math.min(118, W * 0.085, H * 0.16));
-    minimap = {
-      x: onLeft ? W - s.right - m - mw : s.left + m,
-      y: H - s.bottom - m - mw * 1.95,
-      width: mw,
-      height: mw * 1.95,
-    };
-    side = onLeft ? "right" : "left";
   }
+  const base = { W, H, safe: s, tall, phone, coarse: !!coarse, railH: rh };
   const linear =
     meter === "linear" && !swipe
       ? linearBox(W, H, s, tall, minimap, meterSide)
       : null;
-  // the plan buttons sit on its inner side, their feet level with its
-  // foot: in one block on a wide canvas, split either side of the
-  // throwing line on a tall one (hud.js place); a wide touchscreen's
-  // block goes to the far edge (planAt). Where no place keeps the block
-  // off its prompt tab and the minimap (planAt null), or the header row
-  // has no room beside it (headerFits), the clock is drawn instead: this
-  // is the one place the meter drawn is decided.
-  const linSide = tall ? "both" : onLeft ? "right" : "left";
-  const linPlan =
-    linear &&
-    planAt(W, s, tall, coarse, linSide, linear, linear.y, minimap, {
-      g: linearGeometry(linear, meterSide),
-      side: meterSide,
-    });
-  if (linPlan) {
-    const side = linSide;
+  // The linear meter where it has room: the tray clear of its prompt tab, and
+  // the header row clear once its top corner's plates move in beside it
+  // (meterRoom, headerFits); otherwise the clock is drawn. This is the one
+  // place the meter drawn is decided.
+  if (linear) {
     const L = {
-      W,
-      H,
-      safe: s,
-      tall,
-      phone,
+      ...base,
       dial: linear,
-      plansY: linear.y,
-      plansFoot: null,
-      ...linPlan,
-      side,
       meter: "linear",
       meterSide,
       track: false,
     };
     L.meterRoom = meterRoom(L);
-    if (headerFits(L, header)) return L;
+    L.header = headerBox(
+      W,
+      s,
+      tall,
+      rh,
+      L.meterRoom.left,
+      header,
+      L.meterRoom.right,
+    );
+    L.minimap = tall ? minimap : minimapBox(W, H, tall, L.header);
+    Object.assign(L, trayAt(L));
+    if (L.tray && linearClear(L) && headerFits(L, header)) return L;
   }
-  const plansY = dial.y; // keep the side buttons in reach, beside the downstroke
-  const plan = planAt(W, s, tall, coarse, side, dial, plansY, minimap);
+  const L = {
+    ...base,
+    dial,
+    // a tall canvas's clock is centred whichever side is chosen
+    meter: "clock",
+    meterSide: tall ? "centre" : meterSide,
+    edgeSide: meterSide,
+    track,
+    meterRoom: { left: 0, right: 0 },
+    header: head,
+    minimap,
+  };
+  Object.assign(L, trayAt(L));
+  delete L.edgeSide;
   // The resting knob is at six. Leave a finger room below it for a full
   // downstroke, clear of the bottom safe area, in the touch trial.
   if (swipe) dial.y -= Math.min(W, H) * 0.2;
+  return L;
+}
+
+// The plates' size for a layout: 86 by 60 on a phone (a canvas whose short
+// side is under 520 px, upright or on its side), 104 by 70 wider.
+export function plateSize(phone) {
+  return phone
+    ? { width: tune.plateW.phone, height: tune.plateH.phone }
+    : { width: tune.plateW.wide, height: tune.plateH.wide };
+}
+
+// The clock's shapes the tray keeps clear of: the face (with its finger track
+// on a touchscreen held upright) as a circle, and the prompt plate with the
+// distance tab beside it, as wide as their longest words could make them
+// (promptAllow of its heights).
+export function clockShapes(L) {
+  const g = dialGeometry(L.dial);
+  const R = L.track
+    ? g.r * dialTune.trackOut
+    : g.r * (1 + dialTune.shadow) + tune.trayClear;
+  const ph = Math.max(14, g.r * dialTune.promptH);
+  const pw = ph * tune.promptAllow;
+  const py = g.cy - g.r - ph * 0.85;
   return {
-    W,
-    H,
-    safe: s,
-    tall,
-    phone,
-    dial,
-    plansY,
-    plansFoot,
-    ...plan,
-    side,
-    meter: "clock",
-    // a tall canvas's clock is centred whichever side is chosen
-    meterSide: tall ? "centre" : meterSide,
-    track,
-    meterRoom: { left: 0, right: 0 },
+    circle: { cx: g.cx, cy: g.cy, r: R },
+    prompt: { x: g.cx - pw / 2, y: py - ph / 2, width: pw, height: ph * 1.12 },
   };
 }
 
-// The plan block on a wide canvas: { plan, planEdge, minimap, mapStacked }.
-// plan is the block's rect (from tune.planW and planH, its foot planFoot
-// above the meter's box's foot); planEdge is the screen edge it is anchored
-// at, "left" or "right", or null where it sits beside the meter (`side`: the
-// block is left or right of it). A touchscreen's block is at the edge away
-// from the meter, so one hand sets the plan and the other throws, and the
-// minimap leaves its corner for the block's inner side; a mouse keeps the
-// block beside the meter (one hand does everything, so near is better), as
-// does a canvas too narrow to keep the block and the minimap off the
-// throwing line. A tall canvas has no block (null plan, the same minimap).
+// The tray (the 1.0 design, "Aim layout"): ARC, TILT and STAND as three
+// plates of one size (plateSize), stacked top to bottom with plateGap between,
+// at the screen's edge away from the meter, trayEdge inside the safe area:
+// upright at the left edge beside the clock (mirrored, the right edge, with
+// Meter side, Left), on a wide canvas the left edge with the meter at the
+// right and the right edge with it at the left. Mouse and touch alike: the
+// plates no longer sit beside the clock in the middle of the pitch, and a
+// mouse's block beside the meter went with them.
 //
-// Beside the linear meter (`lin`: its geometry and side) the block never
-// goes over the prompt tab: where beside would reach the tab (a short
-// window with a mouse) the block goes to the far edge as on a touchscreen,
-// and where the far edge cannot keep the block and the minimap off the
-// throwing line the block stays there and the minimap goes over it
-// (`mapStacked`), or is not drawn (minimap null) where that would meet the
-// header row. The minimap is a picture, never a control. Where none of
-// these keeps the block off the tab it returns null, and layoutFor draws
-// the clock instead of the linear meter.
-function planAt(W, s, tall, coarse, side, meter, plansY, minimap, lin = null) {
-  if (tall) return { plan: null, planEdge: null, minimap, mapStacked: false };
-  const w = tune.planW,
-    h = tune.planH;
-  const y = plansY + meter.height - tune.planFoot - h;
-  const beside = {
-    plan: {
-      x:
-        side === "left"
-          ? meter.x - tune.planBeside - w
-          : meter.x + meter.width + tune.planBeside,
-      y,
-      width: w,
-      height: h,
-    },
-    planEdge: null,
-    minimap,
-    mapStacked: false,
-  };
-  // beside the linear meter, does the block reach its prompt tab (or, on
-  // a narrow canvas, the minimap in its corner)?
-  const meets = (a, b) =>
-    a.x < b.x + b.width &&
-    b.x < a.x + a.width &&
-    a.y < b.y + b.height &&
-    b.y < a.y + a.height;
-  const onTab =
-    !!lin &&
-    (() => {
-      const t = tabRect(lin.g);
-      return (
-        meets(beside.plan, { ...t, height: t.height + 4 }) ||
-        meets(beside.plan, minimap)
-      );
-    })();
-  if (!coarse && !onTab) return beside;
-  // the block's edge is the one away from the meter: the meter is right of
-  // a block on its left
-  const edge = side === "left" ? "left" : "right";
+// Its foot is trayFoot above the meter's box's foot. Upright beside the clock
+// it stands above the clock's face (and, on a touchscreen, its finger track:
+// the throwing thumb's ground stays clear) where the column's inner edge is,
+// and above the clock's prompt and distance where the two would meet.
+//
+// An open plate (hud.js) grows up from its place, the column's foot staying
+// where it is; `open` says how big each may grow: ARC up into its slider
+// (openArcH), TILT or SPIN and STAND also in toward the middle (openSideW, at
+// most planClear short of the throwing line). Each grows only as far as the
+// room under the tray's ceiling (the header, the minimap or a corner's plates
+// above it) leaves with the other two plates still showing; where that is
+// under openMin it covers them instead (`cover`), up to the ceiling.
+// Returns { tray, plan, planEdge }, or { tray: null } where no place clears.
+function trayAt(L) {
+  const t = tune;
+  const { W, H, safe: s, tall } = L;
+  const sz = plateSize(L.phone);
+  const meterAt = L.meter === "linear" ? L.meterSide : L.edgeSide;
+  const edge = meterAt === "left" ? "right" : "left";
   const x =
-    edge === "left" ? s.left + tune.planEdge : W - s.right - tune.planEdge - w;
-  const mx =
-    edge === "left" ? x + w + tune.planGap : x - tune.planGap - minimap.width;
-  const inner = edge === "left" ? mx + minimap.width : W - mx;
-  if (inner <= W / 2 - tune.planClear)
-    return {
-      plan: { x, y, width: w, height: h },
-      planEdge: edge,
-      minimap: { ...minimap, x: mx },
-      mapStacked: false,
-    };
-  const blockInner = edge === "left" ? x + w : W - x;
-  if (!lin) return beside;
-  // no room at the far edge either: beside where it is clear of the tab,
-  // else no place at all (null: layoutFor draws the clock)
-  if (blockInner > W / 2 - tune.planClear) return onTab ? null : beside;
-  // the block at the far edge, the minimap over it, its inner edge with the
-  // block's, clear of the header row (the rail's box, or MENU's row)
-  const map = {
-    ...minimap,
-    x: edge === "left" ? x + w - minimap.width : x,
-    y: y - tune.planGap - minimap.height,
+    edge === "left" ? s.left + t.trayEdge : W - s.right - t.trayEdge - sz.width;
+  let colH = 3 * sz.height + 2 * t.plateGap;
+  let foot = L.dial.y + L.dial.height - t.trayFoot;
+  if (L.meter === "clock" && tall) {
+    // above the face (and the track) where the column's inner edge is
+    const { circle: c, prompt } = clockShapes(L);
+    const inner = edge === "left" ? x + sz.width + t.shadow : x;
+    const dx = Math.abs(c.cx - inner);
+    if (dx < c.r) foot = Math.min(foot, c.cy - Math.sqrt(c.r * c.r - dx * dx));
+    // and above the prompt where the column would meet it
+    const col = { x, y: foot - colH, width: sz.width + t.shadow, height: colH };
+    if (meets(col, prompt)) foot = Math.min(foot, prompt.y - t.trayClear);
+  }
+  // the room above: whatever stands over the column (the header, the minimap,
+  // a corner's plates); an open plate's width toward the middle stops short
+  // of what stands lower than that beside it (the minimap under a practice
+  // header, which is narrower)
+  const over = [L.header, L.minimap];
+  // a corner's plates: practice's or the view tray at the top right (upright:
+  // practice's under the header, at the left)
+  if (!tall)
+    over.push({
+      x: W - s.right - t.trayRight - t.trayW.practice,
+      y: s.top + t.railTop,
+      width: t.trayW.practice,
+      height: t.railH,
+    });
+  else
+    over.push({
+      x: s.left + t.plateEdge,
+      y: L.header.y + L.header.height + t.mapGap,
+      width: t.trayW.practice,
+      height: t.railH,
+    });
+  const across = (r, x0, w) => r && r.x < x0 + w && x0 < r.x + r.width;
+  let ceiling = s.top + t.railTop;
+  for (const r of over)
+    if (across(r, x, sz.width + t.shadow))
+      ceiling = Math.max(ceiling, r.y + r.height + t.mapGap);
+  let sideW = Math.max(
+    sz.width,
+    Math.min(
+      t.openSideW[L.phone ? "phone" : "wide"],
+      edge === "left"
+        ? W / 2 - t.planClear - x
+        : x + sz.width - (W / 2 + t.planClear),
+    ),
+  );
+  for (const r of over) {
+    if (!r || r.y + r.height + t.mapGap <= ceiling) continue;
+    const x0 = edge === "left" ? x : x + sz.width - sideW;
+    if (!across(r, x0, sideW + t.shadow)) continue;
+    sideW =
+      edge === "left"
+        ? r.x - t.mapGap - t.shadow - x
+        : x + sz.width - (r.x + r.width + t.mapGap);
+  }
+  sideW = Math.max(sz.width, sideW);
+  // A short screen (a phone on its side with its browser's bars showing):
+  // the column comes down toward the safe bottom (trayClear off it, never
+  // upright, where the clock's track is under it), then its plates grow
+  // shorter, never under the touch size (48 to a finger, 44 with a mouse).
+  // Where even that does not fit, there is no tray: the linear meter gives
+  // way to the clock, and the clock's tray stands from the ceiling.
+  if (foot - colH < ceiling && !tall)
+    foot = Math.min(H - s.bottom - t.trayClear, ceiling + colH);
+  if (foot - colH < ceiling) {
+    const least = L.coarse ? t.touchMin : t.mouseMin;
+    const ph = Math.max(least, (foot - ceiling - 2 * t.plateGap) / 3);
+    sz.height = ph;
+    colH = 3 * ph + 2 * t.plateGap;
+    if (foot - colH < ceiling - 1e-9) {
+      if (L.meter === "linear")
+        return { tray: null, plan: null, planEdge: null };
+      foot = ceiling + colH;
+    }
+  }
+  const y = foot - colH;
+  const room = foot - ceiling;
+  const rest = 2 * (sz.height + t.plateGap);
+  const grow = (want) => {
+    const pushed = Math.min(want, room - rest);
+    return pushed >= Math.min(want, t.openMin)
+      ? { height: pushed, cover: false }
+      : { height: Math.min(want, room), cover: true };
   };
-  const ceiling = s.top + tune.railBox + tune.stackedMapGap;
+  const k = L.phone ? "phone" : "wide";
+  const open = {
+    arc: { width: sz.width, ...grow(t.openArcH[k]) },
+    side: { width: sideW, ...grow(t.openSideH) },
+    stand: { width: sideW, ...grow(t.openStandH[k]) },
+  };
+  const plan = { x, y, width: sz.width, height: colH };
   return {
-    plan: { x, y, width: w, height: h },
+    tray: {
+      edge,
+      ...plan,
+      foot,
+      ceiling,
+      plateW: sz.width,
+      plateH: sz.height,
+      gap: t.plateGap,
+      open,
+    },
+    plan,
     planEdge: edge,
-    minimap: map.y >= ceiling ? map : null,
-    mapStacked: true,
   };
+}
+
+const meets = (a, b) =>
+  !!a &&
+  !!b &&
+  a.x < b.x + b.width &&
+  b.x < a.x + a.width &&
+  a.y < b.y + b.height &&
+  b.y < a.y + a.height;
+
+// Does what the linear meter brings keep apart: the tray, the minimap, the
+// header and the meter with its prompt tab?
+function linearClear(L) {
+  const tab = tabRect(linearGeometry(L.dial, L.meterSide));
+  const head = { ...L.header, width: L.header.width + tune.headerGap };
+  const rects = [L.dial, tab, L.plan, L.minimap, head];
+  for (let i = 0; i < rects.length; i++)
+    for (let j = i + 1; j < rects.length; j++) {
+      if (i === 0 && j === 1) continue; // the meter's own tab
+      if (meets(rects[i], rects[j])) return false;
+    }
+  return true;
 }
 
 // What a press claims of the linear meter (L.meter "linear", g its
