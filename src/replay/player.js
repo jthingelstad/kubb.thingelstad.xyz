@@ -140,6 +140,7 @@ export class ReplayPlayer {
     onEnd = null,
     embed = null,
     reel = null,
+    link = null,
     embedded = false,
     engine = null,
   }) {
@@ -154,6 +155,7 @@ export class ReplayPlayer {
       onEnd,
       embed,
       reel,
+      link,
       embedded,
     });
     this.playing = true;
@@ -584,9 +586,10 @@ export class ReplayPlayer {
       rematch: null,
       home: this.embedded
         ? null
-        : (this.home ?? (() => (location.href = "/web/"))),
+        : (this.home ?? (() => (location.href = "/#play"))),
       embed: this.embed,
       reel: this.reel,
+      link: this.embedded ? null : this.link,
       back: this.close,
       sheet: () => openSheet(this.root, { game: g }),
       note: this.info.differs ? DIFFERS : null,

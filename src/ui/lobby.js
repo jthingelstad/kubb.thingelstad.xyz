@@ -17,12 +17,15 @@ import {
 import { roomEngine } from "../net/room-engine.js";
 import { youRow } from "./settings.js";
 import { nameRow } from "./name-row.js";
+import { segBar } from "./seg.js";
 import { SCENE_ROW, sceneId, takesScene } from "../render/scenes.js";
 
 // "Computer level", as the iPhone app and the solo card say it (the engine's label
 // is "Computer")
 const ROW_LABEL = { computer: "Computer level" };
 const TEAM_LABEL = { A: "Team A", B: "Team B" };
+// the engine's rows the lobby leaves out: the set, which the scene decides
+export const HIDDEN_ROWS = new Set(["set"]);
 export const ACCESS = [
   ["invite", "Invite only"],
   ["open", "Open"],
@@ -50,6 +53,7 @@ export class Lobby {
       names: this.names,
       name,
       setName: (t) => hooks.name(t),
+      caption: "You are",
     });
 
     this.teams = {};
@@ -84,7 +88,7 @@ export class Lobby {
       };
     }
     this.watchList = h("p.watchers", { "data-test": "watchers" });
-    this.sitOut = button("WATCH INSTEAD", () => hooks.team(null), "small", {
+    this.sitOut = button("WATCH INSTEAD", () => hooks.team(null), "quiet", {
       "data-test": "sit-out",
     });
     this.shareBtn = button("SHARE THE LINK", () => hooks.share(), "small", {
@@ -131,9 +135,11 @@ export class Lobby {
       this.note,
       h(
         "div.row.start-row",
-        this.startBtn,
+        button("HOME", () => hooks.home(), "quiet", {
+          "data-test": "lobby-home",
+        }),
         this.waiting,
-        button("HOME", () => hooks.home()),
+        this.startBtn,
       ),
     );
     this.optKey = null;
@@ -297,19 +303,23 @@ export class Lobby {
                 access,
                 (v) => this.hooks.access?.(v === "open"),
                 "access",
+                "Who can join",
               ).el
             : h("span.opt-value", l.open ? "Open" : "Invite only"),
         ),
         h("p.access-note", ACCESS_NOTE[access]),
       );
       this.optionsBox.append(h("h3", "The match"));
+      // the Kubbs row is not shown (the 1.0 design: the scene decides the set, as on
+      // the solo card); the room's set stays what it is, Classic unless an older page
+      // chose another
       const rows = [
         ...(mm
           ? engineConstants(mm).MATCH_OPTIONS
           : loaded
             ? MATCH_OPTIONS
             : MATCH_OPTIONS.filter(([k]) => k in l.options)),
-      ];
+      ].filter(([k]) => !HIDDEN_ROWS.has(k));
       // the Scene: the engine takes any id and lists none, so the row is this
       // client's, shown when the next match's engine takes a scene (0.9 on)
       const scened = loaded && takesScene(engineConstants(mm));
@@ -327,6 +337,7 @@ export class Lobby {
                   k === "scene" ? this.scene : options[k],
                   (v) => this.hooks.option(k, v),
                   k,
+                  ROW_LABEL[k] ?? label,
                 ).el
               : h(
                   "span.opt-value",
@@ -386,32 +397,6 @@ function memberRow(m, st) {
   );
 }
 
-function seg(choices, value, onPick, key) {
-  let current = value;
-  const btns = choices.map(([v, label]) =>
-    h(
-      "button.seg-btn",
-      {
-        type: "button",
-        role: "radio",
-        "aria-checked": String(v === current),
-        "data-value": v,
-        onclick: () => {
-          set(v);
-          onPick(v);
-        },
-      },
-      label,
-    ),
-  );
-  const set = (v) => {
-    current = v;
-    for (const b of btns)
-      b.setAttribute("aria-checked", String(b.dataset.value === v));
-  };
-  return {
-    el: h("div.seg", { role: "radiogroup", "data-key": key }, btns),
-    set,
-    value: () => current,
-  };
+function seg(choices, value, onPick, key, label = null) {
+  return segBar({ choices, value, onPick, key, label });
 }

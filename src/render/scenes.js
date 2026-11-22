@@ -54,14 +54,22 @@ const SWITCHED = new Set(SCENES);
 // [[value, label], ...]], the shape of the engine's MATCH_OPTIONS. The engine
 // takes any scene id and does not list them (its docs/ROOM.md difference 9),
 // so the labels are this client's.
+//
+// SCENE_NAMES is the one table of the names a player sees for each scene id, on
+// every surface that names one (the solo card's tiles, the lobby, practice's MENU).
+// The 1.0 design shows Day, Night and Neon as Park, Camping and Techno; whether
+// that comes in 1.0 or with the scene catalogue is still the owner's to decide, so
+// today's names stay until then. Renaming is this table alone: the stored ids
+// ("day", "night", "neon") never change. The iPhone keeps the same table.
+export const SCENE_NAMES = {
+  day: "Day",
+  night: "Night",
+  neon: "Neon",
+};
 export const SCENE_ROW = [
   "scene",
   "Scene",
-  [
-    ["day", "Day"],
-    ["night", "Night"],
-    ["neon", "Neon"],
-  ],
+  ["day", "night", "neon"].map((id) => [id, SCENE_NAMES[id]]),
 ];
 
 // A scene id as this client draws it: a known one, else "day".

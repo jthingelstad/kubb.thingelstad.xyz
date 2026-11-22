@@ -98,10 +98,10 @@ export function showHowto(root, game = null, onDone = null) {
     h("h2.display", "How to throw"),
     h("div.howto-body", canvas, h("div", count, title, text)),
     h(
-      "div.row",
+      "div.row.howto-row",
+      button("CLOSE", () => done(), "quiet", { "data-test": "howto-close" }),
       back,
       next,
-      button("CLOSE", () => done(), "plain", { "data-test": "howto-close" }),
     ),
   );
   const scrim = h("div.scrim", card);

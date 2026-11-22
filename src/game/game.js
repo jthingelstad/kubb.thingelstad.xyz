@@ -333,6 +333,8 @@ export class Game {
 
   newMatch(opts) {
     this.mode = "match";
+    // MENU's Raising row is shown for a match that raises by hand (src/ui/menu.js)
+    this.matchRaising = opts?.raising === "auto" ? "auto" : "hand";
     this.engine.newMatch(opts);
     this.engine.setControl(this.seat);
     this.startTrail();
@@ -496,6 +498,12 @@ export class Game {
   adopt(snapshotText) {
     this.engine.restoreChecked(snapshotText);
     this.mode = "match";
+    try {
+      const r = JSON.parse(snapshotText)?.opts?.raising;
+      if (r) this.matchRaising = r === "auto" ? "auto" : "hand";
+    } catch {
+      // the snapshot was checked by the engine; a raising it does not say is by hand
+    }
     this.engine.setControl(this.seat);
     this.startTrail(snapshotText);
     this.queue.length = 0;
@@ -1487,6 +1495,29 @@ export class Game {
   // look like; null goes back to the view's scene.
   showScene(id) {
     this.shownScene = id ?? null;
+  }
+
+  // The pitch as it stands, drawn small in scene `id` into `canvas` through a Stage
+  // of its own (the solo card's scene tiles: the game's own picture of each scene,
+  // not a sketch). W x H CSS px at 2x. False when there is no picture yet (before
+  // the first frame), so the caller may try again.
+  sceneThumb(canvas, id, W = 96, H = 56) {
+    const camera = this.out?.camera;
+    if (!camera || !canvas?.getContext) return false;
+    const dpr = 2;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return false;
+    const stage = new Stage({ skin: false, reduced: true });
+    stage.use(id);
+    const v = this.viewData || {};
+    stage.draw(ctx, { width: W, height: H, dpr }, camera, {
+      surface: v.surface,
+      set: v.set,
+      items: this.items,
+    });
+    return true;
   }
 
   // A look object kept over the match's own scene (tests and tools).

@@ -9,6 +9,7 @@ import { h, button, clear } from "./dom.js";
 import { prefs } from "../game/prefs.js";
 import { soloOptions } from "../game/throw-level.js";
 import { youRow } from "./settings.js";
+import { segBar } from "./seg.js";
 import { drawMinimap } from "../render/minimap.js";
 import { teamOf } from "../game/scenes.js";
 import { SCENE_ROW, sceneId } from "../render/scenes.js";
@@ -92,14 +93,21 @@ export class Cards {
     if (watched) setTimeout(done, tune.watchCardMs);
   }
 
+  // The winner card (the 1.0 design): the go button first and full width (REMATCH,
+  // or WATCH REPLAY when `first`, or NEXT MATCH), then WATCH REPLAY and SCORE SHEET
+  // plain side by side, one SHARE that opens the link, the reel and the embed, and
+  // HOME quiet at the foot.
+  //
   // again: the rematch button's words; stop: a STOP button that calls it and
   // takes itself and the note away (the computer against itself). replay: a
   // WATCH REPLAY button (a finished pitch, src/replay/player.js), the card's
   // main action when `first`; replayLabel its words (REPLAY AGAIN); back: a
   // BACK TO THE PITCH button (the end of a replay); teams: a line naming who
-  // played (a finished pitch, for a browser that arrived after the end); embed: an
-  // EMBED button (src/ui/embed.js); reel: a highlight reel (src/ui/reel.js), whose
-  // button goes beside EMBED; home: null leaves HOME out (an embed).
+  // played (a finished pitch, for a browser that arrived after the end). share:
+  // SHARE's card, { link?, embed?, reel? } (embed: EMBED's opener, src/ui/embed.js;
+  // reel: a highlight reel, src/ui/reel.js; link: the pitch's address), or for a
+  // match against the computer `shareMatch`, the share card (src/ui/share.js),
+  // which makes the link and the reel. home: null leaves HOME out (an embed).
   winner(
     need,
     {
@@ -116,6 +124,8 @@ export class Cards {
       teams = null,
       embed = null,
       reel = null,
+      link = null,
+      shareMatch = null,
     },
   ) {
     const w = need.winner || {};
@@ -126,9 +136,9 @@ export class Cards {
           ? "rematch"
           : replay
             ? "replay"
-            : "home";
+            : null;
     const replayBtn = () =>
-      button(replayLabel, replay, lead === "replay" ? "go" : "", {
+      button(replayLabel, replay, lead === "replay" ? "go wide" : "", {
         "data-default": lead === "replay",
         "data-test": "watch-replay",
       });
@@ -152,6 +162,31 @@ export class Cards {
           { "data-test": "stop" },
         )
       : null;
+    const shareOpts = embed || reel || link ? { embed, reel, link } : null;
+    const shareBtn =
+      shareMatch || shareOpts
+        ? button(
+            "SHARE",
+            () =>
+              shareMatch
+                ? shareMatch.open()
+                : openShareCard(this.root, shareOpts),
+            "wide",
+            { "data-test": "winner-share" },
+          )
+        : null;
+    const pair = [lead === "replay" ? null : replay ? replayBtn() : null];
+    if (sheet)
+      pair.push(
+        button("SCORE SHEET", sheet, "", { "data-test": "winner-sheet" }),
+      );
+    if (stopBtn) pair.push(stopBtn);
+    if (back)
+      pair.push(
+        button("BACK TO THE PITCH", back, "", {
+          "data-test": "replay-back-to-pitch",
+        }),
+      );
     const el = h(
       "div.card.winner",
       { "data-test": "winner" },
@@ -169,37 +204,32 @@ export class Cards {
           )
         : null,
       noteEl,
-      h(
-        "div.row",
-        replay && first ? replayBtn() : null,
-        rematch
-          ? button(again, rematch, lead === "rematch" ? "go" : "", {
-              "data-default": lead === "rematch",
+      lead === "replay"
+        ? replayBtn()
+        : rematch
+          ? button(again, rematch, "go wide", {
+              "data-default": true,
               "data-test": "rematch",
             })
           : null,
-        replay && !first ? replayBtn() : null,
-        embed
-          ? button("EMBED", embed, "", { "data-test": "winner-embed" })
-          : null,
-        reel ? reel.button("", { "data-test": "winner-reel" }) : null,
-        stopBtn,
-        sheet
-          ? button("SCORE SHEET", sheet, "", { "data-test": "winner-sheet" })
-          : null,
-        back
-          ? button("BACK TO THE PITCH", back, "", {
-              "data-test": "replay-back-to-pitch",
-            })
-          : null,
-        // no HOME in an embed: its way out is the link to the pitch
-        home
-          ? button("HOME", home, lead === "home" ? "go" : "", {
-              "data-default": lead === "home",
-            })
-          : null,
-      ),
+      h("div.card-pair", pair.filter(Boolean)),
+      shareBtn,
+      // no HOME in an embed: its way out is the link to the pitch
+      home
+        ? h(
+            "div.card-foot",
+            button("HOME", home, "quiet", {
+              "data-default": !lead,
+              "data-test": "winner-home",
+            }),
+          )
+        : null,
     );
+    // a rematch from the replay's end (REPLAY AGAIN first) keeps its button
+    if (lead === "replay" && rematch)
+      el.querySelector(".card-pair").prepend(
+        button(again, rematch, "", { "data-test": "rematch" }),
+      );
     return this.show(el);
   }
 
@@ -212,6 +242,13 @@ export class Cards {
   // hears a change made in MENU. names: the engine's door (src/game/names.js).
   // scene: the Scene row's value when the address names one (?scene=), else the
   // saved one; onScene(id) hears it picked, so the pitch behind the card can show it.
+  //
+  // The card (the 1.0 design, "Play the computer", direction A): the name row, the
+  // Scene as three picture tiles, then Computer level, Opening, Raising and Wind, and
+  // Surface as a fifth row until a scene decides the ground; HOME quiet at the left,
+  // START go at the right. There is no Kubbs row: the scene decides the set (the
+  // night and the neon have always played their own; the day plays Classic).
+  // game: the Game behind the card, which draws the tiles' pictures (sceneThumb).
   options(
     onStart,
     {
@@ -222,13 +259,14 @@ export class Cards {
       onName = null,
       scene = null,
       onScene = null,
+      game = null,
     },
   ) {
     const saved = soloSaved();
     if (scene) saved.scene = sceneId(scene);
     onScene?.(saved.scene);
     let current = kept;
-    // one "You" row: the name and its pickers
+    // the name row: the name and SHUFFLE
     const you = youRow("solo", {
       names,
       name: kept,
@@ -242,24 +280,29 @@ export class Cards {
       you.setName(v);
     });
     const groups = {};
+    const tiles = sceneTiles(saved.scene, onScene, game);
+    groups.scene = tiles;
     const rows = OPTION_ROWS.map(([key, label, choices]) => {
-      const seg = segmented(
-        key,
+      const id = `solo-label-${key}`;
+      const seg = segBar({
         choices,
-        saved[key],
-        key === "scene" ? onScene : null,
-      );
+        value: saved[key],
+        key,
+        labelledBy: id,
+      });
       groups[key] = seg;
       return h(
         "div.opt",
         { "data-test": `solo-opt-${key}` },
-        h("span.opt-label", label),
+        h("span.opt-label", { id }, label),
         seg.el,
       );
     });
     const start = () => {
       const o = {};
       for (const k of Object.keys(groups)) o[k] = groups[k].value();
+      // the scene decides the set (no Kubbs row): the day plays Classic
+      o.set = SOLO_DEFAULTS.set;
       // the match options are kept for the next card; the name is the device's
       prefs.set("solo", o);
       close();
@@ -270,19 +313,27 @@ export class Cards {
       { "data-test": "options" },
       h("h2.display", "Play the computer"),
       you.el,
+      h("hr.rule"),
+      h(
+        "div.opt.opt-scene",
+        { "data-test": "solo-opt-scene" },
+        h("span.opt-label", { id: "solo-label-scene" }, SCENE_ROW[1]),
+        tiles.el,
+      ),
       rows,
       h(
-        "div.row.start-row",
+        "div.card-foot.start-row",
+        button("HOME", home, "quiet", { "data-test": "solo-home" }),
         button("START", start, "go big", {
           "data-default": true,
           "data-test": "start",
         }),
-        button("HOME", home),
       ),
     );
     const close = this.show(el, null, {
       onClose: () => {
         stopName?.();
+        tiles.stop();
       },
     });
     return close;
@@ -301,7 +352,13 @@ export class Cards {
       h(
         "div.row",
         actions.map(([label, fn, kind = ""], i) =>
-          button(label, fn, kind, i === 0 ? { "data-default": true } : {}),
+          button(
+            label,
+            fn,
+            // leaving is quiet unless the card makes it the one thing to do
+            kind || (label === "HOME" ? "quiet" : ""),
+            i === 0 ? { "data-default": true } : {},
+          ),
         ),
       ),
     );
@@ -388,6 +445,8 @@ export const soloKept = (saved) =>
   typeof saved === "object" &&
   Object.keys(saved).some((k) => k !== "name");
 
+// The rows under the Scene tiles, in the design's order, with Surface last until a
+// scene decides the ground. The Kubbs row is gone (the scene decides the set).
 const OPTION_ROWS = [
   [
     "computer",
@@ -396,15 +455,6 @@ const OPTION_ROWS = [
       ["beginner", "Beginner"],
       ["club", "Club"],
       ["pro", "Pro"],
-    ],
-  ],
-  [
-    "surface",
-    "Surface",
-    [
-      ["grass", "Grass"],
-      ["sand", "Sand"],
-      ["snow", "Snow"],
     ],
   ],
   [
@@ -433,45 +483,172 @@ const OPTION_ROWS = [
     ],
   ],
   [
-    "set",
-    "Kubbs",
+    "surface",
+    "Surface",
     [
-      ["classic", "Classic"],
-      ["usa", "USA"],
-      ["sweden", "Sweden"],
-      ["minnesota", "Minnesota"],
-      ["wisconsin", "Wisconsin"],
+      ["grass", "Grass"],
+      ["sand", "Sand"],
+      ["snow", "Snow"],
     ],
   ],
-  // the look only: the pitch behind the card shows it when picked
-  SCENE_ROW,
 ];
+export const SOLO_ROWS = ["scene", ...OPTION_ROWS.map(([k]) => k)];
 
-// onPick(v): a value picked (the Scene row's preview)
-function segmented(key, choices, value, onPick = null) {
+// The Scene's three picture tiles: each the pitch behind the card drawn in that
+// scene by the game itself (Game.sceneThumb), its name (SCENE_NAMES) under it. A
+// radio group like the segmented bar: one Tab stop, the arrow keys inside. onPick(v)
+// hears a pick (the pitch behind shows it). stop() ends the drawing.
+function sceneTiles(value, onPick, game) {
+  const choices = SCENE_ROW[2];
   let current = choices.some(([v]) => v === value) ? value : choices[0][0];
-  const btns = choices.map(([v, label]) =>
-    h(
-      "button.seg-btn",
+  const canvases = [];
+  const btns = choices.map(([v, label]) => {
+    const canvas = h("canvas", {
+      width: 192,
+      height: 112,
+      "aria-hidden": "true",
+    });
+    canvases.push([canvas, v]);
+    return h(
+      "button.tile",
       {
         type: "button",
         role: "radio",
         "aria-checked": String(v === current),
+        tabindex: v === current ? "0" : "-1",
         "data-value": v,
-        onclick: () => {
-          current = v;
-          for (const b of btns)
-            b.setAttribute("aria-checked", String(b.dataset.value === v));
-          onPick?.(v);
+        "data-test": `scene-tile-${v}`,
+        onclick: () => pick(v),
+        onkeydown: (e) => {
+          const i = choices.findIndex(([c]) => c === current);
+          const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[
+            e.key
+          ];
+          let j = d ? (i + d + choices.length) % choices.length : null;
+          if (e.key === "Home") j = 0;
+          if (e.key === "End") j = choices.length - 1;
+          if (j === null) return;
+          e.preventDefault();
+          pick(choices[j][0]);
+          btns[j].focus();
         },
       },
-      label,
+      canvas,
+      h("span.tile-name", label),
+    );
+  });
+  function pick(v) {
+    current = v;
+    for (const b of btns) {
+      const on = b.dataset.value === v;
+      b.setAttribute("aria-checked", String(on));
+      b.tabIndex = on ? 0 : -1;
+    }
+    onPick?.(v);
+  }
+  // the pictures: drawn once the game has a frame to draw them from
+  let tries = 0;
+  let raf = 0;
+  const draw = () => {
+    raf = 0;
+    const done = canvases.every(([c, v]) => game?.sceneThumb?.(c, v));
+    if (!done && game && ++tries < 120) raf = requestAnimationFrame(draw);
+  };
+  if (game) raf = requestAnimationFrame(draw);
+  return {
+    el: h(
+      "div.tiles",
+      {
+        role: "radiogroup",
+        "aria-labelledby": "solo-label-scene",
+        "data-key": "scene",
+      },
+      btns,
+    ),
+    value: () => current,
+    stop: () => raf && cancelAnimationFrame(raf),
+  };
+}
+
+// SHARE on the winner card of a finished pitch (the 1.0 design: "one SHARE button
+// that opens link, reel and embed"): the pitch's link with COPY LINK, MAKE A
+// HIGHLIGHT REEL (its button follows the reel, src/ui/reel.js) and EMBED, over the
+// winner card, which stays. BACK, Escape and a press outside close it.
+export function openShareCard(
+  root,
+  { link = null, reel = null, embed = null },
+) {
+  const status = h("p.sheet-status", {
+    role: "status",
+    "data-test": "share-status",
+  });
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      status.textContent = "Copied the link.";
+    } catch {
+      status.textContent = "Could not copy. The link is shown to copy.";
+    }
+  };
+  const close = () => {
+    scrim.remove();
+    for (const el of quieted) el.inert = false;
+    window.removeEventListener("keydown", esc);
+  };
+  const run = (fn) => () => {
+    close();
+    fn();
+  };
+  const body = h(
+    "div.card.sheet.share-card",
+    {
+      "data-test": "share-card",
+      role: "dialog",
+      "aria-label": "Share this match",
+    },
+    h("h2.display", "Share this match"),
+    link
+      ? h(
+          "div.share-link",
+          h("span.link-text", { "data-test": "share-link" }, link),
+          button("COPY LINK", copy, "", { "data-test": "share-copy" }),
+        )
+      : null,
+    status,
+    h(
+      "div.card-pair",
+      reel ? reel.button("", { "data-test": "winner-reel" }) : null,
+      embed
+        ? button("EMBED", run(embed), "", { "data-test": "winner-embed" })
+        : null,
+    ),
+    h(
+      "div.card-foot",
+      button("BACK", close, "quiet", {
+        "data-default": true,
+        "data-test": "share-card-back",
+      }),
     ),
   );
-  return {
-    el: h("div.seg", { role: "radiogroup", "data-key": key }, btns),
-    value: () => current,
+  const scrim = h("div.scrim.sheet-scrim", body);
+  scrim.addEventListener("pointerdown", (e) => {
+    if (e.target === scrim) close();
+  });
+  const esc = (e) => {
+    if (e.key === "Escape") close();
   };
+  root.append(scrim);
+  const quieted = [...root.children].filter((el) => el !== scrim && !el.inert);
+  for (const el of quieted) el.inert = true;
+  window.addEventListener("keydown", esc);
+  // the reel's own card opens over this one: close this one first
+  body
+    .querySelector("[data-test=winner-reel]")
+    ?.addEventListener("click", () => close(), { capture: true });
+  requestAnimationFrame(() =>
+    body.querySelector("button")?.focus({ preventScroll: true }),
+  );
+  return { close };
 }
 
 // The Playdate's hand-off card: who it goes to, what the last turn took,
@@ -617,16 +794,18 @@ function raisePanel(n, game) {
           ? "Raising automatically for the rest of the game."
           : "Raising the rest automatically.",
       ),
-      h(
-        "div.row",
-        button("BY HAND", () => game.setRaise("hand"), "small", {
-          "data-test": "raise-hand",
-        }),
-        ar.game
-          ? null
-          : button("REST OF GAME", () => game.setRaise("auto"), "small", {
-              "data-test": "raise-auto-game",
-            }),
+      slots(
+        [
+          button("BY HAND", () => game.setRaise("hand"), "small", {
+            "data-test": "raise-hand",
+          }),
+          ar.game
+            ? null
+            : button("REST OF GAME", () => game.setRaise("auto"), "small", {
+                "data-test": "raise-auto-game",
+              }),
+        ],
+        [],
       ),
     );
   // The kubb on the pitch is the control (game.js raisePick, raise-touch.js):
@@ -652,20 +831,21 @@ function raisePanel(n, game) {
         ? "Touch the kubb or drag it to the end to stand it on."
         : "Click the kubb to stand it up, nearer the end it should stand on.",
     ),
-    h(
-      "div.row",
+    slots(
+      [
+        button("AUTO", () => game.raise(null), "small", {
+          "data-test": "raise-auto",
+        }),
+        n.n < n.of
+          ? button("AUTO ALL", () => game.raiseRest(), "small", {
+              "data-test": "raise-auto-all",
+            })
+          : null,
+        button("REST OF GAME", () => game.setRaise("auto"), "small", {
+          "data-test": "raise-auto-game",
+        }),
+      ],
       ends,
-      button("AUTO", () => game.raise(null), "small", {
-        "data-test": "raise-auto",
-      }),
-      n.n < n.of
-        ? button("AUTO ALL", () => game.raiseRest(), "small", {
-            "data-test": "raise-auto-all",
-          })
-        : null,
-      button("REST OF GAME", () => game.setRaise("auto"), "small", {
-        "data-test": "raise-auto-game",
-      }),
     ),
   );
 }
@@ -677,11 +857,25 @@ function punishPanel(n, game) {
     h("p.kicker", `${n.team || ""}  PUNISHMENT KUBB ${n.n} OF ${n.of}`),
     h("p.panel-text", "Drag or tap a spot in your half, clear of the circles."),
     h("p.why", { hidden: true }),
-    h(
-      "div.row",
-      button("PLACE IT", () => game.punish(), "small go", {
-        "data-test": "place",
-      }),
+    slots(
+      [],
+      [
+        button("PLACE IT", () => game.punish(), "small go", {
+          "data-test": "place",
+        }),
+      ],
     ),
+  );
+}
+
+// The panel's buttons in two fixed slots, in every state (the 1.0 design's one rule
+// for this panel): the automatic choices, plain, at the left; the one confirming
+// action (PLACE IT; raising by hand, END 1 and END 2, out of sight until focused)
+// at the right.
+function slots(autos, confirm) {
+  return h(
+    "div.row.panel-slots",
+    h("div.panel-auto", autos.filter(Boolean)),
+    h("div.panel-confirm", confirm.filter(Boolean)),
   );
 }

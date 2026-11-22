@@ -22,6 +22,7 @@ import { prefs } from "./game/prefs.js";
 import { Cards, FIRST_MATCH, soloKept, soloSaved } from "./ui/cards.js";
 import { Menu } from "./ui/menu.js";
 import { openSettingsPage } from "./ui/settings.js";
+import { firstVisit } from "./ui/welcome.js";
 import { namesOf } from "./game/names.js";
 import { showHowto, shouldShowHowto } from "./ui/howto.js";
 import { h, button } from "./ui/dom.js";
@@ -79,14 +80,14 @@ function fail(err) {
     h(
       "div.row",
       button("RELOAD", () => location.reload(), "go"),
-      h("a.btn", { href: "/web/" }, "HOME"),
+      h("a.btn.quiet", { href: "/#play" }, "HOME"),
     ),
   );
   ui.append(h("div.scrim", box));
 }
 
 const home = () => {
-  location.href = "/web/";
+  location.href = "/#play";
 };
 
 // Every engine the site carries, each made the first time it is asked for
@@ -147,7 +148,7 @@ async function bootSettings() {
   const engine = await makeEngine();
   const names = namesOf(engine);
   loading.remove();
-  openSettingsPage(ui, { home, names });
+  openSettingsPage(ui, { home, names, release: config.release });
   if (testing) window.__kubb = { config, engine, names };
   document.body.dataset.ready = "1";
 }
@@ -283,12 +284,23 @@ async function boot() {
       menu,
       engines,
       observe: observing,
+      // the welcome's HOW TO THROW (src/ui/welcome.js)
+      howto: (onDone) => howto(onDone),
     });
     if (testing) window.__kubb.pitch = pitch;
   }
   game.start();
   document.body.dataset.ready = "1";
-  if (shouldShowHowto() && !params.has("nohowto") && !watching && !observing)
+  // a device new to the game on a pitch link has the welcome card, which offers
+  // HOW TO THROW itself (src/ui/welcome.js)
+  const welcomed = mode === "pitch" && firstVisit(prefs);
+  if (
+    shouldShowHowto() &&
+    !params.has("nohowto") &&
+    !watching &&
+    !observing &&
+    !welcomed
+  )
     howto();
 }
 
@@ -374,6 +386,8 @@ function startSolo(game, cards, { sheet, record, menu, asked }) {
       // the Scene row: ?scene= over the saved one; the pitch behind shows the pick
       scene: asked,
       onScene: (id) => game.showScene(id),
+      // the Scene tiles' pictures are the game's own drawing of the pitch
+      game,
     });
   const play = (o) => {
     share?.destroy();
@@ -421,7 +435,8 @@ function startSolo(game, cards, { sheet, record, menu, asked }) {
         rematch: () => options(),
         sheet,
         home,
-        reel: share,
+        // SHARE: the share card, which makes the match's link and its reel
+        shareMatch: share,
       });
     }
   };

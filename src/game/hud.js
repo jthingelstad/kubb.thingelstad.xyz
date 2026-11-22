@@ -55,19 +55,77 @@ export function railCount(t) {
   return t || "";
 }
 
+// The header's words (the 1.0 design, "Header"): the line over the name, "Turn 4 ·
+// baton 2 of 6" (shown in the label's capitals), with what the thrower aims at when
+// it is not the base kubbs the numbers show ("2 field kubbs", "at the king"; practice:
+// "Kubbs · target 2.3 m"). The iPhone's header says the same words.
+export function headerLine({
+  turn = null,
+  kind = "",
+  n = null,
+  of = null,
+  count = "",
+} = {}) {
+  const parts = [];
+  if (turn) parts.push(`Turn ${turn}`);
+  if (kind) parts.push(n && of ? `${kind} ${n} of ${of}` : kind);
+  if (count) parts.push(count);
+  const t = parts.join(" · ").toLowerCase();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+// Whose throw it is, in sentence case: the engine's rail says it in capitals
+// ("MIGHTY MAPLE", "GOLDEN KUBBLETS: PLUCKY PLUM"), so the name is the team's (and
+// the thrower's) as the match has it. Anything else is given its words' capitals.
+export function headerName(railName, need = null) {
+  const r = railName || "";
+  if (!r) return "";
+  if (r === "PRACTICE") return "Practice";
+  const team = need?.teams?.[need?.side];
+  const thrower = need?.setup?.thrower?.name;
+  if (team && r === team.toUpperCase()) return team;
+  if (team && thrower && r === `${team}: ${thrower}`.toUpperCase())
+    return `${team}: ${thrower}`;
+  return r
+    .toLowerCase()
+    .replace(/(^|[\s:])([a-z])/g, (m, a, b) => a + b.toUpperCase());
+}
+
 export class Hud {
   constructor(root, actions) {
     this.root = root;
     this.actions = actions;
     this.cache = new Map();
 
+    // the header (the 1.0 design): "Turn N · baton n of m" over the name, the kubbs
+    // standing in each half as two numbers on the team colours, and MENU as a word
+    // inside the plate (src/ui/menu.js puts its button here: hud.menuSlot)
+    this.railScore = h(
+      "div.rail-score",
+      { role: "img", "data-test": "rail-score" },
+      h("span.rail-n.team-a", { "data-test": "rail-n-A" }),
+      h("span.rail-n.team-b", { "data-test": "rail-n-B" }),
+    );
+    this.menuSlot = h("div.rail-menu");
     this.rail = h(
       "div.hud.hud-rail",
       { "data-test": "rail" },
-      h("div.rail-name"),
-      h("div.rail-what"),
-      h("div.rail-counts"),
+      h("div.rail-what", { "data-test": "rail-what" }),
+      h("div.rail-name", { "data-test": "rail-name" }),
+      this.railScore,
+      this.menuSlot,
     );
+    // the header's height, for what stands under it on a tall screen (game.css
+    // --rail-h)
+    if (typeof ResizeObserver === "function") {
+      this.railObs = new ResizeObserver(() => {
+        const hgt = Math.round(this.rail.offsetHeight);
+        if (!hgt || hgt === this.railH) return;
+        this.railH = hgt;
+        document.documentElement.style.setProperty("--rail-h", `${hgt}px`);
+      });
+      this.railObs.observe(this.rail);
+    }
     this.center = h(
       "div.hud.center",
       h("div.flag", { "data-test": "flag" }),
@@ -164,22 +222,45 @@ export class Hud {
   update(st) {
     const aim = st.aim || {};
     const rail = aim.rail || {};
-    const [name, what, counts] = this.rail.children;
-    this.text(name, rail.name || "");
-    let w = "";
-    if (rail.kind || aim.projectile) {
-      const kind = (rail.kind || aim.projectile || "").toUpperCase();
-      w = rail.n && rail.of ? `${kind} ${rail.n} OF ${rail.of}` : kind;
+    const [what, name] = this.rail.children;
+    const need = st.need;
+    this.text(name, headerName(rail.name, need));
+    let line = "";
+    if (st.practice)
+      line = headerLine({
+        kind: aim.drill ? "Kubbs" : "Batons",
+        count: railCount(rail.r1),
+      });
+    else if (rail.kind || aim.projectile) {
+      // what the thrower aims at, when it is not the base kubbs the numbers show
+      const at = /^(FIELD \d+|KING)$/.test(rail.r1 || "")
+        ? railCount(rail.r1)
+        : "";
+      line = headerLine({
+        turn: need?.turn,
+        kind: rail.kind || aim.projectile || "",
+        n: rail.n,
+        of: rail.of,
+        count: at,
+      });
     }
-    if (st.practice) w = aim.drill ? "KUBBS" : "BATONS";
-    // the wide view's rail says the turn too: the whole match at a glance
-    if (st.wide && st.need?.turn && w) w = `TURN ${st.need.turn}  ·  ${w}`;
-    this.text(what, w);
-    this.text(
-      counts,
-      [rail.r1, rail.r2].filter(Boolean).map(railCount).join("  ·  "),
-    );
-    this.show(this.rail, !!(rail.name || w));
+    this.text(what, line);
+    // the kubbs standing in each half, on the team colours (a match only)
+    const sd = !st.practice && need?.standing;
+    const score = sd && Number.isInteger(sd.A) && Number.isInteger(sd.B);
+    const [na, nb] = this.railScore.children;
+    this.text(na, score ? String(sd.A) : "");
+    this.text(nb, score ? String(sd.B) : "");
+    this.show(this.railScore, score);
+    if (score) {
+      const t = need.teams || {};
+      const label = `Kubbs standing: ${t.A || "Team A"} ${sd.A}, ${t.B || "Team B"} ${sd.B}`;
+      if (this.cache.get("scoreLabel") !== label) {
+        this.cache.set("scoreLabel", label);
+        this.railScore.setAttribute("aria-label", label);
+      }
+    }
+    this.show(this.rail, !!(rail.name || line || this.menuSlot.firstChild));
 
     const [flag, verdicts, rest] = this.center.children;
     this.text(flag, st.flag || "");
