@@ -260,7 +260,7 @@ export class Lobby {
     // a refusal is read where it is (START's row stays at the foot while the card
     // scrolls): brought into view
     if (text && this.closeFn)
-      this.note.scrollIntoView?.({ block: "nearest", behavior: "auto" });
+      this.note.scrollIntoView?.({ block: "center", behavior: "auto" });
   }
 
   // A seat change the host made, said once to a screen reader.
