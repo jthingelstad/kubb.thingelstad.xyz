@@ -1514,8 +1514,12 @@ export class Game {
     return r;
   }
 
+  // A resign carries the clock (`at`, the match's start's shape): the engine takes it as
+  // the finish, so a match ended by RESIGN has its length on the winner card and the
+  // score sheet, and every browser on a pitch applies the same stamp (it is part of the
+  // action). A person's throw is made inside the engine's frame and cannot carry one yet.
   resign(side) {
-    const action = { type: "resign", side };
+    const action = { type: "resign", side, at: clockStamp() };
     const r = this.engine.apply(action);
     if (r.ok === false) return r;
     this.emit(action);
@@ -2870,6 +2874,17 @@ export class Game {
     else return;
     e.preventDefault();
   }
+}
+
+// The device's clock to the minute, as the engine takes a match's start and finish.
+export function clockStamp(d = new Date()) {
+  return {
+    year: d.getFullYear(),
+    month: d.getMonth() + 1,
+    day: d.getDate(),
+    hour: d.getHours(),
+    min: d.getMinutes(),
+  };
 }
 
 // The throw's distance as the meter shows it beside the prompt (the 1.0

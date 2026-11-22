@@ -2562,3 +2562,64 @@ browserTest(
     }
   },
 );
+
+// QA, 2026-11-22: the winner card said "under a min" of every match, and the score
+// sheet "Duration 0m": no action carried the clock, so the engine's finish was the
+// start. A resign carries it now (`at`, part of the action); a length that is not
+// known is not shown at all.
+browserTest(
+  "a match's length: a resign carries the clock; an unknown length is not shown",
+  async () => {
+    for (const ahead of [7, 0]) {
+      const page = await open(env, "/p/abcdefgh?solo=1&nohowto=1");
+      try {
+        await page.click("[data-test=start]");
+        await page.click("[data-test=handoff-go]");
+        await waitPhase(page, "aim", 10000);
+        // the device's clock some minutes on, as if the match had gone on that long
+        await page.evaluate((ahead) => {
+          const Real = Date;
+          const shift = ahead * 60000;
+          window.Date = class extends Real {
+            constructor(...a) {
+              super(...(a.length ? a : [Real.now() + shift]));
+            }
+            static now() {
+              return Real.now() + shift;
+            }
+          };
+        }, ahead);
+        await page.click("[data-test=menu]");
+        await page.click("[data-test=menu-resign]");
+        await page.waitForSelector("[data-test=winner]");
+        const st = await page.evaluate(() => {
+          const g = window.__kubb.game;
+          return {
+            action: g.trail.actions.at(-1),
+            finish: JSON.parse(g.engine.snapshot()).finish,
+            card: document.querySelector("[data-test=winner]").textContent,
+          };
+        });
+        assert.equal(st.action.type, "resign");
+        assert.ok(st.action.at?.year, "the resign carries the clock");
+        assert.deepEqual(st.finish, st.action.at, "the engine took it");
+        await page.click("[data-test=winner-sheet]");
+        const sheet = await page.textContent("[data-test=sheet-text]");
+        if (ahead) {
+          assert.match(st.card, /7 min/);
+          assert.match(sheet, /\[Duration "7m"\]/);
+        } else {
+          assert.doesNotMatch(st.card, /min\b/);
+          assert.doesNotMatch(sheet, /Duration/);
+        }
+        // (the record's POST has no api in this test server: its 404 is not the page's)
+        assert.deepEqual(
+          page.errors.filter((e) => !/Failed to load resource/.test(e)),
+          [],
+        );
+      } finally {
+        await page.context().close();
+      }
+    }
+  },
+);

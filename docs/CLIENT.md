@@ -1231,6 +1231,20 @@ score sheet as it stands), SHOW POSITIONS / HIDE POSITIONS, COPY, DOWNLOAD and B
   `src/net/sync.js`, passed to the engine's `setClient` at the start), as the iPhone
   app's does; the Playdate game keeps the engine's own "Playdate". It is in no
   snapshot or hash.
+- **The match's length** (QA, 2026-11-22). The engine takes a match's finish from the
+  `at` of the action that ends it (`{ year, month, day, hour, min }`, the start's shape;
+  session.lua `applyThrow` and `resign`), and without one writes the finish as the
+  start: `[Duration "0m"]`, and minutes 0 on the winner card, which said "under a min"
+  of every match. A resign carries the device's clock (`Game.resign`, `clockStamp`); it
+  is part of the action, so every browser on a pitch applies the same stamp and the
+  hashes agree, and the records, replays and share checks carry it as they carry the
+  rest. A person's throw is made inside the engine's `frame` and cannot carry one, and
+  the computer's throws are left unstamped so a length is exact or not shown: the winner
+  card shows a length only from 1 min, and the sheet shown leaves out `[Duration "0m"]`
+  (the record keeps the engine's file). Older matches carry no stamp and say nothing
+  about their length. What the engine should do: let `frame` take `at` and put it on the
+  throw action it makes (`throwAction`), let `cpuAction` take it the same way, and give
+  minutes `nil` (no Duration header) when no action carried one, rather than the start.
 
 ## Recording
 
