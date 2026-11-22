@@ -43,8 +43,8 @@ vendored engine's major.minor (`"0.3"`), read from `room.constants`. The lobby c
 - **Watching**: everyone in the room on neither team.
 - **SHARE THE LINK**: `navigator.share` where there is one, else the clipboard.
 - **Who can join**: Invite only ("Only people with the link can join.", the default) or
-  Open ("Listed under Open games on the web game’s page: anyone can join."). The host picks;
-  everyone else reads it. Starting a pitch from the web game's page (`/web/`) with Open picked arrives as
+  Open ("Listed under Open games on the web game’s page: anyone can join."; that list is on the landing page, `/#play`, since the 1.0 design). The host picks;
+  everyone else reads it. Starting a pitch from the landing page (`/#play`) with Open picked arrives as
   `/p/<code>?open=1`, and the new pitch's host (at `v` 0) writes it open.
 - **The match** options: surface, opening, raising, wind, kubb set. The host sets them
   (and the host's choices are remembered as `kubb:pitchOptions` for their next pitch);

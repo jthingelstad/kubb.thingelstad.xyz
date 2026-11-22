@@ -2,7 +2,7 @@
 // Playdate game at /playdate/, the Kubb Engine at /engine/ and the Kubb sites we
 // love at /love/ (Jamie, 2026-11-20: "We need to separately land the
 // throwingwood.com website as a real landing page for the game, not just the
-// game."). The web game's own page is /web/ (src/site/pages.mjs).
+// game."). The web game's own page, /web/, is part of / since the 1.0 design.
 //
 // Every picture is a real capture: the web game in Playwright, the iPhone app's
 // App Store screenshots (throwingwood-ios docs/store), the Playdate game's
@@ -15,7 +15,10 @@ import { esc, page } from "./layout.mjs";
 import { heroScene } from "./art.mjs";
 import { signup } from "./newsletter.mjs";
 import {
+  APP_STORE_BADGE,
+  APP_STORE_URL,
   ENGINE_REPO,
+  GAME_READY,
   IOS_REPO,
   PLAYDATE_REPO,
   SITE_TITLE,
@@ -74,98 +77,132 @@ export function img(name, alt, { eager = false, cls = "shot" } = {}) {
 const external = (href, text) =>
   `<a href="${esc(href)}" rel="noopener">${text}</a>`;
 
-// The home of the game: what it is, the three ways in, and why it feels right.
-// One click from the top to the web game. The words are short and plain (Jamie,
-// 2026-11-20: "Keep the language simple and short. 5th grade level. it is a
-// game. This is fun.").
+// PLAY NOW (the Throwing Wood 1.0 build list, "The website" 1): a match against
+// the computer on a pitch of its own (public/js/start.js makes the code; without
+// scripts /p/ does). `play=1` asks the game to start at once on a device with no
+// kept match options, and to open the options card on one that has played
+// (src/main.js startSolo, src/ui/cards.js soloKept).
+export const PLAY_NOW = "?solo=1&play=1";
+export const playNow = () =>
+  `<a class="button button--start" href="/p/${esc(PLAY_NOW)}" data-pitch="${esc(PLAY_NOW)}" data-test="play-now">Play now</a>`;
+
+// The iPhone app's way in, wherever a page offers it: Apple's badge once
+// APP_STORE_URL is set (src/site/site.mjs, the one switch), until then the
+// TestFlight wording, and the /ios/ page if neither link is there.
+export function storeLink({
+  appStore = APP_STORE_URL,
+  testflight = TESTFLIGHT_URL,
+} = {}) {
+  if (appStore)
+    return `<a class="store-badge" href="${esc(appStore)}" rel="noopener" data-test="app-store"><img src="${APP_STORE_BADGE}" width="144" height="48" alt="Download on the App Store"></a>`;
+  if (testflight)
+    return `<a class="button" href="${esc(testflight)}" rel="noopener" data-test="testflight">Join the TestFlight</a>`;
+  return `<a class="button" href="/ios/">iPhone and iPad</a>`;
+}
+
+// Everything the page promises is playable once the game is in place: a
+// pitch link with friends, the computer and practice. No notice then.
+const BUILDING = GAME_READY
+  ? ""
+  : `<p class="notice">The game is still being built. Until it is, a pitch only says so.</p>`;
+
+// The list of open games (public/js/open-games.js reads the pitch server's
+// GET /open): only when this build has a pitch server.
+function openGames(pitchUrl) {
+  if (!pitchUrl) return "";
+  return `<div class="open-games" aria-labelledby="open-games" role="region" data-pitchserver="${esc(pitchUrl)}" hidden>
+      <h3 class="display" id="open-games">Open games</h3>
+      <p>These pitches are open to anyone. Join one and pick a side, or watch a match.</p>
+      <ul class="open-list" data-open-list></ul>
+      <p class="open-status" data-open-status role="status">Looking for open games...</p>
+    </div>`;
+}
+
+// The home of the game, and since the 1.0 design its one landing page: the web
+// game's page (/web/) is folded in as "Three ways to start" and the open games,
+// under the id `play` that /web/ now redirects to (infra/viewer-request.js). The
+// words are short and plain (Jamie, 2026-11-20: "Keep the language simple and
+// short. 5th grade level. it is a game. This is fun."); they are the site's own
+// from before, where the build list gives none. PLAY NOW is the page's one
+// marigold button; every other button is plain.
+//
+// The newsletter block stays (the owner, 2026-11-21: "Keep the block"), last
+// before the footer, its button plain.
 function landing({ tinylytics, config = {} }) {
   const body = `<section class="hero hero--landing">
   <div class="frame hero__inner hero__split">
     <div class="hero__text">
-      <h1 class="hero__title"><span class="hero__kubb">Kubb</span><span class="hero__band">Throwing Wood</span></h1>
+      <h1 class="hero__title"><span class="hero__kubb">Kubb</span> <span class="hero__band">Throwing Wood</span></h1>
       <p class="lede">Throw sticks of wood at blocks of wood. Knock them all over, then topple the king. That is kubb, the lawn game from Sweden. Some folks call it Viking chess.</p>
       <div class="actions">
-        <a class="button button--start" href="/web/">Play now</a>
-        <p class="actions__note">It runs in your browser. No sign-up and nothing to download.</p>
-        <div class="actions__more">
-          <a class="button" href="/ios/">iPhone and iPad</a>
-          <a class="button" href="/playdate/">Playdate</a>
+        <div class="actions__row">
+          ${playNow()}
+          ${storeLink()}
         </div>
+        <p class="actions__note">It runs in your browser. No sign-up and nothing to download.</p>
       </div>
+      ${BUILDING}
     </div>
     <figure class="hero__shot">
-      ${img("web-hit", "A baton hits a kubb on the far baseline with a TOK! burst. The throwing dial is at the right.", { eager: true })}
+      ${img("web-hit", "A baton hits a kubb on the far baseline with a TOK! burst. The throwing meter is at the right.", { eager: true })}
     </figure>
   </div>
 </section>
-<section class="frame ways" aria-labelledby="ways">
-  <h2 class="display" id="ways">Three ways to play</h2>
-  <p class="section__lede">Pick a screen. The rules and the wood are the same on each one.</p>
-  <ul class="ways__list">
-    <li class="way">
-      ${img("web-aim", "The web game before a throw. The aim circle sits on a kubb next to the throwing dial.")}
-      <h3 class="way__title">In your browser</h3>
-      <p>Start a pitch and send friends the link. Or play the computer, or just practice.</p>
-      <p><a class="button" href="/web/">Play on the web</a></p>
-    </li>
-    <li class="way">
-      ${img("ios-aim", "The iPhone app before a throw, with the aim circle on a kubb and the dial reading WIND BACK.", { cls: "shot shot--tall" })}
-      <h3 class="way__title">iPhone and iPad</h3>
-      <p>Throw with your thumb. Your phone can join the same pitch as a browser.</p>
-      <p><a class="button" href="/ios/">The iPhone app</a></p>
-    </li>
-    <li class="way">
-      ${img("playdate-card", "The Playdate game’s black and white card. A baton strikes the B in KUBB, over the words THROWING WOOD.", { cls: "shot shot--pixel" })}
-      <h3 class="way__title">Playdate</h3>
-      <p>This is where the game began. You throw by turning the crank.</p>
-      <p><a class="button" href="/playdate/">The Playdate game</a></p>
-    </li>
-  </ul>
-</section>
-<section class="band band--grass" aria-labelledby="friends">
-  <div class="frame split">
-    <div>
-      <h2 class="display" id="friends">A pitch is a link</h2>
-      <p>Start a pitch and send its link. Friends pick a name and a side, up to six a side. Each plays on their own screen. The computer plays any empty side.</p>
-      <p><a class="button" href="/web/">Start a pitch</a></p>
-    </div>
-    <figure class="split__shot">
-      ${img("lobby", "A pitch’s lobby. A player named Birch picks a side, with room for six on each team.")}
-    </figure>
-  </div>
-</section>
-<section class="frame split" aria-labelledby="again">
-  <div>
-    <h2 class="display" id="again">Watch it again</h2>
-    <p>A finished match keeps its replay for a year. Anyone with the link can watch it again, throw by throw.</p>
-    <p>Want just the good parts? Ask for a highlight reel, a short video of the best throws.</p>
-  </div>
-  <figure class="split__shot">
-    ${img("reel", "A highlight reel frame. One baton knocks over two kubbs, KLAK! The caption says NORTH: THREE KUBBS WITH ONE BATON.")}
-  </figure>
-</section>
-<section class="frame split split--flip" aria-labelledby="feel">
-  <div>
-    <h2 class="display" id="feel">Throw by feel</h2>
-    <p>No dice here. Pull back for power, then flick and let go. The baton flips end over end. Real physics does the rest. TOK!</p>
-    <p>You play by the U.S. National Kubb Championship rules.</p>
-    <p><a class="more" href="/rules/">How to play kubb</a></p>
-  </div>
-  <figure class="split__shot">
-    ${img("web-flight", "A baton flies toward two standing kubbs, in slow motion.")}
-  </figure>
-</section>
-<section class="band band--wood" aria-labelledby="engine-teaser">
+<section class="band band--baton" id="play" aria-labelledby="ways">
   <div class="frame">
-    <h2 class="display" id="engine-teaser">Why it feels right</h2>
-    <p class="section__lede">We studied 150 tournament games and video of real throws. Then we tuned the game to match.</p>
-    <p><a class="button" href="/engine/">Meet the engine</a></p>
+    <h2 class="display" id="ways">Three ways to start</h2>
+    <ul class="ways__list">
+      <li class="way card">
+        <h3 class="way__title">Against the computer</h3>
+        <p>Play a full match against the computer.</p>
+        <p class="way__go"><a class="button" href="/p/?solo=1" data-pitch="?solo=1">Play the computer</a></p>
+      </li>
+      <li class="way card">
+        <h3 class="way__title">With friends</h3>
+        <p>Start a pitch and send its link. Friends pick a name and a side, up to six a side. Each plays on their own screen. The computer plays any empty side.</p>
+        <fieldset class="access" data-access hidden>
+          <legend class="label">Who can join</legend>
+          <div class="access__bar">
+            <label><input type="radio" name="access" value="invite" checked><span>Invite only</span></label>
+            <label><input type="radio" name="access" value="open"><span>Open</span></label>
+          </div>
+          <p class="access__note">Invite only is for people with the link. Open puts it in the list below for anyone.</p>
+        </fieldset>
+        <p class="way__go"><a class="button" href="/p/" data-pitch="" data-start>Start a pitch</a></p>
+      </li>
+      <li class="way card">
+        <h3 class="way__title">Just throw</h3>
+        <p>Throw batons on the practice pitch. Nothing counts.</p>
+        <p class="way__go"><a class="button" href="/practice/">Practice</a></p>
+      </li>
+    </ul>
+    <p class="ways__more">Or sit back and <a href="/p/?watch=1" data-pitch="?watch=1">watch the computer</a> play itself, match after match. Your name, the meter and the sound are in <a href="/settings/">Settings</a>.</p>
+    ${openGames(config.pitchUrl)}
+    <p class="ways__more">Matches are recorded to help make the game better. Practice is not recorded. The <a href="/privacy/">privacy page</a> says what the game keeps.</p>
   </div>
 </section>
-<section class="frame love-teaser" aria-labelledby="love-teaser">
-  <h2 class="display" id="love-teaser">Kubb creates peace on earth</h2>
-  <p>The best kubb is on real grass with real people. Go find a club near you.</p>
-  <p><a class="more" href="/love/">Kubb sites we love</a></p>
+<section class="frame feel" aria-labelledby="feel">
+  <h2 class="display" id="feel">Throw by feel</h2>
+  <ol class="feel__steps">
+    <li><span class="feel__n" aria-hidden="true">1</span><p><strong>Pull back for power.</strong> No dice here.</p></li>
+    <li><span class="feel__n" aria-hidden="true">2</span><p><strong>Flick and let go.</strong> The baton flips end over end.</p></li>
+    <li><span class="feel__n" aria-hidden="true">3</span><p><strong>Real physics does the rest.</strong> TOK!</p></li>
+  </ol>
+  <p>You play by the U.S. National Kubb Championship rules. <a class="more" href="/rules/">How to play kubb</a></p>
+</section>
+<section class="band band--wood" aria-label="On iPhone and Playdate">
+  <div class="frame screens">
+    <div class="screens__one" id="app">
+      <h2 class="display">On iPhone and iPad</h2>
+      <p>Throw with your thumb. Your phone can join the same pitch as a browser.</p>
+      <p class="screens__go">${storeLink()} <a class="button" href="/ios/">The iPhone app</a></p>
+    </div>
+    <div class="screens__one" id="playdate">
+      <h2 class="display">On Playdate</h2>
+      <p>This is where the game began. You throw by turning the crank.</p>
+      <p class="screens__go"><a class="button" href="/playdate/">The Playdate game</a></p>
+    </div>
+  </div>
 </section>
 ${signup({ size: "big" })}`;
   return page({
@@ -177,31 +214,61 @@ ${signup({ size: "big" })}`;
     bodyClass: "landing",
     tinylytics,
     release: config.release?.text,
+    scripts: [
+      "/js/start.js",
+      ...(config.pitchUrl ? ["/js/open-games.js"] : []),
+    ],
   });
 }
 
-// /ios/: the iPhone and iPad app, in TestFlight. Its button comes from the one
-// value TESTFLIGHT_URL (src/site/site.mjs): none if it is ever emptied.
-export function iosJoin(url = TESTFLIGHT_URL) {
+// /ios/: the iPhone and iPad app, in TestFlight. Its button comes from the
+// switches in src/site/site.mjs: APP_STORE_URL, once set, puts Apple's badge in
+// its place (storeLink); until then TESTFLIGHT_URL, and no button if that is ever
+// emptied.
+export function iosJoin(url = TESTFLIGHT_URL, appStore = APP_STORE_URL) {
+  if (appStore) return `<p class="actions">${storeLink({ appStore })}</p>`;
   if (url)
     return `<p class="actions"><a class="button button--start" href="${esc(url)}" rel="noopener" data-test="testflight">Join the TestFlight</a></p>
 <p class="actions__note">TestFlight is Apple’s app for trying apps early. Get it, then open the link on your iPhone or iPad.</p>`;
   return `<p class="notice" data-test="testflight-invite">The beta is by invitation for now.</p>
 <p class="actions__note">You can play the same game in your browser.</p>
-<p><a class="button" href="/web/">Play on the web</a></p>`;
+<p><a class="button" href="/#play">Play on the web</a></p>`;
 }
+
+// The two sections the App Store listing's links point at (the 1.0 build list,
+// "The iPhone page for the store"): /ios/#support and /ios/#privacy. Support has
+// no words yet: what it says and the support address are the owner's to decide,
+// so it carries a marked placeholder (SUPPORT_PLACEHOLDER) until then. Privacy is
+// the privacy page's own words, and a link to it.
+export const SUPPORT_PLACEHOLDER =
+  "[Support: the words and the support address are still to be decided.]";
+const storeSections =
+  () => `<section class="band band--baton" aria-label="Support and privacy">
+  <div class="frame help">
+    <div class="help__one" id="support">
+      <h2 class="display">Support</h2>
+      <p class="placeholder" data-placeholder="support">${esc(SUPPORT_PLACEHOLDER)}</p>
+      <p><a class="more" href="/rules/">How to play and how to throw</a></p>
+    </div>
+    <div class="help__one" id="privacy">
+      <h2 class="display">Privacy</h2>
+      <p>There are no accounts and no ads, and nothing is ever sold. The privacy page says what the game keeps, on the web and in the app.</p>
+      <p><a class="more" href="/privacy/">The privacy page</a></p>
+    </div>
+  </div>
+</section>`;
 
 function ios({ tinylytics, config = {} }) {
   const body = `<section class="hero">
   <div class="frame hero__inner hero__split">
     <div class="hero__text">
-      <p class="label kicker">In beta on TestFlight</p>
+      ${APP_STORE_URL ? "" : `<p class="label kicker">In beta on TestFlight</p>`}
       <h1 class="display">On iPhone and iPad</h1>
-      <p class="lede">Kubb in the palm of your hand. Wind up with your thumb and feel the dial tick. On an iPad the pitch is just bigger.</p>
+      <p class="lede">Kubb in the palm of your hand. Wind up with your thumb and feel the meter tick. On an iPad the pitch is just bigger.</p>
       ${iosJoin()}
     </div>
     <div class="phones">
-      ${img("ios-aim", "The iPhone app before a throw. Turn 1, two batons left, and the dial reads WIND BACK.", { eager: true, cls: "shot shot--tall" })}
+      ${img("ios-aim", "The iPhone app before a throw. Turn 1, two batons left, and the meter reads WIND BACK.", { eager: true, cls: "shot shot--tall" })}
       ${img("ios-flight", "The iPhone app mid-throw. A baton flies toward the far baseline.", { cls: "shot shot--tall" })}
     </div>
   </div>
@@ -228,12 +295,12 @@ function ios({ tinylytics, config = {} }) {
   <h2 class="display" id="source">Open source</h2>
   <p>The app is open source under the MIT license. Its code is ${external(IOS_REPO, "on GitHub")}. The <a href="/privacy/">privacy page</a> says what the game keeps, on the web and in the app.</p>
 </section>
+${storeSections()}
 ${signup()}`;
   return page({
     path: "/ios/",
     title: `iPhone and iPad · ${SITE_TITLE}`,
-    description:
-      "Kubb: Throwing Wood for iPhone and iPad, in beta on TestFlight. Throw with your thumb and play friends on the web.",
+    description: `Kubb: Throwing Wood for iPhone and iPad${APP_STORE_URL ? "" : ", in beta on TestFlight"}. Throw with your thumb and play friends on the web.`,
     body,
     tinylytics,
     release: config.release?.text,
@@ -268,7 +335,7 @@ export const playdateBuildVersion = (url = PLAYDATE_BUILD.url) =>
   playdateBuildFile(url).match(/^ThrowingWood-(\d+\.\d+\.\d+)\.pdx\.zip$/)[1];
 
 // Simulator captures from the Playdate site (800 x 480). They are from before
-// the clock throw, so the page says the dial looks different now.
+// the clock throw, so the page says the meter looks different now.
 const PLAYDATE_SCREENS = [
   [
     "flight",
@@ -354,7 +421,7 @@ function playdate({ tinylytics, config = {} }) {
 </section>
 <section class="frame" aria-labelledby="screens">
   <h2 class="display" id="screens">Screens</h2>
-  <p class="section__lede">From an earlier build, at twice the Playdate’s size. The throwing dial looks different now.</p>
+  <p class="section__lede">From an earlier build, at twice the Playdate’s size. The throwing meter looks different now.</p>
   <ul class="pd-screens">
     ${PLAYDATE_SCREENS.map(
       ([name, alt]) =>
@@ -382,7 +449,7 @@ function playdate({ tinylytics, config = {} }) {
 </section>
 <section class="frame prose" aria-labelledby="open">
   <h2 class="display" id="open">One game, three screens</h2>
-  <p>No Playdate? The same game plays <a href="/web/">in your browser</a> and <a href="/ios/">on iPhone and iPad</a>, in color. They grew from this one, and all three run the same <a href="/engine/">Kubb Engine</a>.</p>
+  <p>No Playdate? The same game plays <a href="/#play">in your browser</a> and <a href="/ios/">on iPhone and iPad</a>, in color. They grew from this one, and all three run the same <a href="/engine/">Kubb Engine</a>.</p>
   <p>The Playdate game is open source. Its code is ${external(PLAYDATE_REPO, "on GitHub")}.</p>
 </section>
 ${signup()}`;
@@ -408,6 +475,7 @@ function engine({ tinylytics, config = {} }) {
   <div class="frame hero__inner">
     <h1 class="display">The Kubb Engine</h1>
     <p class="lede">A baton clips a corner. One kubb tips into the next. KLAK. The engine is the code that decides where the wood goes.</p>
+    <p class="actions">${playNow()}</p>
   </div>
   ${heroScene()}
 </section>
@@ -478,6 +546,7 @@ ${signup()}`;
     body,
     tinylytics,
     release: config.release?.text,
+    scripts: ["/js/start.js"],
   });
 }
 

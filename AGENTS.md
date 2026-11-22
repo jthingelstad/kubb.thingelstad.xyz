@@ -61,16 +61,32 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
 
 throwingwood.com is the landing site for the whole game (Jamie, 2026-11-20: "We need to
 separately land the throwingwood.com website as a real landing page for the game, not just
-the game."). `/` is the landing page and never the lobby (a site check holds it to that);
-the web game's own page, with Start a pitch, Play the computer, Watch the computer,
-Practice and Open games, is `/web/`, and every in-game HOME goes there. `/ios/`,
-`/playdate/`, `/engine/` and `/love/` are the other landing pages
-(`src/site/landing.mjs`; `/rules/`, `/privacy/` and the game pages are in
-`src/site/pages.mjs`). A path without its trailing slash answers with a 301 to the slashed
-one. `/love/` lists the five kubb sites Jamie named, in his order, under his heading; a
+the game."). Since the Throwing Wood 1.0 design (2026-11-21) `/` is the one landing page
+and the web game's page with it: PLAY NOW in the hero, then under `#play` Play the
+computer, Start a pitch (with Who can join), Practice, Watch the computer, Settings and
+the open games, Throw by feel, iPhone and Playdate, and the newsletter block. It is still a
+reading page, never the game or its lobby (a site check holds it to that). `/web/`, the
+web game's page until then, answers 301 to `/#play` (`infra/viewer-request.js`), so every
+in-game HOME, which still names `/web/`, lands there. PLAY NOW (`playNow` in
+`src/site/landing.mjs`, also on `/engine/`) opens `/p/<code>?solo=1&play=1`: a device with
+no kept match options starts at once on Park, a Beginner computer, 2-4-6, raising by
+hand and no wind (`FIRST_MATCH`, `soloKept` in `src/ui/cards.js`; `startSolo` in
+`src/main.js`), one that has played gets the options card. The header is Play, iPhone,
+Playdate, How to play; the footer Rules, The engine, Kubb sites we love, Newsletter,
+Support (`/ios/#support`), Privacy and the version (`NAV`, `FOOT_NAV` in
+`src/site/layout.mjs`). `public/style.css` holds the 1.0 system's tokens: round corners
+(6 px controls, 8 px cards), a 3 px ink line, 3 px and 5 px shadows, marigold the one go
+colour (`.button--start`, one per page), wood for bands only. `/ios/`, `/playdate/`,
+`/engine/` and `/love/` are the other landing pages (`src/site/landing.mjs`; `/rules/`,
+`/privacy/` and the game pages are in `src/site/pages.mjs`). A path without its trailing
+slash answers with a 301 to the slashed one. `/love/` lists the five kubb sites Jamie named, in his order, under his heading; a
 check pins the names, URLs and order. `TESTFLIGHT_URL` in `src/site/site.mjs` is the one
 switch for `/ios/`: set, the page shows "Join the TestFlight"; empty, it says the beta is
-by invitation and shows no button. Every claim on `/engine/` has a source in the engine's
+by invitation and shows no button. `APP_STORE_URL` beside it is the store badge's switch:
+empty (until the app is live), / and /ios/ keep the TestFlight wording; set, they show
+Apple's badge (`storeLink`), whose artwork goes in at `APP_STORE_BADGE` with it. `/ios/`
+has the sections `#support` and `#privacy` the App Store listing links to; Support's words
+are a marked placeholder (`SUPPORT_PLACEHOLDER`) until the owner gives them. Every claim on `/engine/` has a source in the engine's
 docs or tests; keep it that way. The pages announce nothing that is not live: no dates,
 no store, no features in progress.
 
@@ -87,9 +103,10 @@ no autoplay.
 
 The newsletter sign-up (Jamie, 2026-11-20: "Here is mailing list subscribe information
 for the website. Use the link or modify the embed however you wish.") is one block,
-`signup()` in `src/site/newsletter.mjs`: big near the end of `/`, small at the foot of
-`/web/`, `/ios/`, `/playdate/` and `/engine/` (`NEWSLETTER_PAGES`; a site check pins
-them), and "Newsletter" in the footer. It is a plain form that posts the one `email`
+`signup()` in `src/site/newsletter.mjs`: big at the end of `/` (kept there with the 1.0
+design: the owner, 2026-11-21, "Keep the block"), small at the foot of `/ios/`,
+`/playdate/` and `/engine/` (`NEWSLETTER_PAGES`; a site check pins them), and
+"Newsletter" in the footer. It is a plain form that posts the one `email`
 field to Buttondown and lands on Buttondown's own page in the same tab: no script, no
 analytics event, nothing kept by the site. `NEWSLETTER_LIST` in `src/site/site.mjs` is the
 one switch (the list's page, the form's action and the "Powered by Buttondown." referral
@@ -132,7 +149,7 @@ address or home path in `dist/`, no account id in Markdown).
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `0.11.0 (0.13.4)`, at the foot of
+the full version of the newest engine the site carries, `0.12.0 (0.13.4)`, at the foot of
 every reading page and of MENU, with "Also plays ..." under it in MENU only while older
 engines are carried (none today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
@@ -251,7 +268,7 @@ a shared pitch to the api, which writes them to the private games bucket for goo
 room: the browser sends each once when it ends (`src/net/record.js`, Jamie 2026-11-16:
 "watch mode should record ... All games recorded"), kept under
 `games/browser/<yyyy-mm-dd>/`. The players' names (generated names, "Names" above) are in them: records are pulled to
-`build/games/` (never in git) and never published. The web game's page (`/web/`) says what is recorded.
+`build/games/` (never in git) and never published. The landing page's `#play` says that matches are recorded.
 Practice is not recorded. The reading pages say only that matches are recorded to make the
 game better, on purpose (Jamie, 2026-11-20: "privacy page can just say that matches are
 recorded to improve the the game. we don't need to record iPhone against computer."): the
@@ -304,7 +321,7 @@ under `reports/<yyyy-mm-dd>/`, kept for good like the games.
 
 ## Watch the computer
 
-`/p/<code>?watch=1` (the web game's page, `/web/`: "Watch the computer", added 2026-11-16 on Jamie's ask: "I
+`/p/<code>?watch=1` (the landing page's `#play`: "watch the computer", added 2026-11-16 on Jamie's ask: "I
 could oddly imagine watching that in a background window. Also a great way to get test
 data."): the session's `cpu = "both"` with a seat that plays no side
 (`startWatch` in `src/main.js`). The computer throws, raises and places punishment kubbs
@@ -351,7 +368,7 @@ port: `docs/OBSERVER.md`.
 A host can make a pitch open (Jamie, 2026-11-16: "allow a game to be created open so it
 can be joined by anyone ... Open and invite only are both supported"): the lobby's "Who
 can join" (Invite only, the default, or Open), or Open on the web game's page's start step
-(`?open=1`). That page (`/web/`) lists open games under "Open games" (`public/js/open-games.js`):
+(`?open=1`). The landing page lists open games under "Open games" (`public/js/open-games.js`):
 counts, state and age only, never names, the 20 newest, refreshed every 30 s, each with
 JOIN and WATCH (Observer mode). The host's
 browser tells the pitch server what to list (`docs/MULTIPLAYER.md`), and the page reads

@@ -62,7 +62,7 @@ const valid = (page, name) =>
   );
 
 browserTest(
-  "/settings/ from the web game's page: a typed name from before is replaced; the rows are kept for the game",
+  "/settings/ from the landing page: a typed name from before is replaced; the rows are kept for the game",
   async () => {
     // a device from before: a typed name, and the level only on its solo card
     const ctx = await env.browser.newContext(VIEWPORTS.desktop);
@@ -79,7 +79,7 @@ browserTest(
     page.errors = [];
     page.on("pageerror", (e) => page.errors.push(e.message));
     try {
-      await page.goto(env.base + "/web/");
+      await page.goto(env.base + "/");
       await page.click('a[href="/settings/"]');
       await page.waitForSelector("[data-test=settings-name]");
       // the typed name is never shown: a generated one stands in its place
@@ -109,7 +109,8 @@ browserTest(
       await pick(page, "menu-side", "left");
       await pick(page, "mute", "off");
       await page.click("[data-test=settings-done]");
-      await page.waitForURL(/\/web\/$/);
+      // DONE goes HOME, /web/, which answers 301 to the landing page's #play
+      await page.waitForURL(/\/#play$/);
 
       // the game reads them as Settings left them
       await page.goto(env.base + "/practice/?nohowto=1");

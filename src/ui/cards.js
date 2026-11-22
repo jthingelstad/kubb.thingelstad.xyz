@@ -370,6 +370,24 @@ export const SOLO_DEFAULTS = {
   scene: "day",
 };
 
+// PLAY NOW on the landing page (the 1.0 design: "drops a first-time visitor
+// straight into a match on defaults"): a device with no kept match options starts
+// at once on these, Park (the day scene), a Beginner computer, 2-4-6, raising by
+// hand, no wind; one that has kept options (it pressed START, or played a PLAY NOW
+// match, which keeps these) gets the card. A saved name alone is not options.
+export const FIRST_MATCH = {
+  ...SOLO_DEFAULTS,
+  computer: "beginner",
+  scene: "day",
+  opening: "2-4-6",
+  raising: "hand",
+  wind: "off",
+};
+export const soloKept = (saved) =>
+  !!saved &&
+  typeof saved === "object" &&
+  Object.keys(saved).some((k) => k !== "name");
+
 const OPTION_ROWS = [
   [
     "computer",

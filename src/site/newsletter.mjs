@@ -1,6 +1,7 @@
-// The newsletter sign-up, written once: big near the end of /, small at the
-// foot of /web/, /ios/, /playdate/ and /engine/ (NEWSLETTER_PAGES). Not on the
-// game pages, /rules/, /privacy/ or /love/.
+// The newsletter sign-up, written once: big at the end of / (the owner kept the
+// block there with the 1.0 design, 2026-11-21: "Keep the block"), small at the
+// foot of /ios/, /playdate/ and /engine/ (NEWSLETTER_PAGES), and "Newsletter" in
+// the footer. Not on the game pages, /rules/, /privacy/ or /love/.
 //
 // A plain form that posts to Buttondown (NEWSLETTER_ACTION in src/site/site.mjs)
 // and lands on Buttondown's own page in the same tab. No script: it works with
@@ -10,13 +11,7 @@
 import { esc } from "./layout.mjs";
 import { NEWSLETTER_ACTION, NEWSLETTER_REFER } from "./site.mjs";
 
-export const NEWSLETTER_PAGES = [
-  "/",
-  "/web/",
-  "/ios/",
-  "/playdate/",
-  "/engine/",
-];
+export const NEWSLETTER_PAGES = ["/", "/ios/", "/playdate/", "/engine/"];
 
 const LEDE = {
   big: "Sign up and we’ll tell you when there is something new to throw. No spam. Just kubb.",

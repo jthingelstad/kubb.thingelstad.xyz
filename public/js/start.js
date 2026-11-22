@@ -1,4 +1,4 @@
-// The web game's buttons (/web/): every link marked data-pitch goes to a pitch of
+// The web game's buttons (on / and PLAY NOW on /engine/): every link marked data-pitch goes to a pitch of
 // its own, /p/<code>, the code made here as the link is used. Without this
 // script the links go to /p/, which sends the browser on to a new code.
 // Also the choice beside START A PITCH: invite only or open.

@@ -1,10 +1,8 @@
 // Every page of the site: the path it is served at, the file it is built to,
 // and its HTML. The game pages take the build's runtime config and assets.
 import { esc, gamePage, page } from "./layout.mjs";
-import { heroScene } from "./art.mjs";
 import { GAME_READY, SITE_TITLE } from "./site.mjs";
 import { LANDING_PAGES } from "./landing.mjs";
-import { signup } from "./newsletter.mjs";
 
 // HOW TO PLAY, the Playdate game's six cards (playdate-kubb
 // source/core/howtoplay.lua), in sentence case. The sixth card (the score
@@ -52,87 +50,9 @@ export const RULES = [
   },
 ];
 
-// Everything the page promises is playable once the game is in place: a
-// pitch link with friends, the computer and practice. No notice then.
-const BUILDING = GAME_READY
-  ? ""
-  : `<p class="notice">The game is still being built. Until it is, a pitch only says so.</p>`;
-
-// The web game's list of open games (public/js/open-games.js reads the pitch
-// server's GET /open): only when this build has a pitch server.
-function openGames(pitchUrl) {
-  if (!pitchUrl) return "";
-  return `<section class="frame open-games" aria-labelledby="open-games" data-pitchserver="${esc(pitchUrl)}" hidden>
-  <h2 class="display" id="open-games">Open games</h2>
-  <p>These pitches are open to anyone. Join one and pick a side, or watch a match.</p>
-  <ul class="open-list" data-open-list></ul>
-  <p class="open-status" data-open-status role="status">Looking for open games...</p>
-</section>`;
-}
-
-// /web/: the web game's home (it was / until 2026-11-20, when / became the
-// landing page for the whole game, src/site/landing.mjs). Start a pitch, play or
-// watch the computer, practice, and the open games.
-function web({ tinylytics, config = {} }) {
-  const body = `<section class="hero">
-  <div class="frame hero__inner">
-    <h1 class="hero__title"><span class="hero__kubb">Kubb</span><span class="hero__band">Throwing Wood</span></h1>
-    <p class="lede">Kubb in your browser. Play with friends on one pitch, each on your own screen.</p>
-    <div class="actions">
-      <a class="button button--start" href="/p/" data-pitch="" data-start>Start a pitch</a>
-      <fieldset class="access" data-access hidden>
-        <legend class="label">Who can join</legend>
-        <label><input type="radio" name="access" value="invite" checked> Invite only, for people with the link</label>
-        <label><input type="radio" name="access" value="open"> Open, in the list below for anyone</label>
-      </fieldset>
-      <div class="actions__more">
-        <a class="button" href="/p/?solo=1" data-pitch="?solo=1">Play the computer</a>
-        <a class="button" href="/p/?watch=1" data-pitch="?watch=1">Watch the computer</a>
-        <a class="button" href="/practice/">Practice</a>
-        <a class="button" href="/settings/">Settings</a>
-      </div>
-    </div>
-    ${BUILDING}
-  </div>
-  ${heroScene()}
-</section>
-${openGames(config.pitchUrl)}
-<section class="frame how" aria-labelledby="how">
-  <h2 class="display" id="how">How it works</h2>
-  <ol class="steps">
-    <li><strong>Start a pitch.</strong> You get a pitch with its own link.</li>
-    <li><strong>Send the link.</strong> Friends open it, pick a name and pick a team. Up to six can play on each side. The computer plays an empty side. Make your pitch open and it shows up under Open games for anyone.</li>
-    <li><strong>Throw wood.</strong> Everyone sees every throw. Knock down their kubbs, then the king.</li>
-  </ol>
-  <p>No one to play with? Play the computer, or throw batons on the practice pitch. You can also sit back and watch the computer play itself, match after match.</p>
-  <p>Pick a scene: Day, Night under a full moon, or Neon, where the pitch glows in the dark. On a shared pitch the host picks it for everyone.</p>
-  <p>Matches are recorded to help make the game better. A record holds the throws and the players’ names. Records stay private and are never published. Practice is not recorded.</p>
-  <p>The Open games list shows how many are on a pitch and if the match has started. It never shows names. Feedback from the game’s menu is kept privately too. It holds what you typed and the game as it stood, which can include the players’ names.</p>
-  <p>Anyone with a finished pitch’s link can make a highlight reel. It is a short video of the best throws, with the team names. Like the replay, it is kept for a year.</p>
-  <p>A match against the computer is shared only when you choose, one match at a time. It carries how the match started, with the day and time. It also carries every throw and the name you pick for your side. It gets its own link. Anyone with the link can watch it, and it is kept for a year.</p>
-</section>
-<section class="frame about" aria-labelledby="about">
-  <h2 class="display" id="about">The same game</h2>
-  <p>This is <a href="/">Kubb: Throwing Wood</a>, Jamie’s kubb game. The rules, the physics and the computer player match the games on <a href="/playdate/">Playdate</a> and <a href="/ios/">iPhone</a>.</p>
-  <p>Here you throw with a finger or a mouse. Pull the meter back to the orange mark. Then flick it through and let go on the blue mark.</p>
-  <p><a class="more" href="/rules/">How to play and how to throw</a></p>
-</section>
-${signup()}`;
-  return page({
-    path: "/web/",
-    title: `Play in your browser · ${SITE_TITLE}`,
-    description:
-      "Play kubb in your browser. Start a pitch, send the link and throw wood with friends. Or play the computer, or practice.",
-    body,
-    bodyClass: "home",
-    tinylytics,
-    release: config.release?.text,
-    scripts: [
-      "/js/start.js",
-      ...(config.pitchUrl ? ["/js/open-games.js"] : []),
-    ],
-  });
-}
+// The web game's page, /web/, was folded into the landing page by the 1.0 design
+// (src/site/landing.mjs): its buttons and the open games are on / under #play,
+// and /web/ answers 301 to /#play (infra/viewer-request.js).
 
 function rules({ tinylytics, config = {} }) {
   const cards = RULES.map(
@@ -328,7 +248,6 @@ function embed({ config, assets }) {
 
 export const PAGES = [
   ...LANDING_PAGES,
-  { path: "/web/", file: "web/index.html", render: web, sources: ["src/site"] },
   {
     path: "/rules/",
     file: "rules/index.html",

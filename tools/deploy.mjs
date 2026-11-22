@@ -244,7 +244,6 @@ const wasm = JSON.parse(
 ).wasmUrl;
 for (const [route, file] of [
   ["/", "index.html"],
-  ["/web/", "web/index.html"],
   ["/rules/", "rules/index.html"],
   ["/practice/", "practice/index.html"],
   ["/p/abcd2345", "pitch/index.html"],

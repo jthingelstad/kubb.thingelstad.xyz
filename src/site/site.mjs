@@ -72,6 +72,14 @@ export const PLAYDATE_REPO = "https://github.com/jthingelstad/playdate-kubb";
 // invitation and shows no button (src/site/landing.mjs iosJoin).
 export const TESTFLIGHT_URL = "https://testflight.apple.com/join/rTx8uTn1";
 
+// The iPhone app's App Store page, once the app is live: the one switch for the
+// store badge (src/site/landing.mjs storeLink). Empty, every page keeps the
+// TestFlight wording above. Set, / and /ios/ show Apple's "Download on the App
+// Store" badge in its place, from APP_STORE_BADGE (Apple's own artwork, added to
+// public/landing/ with the switch; validate:site fails while it is missing).
+export const APP_STORE_URL = "";
+export const APP_STORE_BADGE = "/landing/app-store-badge.svg";
+
 // The newsletter: a Buttondown list (Jamie, 2026-11-20: "Here is mailing list
 // subscribe information for the website. Use the link or modify the embed
 // however you wish."). The list's name is the one switch: its page, the form's
