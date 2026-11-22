@@ -20,8 +20,10 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 // The engine's Lua: these folders' *.lua files and version.lua, as kubb-engine's
-// tools/bundle.mjs takes them. Module names are the paths without ".lua".
-const DIRS = ["core", "room", "session", "tune"];
+// tools/bundle.mjs takes them. Module names are the paths without ".lua". The
+// shared pitch is pitch/ from 0.13 and room/ before it; an engine has one or the
+// other, and a folder an engine does not have is skipped.
+const DIRS = ["core", "pitch", "room", "session", "tune"];
 const TOP = ["version.lua"];
 
 export const majorMinor = (version) =>
@@ -63,9 +65,12 @@ function engineDir(which) {
 
 function engineFiles(dir) {
   const files = [...TOP];
-  for (const sub of DIRS)
-    for (const f of fs.readdirSync(path.join(dir, sub)))
+  for (const sub of DIRS) {
+    const folder = path.join(dir, sub);
+    if (!fs.existsSync(folder)) continue;
+    for (const f of fs.readdirSync(folder))
       if (f.endsWith(".lua")) files.push(`${sub}/${f}`);
+  }
   return files.sort();
 }
 
