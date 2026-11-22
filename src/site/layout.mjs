@@ -66,22 +66,26 @@ const SHARE = {
     "KUBB in cut wood letters over THROWING WOOD, a baton flying at a kubb and the king on green grass",
 };
 
-// The site's sections, in the rail along the top of every reading page and in
-// the footer (with the rules, privacy and the newsletter's page on Buttondown).
-// Play is the web game's own page.
+// The site's header and footer (the Throwing Wood 1.0 design's build list,
+// "Navigation"): the header names the ways in, the footer the rest, with the
+// version. Play is the landing page's own section (the web game's page, /web/,
+// was folded into / and answers 301 to /#play). `page` is the page an entry
+// opens, for validate:site and aria-current.
 export const NAV = [
-  { href: "/web/", label: "Play" },
+  { href: "/#play", page: "/", label: "Play" },
   { href: "/ios/", label: "iPhone" },
   { href: "/playdate/", label: "Playdate" },
-  { href: "/engine/", label: "Engine" },
-  { href: "/love/", label: "Love" },
+  { href: "/rules/", label: "How to play" },
 ];
-const FOOT_NAV = [
-  ...NAV,
+export const FOOT_NAV = [
   { href: "/rules/", label: "Rules" },
-  { href: "/privacy/", label: "Privacy" },
+  { href: "/engine/", label: "The engine" },
+  { href: "/love/", label: "Kubb sites we love" },
   { href: NEWSLETTER_URL, label: "Newsletter", external: true },
+  { href: "/ios/#support", page: "/ios/", label: "Support" },
+  { href: "/privacy/", label: "Privacy" },
 ];
+// an entry is the current page only when it opens the page itself, not a section
 const current = (href, path) => (href === path ? ' aria-current="page"' : "");
 
 // release: the release label ("0.2.0 (0.8.1)": the app's version and the newest engine's,
@@ -92,13 +96,15 @@ export function footer(release = null, path = "") {
     <nav class="foot__nav" aria-label="Throwing Wood"><ul>${FOOT_NAV.map(
       ({ href, label, external }) =>
         `<li><a href="${href}"${external ? ' rel="noopener"' : current(href, path)}>${esc(label)}</a></li>`,
-    ).join("")}</ul></nav>
+    ).join(
+      "",
+    )}</ul>${release ? `<p class="foot__release" data-release>Version ${esc(release)}</p>` : ""}</nav>
     <p>Made by
       <a class="h-card" href="${OWNER.url}" rel="me author"><img class="u-photo" src="${OWNER.avatar}" alt="" width="28" height="28"><span class="p-name">${esc(OWNER.name)}</span><data class="u-url" value="${OWNER.url}"></data><data class="p-note" value="${esc(OWNER.note)}"></data></a>.
       Throw wood in your browser, on iPhone and iPad, or on <a href="/playdate/">Playdate</a>. Jamie’s other projects are on <a href="${ref("https://thingelstad.xyz/", "footer")}">Things I’ve built</a>.
     </p>
     <p class="foot__small">Playdate is a trademark of Panic Inc. This game is not made by Panic. iPhone and iPad are trademarks of Apple Inc. The display type is Londrina Solid, under the <a href="/fonts/OFL-LondrinaSolid.txt">SIL Open Font License</a>.</p>
-${release ? `    <p class="foot__small foot__release" data-release>Version ${esc(release)}</p>\n` : ""}  </div>
+  </div>
 </footer>`;
 }
 
@@ -172,7 +178,7 @@ ${styles.map((href) => `<link rel="stylesheet" href="${href}">`).join("\n")}
   <div class="noscript">
     <h1 class="display">Kubb needs JavaScript</h1>
     <p>The game runs in your browser: the pitch is drawn by a script and the Kubb is the Playdate game’s own code. Turn JavaScript on for this site to play.</p>
-    <p>Meanwhile, <a href="/rules/">read the rules</a> or go <a href="/web/">back to the start</a>.</p>
+    <p>Meanwhile, <a href="/rules/">read the rules</a> or go <a href="/">back to the start</a>.</p>
   </div>
 </noscript>
 ${analytics(tinylytics)}

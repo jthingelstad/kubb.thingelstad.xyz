@@ -24,8 +24,8 @@ npm run dev            # rebuild on change, plus the local pitch server on ws://
 
 | Path         | What                                                                                 |
 | ------------ | ------------------------------------------------------------------------------------ |
-| `/`          | The landing page: the game, its three ways to play, online play, replays, reels      |
-| `/web/`      | The web game: start a pitch, play or watch the computer, practice, open games        |
+| `/`          | The landing page and the web game: PLAY NOW, three ways to start, open games         |
+| `/web/`      | 301 to `/#play` (the web game's page until the 1.0 design)                           |
 | `/ios/`      | The iPhone and iPad app, in beta on TestFlight (`TESTFLIGHT_URL`, src/site/site.mjs) |
 | `/playdate/` | The Playdate game, in development                                                    |
 | `/engine/`   | The Kubb Engine                                                                      |
@@ -35,8 +35,8 @@ npm run dev            # rebuild on change, plus the local pitch server on ws://
 | `/practice/` | The practice pitch                                                                   |
 | `/rules/`    | How Kubb is played, and how to throw on the web                                      |
 
-Every page is in `src/site/`: the landing pages in `landing.mjs`, the web game's page,
-rules, privacy and the game pages in `pages.mjs`. A path without its trailing slash
+Every page is in `src/site/`: the landing pages in `landing.mjs`, rules, privacy and the
+game pages in `pages.mjs`. A path without its trailing slash
 redirects to it (`infra/viewer-request.js`). The landing pages' pictures are real
 captures in `public/landing/` (WebP; each `<img>` takes its size from the file).
 

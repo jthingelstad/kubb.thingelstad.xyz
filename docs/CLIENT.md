@@ -24,7 +24,11 @@ list): in step at once, mid-match or not, it never acts or hosts and has its own
 between matches. docs/OBSERVER.md.
 
 A failure to start shows a plain error card with RELOAD and HOME. HOME, on every card, is
-the web game's page, `/web/` (`/` is the landing page for the whole game). The HOW TO THROW overlay
+`/web/`, which answers 301 to the landing page's `#play` since the 1.0 design (`/` is the
+landing page and the web game's page in one). PLAY NOW there opens `/p/<code>?solo=1&play=1`:
+with no kept match options (`soloKept`) the match starts at once on `FIRST_MATCH` (Park, a
+Beginner computer, 2-4-6, by hand, no wind) and those options are kept; otherwise the
+options card, as `?solo=1`. The HOW TO THROW overlay
 (four steps, an animated dial) shows on the first visit and from the menu; `?nohowto` skips it.
 
 ## Files

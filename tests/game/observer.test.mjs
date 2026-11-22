@@ -186,9 +186,9 @@ browserTest(
     await waitFor(host, () => window.__kubb.pitch.state().mode === "match");
     await throwCommitted(host);
 
-    // the web game's page: the row has JOIN and WATCH
+    // the landing page's open games: the row has JOIN and WATCH
     const home = await open(
-      `${env.base}/web/?${roomsQ()}`,
+      `${env.base}/?${roomsQ()}`,
       "desktop",
       "Lively Linden",
     );

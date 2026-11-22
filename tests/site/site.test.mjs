@@ -24,6 +24,7 @@ import {
   NEWSLETTER_REFER,
   NEWSLETTER_URL,
   PITCH_URL,
+  APP_STORE_URL,
   TESTFLIGHT_URL,
   ref,
 } from "../../src/site/site.mjs";
@@ -37,13 +38,17 @@ import { PITCH_CODE } from "../../backend/pitch-server/core.mjs";
 import { PITCH_CODE as API_CODE } from "../../backend/api/checks.mjs";
 import { releaseOf } from "../../tools/build.mjs";
 import { carriedEngines } from "../../tools/lua-bundle.mjs";
-import { NAV, footer } from "../../src/site/layout.mjs";
+import { FOOT_NAV, NAV, footer } from "../../src/site/layout.mjs";
 import {
   LOVE,
   GOLDEN_COUNT,
   PLAYDATE_BUILD,
+  PLAY_NOW,
+  SUPPORT_PLACEHOLDER,
   iosJoin,
+  playNow,
   playdateBuildVersion,
+  storeLink,
 } from "../../src/site/landing.mjs";
 import { PAGES } from "../../src/site/pages.mjs";
 
@@ -162,11 +167,36 @@ test("directories serve index.html; other paths get the slash", () => {
   assert.equal(moved.statusCode, 301);
   assert.equal(moved.headers.location.value, "/rules/?ref=x");
   // the landing site's pages, with and without the slash
-  for (const page of ["web", "ios", "playdate", "engine", "love"]) {
+  for (const page of ["ios", "playdate", "engine", "love"]) {
     assert.equal(request(`/${page}/`).uri, `/${page}/index.html`);
     const bare = request(`/${page}`);
     assert.equal(bare.statusCode, 301);
     assert.equal(bare.headers.location.value, `/${page}/`);
+  }
+});
+
+test("/web/ was folded into /: it answers 301 to /#play, keeping the query", () => {
+  for (const [address, location] of [
+    ["/web/", "/#play"],
+    ["/web", "/#play"],
+    ["/web/index.html", "/#play"],
+    ["/web/?pitchserver=ws://x", "/?pitchserver=ws://x#play"],
+  ]) {
+    const result = request(address);
+    assert.equal(result.statusCode, 301, address);
+    assert.equal(result.headers.location.value, location, address);
+    assert.equal(request(location).uri, "/index.html");
+  }
+  // the old address goes to throwingwood.com first, then here
+  assert.equal(
+    request("https://kubb.thingelstad.xyz/web/").headers.location.value,
+    "https://throwingwood.com/web/",
+  );
+  // no page is built there any more, and nothing links it
+  assert.ok(!PAGES.some((p) => p.path === "/web/"));
+  for (const p of PAGES) {
+    const html = p.render({ config: {}, assets: { main: "/m.js" } });
+    assert.ok(!html.includes('href="/web/"'), `${p.path} links /web/`);
   }
 });
 
@@ -516,8 +546,8 @@ test("the version label: package.json's version and the newest engine's, never t
   const sha = "a2659b744210e4c5baa5b69c672e11ec87f9bfab";
   const release = releaseOf(pkg.version, sha, carried);
   assert.equal(release.text, `${pkg.version} (${carried[0].version})`);
-  // this checkout: 0.11.0 on 0.13.4, the one engine it carries (docs/ENGINES.md)
-  assert.equal(release.text, "0.11.0 (0.13.4)");
+  // this checkout: 0.12.0 on 0.13.4, the one engine it carries (docs/ENGINES.md)
+  assert.equal(release.text, "0.12.0 (0.13.4)");
   assert.equal(release.detail, null);
   // more than one carried (when the owner decides one is supported): "Also plays"
   const two = [carried[0], { ...carried[0], mm: "0.9", version: "0.9.0" }];
@@ -526,38 +556,164 @@ test("the version label: package.json's version and the newest engine's, never t
   // one engine carried: no detail
   assert.equal(releaseOf("0.2.0", sha, carried.slice(0, 1)).detail, null);
   const foot = footer(release.text);
-  assert.match(foot, /data-release>Version 0\.11\.0 \(0\.13\.4\)<\/p>/);
+  assert.match(foot, /data-release>Version 0\.12\.0 \(0\.13\.4\)<\/p>/);
   assert.ok(!foot.includes(sha.slice(0, 7)));
 });
 
-test("the landing site: / is the game, /web/ the web game, each nav page a page", () => {
+test("the landing site: / is the game and its web game, each nav entry a page", () => {
   const paths = PAGES.map((p) => p.path);
-  for (const { href } of NAV) assert.ok(paths.includes(href), href);
-  for (const p of ["/", "/web/", "/rules/", "/privacy/"])
+  for (const { href, page = href } of NAV)
+    assert.ok(paths.includes(page), href);
+  for (const p of ["/", "/rules/", "/privacy/"])
     assert.ok(paths.includes(p), p);
-  // the footer: the nav, then Rules and Privacy, the current page marked
+  // the header, as the 1.0 build list names it
+  assert.deepEqual(
+    NAV.map((n) => [n.label, n.href]),
+    [
+      ["Play", "/#play"],
+      ["iPhone", "/ios/"],
+      ["Playdate", "/playdate/"],
+      ["How to play", "/rules/"],
+    ],
+  );
+  // the footer: Rules, The engine, Kubb sites we love, Newsletter (Buttondown's
+  // own page), Support, Privacy, then the version; the current page marked
+  assert.deepEqual(
+    FOOT_NAV.map((n) => n.label),
+    [
+      "Rules",
+      "The engine",
+      "Kubb sites we love",
+      "Newsletter",
+      "Support",
+      "Privacy",
+    ],
+  );
   const foot = footer("0.8.0 (0.9.0)", "/love/");
-  for (const href of [...NAV.map((n) => n.href), "/rules/", "/privacy/"])
-    assert.ok(foot.includes(`href="${href}"`), href);
+  for (const { href } of FOOT_NAV) assert.ok(foot.includes(`href="${href}"`));
   assert.match(foot, /href="\/love\/" aria-current="page"/);
-  // and the newsletter's own page on Buttondown
   assert.ok(
     foot.includes(`<a href="${NEWSLETTER_URL}" rel="noopener">Newsletter</a>`),
   );
+  assert.ok(foot.includes('<a href="/ios/#support">Support</a>'));
+  assert.ok(
+    foot.indexOf("Privacy</a>") < foot.indexOf("data-release>Version"),
+    "the version ends the row",
+  );
 });
 
-test("the device's settings: /settings/ is a game page, linked from /web/, not indexed", () => {
+test("/: the one landing page, PLAY NOW its one go button, the web game under #play", () => {
+  const html = PAGES.find((p) => p.path === "/").render({
+    config: { pitchUrl: "wss://x.test" },
+  });
+  // the h1 reads "Kubb Throwing Wood", with a space between its two spans
+  assert.match(
+    html,
+    /<span class="hero__kubb">Kubb<\/span> <span class="hero__band">Throwing Wood<\/span>/,
+  );
+  assert.equal(PLAY_NOW, "?solo=1&play=1");
+  const hero = html.slice(0, html.indexOf("</section>"));
+  assert.ok(hero.includes(playNow()), "PLAY NOW in the hero");
+  assert.match(
+    playNow(),
+    /^<a class="button button--start" href="\/p\/\?solo=1&amp;play=1" data-pitch="\?solo=1&amp;play=1"/,
+  );
+  assert.equal(html.split("button--start").length - 1, 1, "one go button");
+  // the store's place: the TestFlight wording until the app is live
+  assert.ok(hero.includes(storeLink()));
+  assert.match(storeLink(), /data-test="testflight">Join the TestFlight<\/a>/);
+  // the sections, in the design's order
+  const order = [
+    'id="play"',
+    "Three ways to start",
+    "Against the computer",
+    "With friends",
+    "Just throw",
+    'id="open-games"',
+    "Throw by feel",
+    "On iPhone and iPad",
+    "On Playdate",
+    'data-test="newsletter"',
+  ].map((m) => html.indexOf(m));
+  assert.ok(
+    order.every((i, n) => i >= 0 && (n === 0 || i > order[n - 1])),
+    JSON.stringify(order),
+  );
+  const play = html.slice(html.indexOf('id="play"'));
+  // START A PITCH goes to a pitch, not to another page; Who can join beside it
+  assert.match(
+    play,
+    /<a class="button" href="\/p\/" data-pitch="" data-start>Start a pitch<\/a>/,
+  );
+  assert.match(play, /<fieldset class="access" data-access hidden>/);
+  assert.ok(play.includes('data-pitch="?solo=1"'));
+  assert.ok(play.includes('data-pitch="?watch=1"'));
+  assert.ok(play.includes('href="/practice/"'));
+  assert.ok(play.includes('<a href="/settings/">Settings</a>'));
+  assert.ok(play.includes('data-pitchserver="wss://x.test"'));
+  assert.match(html, /<script src="\/js\/start\.js" defer>/);
+  assert.match(html, /<script src="\/js\/open-games\.js" defer>/);
+  // the newsletter block stays (the owner, 2026-11-21: "Keep the block"), plain
+  assert.match(html, /class="frame news news--big"/);
+  // "meter", never "dial", on any reading page
+  for (const p of PAGES.filter((q) => !q.game))
+    assert.doesNotMatch(
+      p.render({ config: {} }),
+      /\bdial\b/i,
+      `${p.path} says dial`,
+    );
+});
+
+test("the store badge is one switch: APP_STORE_URL in place of the TestFlight wording", () => {
+  assert.equal(APP_STORE_URL, "", "the app is not live yet");
+  const live = storeLink({ appStore: "https://apps.apple.com/app/id1" });
+  assert.match(
+    live,
+    /^<a class="store-badge" href="https:\/\/apps\.apple\.com\/app\/id1" rel="noopener" data-test="app-store"><img src="\/landing\/app-store-badge\.svg" [^>]*alt="Download on the App Store"><\/a>$/,
+  );
+  assert.ok(!live.includes("TestFlight"));
+  const ios = iosJoin(TESTFLIGHT_URL, "https://apps.apple.com/app/id1");
+  assert.ok(ios.includes('data-test="app-store"'));
+  assert.ok(!ios.includes("TestFlight"));
+  // neither link: the iPhone page
+  assert.match(
+    storeLink({ appStore: "", testflight: "" }),
+    /href="\/ios\/">iPhone and iPad/,
+  );
+});
+
+test("/ios/: the support and privacy sections the store listing points at", () => {
+  const html = PAGES.find((p) => p.path === "/ios/").render({ config: {} });
+  for (const id of ["support", "privacy"])
+    assert.equal(html.split(`id="${id}"`).length - 1, 1, `#${id}`);
+  const support = html.slice(html.indexOf('id="support"'));
+  assert.ok(support.includes('data-placeholder="support"'));
+  assert.ok(support.includes(SUPPORT_PLACEHOLDER));
+  const privacy = html.slice(html.indexOf('id="privacy"'));
+  assert.ok(privacy.includes('href="/privacy/"'));
+  // still TestFlight until the app is live
+  assert.ok(html.includes("In beta on TestFlight"));
+  assert.ok(html.includes('data-test="testflight"'));
+});
+
+test("/engine/ has PLAY NOW", () => {
+  const html = PAGES.find((p) => p.path === "/engine/").render({ config: {} });
+  assert.ok(html.includes(playNow()));
+  assert.match(html, /<script src="\/js\/start\.js" defer>/);
+});
+
+test("the device's settings: /settings/ is a game page, linked from /, not indexed", () => {
   const page = PAGES.find((p) => p.path === "/settings/");
   assert.ok(page, "/settings/ is a page");
   assert.equal(page.noindex, true);
   const config = { mode: "x", release: { text: "0.7.1 (0.9.0)" } };
   const html = page.render({ config, assets: { main: "/assets/main.js" } });
   assert.match(html, /"mode":"settings"/);
-  const web = PAGES.find((p) => p.path === "/web/").render({ config });
-  assert.match(web, /<a class="button" href="\/settings\/">Settings<\/a>/);
+  const home = PAGES.find((p) => p.path === "/").render({ config });
+  assert.match(home, /<a href="\/settings\/">Settings<\/a>/);
 });
 
-test("the newsletter: a plain post to Buttondown's one list, on five pages", () => {
+test("the newsletter: a plain post to Buttondown's one list, on four pages", () => {
   assert.equal(NEWSLETTER_ORIGIN, "https://buttondown.com");
   assert.equal(NEWSLETTER_URL, "https://buttondown.com/throwing-wood");
   assert.equal(
@@ -565,13 +721,7 @@ test("the newsletter: a plain post to Buttondown's one list, on five pages", () 
     "https://buttondown.com/api/emails/embed-subscribe/throwing-wood",
   );
   assert.equal(NEWSLETTER_REFER, "https://buttondown.com/refer/throwing-wood");
-  assert.deepEqual(NEWSLETTER_PAGES, [
-    "/",
-    "/web/",
-    "/ios/",
-    "/playdate/",
-    "/engine/",
-  ]);
+  assert.deepEqual(NEWSLETTER_PAGES, ["/", "/ios/", "/playdate/", "/engine/"]);
   for (const size of ["big", "small"]) {
     const html = signup({ size });
     assert.match(
@@ -623,7 +773,7 @@ test("/ios/: no TestFlight button until there is a link, then one", () => {
   const empty = iosJoin("");
   assert.ok(!empty.includes("TestFlight</a>"));
   assert.match(empty, /by invitation/);
-  assert.match(empty, /href="\/web\/"/);
+  assert.match(empty, /href="\/#play"/);
   const set = iosJoin("https://testflight.apple.com/join/EXAMPLE1");
   assert.match(
     set,
@@ -772,7 +922,6 @@ test("robots.txt: crawlers stay off per-match addresses, link previews do not", 
   ];
   for (const path of [
     "/",
-    "/web/",
     "/ios/",
     "/playdate/",
     "/engine/",

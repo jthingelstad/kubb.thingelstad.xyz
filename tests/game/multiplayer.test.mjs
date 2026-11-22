@@ -676,7 +676,7 @@ browserTest(
     await waitFor(host, () => window.__kubb.pitch.state().open === true);
     assert.equal(await access(), "Open");
 
-    // the web game's page, /web/, as someone passing by
+    // the landing page, where the web game's page now is, as someone passing by
     const ctx = await env.browser.newContext(VIEWPORTS.portrait);
     const home = await ctx.newPage();
     home.errors = [];
@@ -685,7 +685,7 @@ browserTest(
     });
     const look = async () => {
       await home.goto(
-        `${env.base}/web/?pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
+        `${env.base}/?pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
       );
       await home.waitForFunction(
         () =>
@@ -732,7 +732,7 @@ browserTest(
     const passer = await ctx2.newPage();
     const lookAgain = async () => {
       await passer.goto(
-        `${env.base}/web/?pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
+        `${env.base}/?pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`,
       );
       await passer.waitForFunction(
         () =>

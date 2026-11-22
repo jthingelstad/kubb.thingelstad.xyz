@@ -135,39 +135,58 @@ for (const page of PAGES) {
 }
 
 // The site's pages: each served with and without its trailing slash,
-// indexed, in llms.txt and in the nav every reading page carries.
+// indexed, in llms.txt and in the header every reading page carries. An entry
+// that opens a section of a page (Play, /#play) is checked by its page.
 const landing = await read("index.html");
-for (const { href } of NAV) {
-  assert.ok(resolves(href), `${href} is served`);
-  assert.ok(resolves(href.slice(0, -1)), `${href.slice(0, -1)} redirects`);
-  assert.ok(!PAGES.find((p) => p.path === href).noindex, `${href} is indexed`);
+for (const { href, page = href } of NAV) {
+  assert.ok(resolves(page), `${page} is served`);
+  if (page !== "/")
+    assert.ok(resolves(page.slice(0, -1)), `${page.slice(0, -1)} redirects`);
+  assert.ok(!PAGES.find((p) => p.path === page).noindex, `${page} is indexed`);
   assert.ok(
-    (await read("llms.txt")).includes(`${ORIGIN}${href}`),
-    `${href} in llms.txt`,
+    (await read("llms.txt")).includes(`${ORIGIN}${page}`),
+    `${page} in llms.txt`,
   );
   assert.match(landing, new RegExp(`<a href="${href}"`), `/ links ${href}`);
 }
-// / is the landing page, not the lobby: one click from its hero to the web
-// game, and no pitch buttons or open games of its own. /web/ has them.
+// / is the landing page and, since the 1.0 design, the web game's page too
+// (/web/ was folded in and answers 301 to /#play): PLAY NOW in its hero, then
+// under #play the three ways to start, watching the computer, settings and the
+// open games. It is still a reading page, never the game's own page or its lobby:
+// no canvas, no game client.
 assert.ok(
-  !/data-pitch|data-pitchserver|data-access/.test(landing),
-  "/ is not the lobby",
+  !/<canvas|id="kubb-config"|id="ui"/.test(landing),
+  "/ is a reading page, not the game",
 );
 assert.match(
   landing.slice(0, landing.indexOf("</section>")),
-  /<a class="button button--start" href="\/web\/">/,
-  "/ reaches the web game from its hero",
+  /<a class="button button--start" href="\/p\/\?solo=1&amp;play=1" data-pitch="\?solo=1&amp;play=1"/,
+  "/ plays from its hero: PLAY NOW",
 );
-const web = await read("web/index.html");
+assert.equal(
+  landing.split("button--start").length - 1,
+  1,
+  "/ has one go button",
+);
+const play = landing.slice(landing.indexOf('id="play"'));
 for (const mark of [
   'data-pitch=""',
   'data-pitch="?solo=1"',
   'data-pitch="?watch=1"',
   'href="/practice/"',
+  'href="/settings/"',
   "data-access",
-  'src="/js/start.js"',
 ])
-  assert.ok(web.includes(mark), `/web/ has ${mark}`);
+  assert.ok(play.includes(mark), `/#play has ${mark}`);
+assert.ok(landing.includes('src="/js/start.js"'), "/ runs start.js");
+assert.ok(!keys.has("web/index.html"), "/web/ is no page of its own");
+assert.ok(resolves("/web/"), "/web/ redirects to a page");
+// /engine/ plays too
+assert.match(
+  await read("engine/index.html"),
+  /<a class="button button--start" href="\/p\/\?solo=1&amp;play=1"/,
+  "/engine/ has PLAY NOW",
+);
 // /ios/ shows a TestFlight button only when there is a link to put on it.
 const iosPage = await read("ios/index.html");
 assert.equal(

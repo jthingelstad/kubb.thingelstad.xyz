@@ -8,6 +8,8 @@
 //   /og/<code>.png   that pitch's share image; the static one, /share/kubb.png,
 //                    is what it falls back to
 //   /p, /p/          302 to a pitch with a new code (for a browser without scripts)
+//   /web, /web/      301 to /#play, keeping the query: the web game's page was
+//                    folded into the landing page (the 1.0 design, 2026-11-21)
 //   /x/         /x/index.html
 //   /x          301 to /x/, keeping the query
 //
@@ -62,6 +64,14 @@ function handler(event) {
       headers: { location: { value: HOME + uri + (query ? "?" + query : "") } },
     };
   if (uri === "/.well-known/apple-app-site-association") return request;
+  if (uri === "/web" || uri === "/web/" || uri === "/web/index.html")
+    return {
+      statusCode: 301,
+      statusDescription: "Moved Permanently",
+      headers: {
+        location: { value: "/" + (query ? "?" + query : "") + "#play" },
+      },
+    };
   if (uri === "/p" || uri === "/p/") {
     var alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
     var code = "";

@@ -207,8 +207,7 @@ export async function buildSite({
 
 ## Pages
 
-- [Home](${ORIGIN}/): the game and the three ways to play it.
-- [Play on the web](${ORIGIN}/web/): start a pitch, play or watch the computer, practice, or join an open game.
+- [Home](${ORIGIN}/): the game, and the web game itself: play the computer, start a pitch, practice, watch the computer, or join an open game.
 - [iPhone and iPad](${ORIGIN}/ios/): the app, in beta on TestFlight.
 - [Playdate](${ORIGIN}/playdate/): the Playdate game, thrown with the crank. Still in development.
 - [The Kubb Engine](${ORIGIN}/engine/): the one engine all three run, and how it was checked against real tournament games and video.
@@ -216,7 +215,7 @@ export async function buildSite({
 - [How to play](${ORIGIN}/rules/): the rules of kubb in five short cards, and how to throw on the web.
 - [Practice](${ORIGIN}/practice/): the practice pitch.
 - [Privacy](${ORIGIN}/privacy/): what the game keeps, on the web and on iPhone.
-- [Newsletter](${NEWSLETTER_URL}): news when there is something new to throw, sent by Buttondown. The sign-up form is near the end of the home page.
+- [Newsletter](${NEWSLETTER_URL}): news when there is something new to throw, sent by Buttondown. The sign-up form is at the end of the home page.
 
 A pitch at /p/<code> is one group's game, reached by its link; those pages are not indexed.
 

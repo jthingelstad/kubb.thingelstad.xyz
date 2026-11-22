@@ -19,7 +19,7 @@ import { makeRegistry } from "./engine/registry.js";
 import { Game } from "./game/game.js";
 import { Sound } from "./game/sound.js";
 import { prefs } from "./game/prefs.js";
-import { Cards, soloSaved } from "./ui/cards.js";
+import { Cards, FIRST_MATCH, soloKept, soloSaved } from "./ui/cards.js";
 import { Menu } from "./ui/menu.js";
 import { openSettingsPage } from "./ui/settings.js";
 import { namesOf } from "./game/names.js";
@@ -425,6 +425,14 @@ function startSolo(game, cards, { sheet, record, menu, asked }) {
       });
     }
   };
+  // PLAY NOW on the landing page (?play=1, src/site/landing.mjs): a device with no
+  // kept match options plays at once on FIRST_MATCH, kept as the card's options as
+  // START keeps them, so the next PLAY NOW opens the card; else the card as ever.
+  if (params.get("play") === "1" && !soloKept(prefs.get("solo", null))) {
+    prefs.set("solo", FIRST_MATCH);
+    play({ ...FIRST_MATCH, name: game.playerName });
+    return;
+  }
   // a pitch behind the options card
   game.newPractice({ surface: prefs.get("solo", {}).surface || "grass" });
   options();
