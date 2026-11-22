@@ -17,7 +17,7 @@ system" says how it works.
 | wood       | `#ecd09a`                  | plate title bands only                                 |
 | muted      | `#5b4a2c`                  | helper text, the header's line, captions               |
 | marigold   | `#f2b705`                  | the one go button a screen; Team A                     |
-| violet     | `#8e44ad`                  | Team B (white type)                                    |
+| violet     | `#8e44ad`                  | Team B (white type); `#6c3483` in Camping and Techno   |
 | line       | 3 px                       | every card and control                                 |
 | chip line  | 2 px, no shadow            | chips, the header's numbers                            |
 | radius     | 6 px controls, 8 px cards  |                                                        |
@@ -389,6 +389,11 @@ docs/SCENES.md has the looks; these are the numbers a second client matches.
   card is a 50% checker of black 2 px squares, never a grey. On the pitch every grey is
   an 8 by 8 dither pattern drawn at half a frame px a bit: grass the Playdate's tufts,
   sand a stipple, snow a sparkle; Team A's band a checker, Team B's black.
+- **Team B in the dark scenes** (`DARK_VIOLET` in `src/render/palette.js`): Camping and
+  Techno draw Team B's controls in `#6c3483` (deep `#4a2259`), not the day's `#8e44ad`,
+  so white type on it holds 7:1 (8.55:1; 7.93:1 with the paper `#fbf6ea`): the header's
+  chip, the minimap's squares, the WATCH tab and the lobby's team head. The pieces on the
+  pitch keep the day's violet. Every other scene keeps `#8e44ad` (5.87:1, over 4.5:1).
 - **The Kid line** (`src/render/world.js`): dots 5 cm long, 9 cm apart, across the pitch
   at `kidY` in the line colour (drawn once, as the advantage line, where the two meet);
   a cone at each end 2.85 m from the middle, 30 cm tall, orange `#ff7a1f` with a white

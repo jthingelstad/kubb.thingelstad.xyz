@@ -326,7 +326,14 @@ export const NIGHT = {
 // The night's controls (useSkin, and the page's CSS tokens): dark faces,
 // moonlit type and lines; the meter's bands keep their day colours, which
 // read on the dark face as on the light one.
+// Team B's violet, deeper in the two dark scenes so white type on it holds 7:1 there
+// (8.55:1 with white, 7.93:1 with the paper; the day's #8e44ad is 5.87:1): the
+// header's chip, the minimap, the WATCH tab and the lobby's team head. The pieces keep
+// the day's violet (world.js PIECE_TEAM). docs/SYSTEM.md "Scenes".
+export const DARK_VIOLET = { fill: "#6c3483", deep: "#4a2259" };
+
 NIGHT.skin = {
+  team: { B: DARK_VIOLET },
   ui: { ink: "#dbe9ff", paper: "#0d1424", drop: "rgba(0, 0, 0, 0.55)" },
   hud: {
     face: "#0d1424",
@@ -368,6 +375,7 @@ NIGHT.skin = {
     "--baton": "#121c31",
     "--accent": "#9cc8ff",
     "--on-accent": "#0d1424",
+    "--violet": DARK_VIOLET.fill,
     "--shadow-sm":
       "0 0 0 1px rgba(219, 233, 255, 0.18), 0 0 12px rgba(110, 180, 255, 0.35)",
     "--shadow":
@@ -452,6 +460,7 @@ export const NEON = {
 // The neon's controls: thin light lines on black, the meter a ring of light
 // whose bands are coloured light.
 NEON.skin = {
+  team: { B: DARK_VIOLET },
   ui: { ink: "#c8fdff", paper: "#02050a", drop: "rgba(43, 228, 255, 0.35)" },
   hud: {
     face: "#02050a",
@@ -510,6 +519,7 @@ NEON.skin = {
     "--baton": "#041018",
     "--accent": "#5ff0ff",
     "--on-accent": "#02050a",
+    "--violet": DARK_VIOLET.fill,
     "--shadow-sm":
       "0 0 0 1px rgba(95, 240, 255, 0.55), 0 0 10px rgba(43, 228, 255, 0.45)",
     "--shadow":
