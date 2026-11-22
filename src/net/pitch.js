@@ -284,6 +284,8 @@ export class Pitch {
     game.onNeed = (need) => this.onNeed(need);
     game.whoActs = (need) => this.who(need);
     game.remoteFeed = () => this.remoteAim();
+    // how many actions others made wait behind the one playing (a watcher catches up)
+    game.backlogOf = () => this.queue.length;
     game.onRelease = (pre) => this.castRelease(pre);
     cards.who = (need) => this.who(need);
 

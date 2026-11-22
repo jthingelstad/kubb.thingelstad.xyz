@@ -1253,6 +1253,16 @@ export class Game {
     this.result = null;
   }
 
+  // A watcher (an observer, a member with no side) with others' actions waiting behind
+  // the one playing plays it skipped, until it is within one throw of live, then at
+  // full length again: players SKIP and move on, and a watcher who played every throw
+  // through fell turns behind (QA, 2026-11-22). Players are never hurried.
+  catchingUp() {
+    if (this.mode !== "match" || this.localSide || this.seat?.sides?.length)
+      return false;
+    return (this.backlogOf?.() ?? 0) + this.queue.length > 0;
+  }
+
   skip() {
     const p = this.play;
     if (!p) return;
@@ -1266,6 +1276,7 @@ export class Game {
   playFrame(dt, now) {
     const p = this.play;
     if (this.quiet && !p.skipped) this.skip();
+    else if (!p.skipped && !p.local && this.catchingUp()) this.skip();
     if (!p.done) {
       const s = this.engine.showAt(p.t);
       p.last = s;
