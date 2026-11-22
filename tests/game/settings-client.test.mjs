@@ -590,3 +590,53 @@ browserTest(
     }
   },
 );
+
+// QA, 2026-11-22: on a 320 px window the name row (the name, at least NAME_FIT.text
+// wide, and SHUFFLE on one line) was wider than the card, so SHUFFLE and the
+// steppers' next buttons ran off the screen. SHUFFLE now goes under the name there;
+// on a 390 px phone the two stay on one line.
+browserTest(
+  "the name row and its steppers stay inside a 320 px window",
+  async () => {
+    for (const [width, oneLine] of [
+      [320, false],
+      [390, true],
+    ]) {
+      const page = await open(env, "/settings/", "portrait", {
+        context: { viewport: { width, height: 700 } },
+      });
+      try {
+        await page.waitForSelector("[data-test=settings-name-row]");
+        const r = await page.evaluate(() => {
+          const card = document
+            .querySelector("[data-test=settings]")
+            .getBoundingClientRect();
+          const row = document.querySelector("[data-test=settings-name-row]");
+          const out = [...row.querySelectorAll("button")]
+            .map((b) => b.getBoundingClientRect())
+            .filter(
+              (b) => b.right > card.right + 0.5 || b.left < card.left - 0.5,
+            );
+          const name = row.querySelector(".name-text").getBoundingClientRect();
+          const shuffle = row
+            .querySelector("[data-test=settings-name-shuffle]")
+            .getBoundingClientRect();
+          return {
+            out: out.length,
+            sameLine:
+              Math.abs(
+                name.top + name.height / 2 - (shuffle.top + shuffle.height / 2),
+              ) < 12,
+            hscroll: document.documentElement.scrollWidth - innerWidth,
+          };
+        });
+        assert.equal(r.out, 0, `${width}: buttons past the card`);
+        assert.equal(r.hscroll, 0);
+        assert.equal(r.sameLine, oneLine, `${width}: one line`);
+        assert.deepEqual(page.errors, []);
+      } finally {
+        await page.context().close();
+      }
+    }
+  },
+);
