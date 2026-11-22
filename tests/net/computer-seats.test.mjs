@@ -280,7 +280,7 @@ test("the words: a seat's row, what is said, the header line and the hand-off", 
   assert.equal(handoffCpu({ thrower: "Mighty Maple" }), null);
 });
 
-test("the room's engine is the people's: a seat carries none (engine 0.17.0's engineFor counted it)", () => {
+test("the room's engine is the people's: a seat carries none (engines 0.17.0 and 0.18.0's engineFor count it)", () => {
   const d = seated();
   const carrying = members.map((m) => ({
     ...m,

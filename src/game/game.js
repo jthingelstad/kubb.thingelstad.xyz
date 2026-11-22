@@ -1417,7 +1417,10 @@ export class Game {
     if (!st?.list?.length) return [];
     const items = v.items || [];
     const world = !!this.wide && st.list.every((e) => e.frame === "world");
-    const around = world ? items : items.filter((it) => it.id === "king");
+    // the stakes stand alike in either frame (lift.js); the king on the centre likewise
+    const around = world
+      ? items
+      : items.filter((it) => it.id === "king" || it.kind === "stake");
     return settledClips(st, { around, reduced: this.reduced });
   }
 

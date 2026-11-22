@@ -129,6 +129,10 @@ export function headerLine({
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
+// A computer seat's id on a pitch (engine 0.17: "cpu:" and a number, never a member's).
+export const isSeatKey = (key) =>
+  typeof key === "string" && /^cpu:[1-9]\d?$/.test(key);
+
 // A computer player's level as the header says it (the engine's words).
 const LEVEL_WORDS = {
   kid: "Kid",
@@ -341,7 +345,12 @@ export class Hud {
       const at = /^(FIELD \d+|KING)$/.test(rail.r1 || "")
         ? railCount(rail.r1)
         : "";
-      const th = need?.kind === "throw" ? need.setup?.thrower : null;
+      // a computer player in a team, by its seat id (a side the computer plays whole
+      // is the header's name, "Computer", as before)
+      const th =
+        need?.kind === "throw" && isSeatKey(need.setup?.thrower?.key)
+          ? need.setup.thrower
+          : null;
       line = headerLine({
         turn: need?.turn,
         // a kubb rethrown (engine 0.17.0): counted among the rethrows, "rethrow 1 of 1"

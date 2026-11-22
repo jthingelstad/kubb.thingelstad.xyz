@@ -171,7 +171,10 @@ test("the engine's own raises: a clip a kubb, in its order, from its own poses",
       assert.ok(Array.isArray(x.others) && x.others.length > 0);
       assert.ok(x.king);
       const items = c.items(0.5);
-      assert.equal(items.length, x.others.length + 2);
+      // the stakes from the view (alike in either frame), its others, the king, itself
+      const stakes = v.items.filter((it) => it.kind === "stake").length;
+      assert.equal(stakes, 6);
+      assert.equal(items.length, stakes + x.others.length + 2);
       for (const o of x.others) {
         const it = items.find((q) => q.id === o.id);
         assert.ok(it, `${o.id} drawn`);
@@ -202,7 +205,7 @@ test("the engine's own raises in the wide view: the world frame, drawn with the 
     // the entries' own surroundings, in the world frame too: once every kubb is up the
     // clip's last moment is the pitch as the view has it
     for (const x of st.list) assert.ok(Array.isArray(x.others));
-    const clips = settledClips(st);
+    const clips = settledClips(st, { around: v.items });
     const end = clips.at(-1).items(1);
     for (const it of v.items) {
       const got = end.find((q) => q.id === it.id);
