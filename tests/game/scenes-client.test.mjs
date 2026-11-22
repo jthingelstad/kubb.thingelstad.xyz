@@ -71,7 +71,7 @@ browserTest(
         await page.$$eval("[data-test=solo-opt-scene] .tile-name", (bs) =>
           bs.map((b) => b.textContent),
         ),
-        ["Day", "Night", "Neon"],
+        ["Park", "Camping", "Techno"],
       );
       await page.waitForFunction(() =>
         [
@@ -201,9 +201,9 @@ browserTest(
       await page.waitForSelector("[data-test=menu-scene]");
       const menuScene = () =>
         page.textContent("[data-test=menu-scene] [aria-checked=true]");
-      assert.equal(await menuScene(), "Neon");
+      assert.equal(await menuScene(), "Techno");
       await page.click("[data-test=menu-scene] .seg-btn:has-text('Night')");
-      assert.equal(await menuScene(), "Night");
+      assert.equal(await menuScene(), "Camping");
       await page.keyboard.press("Escape");
       assert.deepEqual(await drawn(page), {
         stage: "night",
@@ -271,7 +271,7 @@ browserTest(
       );
       await host.click("[data-test=join-A]");
       await host.click("[data-test=lobby-opt-scene] [data-value=night]");
-      await sceneShown(guest, "Night");
+      await sceneShown(guest, "Camping");
       assert.equal(
         await guest.textContent("[data-test=lobby-opt-scene] .opt-label"),
         "Scene",
@@ -293,7 +293,7 @@ browserTest(
       );
       const late = await join(code, "Kind Oak");
       pages.push(late);
-      await sceneShown(late, "Night");
+      await sceneShown(late, "Camping");
       assert.equal((await drawn(late)).page, "night");
       await host.click("[data-test=lobby-start]");
       for (const p of pages)

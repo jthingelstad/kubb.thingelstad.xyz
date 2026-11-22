@@ -104,7 +104,7 @@ On while a watcher sees the wide view and no card is over the pitch.
   - Not in the embed: the embed sits in another site's page, where a wheel must scroll
     that page.
   - Not stored: each watch starts at the first view.
-- **Scenes.** Day, Night and Neon draw from any view: the scenes take whatever camera
+- **Scenes.** Park, Camping and Techno (the day, the night and the neon) draw from any view: the scenes take whatever camera
   the pitch is drawn through (`src/render/scenes.js`).
 - **A phone held upright.** A watcher gets the wide view down to a smallest base kubb of
   2 CSS px (`tune.observeMinPx`; it was 6, and still is for `tune.wideMinPx`), so an
