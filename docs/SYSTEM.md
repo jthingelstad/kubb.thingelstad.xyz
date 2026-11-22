@@ -179,10 +179,17 @@ none`: a press where it is drawn aims as if it were not there), and the first ai
     upright the thrower's view is fitted with the far baseline at 41% of the height
     ("The thrower's view upright", below), a wide screen's aim view has the far
     baseline at about 40%.
-  - Measured with the four-chip verdict (1 DOWN, POWER ON, ARC ON, STEADY, STRAIGHT):
-    402 x 665 with the clock, box 106 to 306 across, 100 to 211 down, the target ring
-    from 264; 390 x 844, 12 to 296, 100 to 211, the ring from 338; 844 x 390, 358 to
-    832, 10 to 90, the ring from 147; 1280 x 800, 420 to 860, 10 to 107, the ring from 305. In a Kid match (the chip showing) upright: 134 to 245, the ring from 262.
+  - **Its shape**: upright a column, the flag over its chips; in a box under
+    **260 px** wide (beside the tray) the compact chips: the flag 26 px, an off word
+    15 px, an on-target chip 12 px (`.verdict-compact`), so the tallest verdict (three
+    off words and a chip) keeps to 144 px. On a wide screen a row, the flag first and
+    its chips wrapping beside it (`.verdict-row`), about 60 to 80 px tall.
+  - Measured (`tests/game/feedback-client.test.mjs` sweeps these with three off words):
+    402 x 665 with the clock, box 106 to 306 across, from 100 down to 198 (four on-target
+    chips) or 244 (three off words), the target ring from 264; 390 x 844, 12 to 296, 100
+    to 211, the ring from 338; 844 x 390, 358 to 832, 10 to 70 (91 with three off
+    words), the ring from 147; 1280 x 800, 420 to 860, 10 to 74, the ring from 305. In a
+    Kid match upright (the line's chip showing) the box starts at 134.
 - **The thrower's view upright** (`layout.js` `worldFit`, `tune.anchorY`, `anchorAt`):
   the picture is 1.3 times the width-fit scale, panned after the target, and placed so
   the far baseline stands at **41%** of the canvas's height whoever throws from where:
