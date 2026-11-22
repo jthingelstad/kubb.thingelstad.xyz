@@ -133,9 +133,22 @@ browserTest("a long throw shows its LONG chip first, inverted", async () => {
         off: e.classList.contains("off"),
         bg: cs.backgroundColor,
         size: parseFloat(cs.fontSize),
+        icon: e.dataset.icon || null,
+        svg: !!e.querySelector("svg.verdict-icon"),
       };
     }),
   );
+  // the 1.0 design: the off word at 18 px with its arrow (up for LONG)
+  assert.equal(chips[0].size, 18);
+  assert.equal(chips[0].icon, "up");
+  assert.ok(chips[0].svg, "the arrow is drawn");
+  assert.ok(
+    chips.slice(1).every((c) => c.off || !c.svg),
+    "on chips: no arrow",
+  );
+  // said once to a screen reader, the off word first
+  const said = await page.textContent("[data-test=verdict-said]");
+  assert.match(said, /^Long\. /);
   assert.deepEqual(
     { text: chips[0].text, off: chips[0].off },
     { text: "LONG", off: true },
@@ -269,6 +282,28 @@ browserTest(
     const page = await open(env, "/p/abcdefgh?solo=1&nohowto=1");
     await page.click("[data-test=start]");
     await page.waitForSelector("[data-test=handoff]");
+    // the 1.0 hand-off: a short card at the foot, the title, one line, one go
+    const card = await page.evaluate(() => {
+      const el = document.querySelector("[data-test=handoff]");
+      const r = el.getBoundingClientRect();
+      return {
+        title: el.querySelector("[data-test=handoff-title]").textContent,
+        line: el.querySelector("[data-test=handoff-line]").textContent,
+        buttons: [...el.querySelectorAll("button")].map((b) => b.textContent),
+        map: !!el.querySelector("canvas"),
+        kicker: !!el.querySelector(".kicker"),
+        foot: innerHeight - r.bottom,
+        header: getComputedStyle(document.querySelector("[data-test=rail]"))
+          .visibility,
+      };
+    });
+    assert.equal(card.title, "Your turn");
+    assert.equal(card.line, "Two batons. Aim for the base kubbs.");
+    assert.deepEqual(card.buttons, ["THROW"]);
+    assert.equal(card.map, false, "no map");
+    assert.equal(card.kicker, false, "no turn number");
+    assert.ok(card.foot < 40, `at the foot: ${card.foot}`);
+    assert.equal(card.header, "visible", "the header shows over the dim");
     await page.click("[data-test=handoff-go]");
     await watchThrows(page);
     // our two batons
@@ -282,12 +317,26 @@ browserTest(
     await page.waitForFunction(() => window.__kubb.game.need?.cpu, null, {
       timeout: 20000,
     });
+    // no card: the header, WATCH on the computer's colour, the faded meter
     await page.waitForFunction(
-      () =>
-        document.querySelector("[data-test=status]")?.textContent === "WATCH",
+      () => window.__kubb.game.meterShown?.prompt === "WATCH",
       null,
       { timeout: 5000 },
     );
+    const cpu = await page.evaluate(() => ({
+      meter: window.__kubb.game.meterShown,
+      card: !!document.querySelector("[data-test=handoff]"),
+      status: document.querySelector("[data-test=status]").textContent,
+      side: window.__kubb.game.need.side,
+    }));
+    assert.equal(cpu.card, false, "no card for the computer's turn");
+    assert.equal(cpu.meter.faded, true, "the meter faded");
+    assert.equal(
+      cpu.meter.promptFill,
+      cpu.side === "B" ? "#8e44ad" : "#f2b705",
+    );
+    assert.equal(cpu.meter.distance, null, "no distance on a watched turn");
+    assert.equal(cpu.status, "", "no WATCH pill as well");
     // play on (skipping playback, raising automatically) until a hand-off
     // card gives the pitch back to us
     const deadline = Date.now() + 90000;
@@ -1632,7 +1681,13 @@ browserTest(
       const rail = await box(page, "[data-test=rail]");
       assert.ok(tray.width <= t.trayW.practice, `tray ${tray.width}`);
       assert.ok(menu.width <= t.menuW, `MENU ${menu.width}`);
-      assert.ok(rail.width <= t.railPracticeW, `rail ${rail.width}`);
+      // the header's fixed width (layout.js headerBox): practice's is a match's
+      // where its corner's row leaves the room, never under 218
+      assert.ok(
+        Math.abs(rail.width - L.header.width) < 0.6,
+        `rail ${rail.width}`,
+      );
+      assert.ok(rail.width >= t.railPracticeW && rail.width <= t.headerMaxW);
       // MENU is a word inside the header's plate
       assert.ok(
         menu.x >= rail.x && menu.x + menu.width <= rail.x + rail.width,
@@ -1672,7 +1727,11 @@ browserTest(
       const v = await box(w, "[data-test=view]");
       assert.ok(v.width <= layoutTune.trayW.watch, `view ${v.width}`);
       const rail = await box(w, "[data-test=rail]");
-      assert.ok(rail.width <= layoutTune.railCountsW, `rail ${rail.width}`);
+      const LW = await w.evaluate(() => window.__kubb.game.L);
+      assert.ok(
+        Math.abs(rail.width - LW.header.width) < 0.6,
+        `rail ${rail.width}`,
+      );
     } finally {
       await w.context().close();
     }
@@ -1832,7 +1891,7 @@ async function clearOfMeter(page) {
   const boxes = await page.evaluate(() =>
     [
       ...document.querySelectorAll(
-        "[data-test=plans] .btn, [data-test=plans] .slider, [data-test=rail], [data-test=menu], [data-test=tray] .btn",
+        "[data-test=plans] .plate, [data-test=rail], [data-test=menu], [data-test=tray] .btn",
       ),
     ]
       .filter((el) => !el.closest("[hidden]") && el.offsetParent)
@@ -1876,7 +1935,9 @@ for (const [kind, meter, touch] of [
         assert.equal(L.meter, meter);
         assert.equal(L.meterSide, "left");
         assert.ok(L.dial.x + L.dial.width < L.W / 2, "on the left");
-        if (!L.tall) assert.ok(L.minimap.x > L.W / 2, "the minimap moved");
+        // the tray at the other edge; the minimap keeps its place under the
+        // header's right end
+        assert.equal(L.planEdge, "right", "the tray at the right edge");
         await judgedThrow(page, { touch });
         assert.deepEqual(page.errors, []);
       } finally {

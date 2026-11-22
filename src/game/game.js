@@ -1653,7 +1653,13 @@ export class Game {
     this.css();
     const watching = !may || !!aim.watching;
     let coach = null;
-    if (!wide) {
+    // a card that dims the pitch (the hand-off, the lobby, the options card):
+    // nothing of the aim's controls round it, the meter included
+    const covered = this.modal > 0 || !!(this.cards?.open && this.cards.dims);
+    if (!wide && covered) {
+      this.drawMap(aim, this.viewData?.minimap?.pieces || this.items);
+      this.meterShown = null;
+    } else if (!wide) {
       this.drawMap(aim, this.viewData?.minimap?.pieces || this.items);
       const st = {
         ...dial,

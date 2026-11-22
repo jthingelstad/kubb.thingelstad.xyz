@@ -16,6 +16,7 @@ import {
   state,
   waitPhase,
   nextFrame,
+  openPlate,
   sweep,
   swing,
 } from "./browser.mjs";
@@ -57,14 +58,17 @@ const aimOf = (page) =>
     };
   });
 
-// STAND's run in CSS px, and a point on it at (fx, fy).
-const run = (page) =>
-  page.evaluate(() => {
+// STAND's run in CSS px, and a point on it at (fx, fy). Its plate in the tray
+// is opened first (the 1.0 design: src/game/tray.js).
+const run = async (page) => {
+  await openPlate(page, "stand");
+  return page.evaluate(() => {
     const r = document
       .querySelector("[data-test=stand] .stand-run")
       .getBoundingClientRect();
     return { x: r.left, y: r.top, w: r.width, h: r.height };
   });
+};
 const at = (r, fx, fy) => [r.x + r.w * fx, r.y + r.h * fy];
 
 // A drag through the places fs ([fx, fy] on STAND's run, or [x, y, "px"]),
@@ -316,6 +320,7 @@ browserTest(
     try {
       await waitPhase(page, "aim", 10000);
       const a0 = await aimOf(page);
+      await openPlate(page, "stand");
       await page.focus("[data-test=stand]");
       await page.keyboard.press("ArrowRight");
       await page.keyboard.press("ArrowDown");

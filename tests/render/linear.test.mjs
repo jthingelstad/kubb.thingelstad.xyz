@@ -124,7 +124,9 @@ test("the prompt tab hangs toward the centre at home, clear of the body", () => 
     const g = linearGeometry(BOX, side);
     const t = tabRect(g);
     close(t.y + g.promptH / 2, g.y0);
-    assert.equal(t.width, g.promptH * 5);
+    // as wide as the prompt's longest words with the distance tab beside it
+    // (the 1.0 design: 5 of its heights, and 2 for "8 M")
+    assert.equal(t.width, g.promptH * 7);
     if (side === "right") close(t.x + t.width, g.left);
     else close(t.x, g.right + g.sh);
   }
