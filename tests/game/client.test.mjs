@@ -2489,3 +2489,76 @@ browserTest("after the hand-off the keyboard is on the meter", async () => {
   assert.deepEqual(page.errors, []);
   await page.context().close();
 });
+
+// QA, 2026-11-22: an observer played every throw through at full length while the
+// players SKIPped, and fell turns behind. A watcher with actions waiting behind the one
+// playing plays it skipped until it is one throw from live; a player never is.
+browserTest(
+  "a watcher with a backlog catches up; a player is never hurried",
+  async () => {
+    // watching the computer has no side: a scripted backlog stands in for the pitch's
+    const watch = await open(env, "/p/abcdefgh?watch=1", "desktop", {
+      prefs: { throwsMade: 5, howtoSeen: true },
+    });
+    try {
+      const next = (backlog) =>
+        watch.evaluate(async (backlog) => {
+          const g = window.__kubb.game;
+          g.backlogOf = () => backlog;
+          const start = g.startPlayback.bind(g);
+          return new Promise((done) => {
+            g.startPlayback = (rec, local, out) => {
+              g.startPlayback = start;
+              const r = start(rec, local, out);
+              requestAnimationFrame(() =>
+                requestAnimationFrame(() => done(!!g.play?.skipped)),
+              );
+              return r;
+            };
+          });
+        }, backlog);
+      assert.equal(await next(2), true, "a backlog: skipped");
+      await watch.waitForFunction(() => !window.__kubb.game.play, null, {
+        timeout: 20000,
+      });
+      assert.equal(await next(0), false, "caught up: played at full length");
+      assert.deepEqual(watch.errors, []);
+    } finally {
+      await watch.context().close();
+    }
+    // a player watching the computer's turn with a backlog: played through
+    const page = await open(env, "/p/abcdefgh?solo=1&nohowto=1");
+    try {
+      await page.click("[data-test=start]");
+      await page.click("[data-test=handoff-go]");
+      await waitPhase(page, "aim", 10000);
+      await page.evaluate(() => {
+        window.__kubb.game.backlogOf = () => 5;
+      });
+      for (let i = 0; i < 2; i++) {
+        await waitPhase(page, "aim", 10000);
+        await throwOnce(page);
+        await waitPhase(page, "play", 5000);
+        assert.equal(
+          await page.evaluate(() => !!window.__kubb.game.play?.skipped),
+          false,
+        );
+        await page.evaluate(() => window.__kubb.game.skip());
+      }
+      await page.waitForFunction(
+        () =>
+          window.__kubb.game.need?.cpu && window.__kubb.game.phase === "play",
+        null,
+        { timeout: 30000 },
+      );
+      assert.equal(
+        await page.evaluate(() => !!window.__kubb.game.play?.skipped),
+        false,
+        "the computer's throw a player watches is not hurried",
+      );
+      assert.deepEqual(page.errors, []);
+    } finally {
+      await page.context().close();
+    }
+  },
+);
