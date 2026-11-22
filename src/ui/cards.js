@@ -734,7 +734,7 @@ function raisePanel(n, game) {
     ),
     slots(
       [
-        button("AUTO", () => game.raise(null), "small", {
+        button("AUTO", () => game.raiseAuto(), "small", {
           "data-test": "raise-auto",
         }),
         n.n < n.of

@@ -217,7 +217,8 @@ export function verdictBox(L, { adv = false } = {}) {
     let right = L.minimap.x - t.verdictGap;
     const tr = L.tray;
     if (tr && tr.y < y + t.verdictTall) {
-      if (tr.edge === "left") left = Math.max(left, tr.x + tr.width + t.verdictGap);
+      if (tr.edge === "left")
+        left = Math.max(left, tr.x + tr.width + t.verdictGap);
       else right = Math.min(right, tr.x - t.verdictGap);
     }
     return { x: left, y, width: Math.max(0, right - left) };
