@@ -224,9 +224,11 @@ body.game {
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
+/* the team colours keep their own type in every scene: ink on marigold, white on
+   violet */
 .rail-n.team-a {
   background: var(--marigold);
-  color: var(--ink);
+  color: #16130f;
 }
 .rail-n.team-b {
   background: var(--violet);

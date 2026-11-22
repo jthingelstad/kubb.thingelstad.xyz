@@ -359,6 +359,8 @@ NIGHT.skin = {
     "--stem": "#8fb4e8",
     "--knob-face": "#c9dcff",
     "--held": "#1a2742",
+    // the 1.0 system's "insides" (a boxed name row, the scene tiles' ground)
+    "--baton": "#121c31",
     "--accent": "#9cc8ff",
     "--on-accent": "#0d1424",
     "--shadow-sm":
@@ -485,6 +487,7 @@ NEON.skin = {
     "--stem": "#5ff0ff",
     "--knob-face": "#c8fdff",
     "--held": "#062430",
+    "--baton": "#041018",
     "--accent": "#5ff0ff",
     "--on-accent": "#02050a",
     "--shadow-sm":
