@@ -22,6 +22,15 @@
 //              may go round outside the ring, where it hides nothing)
 //   finger     [x, y] of a finger holding the dial from beside the ring, or
 //              null: a spoke from the knob out to it
+//   distance   the throw's distance in words ("8 M"), or null: an inverted
+//              tab beside the prompt (the 1.0 design, "Meter marks and distance")
+//   promptFill, promptInk  the prompt's own colours (the computer's WATCH, on
+//              its team's colour), or null
+//   faded      drawn at half strength (a turn this player only watches)
+//
+// The marks are told apart by pattern as well as colour (the 1.0 design,
+// "Meter"): the power band is striped, the release band solid, both with ink
+// end-marks, on the face, across the ring and on the finger track.
 import { UI, HUD, FONT } from "./palette.js";
 
 export const tune = {
@@ -52,6 +61,9 @@ export const tune = {
   trackOut: 1.55,
   touchReach: 2.1,
   trackPast: 14, // the rail runs this many degrees past the release band
+  stripe: 0.075, // the power band's stripes: one every this much of the radius
+  endMark: 1.8, // the bands' ink end-marks, of the line width
+  fade: 0.5, // a watched turn's meter, at this strength
 };
 
 // ---------- geometry (also for input) ----------
@@ -130,16 +142,18 @@ function slicePath(ctx, g, r0, r1, a0, a1) {
   ctx.closePath();
 }
 
-function hatch(ctx, g, r0, r1, a0, a1, color, step) {
+// Diagonal lines across a slice: `weight` of each step inked, falling right
+// (dir 1) or rising (dir -1).
+function hatch(ctx, g, r0, r1, a0, a1, color, step, weight = 0.35, dir = 1) {
   ctx.save();
   slicePath(ctx, g, r0, r1, a0, a1);
   ctx.clip();
   ctx.strokeStyle = color;
-  ctx.lineWidth = step * 0.35;
+  ctx.lineWidth = step * weight;
   ctx.beginPath();
   for (let d = -g.r * 2; d < g.r * 2; d += step) {
-    ctx.moveTo(g.cx + d - g.r, g.cy - g.r);
-    ctx.lineTo(g.cx + d + g.r, g.cy + g.r);
+    ctx.moveTo(g.cx + d - g.r, g.cy - dir * g.r);
+    ctx.lineTo(g.cx + d + g.r, g.cy + dir * g.r);
   }
   ctx.stroke();
   ctx.restore();
@@ -166,18 +180,46 @@ function dots(ctx, g, r0, r1, a0, a1, color, step) {
   ctx.restore();
 }
 
-function target(ctx, g, ri, ro, rm, ringW, a0, a1, fill, deep, lw) {
-  slicePath(ctx, g, g.r * tune.sliceIn, ro, a0, a1);
-  ctx.fillStyle = fill;
+// A target band from arm a0 to a1: solid (the release band), or striped (the
+// power band: its colour in wide stripes on the face's paper, the deep colour
+// across the ring the same way, so the two read apart without colour), with
+// heavy ink end-marks across face and ring at both edges.
+function target(ctx, g, ri, ro, a0, a1, fill, deep, lw, striped = false) {
+  const r0 = g.r * tune.sliceIn;
+  const step = Math.max(4, g.r * tune.stripe);
+  slicePath(ctx, g, r0, ro, a0, a1);
+  ctx.fillStyle = striped ? UI.paper : fill;
   ctx.fill();
+  if (striped) hatch(ctx, g, r0, ro, a0, a1, fill, step, 0.5, -1);
   ctx.strokeStyle = UI.ink;
   ctx.lineWidth = lw;
+  slicePath(ctx, g, r0, ro, a0, a1);
   ctx.stroke();
-  // solid across the ring, so the hand never hides it
+  // across the ring, so the hand never hides it
   slicePath(ctx, g, ri, ro, a0, a1);
-  ctx.fillStyle = deep;
+  ctx.fillStyle = striped ? UI.paper : deep;
   ctx.fill();
+  if (striped) hatch(ctx, g, ri, ro, a0, a1, deep, step, 0.5, -1);
+  slicePath(ctx, g, ri, ro, a0, a1);
   ctx.stroke();
+  endMarks(ctx, g, r0, ro, [a0, a1], lw);
+}
+
+// Heavy ink lines across a band's edges, from r0 out to r1.
+function endMarks(ctx, g, r0, r1, angles, lw) {
+  ctx.save();
+  ctx.strokeStyle = UI.ink;
+  ctx.lineWidth = lw * tune.endMark;
+  ctx.lineCap = "butt";
+  ctx.beginPath();
+  for (const a of angles) {
+    const [x0, y0] = armPoint(g, a, r0);
+    const [x1, y1] = armPoint(g, a, r1);
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+  }
+  ctx.stroke();
+  ctx.restore();
 }
 
 // A prompt plate's width at height h (it sets the plate's font).
@@ -189,7 +231,17 @@ function plateWidth(ctx, h, text) {
 // A prompt plate centred on (x, y). With `right`, it is moved left so it and
 // its shadow stay inside that x (a meter at the screen's right edge); with
 // `left`, moved right so it starts at that x (a meter at the left edge).
-export function plate(ctx, x, y, h, text, inverted, right = null, left = null) {
+export function plate(
+  ctx,
+  x,
+  y,
+  h,
+  text,
+  inverted,
+  right = null,
+  left = null,
+  colors = null,
+) {
   const w = plateWidth(ctx, h, text);
   ctx.textBaseline = "middle";
   ctx.textAlign = "center";
@@ -200,15 +252,45 @@ export function plate(ctx, x, y, h, text, inverted, right = null, left = null) {
   ctx.beginPath();
   ctx.roundRect(x - w / 2 + sh, y - h / 2 + sh, w, h, h * 0.18);
   ctx.fill();
-  ctx.fillStyle = inverted ? UI.ink : HUD.prompt;
+  ctx.fillStyle = colors?.fill || (inverted ? UI.ink : HUD.prompt);
   ctx.strokeStyle = UI.ink;
   ctx.lineWidth = Math.max(1.5, h * 0.09);
   ctx.beginPath();
   ctx.roundRect(x - w / 2, y - h / 2, w, h, h * 0.18);
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = inverted ? UI.paper : HUD.promptInk;
+  ctx.fillStyle = colors?.ink || (inverted ? UI.paper : HUD.promptInk);
   ctx.fillText(text, x, y + h * 0.04);
+}
+
+// The prompt over the clock with the distance tab beside it (the 1.0 design:
+// "Beside the prompt (WIND BACK, DRAW BACK) show the throw's distance to the
+// nearest metre on an inverted tab"), the pair centred over the clock:
+// { h, y, x0, x1, items: [{ x, w, text, inverted, colors }] }, or null.
+export function promptGroup(ctx, g, st) {
+  if (!st.prompt) return null;
+  const h = Math.max(14, g.r * tune.promptH);
+  const y = g.cy - g.r - h * 0.85;
+  const items = [
+    {
+      text: st.prompt,
+      inverted: st.prompt.endsWith("!"),
+      colors:
+        st.promptFill || st.promptInk
+          ? { fill: st.promptFill, ink: st.promptInk }
+          : null,
+    },
+  ];
+  if (st.distance) items.push({ text: st.distance, inverted: true });
+  for (const it of items) it.w = plateWidth(ctx, h, it.text);
+  const gap = h * 0.3;
+  const total = items.reduce((a, it) => a + it.w, 0) + gap * (items.length - 1);
+  let x = g.cx - total / 2;
+  for (const it of items) {
+    it.x = x + it.w / 2;
+    x += it.w + gap;
+  }
+  return { h, y, x0: g.cx - total / 2, x1: g.cx + total / 2, items };
 }
 
 // The finger track's rail (drawDial, st.track): an arc at the middle of
@@ -229,23 +311,31 @@ function trackRail(ctx, g, st, lw) {
   ctx.lineWidth = lw * 3.4;
   arc(-180, end);
   ctx.stroke();
-  // the targets on it: a fat stroke in the target's colour, edged in ink
-  const seg = (a0, a1, fill) => {
+  // the targets on it: a fat stroke in the target's colour, edged in ink;
+  // the power band's in dashes on paper (its stripes), the release band's solid
+  const seg = (a0, a1, fill, striped = false) => {
     ctx.lineCap = "butt";
     ctx.strokeStyle = UI.ink;
     ctx.lineWidth = lw * 3.4;
     arc(a0 - 1.2, a1 + 1.2);
     ctx.stroke();
-    ctx.strokeStyle = fill;
+    ctx.strokeStyle = striped ? UI.paper : fill;
     ctx.lineWidth = lw * 1.6;
     arc(a0, a1);
     ctx.stroke();
+    if (striped) {
+      ctx.strokeStyle = fill;
+      ctx.setLineDash([lw * 1.6, lw * 1.6]);
+      arc(a0, a1);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
   };
   ctx.strokeStyle = UI.ink;
   ctx.lineWidth = lw;
   arc(-180, end);
   ctx.stroke();
-  if (st.powerHi > st.powerLo) seg(-st.powerHi, -st.powerLo, HUD.power);
+  if (st.powerHi > st.powerLo) seg(-st.powerHi, -st.powerLo, HUD.power, true);
   if (st.releaseHi > st.releaseLo) seg(st.releaseLo, st.releaseHi, HUD.release);
   // the hour pips
   ctx.lineCap = "round";
@@ -316,6 +406,7 @@ export function drawDial(ctx, rect, st) {
   ctx.save();
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
+  if (st.faded) ctx.globalAlpha = tune.fade;
 
   // the finger track beside the rim: only the way a finger goes (6 o'clock
   // up the back side to 12, and forward past the release band), drawn as a
@@ -325,14 +416,19 @@ export function drawDial(ctx, rect, st) {
   if (st.track) {
     // it yields to the prompt plate: a gap round the plate's box
     ctx.save();
-    if (st.prompt) {
-      const h = Math.max(14, r * tune.promptH);
-      const w = plateWidth(ctx, h, st.prompt);
+    const pg = promptGroup(ctx, g, st);
+    if (pg) {
+      const { h, y: py } = pg;
       const m = h * 0.3;
-      const py = cy - r - h * 0.85;
       ctx.beginPath();
       ctx.rect(rect.x - r, rect.y - r, rect.width + 2 * r, rect.height + 2 * r);
-      ctx.roundRect(cx - w / 2 - m, py - h / 2 - m, w + 2 * m, h + 2 * m, m);
+      ctx.roundRect(
+        pg.x0 - m,
+        py - h / 2 - m,
+        pg.x1 - pg.x0 + 2 * m,
+        h + 2 * m,
+        m,
+      );
       ctx.clip("evenodd");
     }
     trackRail(ctx, g, st, lw);
@@ -374,34 +470,39 @@ export function drawDial(ctx, rect, st) {
   }
   const over = overFrom(st);
   if (over != null && over < 180) {
-    hatch(
-      ctx,
-      g,
-      r * tune.sliceIn,
-      ro,
-      -180,
-      -over,
-      HUD.over,
-      Math.max(3, r * 0.1),
-    );
+    // cross-hatched, so the stripes stay the power band's alone (the coach
+    // says "pull back to the stripes")
+    for (const dir of [1, -1])
+      hatch(
+        ctx,
+        g,
+        r * tune.sliceIn,
+        ro,
+        -180,
+        -over,
+        HUD.over,
+        Math.max(3, r * 0.1),
+        0.3,
+        dir,
+      );
     slicePath(ctx, g, ri, ro, -180, -over);
     ctx.fillStyle = HUD.over;
     ctx.fill();
   }
-  // the targets: power on the back side, release on the forward side
+  // the targets: power on the back side (striped), release on the forward
+  // side (solid)
   if (st.powerHi > st.powerLo)
     target(
       ctx,
       g,
       ri,
       ro,
-      rm,
-      ro - ri,
       -st.powerHi,
       -st.powerLo,
       HUD.power,
       HUD.powerDeep,
       lw,
+      true,
     );
   if (st.releaseHi > st.releaseLo)
     target(
@@ -409,8 +510,6 @@ export function drawDial(ctx, rect, st) {
       g,
       ri,
       ro,
-      rm,
-      ro - ri,
       st.releaseLo,
       st.releaseHi,
       HUD.release,
@@ -531,11 +630,12 @@ export function drawDial(ctx, rect, st) {
   ctx.arc(cx, cy, r * tune.hub, 0, Math.PI * 2);
   ctx.fill();
 
-  // the prompt over the dial
-  if (st.prompt) {
-    const h = Math.max(14, r * tune.promptH);
-    plate(ctx, cx, cy - r - h * 0.85, h, st.prompt, st.prompt.endsWith("!"));
-  }
+  // the prompt over the dial, the distance beside it, at full strength
+  ctx.globalAlpha = 1;
+  const pg = promptGroup(ctx, g, st);
+  if (pg)
+    for (const it of pg.items)
+      plate(ctx, it.x, pg.y, pg.h, it.text, it.inverted, null, null, it.colors);
   ctx.restore();
   return g;
 }

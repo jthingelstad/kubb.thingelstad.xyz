@@ -9,8 +9,9 @@
 // the forward flick must be fast, because a slow one delivers only part of
 // that power (the engine's verdict for it is SLOW; a flick at swing.tune
 // fullFlickDps or faster delivers all of it); the throw leaves where the
-// flick stops. The marks are the meter's own words (HOW TO THROW): the power
-// band is the orange mark, the release band the blue mark.
+// flick stops. The marks are named by their shape, not their colour (the 1.0
+// design, the owner's decision of 2026-11-21, with the iPhone's Coach.swift):
+// the power band is "the stripes", the release band "the solid mark".
 //
 // Pure: no DOM, no engine. Drawing only: never fed to the engine, sent or
 // recorded. Tested in tests/game/coach.test.mjs.
@@ -22,9 +23,9 @@ export const tune = {
 };
 
 export const LINES = {
-  rest: "PULL BACK TO THE ORANGE MARK",
+  rest: "PULL BACK TO THE STRIPES",
   winding: "NO RUSH GOING BACK",
-  band: "NOW FLICK FAST AND STOP ON THE BLUE MARK",
+  band: "NOW FLICK FAST AND STOP ON THE SOLID MARK",
   // the lead line for the throw after one the engine called SLOW
   slow: "SLOW FLICK. FLICK FASTER.",
 };

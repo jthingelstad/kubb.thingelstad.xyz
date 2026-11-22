@@ -10,10 +10,8 @@ import { prefs } from "../game/prefs.js";
 import { soloOptions } from "../game/throw-level.js";
 import { youRow } from "./settings.js";
 import { segBar } from "./seg.js";
-import { drawMinimap } from "../render/minimap.js";
-import { teamOf } from "../game/scenes.js";
 import { SCENE_ROW, sceneId } from "../render/scenes.js";
-import { watcherBases } from "./handoff-words.js";
+import { handoffLine, handoffTitle } from "./handoff-words.js";
 
 export class Cards {
   constructor(root) {
@@ -27,14 +25,18 @@ export class Cards {
 
   // A card in the middle, over a dimmed pitch. Returns close().
   // banner: at the top with the pitch undimmed and live under it (a watched turn's
-  // hand-off, so the thrower's dial is seen while it is up).
+  // hand-off, so the thrower's dial is seen while it is up). foot: at the foot
+  // of the screen, the header shown over the dim (the 1.0 design's hand-off).
   show(
     card,
     game = null,
-    { modal = true, onClose = null, banner = false } = {},
+    { modal = true, onClose = null, banner = false, foot = false } = {},
   ) {
     this.close();
-    const scrim = h(banner ? "div.scrim.banner" : "div.scrim", card);
+    const scrim = h(
+      banner ? "div.scrim.banner" : foot ? "div.scrim.at-foot" : "div.scrim",
+      card,
+    );
     this.layer.append(scrim);
     if (game && modal) game.modal++;
     let closed = false;
@@ -68,12 +70,36 @@ export class Cards {
     // a browser with no side in the match (docs/OBSERVER.md): the card speaks of the
     // teams, not to one of them
     const watcher = !!game && !game.localSide && !game.seat?.sides?.length;
+    // the 1.0 design's hand-off: a short card at the foot of the screen, its
+    // title ("Your turn" for this browser's own turn, else the name's), one
+    // line from the engine's state and one go button; the settle card before a
+    // raise or punishment by hand is the same card. "Your turn" where this
+    // browser plays the side alone (solo, or its turn on a shared pitch).
+    const theirs = (who && !who.mine) || watcher;
+    const mine = who
+      ? !!who.mine
+      : !watcher && (game?.seat?.sides?.length ?? 1) <= 1;
     if (card.kind === "handoff")
-      el = handoff(c, need, done, (who && !who.mine) || watcher, watcher);
+      el = shortCard(
+        c.toName,
+        mine,
+        handoffLine(need),
+        theirs ? "WATCH" : "THROW",
+        done,
+        "handoff",
+      );
+    else if (card.kind === "settle")
+      el = shortCard(
+        c.toName,
+        mine,
+        handoffLine(need, c),
+        theirs ? "WATCH" : "READY",
+        done,
+        "settle",
+      );
     else if (card.kind === "pass") el = pass(c, done);
-    else if (card.kind === "settle") el = settle(c, done);
     else return;
-    if (who) {
+    if (who && card.kind === "pass") {
       el.prepend(
         h(
           `p.whose${who.mine ? ".mine" : ""}`,
@@ -82,14 +108,22 @@ export class Cards {
         ),
       );
     }
-    if ((who && !who.mine) || watcher) {
+    if (theirs && card.kind === "pass") {
       const go = el.querySelector(".row .btn");
       if (go) go.textContent = "WATCH";
     }
     // someone else's turn on a shared pitch: the card's words as a banner over the live
     // pitch, so their aim is seen from the first moment (docs/MULTIPLAYER.md "Aim")
     const watched = !!who && !who.mine;
-    close = this.show(el, game, watched ? { modal: false, banner: true } : {});
+    close = this.show(
+      el,
+      game,
+      watched
+        ? { modal: false, banner: true }
+        : card.kind === "pass"
+          ? {}
+          : { foot: true },
+    );
     if (watched) setTimeout(done, tune.watchCardMs);
   }
 
@@ -651,91 +685,25 @@ export function openShareCard(
   return { close };
 }
 
-// The Playdate's hand-off card: who it goes to, what the last turn took,
-// what this one throws, the bases, and the pitch from above.
-// theirs: this browser only watches the turn (a shared pitch); watcher: it has no
-// side in the match, so the bases name both teams (src/ui/handoff-words.js)
-function handoff(c, need, done, theirs = false, watcher = false) {
-  const took = c.took
-    ? c.took.field || c.took.base
-      ? `${c.fromName} just took ${[
-          c.took.field ? `${c.took.field} field` : null,
-          c.took.base ? `${c.took.base} base` : null,
-        ]
-          .filter(Boolean)
-          .join(", ")}`
-      : `${c.fromName} took none`
-    : "the first turn";
-  const lines = [];
-  if (c.kubbs) {
-    lines.push(`${c.kubbs} ${c.kubbs === 1 ? "kubb" : "kubbs"} in`);
-    lines.push(`then ${c.batons} batons`);
-  } else
-    lines.push(`${theirs ? "they throw" : "you throw"} ${c.batons} batons`);
-  if (c.thrower) lines.push(`${c.thrower} first`);
-  const map = h("canvas.card-map", { width: 120, height: 200 });
-  drawCardMap(map, c, need);
+// The hand-off card (the 1.0 design, "Hand-off"): the title, one line, one go
+// button; no turn number and no map (the header says the turn, the minimap the
+// pitch). Also the settle card's, before a raise or punishment by hand. line:
+// handoffLine's { state, text }.
+function shortCard(name, mine, line, go, done, kind) {
   return h(
-    "div.card.handoff",
-    { "data-test": "handoff" },
-    h(
-      "div.handoff-body",
-      h(
-        "div",
-        h("p.kicker", `TURN ${c.turn}`),
-        h("h2.display", `${c.toName}`),
-        h("p.took", took),
-        h(
-          "ul.lines",
-          lines.map((t) => h("li", t)),
-        ),
-        h(
-          "p.bases",
-          (watcher ? watcherBases(c, need) : c.baseText || []).map((t) =>
-            h("span.chip", t),
-          ),
-        ),
-      ),
-      map,
-    ),
+    `div.card.handoff.short`,
+    { "data-test": kind, "data-line": line.state || "" },
+    h("h2.display", { "data-test": `${kind}-title` }, handoffTitle(name, mine)),
+    line.text
+      ? h("p.handoff-line", { "data-test": `${kind}-line` }, line.text)
+      : null,
     h(
       "div.row",
-      button("THROW", done, "go", {
+      button(go, done, "go wide", {
         "data-default": true,
-        "data-test": "handoff-go",
+        "data-test": `${kind}-go`,
       }),
     ),
-  );
-}
-
-function drawCardMap(canvas, c, need) {
-  const dpr = Math.min(3, window.devicePixelRatio || 1);
-  const W = 120,
-    H = 200;
-  canvas.width = W * dpr;
-  canvas.height = H * dpr;
-  canvas.style.width = `${W}px`;
-  canvas.style.height = `${H}px`;
-  const ctx = canvas.getContext("2d");
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const items = (c.pieces || []).map((p) => ({
-    id: p.id,
-    kind: p.kind === "king" ? "king" : "kubb",
-    x: p.x,
-    y: p.y,
-    toppled: !!p.down,
-    team: teamOf(p.id),
-  }));
-  drawMinimap(
-    ctx,
-    { x: 4, y: 4, width: W - 8, height: H - 8 },
-    {
-      // a base kubb knocked down leaves its slot empty
-      items: items.filter(
-        (p, i) => !(c.pieces[i].kind === "base" && p.toppled),
-      ),
-      surface: need?.setup?.surface || "grass",
-    },
   );
 }
 
@@ -752,23 +720,6 @@ function pass(c, done) {
     h("p.kicker", c.team),
     h("h2.display", `Over to ${c.name}`),
     h("p", `${c.name} throws ${what}`),
-    h("div.row", button("READY", done, "go", { "data-default": true })),
-  );
-}
-
-function settle(c, done) {
-  const parts = [];
-  if (c.raise)
-    parts.push(`raise ${c.raise} ${c.raise === 1 ? "kubb" : "kubbs"} up`);
-  if (c.punish)
-    parts.push(
-      `place ${c.punish} punishment ${c.punish === 1 ? "kubb" : "kubbs"}`,
-    );
-  return h(
-    "div.card.settle",
-    { "data-test": "settle" },
-    h("h2.display", c.toName),
-    h("p", `You ${parts.join(" and ")}, then hand it back to ${c.backName}.`),
     h("div.row", button("READY", done, "go", { "data-default": true })),
   );
 }
