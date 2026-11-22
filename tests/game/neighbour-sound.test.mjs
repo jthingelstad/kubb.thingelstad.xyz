@@ -1,6 +1,7 @@
 // The Tournament's other pitches heard (src/game/neighbour-sound.js, Field's cues in
 // src/game/neighbours.js, Game.neighbourSounds, Sound.distant): cued from a real
-// neighbour recording at its toppleT and its landing, quieter with distance and never as
+// neighbour recording's hits and landing (engine 0.16.0), a topple as loud as its hit
+// was hard and a kubb struck and left standing quietly, quieter with distance and never as
 // loud as the player's own knock, at most three at once, and silent wherever it must be.
 // And no person is drawn on any path of the Tournament.
 import { test } from "node:test";
@@ -25,7 +26,7 @@ import { Game } from "../../src/game/game.js";
 
 const OWN = soundTune.volume * 0.9; // the player's own knock (game.js playFrame)
 
-test("a neighbour's throw is heard at each topple, its landing and a king down, in the engine's time", async () => {
+test("a neighbour's throw is heard at each hit, a topple by its strength, a struck kubb that stands quietly, its landing at landing.t", async () => {
   const handle = neighboursHost({
     makeEngine: () => makeNeighboursEngine({ sources: bundleLua() }),
   });
@@ -38,7 +39,7 @@ test("a neighbour's throw is heard at each topple, its landing and a king down, 
   let now = 0;
   let toppling = null;
   const throws = [];
-  while (now < 120 && !toppling) {
+  while (now < 240 && !toppling) {
     now += 1 / 30;
     const r = await handle({ type: "advance", gen: 1, now, budgetMs: 4 });
     const { events } = JSON.parse(r.text);
@@ -50,35 +51,47 @@ test("a neighbour's throw is heard at each topple, its landing and a king down, 
     }
   }
   assert.ok(throws.length > 0, "a throw");
+  let landed = 0;
   for (const ev of throws) {
-    const cues = cuesOf(ev.recording);
-    // the landing: the thrown piece's first frame on the ground after it flew
-    const pid = ev.recording.projectile.id;
-    const body = ev.recording.bodies.find((b) => b.id === pid);
-    const land = cues.find((c) => c.kind === "land");
-    assert.ok(land, "it lands");
-    const j = Math.round(land.t / ev.recording.frameDt) - body.start;
-    const z = (i) => body.poses[i * 7 + 2] / ev.recording.poseScale;
-    assert.ok(z(j) <= tune.landZ);
-    for (let i = 0; i < j; i++)
-      assert.ok(
-        z(i) > tune.landZ ||
-          ![...Array(i).keys()].some((h) => z(h) > tune.flewZ),
+    const rec = ev.recording;
+    const cues = cuesOf(rec);
+    // the landing: at the engine's landing.t, never read from the poses
+    const land = cues.filter((c) => c.kind === "land");
+    if (rec.landing) {
+      landed += 1;
+      assert.deepEqual(
+        land.map((c) => c.t),
+        [rec.landing.t],
       );
-    // each topple at its toppleT, a king's as a king
-    for (const b of ev.recording.bodies.filter((b) => b.toppleT !== undefined))
-      assert.ok(
-        cues.some(
-          (c) =>
-            c.t === b.toppleT &&
-            c.kind === (b.kind === "king" ? "king" : "hit"),
-        ),
+    } else assert.equal(land.length, 0, "no landing, no thud");
+    // each body struck: once, at its hit's time, a topple by its strength, a kubb
+    // left standing a quiet tap
+    const bodies = new Map(rec.bodies.map((b) => [b.id, b]));
+    const pid = rec.projectile.id;
+    const struck = new Set();
+    for (const h of rec.hits || []) {
+      if (h.id === pid || struck.has(h.id)) continue;
+      struck.add(h.id);
+      const b = bodies.get(h.id);
+      const fell = b && b.toppleT !== undefined;
+      const c = cues.find((c) => c.t === h.t && c.kind !== "land");
+      assert.ok(c, `${h.id} heard`);
+      assert.equal(
+        c.kind,
+        fell ? (b.kind === "king" ? "king" : "hit") : "tap",
+        h.id,
       );
+      const share = tune.softest + (1 - tune.softest) * h.strength;
+      assert.ok(Math.abs(c.level - (fell ? share : share * tune.stood)) < 1e-9);
+    }
+    for (const b of rec.bodies.filter((b) => b.toppleT !== undefined))
+      assert.ok(struck.has(b.id), `${b.id} toppled with a hit to hear`);
     assert.deepEqual(
       cues.map((c) => c.t),
       [...cues.map((c) => c.t)].sort((a, b) => a - b),
     );
   }
+  assert.ok(landed > 0, "throws land");
   assert.ok(toppling, "a throw that toppled something");
   // the model keeps them on the match clock, due at release + t, taken once
   const fresh = new Field(JSON.parse(opened.text));
@@ -209,4 +222,47 @@ test("no person is drawn on any path of the Tournament", () => {
       false,
       f,
     );
+});
+
+test("the sounds' loudness: a hard hit is louder than a graze, a kubb left standing quieter than one that falls", () => {
+  const rec = {
+    projectile: { id: "baton1", kind: "baton" },
+    bodies: [
+      { id: "baton1", kind: "baton", start: 0, frames: 0, poses: [] },
+      { id: "k1", kind: "kubb", toppleT: 0.8 },
+      { id: "k2", kind: "kubb", toppleT: 0.9 },
+      { id: "k3", kind: "kubb" },
+      { id: "king", kind: "king", toppleT: 1.2 },
+    ],
+    hits: [
+      { t: 0.5, id: "k1", strength: 1 },
+      { t: 0.55, id: "k2", strength: 0.1 },
+      { t: 0.6, id: "k3", strength: 1 },
+      { t: 0.7, id: "k1", strength: 0.2 },
+      { t: 1.0, id: "king", strength: 0.6 },
+    ],
+    landing: { t: 0.4, strength: 0.5 },
+  };
+  const cues = cuesOf(rec);
+  assert.deepEqual(
+    cues.map((c) => [c.t, c.kind]),
+    [
+      [0.4, "land"],
+      [0.5, "hit"],
+      [0.55, "hit"],
+      [0.6, "tap"],
+      [1.0, "king"],
+    ],
+    "the first contact on each body only",
+  );
+  const lv = Object.fromEntries(cues.map((c) => [c.t, c.level]));
+  assert.equal(lv[0.5], 1, "a hard hit: the full knock");
+  assert.ok(lv[0.55] < lv[0.5] && lv[0.55] >= tune.softest, "a graze softer");
+  assert.ok(lv[0.6] < lv[0.5], "struck as hard and left standing: quieter");
+  assert.ok(rateFor("tap") > rateFor("hit"), "a tap, not a fall");
+  // a recording with no hits (nothing struck) still knocks at a topple's toppleT
+  assert.deepEqual(
+    cuesOf({ bodies: [{ id: "k1", kind: "kubb", toppleT: 1 }] }),
+    [{ t: 1, kind: "hit", level: 1 }],
+  );
 });

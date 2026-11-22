@@ -55,10 +55,10 @@ export const STEPS = [
   {
     linear: [
       "Aim if you like",
-      "Tap the pitch to put the target circle there, or drag to move it. Tap ARC or TILT at the side to slide it, or STAND to drag where you stand. Or just throw: the circle starts on a good target.",
+      "Tap the pitch to put the target circle there, or drag to move it. Tap ARC or TILT at the side to slide it, or STAND to drag where you stand. Close to a kubb, slide ARC down into DRIVE to throw low and hard. Or just throw: the circle starts on a good target.",
     ],
     title: "Aim if you like",
-    text: "Tap the pitch to put the target circle there, or drag to move it. Tap ARC or TILT at the side to slide it, or STAND to drag where you stand. Or just throw: the circle starts on a good target.",
+    text: "Tap the pitch to put the target circle there, or drag to move it. Tap ARC or TILT at the side to slide it, or STAND to drag where you stand. Close to a kubb, slide ARC down into DRIVE to throw low and hard. Or just throw: the circle starts on a good target.",
     arm: () => 0,
   },
 ];

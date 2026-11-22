@@ -6,6 +6,7 @@ import {
   coachFor,
   stageOf,
   slowVerdict,
+  shortDrive,
   LINES,
   tune,
 } from "../../src/game/coach.js";
@@ -84,7 +85,29 @@ test("the coach names the marks by shape: the stripes and the solid mark", () =>
     winding: "NO RUSH GOING BACK",
     band: "NOW FLICK FAST AND STOP ON THE SOLID MARK",
     slow: "SLOW FLICK. FLICK FASTER.",
+    driveShort: "A DRIVE NEEDS MORE POWER.",
   });
   for (const line of Object.values(LINES))
     assert.doesNotMatch(line, /ORANGE|BLUE|RED|COLOU?R/, line);
+});
+
+// Engine 0.16's drive: its verdict is SHORT when it lands short (the engine's
+// docs/CLIENTS.md "0.16 on top"); a drive is planned hard, so the next throw is
+// coached to pull back far.
+test("after a drive that fell SHORT the next throw is coached to pull back far", () => {
+  assert.equal(shortDrive({ power: "SHORT" }, true), true);
+  assert.equal(shortDrive({ power: "SHORT" }, false), false, "not a drive");
+  assert.equal(shortDrive({ power: "ON" }, true), false);
+  assert.equal(shortDrive(null, true), false);
+  const c = coachFor({ throws: 9, short: true, dial: { phase: "idle" } });
+  assert.deepEqual(c, {
+    stage: "rest",
+    lead: "A DRIVE NEEDS MORE POWER.",
+    line: LINES.rest,
+  });
+  // slow wins: a slow flick is mended first
+  assert.equal(
+    coachFor({ throws: 9, slow: true, short: true, dial: {} }).lead,
+    LINES.slow,
+  );
 });

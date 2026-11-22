@@ -101,31 +101,155 @@ test("with reduced motion the kubb does not tip: it lies, then stands", () => {
   );
 });
 
-// The engine's own raises (a match raising automatically, the computer's, watching)
-// wait for the engine to hand them out (engine 0.16.0's setup.settled): today the seam
-// gives none, whatever it is passed, and a real match's throw needs never fill it.
-test("the engine's own raises: no clips until the engine hands out what it raised", async () => {
-  assert.deepEqual(settledClips(undefined), []);
-  assert.deepEqual(settledClips({ raised: 2, punished: 0 }), []);
-  assert.deepEqual(settledClips([{ kubb: "a1", which: 1 }]), []);
+// The engine's own raises (a match raising automatically, the computer's, watching):
+// engine 0.16.0 hands them out on the next throw need (setup.settled), and each becomes
+// a clip in the list's order, the kubb lying where the engine says it lay and standing
+// where it stood it, in the raiser's frame as given.
+const near = (a, b, e = 1e-9) => Math.abs(a - b) <= e;
+
+async function autoMatch({ wide = false, seed = 7 } = {}) {
   const e = await Engine.create({ sources: bundleLua() });
   e.call("useTune", { name: "pointer" });
   e.newMatch({
-    seed: 7,
+    seed,
     cpu: "both",
     raising: "auto",
     start: { year: 2026, month: 11, day: 22, hour: 10, min: 0 },
     maxTurns: 6,
   });
-  let throws = 0;
-  for (let guard = 0; guard < 60000; guard++) {
-    const n = e.view().need;
-    if (n.kind === "over") break;
-    if (n.kind === "throw") {
-      assert.equal(n.setup?.settled, undefined, "engine 0.15.1 leaves it out");
-      throws += 1;
-    }
+  if (wide) e.setWide({ left: 0, top: 0, right: 800, bottom: 600, k: 1 });
+  return e;
+}
+
+// the throw needs that carry a settled list, each with its view, until n are seen
+function settledNeeds(e, n = 3) {
+  const out = [];
+  let last = null;
+  for (let guard = 0; guard < 60000 && out.length < n; guard++) {
+    const v = e.view();
+    if (v.need.kind === "over") break;
+    const st = v.need.kind === "throw" ? v.need.setup?.settled : null;
+    const key = st ? JSON.stringify(st) : null;
+    if (st && key !== last) out.push({ v, st, snap: e.snapshot() });
+    last = key;
     e.frame({ dt: 1 / 30 });
   }
-  assert.ok(throws > 0);
+  return out;
+}
+
+test("the engine's own raises: a clip a kubb, in its order, from its own poses", async () => {
+  const e = await autoMatch();
+  const seen = settledNeeds(e, 3);
+  assert.ok(seen.length >= 2, "an automatic match hands its raises out");
+  for (const { v, st } of seen) {
+    const list = st.list;
+    assert.equal(list.length, st.raised + st.punished);
+    // the raiser is the defender, never the next thrower: its frame is not the view's,
+    // so only the king (on the pitch's centre either way) is drawn round them
+    for (const x of list) assert.notEqual(x.side, v.need.side);
+    const king = v.items.filter((it) => it.id === "king");
+    const clips = settledClips(st, { around: king });
+    assert.equal(clips.length, list.length);
+    clips.forEach((c, k) => {
+      const x = list[k];
+      assert.equal(c.need.kubb, x.id, "in the engine's order");
+      assert.equal(c.need.side, x.side);
+      assert.equal(c.i, x.which === 2 ? 1 : 0, "on the engine's end");
+      const at = (u) => c.items(u).find((it) => it.id === x.id);
+      // lying where it lay, standing where it was stood: the poses as given
+      const lie = at(0);
+      assert.ok(near(lie.x, x.lying.x) && near(lie.y, x.lying.y));
+      assert.ok(lie.z < 0.05, "lying");
+      const up = at(1);
+      assert.ok(near(up.x, x.standing.x) && near(up.y, x.standing.y));
+      assert.ok(up.z > 0.07, "standing");
+      // part way: tipped toward its end, as the hand's drag tips it
+      const mid = at(0.35);
+      assert.ok(mid.z > lie.z && mid.z < up.z + 0.02);
+      // the kubbs before it stand, the ones after still lie, and the king is there
+      const ids = c.items(0.5).map((it) => it.id);
+      assert.ok(ids.includes("king"));
+      list.forEach((o, j) => {
+        if (j === k) return;
+        const it = c.items(0.5).find((p) => p.id === o.id);
+        assert.ok(it, `${o.id} drawn`);
+        assert.equal(it.z > 0.07, j < k, `${o.id} ${j < k ? "up" : "down"}`);
+      });
+    });
+  }
+});
+
+test("the engine's own raises in the wide view: the world frame, drawn with the pitch", async () => {
+  const e = await autoMatch({ wide: true });
+  const seen = settledNeeds(e, 2);
+  assert.ok(seen.length >= 1);
+  for (const { v, st } of seen) {
+    for (const x of st.list) assert.equal(x.frame, "world");
+    // both the world's: the view's pieces are drawn round them, and once every kubb
+    // is up the clip's last moment is the pitch as the view has it
+    const clips = settledClips(st, { around: v.items });
+    const end = clips.at(-1).items(1);
+    for (const it of v.items) {
+      const got = end.find((q) => q.id === it.id);
+      assert.ok(got, it.id);
+      assert.ok(
+        near(got.x, it.x, 1e-6) && near(got.y, it.y, 1e-6),
+        `${it.id} where the view has it`,
+      );
+    }
+  }
+});
+
+test("after a restore there is no settled list: the kubbs already stand", async () => {
+  const e = await autoMatch();
+  const [first] = settledNeeds(e, 1);
+  assert.ok(first);
+  const r = await Engine.create({ sources: bundleLua() });
+  r.call("useTune", { name: "pointer" });
+  r.restore(first.snap);
+  const n = r.view().need;
+  assert.equal(n.kind, "throw");
+  assert.equal(n.setup?.settled, undefined);
+  assert.deepEqual(settledClips(n.setup?.settled), []);
+});
+
+test("a punishment kubb the engine placed is stood up where it was put, and nothing else is a clip", () => {
+  // the shape docs/SESSION.md gives (the computer seldom throws a kubb out twice, so
+  // this one is written out): { kind: "punish", id, side, pose }
+  const st = {
+    raised: 1,
+    punished: 1,
+    list: [
+      {
+        kind: "raise",
+        id: "b1",
+        side: "A",
+        which: 1,
+        lying: { x: 0.5, y: 2, angle: 0, standing: false },
+        standing: { x: 0.61, y: 2, angle: 0, standing: true },
+      },
+      {
+        kind: "punish",
+        id: "b2",
+        side: "A",
+        pose: { x: -1, y: 3.5, angle: 0.3, standing: true },
+      },
+    ],
+  };
+  const clips = settledClips(st);
+  assert.equal(clips.length, 2);
+  // the punishment kubb is not on the pitch while the raise before it plays
+  assert.equal(
+    clips[0].items(0.5).some((it) => it.id === "b2"),
+    false,
+  );
+  const placed = clips[1].items(1).find((it) => it.id === "b2");
+  assert.ok(near(placed.x, -1) && near(placed.y, 3.5) && placed.z > 0.07);
+  assert.ok(clips[1].items(0).find((it) => it.id === "b2").z < 0.05);
+  // the raised kubb stands while the punishment kubb is placed
+  assert.ok(clips[1].items(0.5).find((it) => it.id === "b1").z > 0.07);
+  // nothing to show: no clips
+  assert.deepEqual(settledClips(undefined), []);
+  assert.deepEqual(settledClips({ raised: 0, punished: 0, list: [] }), []);
+  assert.deepEqual(settledClips({ list: [{ kind: "raise", id: "x" }] }), []);
 });

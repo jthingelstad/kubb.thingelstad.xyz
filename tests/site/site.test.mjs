@@ -620,8 +620,8 @@ test("the version label: package.json's version and the newest engine's, never t
   const sha = "a2659b744210e4c5baa5b69c672e11ec87f9bfab";
   const release = releaseOf(pkg.version, sha, carried);
   assert.equal(release.text, `${pkg.version} (${carried[0].version})`);
-  // this checkout: 0.17.0 on 0.15.1, the one engine it carries (docs/ENGINES.md)
-  assert.equal(release.text, "0.17.1 (0.15.1)");
+  // this checkout: 0.19.0 on 0.16.0, the one engine it carries (docs/ENGINES.md)
+  assert.equal(release.text, "0.19.0 (0.16.0)");
   assert.equal(release.detail, null);
   // more than one carried (when the owner decides one is supported): "Also plays"
   const two = [carried[0], { ...carried[0], mm: "0.9", version: "0.9.0" }];
@@ -630,7 +630,7 @@ test("the version label: package.json's version and the newest engine's, never t
   // one engine carried: no detail
   assert.equal(releaseOf("0.2.0", sha, carried.slice(0, 1)).detail, null);
   const foot = footer(release.text);
-  assert.match(foot, /data-release>Version 0\.17\.1 \(0\.15\.1\)<\/p>/);
+  assert.match(foot, /data-release>Version 0\.19\.0 \(0\.16\.0\)<\/p>/);
   assert.ok(!foot.includes(sha.slice(0, 7)));
 });
 
@@ -1049,6 +1049,6 @@ test("robots.txt: crawlers stay off per-match addresses, link previews do not", 
 
 test("/engine/ counts the golden corpus the site vendors", () => {
   const html = PAGES.find((p) => p.path === "/engine/").render({});
-  assert.deepEqual(GOLDEN_COUNT, { matches: 19, hashes: 729 });
-  assert.match(html, /We keep 729 hashes from 19 test matches\./);
+  assert.deepEqual(GOLDEN_COUNT, { matches: 19, hashes: 724 });
+  assert.match(html, /We keep 724 hashes from 19 test matches\./);
 });

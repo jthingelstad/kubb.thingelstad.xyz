@@ -28,6 +28,10 @@ export const LINES = {
   band: "NOW FLICK FAST AND STOP ON THE SOLID MARK",
   // the lead line for the throw after one the engine called SLOW
   slow: "SLOW FLICK. FLICK FASTER.",
+  // the lead line for the throw after a drive (engine 0.16: a release under ARC's
+  // knee) the engine called SHORT: a drive is planned hard, so its stripes are far
+  // round (a backswing of about 128 to 131 at 3 to 4 m) and a short one fell under them
+  driveShort: "A DRIVE NEEDS MORE POWER.",
 };
 
 // Where the stroke is, from the meter's state (the session's dial state,
@@ -46,11 +50,23 @@ export function stageOf(dial = {}) {
 // player's own throw (throwplan.lua plan.verdictText: power is SLOW).
 export const slowVerdict = (verdicts) => verdicts?.power === "SLOW";
 
+// Was the last throw a drive that fell SHORT (its power under the band)? drive: it
+// was planned under ARC's knee (plan-sliders.js isDrive).
+export const shortDrive = (verdicts, drive) =>
+  !!drive && verdicts?.power === "SHORT";
+
 // The coach for this frame, or null: { stage, lead, line }. throws: this
 // device's throws (capped, prefs throwsMade); slow: the last throw of this
-// player's was SLOW.
-export function coachFor({ throws = 0, slow = false, dial = {} } = {}) {
-  if (!slow && throws >= tune.learnedAt) return null;
+// player's was SLOW; short: it was a drive that fell SHORT (slow wins: a slow
+// flick is the first thing to mend).
+export function coachFor({
+  throws = 0,
+  slow = false,
+  short = false,
+  dial = {},
+} = {}) {
+  if (!slow && !short && throws >= tune.learnedAt) return null;
   const stage = stageOf(dial);
-  return { stage, lead: slow ? LINES.slow : null, line: LINES[stage] };
+  const lead = slow ? LINES.slow : short ? LINES.driveShort : null;
+  return { stage, lead, line: LINES[stage] };
 }
