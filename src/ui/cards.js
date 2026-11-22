@@ -10,8 +10,10 @@ import { prefs } from "../game/prefs.js";
 import { soloOptions } from "../game/throw-level.js";
 import { youRow } from "./settings.js";
 import { segBar } from "./seg.js";
-import { SCENE_ROW, sceneId } from "../render/scenes.js";
-import { handoffLine, handoffTitle } from "./handoff-words.js";
+import { sceneId } from "../render/scenes.js";
+import { optionRows } from "../net/lobby.js";
+import { sceneTiles } from "./scene-tiles.js";
+import { handoffKid, handoffLine, handoffTitle } from "./handoff-words.js";
 
 export class Cards {
   constructor(root) {
@@ -93,6 +95,7 @@ export class Cards {
         theirs ? "WATCH" : "THROW",
         done,
         "handoff",
+        handoffKid(need),
       );
     else if (card.kind === "settle")
       el = shortCard(
@@ -102,6 +105,7 @@ export class Cards {
         theirs ? "WATCH" : "READY",
         done,
         "settle",
+        handoffKid(need),
       );
     else if (card.kind === "pass") el = pass(c, done);
     else return;
@@ -280,15 +284,17 @@ export class Cards {
   // device's name (src/game/player-name.js), a generated one, in the You row's name
   // row (src/ui/name-row.js): a pick there is the device's name (setName); onName(f)
   // hears a change made in MENU. names: the engine's door (src/game/names.js).
-  // scene: the Scene row's value when the address names one (?scene=), else the
-  // saved one; onScene(id) hears it picked, so the pitch behind the card can show it.
+  // scene: the Scene's value when the address names one (?scene=), else the saved
+  // one; onScene(id) hears it picked, so the pitch behind the card can show it.
   //
-  // The card (the 1.0 design, "Play the computer", direction A): the name row, the
-  // Scene as three picture tiles, then Computer level, Opening, Raising and Wind, and
-  // Surface as a fifth row until a scene decides the ground; HOME quiet at the left,
-  // START go at the right. There is no Kubbs row: the scene decides the set (the
-  // night and the neon have always played their own; the day plays Classic).
-  // game: the Game behind the card, which draws the tiles' pictures (sceneThumb).
+  // The card is scene first (engine 0.14, the engine's docs/PITCH.md `optionRows`):
+  // its rows are the engine's for the scene picked, `pitch.optionRows({ scene })`:
+  // the Scene as seven picture tiles with the engine's names, a Surface row only
+  // where the scene leaves one (Black & White: grass, sand, snow), no Kubbs row (the
+  // scene decides the set), then Computer level (Kid first since 0.15), Opening,
+  // Raising and Wind. Picking another scene takes its rows and its defaults. HOME
+  // quiet at the left, START go at the right. game: the Game behind the card, which
+  // draws the tiles' pictures (sceneThumb).
   options(
     onStart,
     {
@@ -302,8 +308,7 @@ export class Cards {
       game = null,
     },
   ) {
-    const saved = soloSaved();
-    if (scene) saved.scene = sceneId(scene);
+    const saved = soloSaved(scene ? { scene } : null);
     onScene?.(saved.scene);
     let current = kept;
     // the name row: the name and SHUFFLE
@@ -319,30 +324,52 @@ export class Cards {
       current = v;
       you.setName(v);
     });
-    const groups = {};
-    const tiles = sceneTiles(saved.scene, onScene, game);
-    groups.scene = tiles;
-    const rows = OPTION_ROWS.map(([key, label, choices]) => {
-      const id = `solo-label-${key}`;
-      const seg = segBar({
-        choices,
-        value: saved[key],
-        key,
-        labelledBy: id,
-      });
-      groups[key] = seg;
-      return h(
-        "div.opt",
-        { "data-test": `solo-opt-${key}` },
-        h("span.opt-label", { id }, label),
-        seg.el,
-      );
+    const values = { ...saved };
+    let card = soloCard(values.scene);
+    const sceneRow = card.rows.find(([k]) => k === "scene");
+    const tiles = sceneTiles({
+      choices: sceneRow[2],
+      value: values.scene,
+      game,
+      labelledBy: "solo-label-scene",
+      onPick: (v) => {
+        values.scene = v;
+        card = soloCard(v);
+        // the new scene's surface and set: the one kept where it allows it
+        Object.assign(values, throughScene(values, card));
+        drawRows();
+        onScene?.(v);
+      },
     });
+    const rowsBox = h("div.opt-rows");
+    const drawRows = () => {
+      rowsBox.replaceChildren(
+        ...card.rows
+          .filter(([k]) => k !== "scene" && k !== "set")
+          .sort((a, b) => ROW_ORDER.indexOf(a[0]) - ROW_ORDER.indexOf(b[0]))
+          .map(([key, label, choices]) => {
+            const id = `solo-label-${key}`;
+            const seg = segBar({
+              choices,
+              value: values[key],
+              key,
+              labelledBy: id,
+              onPick: (v) => {
+                values[key] = v;
+              },
+            });
+            return h(
+              "div.opt",
+              { "data-test": `solo-opt-${key}` },
+              h("span.opt-label", { id }, ROW_LABEL[key] ?? label),
+              seg.el,
+            );
+          }),
+      );
+    };
+    drawRows();
     const start = () => {
-      const o = {};
-      for (const k of Object.keys(groups)) o[k] = groups[k].value();
-      // the scene decides the set (no Kubbs row): the day plays Classic
-      o.set = SOLO_DEFAULTS.set;
+      const o = { ...values, ...throughScene(values, card) };
       // the match options are kept for the next card; the name is the device's
       prefs.set("solo", o);
       close();
@@ -357,10 +384,10 @@ export class Cards {
       h(
         "div.opt.opt-scene",
         { "data-test": "solo-opt-scene" },
-        h("span.opt-label", { id: "solo-label-scene" }, SCENE_ROW[1]),
+        h("span.opt-label", { id: "solo-label-scene" }, sceneRow[1]),
         tiles.el,
       ),
-      rows,
+      rowsBox,
       h(
         "div.card-foot.start-row",
         button("HOME", home, "quiet", { "data-test": "solo-home" }),
@@ -448,14 +475,47 @@ export const tune = {
 };
 
 // The solo card's options as last saved (prefs "solo"), the computer's level moved
-// across from the card's older Level row (src/game/throw-level.js).
-// The name is the device's now (src/game/player-name.js moves an older card's across).
-export const soloSaved = () => {
-  const o = { ...SOLO_DEFAULTS, ...soloOptions(prefs.get("solo", {})) };
+// across from the card's older Level row (src/game/throw-level.js), and the surface
+// and set through the scene (engine 0.14: a scene decides them, so a choice of
+// surface or set kept from before may come back changed). over: values to take
+// first (the address's ?scene=). The name is the device's now
+// (src/game/player-name.js moves an older card's across).
+export const soloSaved = (over = null) => {
+  const o = {
+    ...SOLO_DEFAULTS,
+    ...soloOptions(prefs.get("solo", {})),
+    ...(over || {}),
+  };
   delete o.name;
   o.scene = sceneId(o.scene); // one this copy does not draw: the day
-  return o;
+  return { ...o, ...throughScene(o, soloCard(o.scene)) };
 };
+
+// The engine's card for a scene (pitch.optionRows): { scene, rows, defaults }. Without
+// a room engine (a test of the card alone) the scene alone and the day's defaults.
+export function soloCard(scene) {
+  try {
+    return optionRows(scene);
+  } catch {
+    return {
+      scene,
+      rows: [["scene", "Scene", [[scene, scene]]]],
+      defaults: { surface: "grass", set: "classic" },
+    };
+  }
+}
+
+// The surface and set a card's scene takes from values `o`: the kept one where the
+// scene's rows offer it, else the scene's default.
+export function throughScene(o, card) {
+  const pick = (key) => {
+    const row = card.rows.find(([k]) => k === key);
+    return row && row[2].some(([v]) => v === o[key])
+      ? o[key]
+      : card.defaults?.[key];
+  };
+  return { surface: pick("surface"), set: pick("set") };
+}
 
 export const SOLO_DEFAULTS = {
   computer: "club",
@@ -485,130 +545,12 @@ export const soloKept = (saved) =>
   typeof saved === "object" &&
   Object.keys(saved).some((k) => k !== "name");
 
-// The rows under the Scene tiles, in the design's order, with Surface last until a
-// scene decides the ground. The Kubbs row is gone (the scene decides the set).
-const OPTION_ROWS = [
-  [
-    "computer",
-    "Computer level",
-    [
-      ["beginner", "Beginner"],
-      ["club", "Club"],
-      ["pro", "Pro"],
-    ],
-  ],
-  [
-    "opening",
-    "Opening",
-    [
-      ["2-4-6", "2-4-6"],
-      ["six", "Six batons"],
-    ],
-  ],
-  [
-    "raising",
-    "Raising",
-    [
-      ["hand", "By hand"],
-      ["auto", "Automatic"],
-    ],
-  ],
-  [
-    "wind",
-    "Wind",
-    [
-      ["off", "Off"],
-      ["light", "Light"],
-      ["strong", "Strong"],
-    ],
-  ],
-  [
-    "surface",
-    "Surface",
-    [
-      ["grass", "Grass"],
-      ["sand", "Sand"],
-      ["snow", "Snow"],
-    ],
-  ],
-];
-export const SOLO_ROWS = ["scene", ...OPTION_ROWS.map(([k]) => k)];
-
-// The Scene's three picture tiles: each the pitch behind the card drawn in that
-// scene by the game itself (Game.sceneThumb), its name (SCENE_NAMES) under it. A
-// radio group like the segmented bar: one Tab stop, the arrow keys inside. onPick(v)
-// hears a pick (the pitch behind shows it). stop() ends the drawing.
-function sceneTiles(value, onPick, game) {
-  const choices = SCENE_ROW[2];
-  let current = choices.some(([v]) => v === value) ? value : choices[0][0];
-  const canvases = [];
-  const btns = choices.map(([v, label]) => {
-    const canvas = h("canvas", {
-      width: 192,
-      height: 112,
-      "aria-hidden": "true",
-    });
-    canvases.push([canvas, v]);
-    return h(
-      "button.tile",
-      {
-        type: "button",
-        role: "radio",
-        "aria-checked": String(v === current),
-        tabindex: v === current ? "0" : "-1",
-        "data-value": v,
-        "data-test": `scene-tile-${v}`,
-        onclick: () => pick(v),
-        onkeydown: (e) => {
-          const i = choices.findIndex(([c]) => c === current);
-          const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[
-            e.key
-          ];
-          let j = d ? (i + d + choices.length) % choices.length : null;
-          if (e.key === "Home") j = 0;
-          if (e.key === "End") j = choices.length - 1;
-          if (j === null) return;
-          e.preventDefault();
-          pick(choices[j][0]);
-          btns[j].focus();
-        },
-      },
-      canvas,
-      h("span.tile-name", label),
-    );
-  });
-  function pick(v) {
-    current = v;
-    for (const b of btns) {
-      const on = b.dataset.value === v;
-      b.setAttribute("aria-checked", String(on));
-      b.tabIndex = on ? 0 : -1;
-    }
-    onPick?.(v);
-  }
-  // the pictures: drawn once the game has a frame to draw them from
-  let tries = 0;
-  let raf = 0;
-  const draw = () => {
-    raf = 0;
-    const done = canvases.every(([c, v]) => game?.sceneThumb?.(c, v));
-    if (!done && game && ++tries < 120) raf = requestAnimationFrame(draw);
-  };
-  if (game) raf = requestAnimationFrame(draw);
-  return {
-    el: h(
-      "div.tiles",
-      {
-        role: "radiogroup",
-        "aria-labelledby": "solo-label-scene",
-        "data-key": "scene",
-      },
-      btns,
-    ),
-    value: () => current,
-    stop: () => raf && cancelAnimationFrame(raf),
-  };
-}
+// The rows under the Scene tiles, in the design's order: the engine's rows (its
+// labels and values) but Computer level first, as the design put it; "Computer
+// level" as the iPhone app and the lobby say it (the engine's label is "Computer").
+export const ROW_ORDER = ["surface", "computer", "opening", "raising", "wind"];
+export const ROW_LABEL = { computer: "Computer level" };
+export const SOLO_ROWS = ["scene", ...ROW_ORDER];
 
 // SHARE on the winner card of a finished pitch (the 1.0 design: "one SHARE button
 // that opens link, reel and embed"): the pitch's link with COPY LINK, MAKE A
@@ -695,10 +637,12 @@ export function openShareCard(
 // button; no turn number and no map (the header says the turn, the minimap the
 // pitch). Also the settle card's, before a raise or punishment by hand. line:
 // handoffLine's { state, text }.
-function shortCard(name, mine, line, go, done, kind) {
+function shortCard(name, mine, line, go, done, kind, kid = null) {
   return h(
     `div.card.handoff.short`,
     { "data-test": kind, "data-line": line.state || "" },
+    // a Kid match says so over the title (handoffKid)
+    kid ? h("p.kicker", { "data-test": `${kind}-kid` }, kid) : null,
     h("h2.display", { "data-test": `${kind}-title` }, handoffTitle(name, mine)),
     line.text
       ? h("p.handoff-line", { "data-test": `${kind}-line` }, line.text)

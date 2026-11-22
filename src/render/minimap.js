@@ -8,6 +8,7 @@
 //   aim         { x, y }: the aim line's end (the plan's landing), or null
 //   marker      { x, y, r }: the target circle, or null
 //   advantageY  the advantage line, or null
+//   kidY        the Kid line (a Kid match, engine 0.15), or null
 //   wind        { x, y, text }: m/s in the view frame (y up the pitch), or null
 //   baton       { x, y }: the baton in flight, or null
 //   land        { x, y }: where the last throw landed, or null
@@ -102,6 +103,36 @@ export function drawMinimap(ctx, rect, st) {
     ctx.stroke();
   }
   ctx.setLineDash([]);
+  // the Kid line (a Kid match): dots and a cone at each end, as on the pitch
+  if (st.kidY != null && st.kidY !== st.advantageY) {
+    const [, ky] = toMap(g, 0, st.kidY);
+    ctx.fillStyle = ctx.strokeStyle;
+    const n = 9;
+    for (let i = 0; i <= n; i++) {
+      ctx.beginPath();
+      ctx.arc(
+        g.x + (g.w * i) / n,
+        ky,
+        Math.max(0.8, s * 0.045),
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
+    for (const x of [g.x - 1, g.x + g.w + 1]) {
+      const c = Math.max(3, s * 0.22);
+      ctx.fillStyle = HUD.kidCone;
+      ctx.beginPath();
+      ctx.moveTo(x - c * 0.5, ky + c * 0.5);
+      ctx.lineTo(x, ky - c * 0.7);
+      ctx.lineTo(x + c * 0.5, ky + c * 0.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = UI.ink;
+      ctx.lineWidth = Math.max(1, lw * 0.6);
+      ctx.stroke();
+    }
+  }
 
   // the target circle
   if (st.marker) {

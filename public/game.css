@@ -1079,6 +1079,13 @@ body.game {
   pointer-events: auto;
 }
 /* a watched turn's hand-off: a banner at the top, the pitch live and undimmed */
+/* Black & White (the Playdate's look): the dim under a card is a 50% dither of
+   black dots, never a grey */
+:root[data-scene="bw"] .scrim:not(.banner) {
+  background-color: transparent;
+  background-image: repeating-conic-gradient(#000000 0 25%, transparent 0 50%);
+  background-size: 4px 4px;
+}
 .scrim.banner {
   inset: 0 0 auto 0;
   background: none;
@@ -1288,16 +1295,31 @@ body.game {
    the scene's own pitch as the game draws it (src/render/scenes.js), its name
    under it. Chosen: the name ink on paper type and the tile's shadow; not chosen:
    flat. One Tab stop, the arrow keys inside, as the segmented bar. */
+/* The Scene's seven tiles (engine 0.14) wrap: three a row on a phone, the seventh
+   centred on a row of its own; four a row on a wider card (four and three,
+   centred). docs/SYSTEM.md "Scene tiles". */
 .tiles {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
+  width: 100%;
   margin-top: 6px;
+}
+.tiles > .tile {
+  flex: 0 0 calc((100% - 16px) / 3);
+}
+@media (min-width: 600px) {
+  .tiles > .tile {
+    flex-basis: calc((100% - 24px) / 4);
+  }
 }
 .tile {
   appearance: none;
   display: flex;
   flex-direction: column;
+  min-height: 48px;
+  min-width: 0;
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -1315,11 +1337,15 @@ body.game {
   height: auto;
 }
 .tile-name {
-  display: block;
-  padding: 6px 2px;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 1px;
   border-top: var(--line) solid var(--ink);
   font: 700 14px/1.2 var(--jt-font-body);
-  letter-spacing: 0.04em;
+  /* tight enough for TOURNAMENT on a phone's third of the card */
+  letter-spacing: 0;
   text-transform: uppercase;
   text-align: center;
 }
@@ -1598,7 +1624,6 @@ body.game {
   font: 500 14px/1.45 var(--jt-font-mono);
   color: var(--ink);
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
   user-select: text;
   -webkit-user-select: text;
 }
@@ -1814,7 +1839,6 @@ body.game {
   min-width: 0;
   font-family: var(--jt-font-mono);
   font-size: 14px;
-  overflow-wrap: anywhere;
   user-select: text;
   -webkit-user-select: text;
 }
@@ -2146,7 +2170,6 @@ body.game {
   overflow: auto;
   font: 500 14px/1.45 var(--jt-font-mono);
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
   user-select: text;
   -webkit-user-select: text;
 }
@@ -2293,7 +2316,6 @@ body.embed .replay-controls {
 .reel-url {
   font-family: var(--jt-font-mono);
   font-size: 14px;
-  overflow-wrap: anywhere;
   user-select: text;
   -webkit-user-select: text;
 }

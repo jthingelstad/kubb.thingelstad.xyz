@@ -449,7 +449,8 @@ function startSolo(game, cards, { sheet, record, menu, asked }) {
     return;
   }
   // a pitch behind the options card
-  game.newPractice({ surface: prefs.get("solo", {}).surface || "grass" });
+  const kept = soloSaved(asked ? { scene: asked } : null);
+  game.newPractice({ surface: kept.surface, ...sceneOpt(kept.scene) });
   options();
 }
 

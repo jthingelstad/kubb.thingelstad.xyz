@@ -159,7 +159,8 @@ browserTest(
         { timeout: 20000, polling: 50 },
       );
       const doc = await host.evaluate(() => window.__kubb.pitch.room.doc);
-      assert.deepEqual(doc.settings, { computer: "pro" });
+      // every write names the scene (engine 0.14: the scene decides the ground)
+      assert.deepEqual(doc.settings, { computer: "pro", scene: "day" });
       assert.equal(doc.options.computer, undefined, "not one of the five");
       // the host's choice is remembered for its next pitch
       assert.equal(

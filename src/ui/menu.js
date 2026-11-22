@@ -12,7 +12,9 @@
 // choice the raise panel also offers (REST OF GAME, BY HAND).
 import { h, button, clear } from "./dom.js";
 import { seg, settingsCard } from "./settings.js";
-import { SCENE_ROW, sceneId } from "../render/scenes.js";
+import { sceneId } from "../render/scenes.js";
+import { optionRows } from "../net/lobby.js";
+import { sceneTiles } from "./scene-tiles.js";
 
 // watching the computer (src/main.js watchView)
 const VIEWS = [
@@ -184,39 +186,29 @@ export class Menu {
               ),
             )
           : null,
-        // the practice pitch's own options: its match-options place
-        game.mode === "practice" && this.hooks.surface
-          ? row(
-              "menu-surface",
-              "Surface",
-              seg(
-                SURFACES,
-                game.viewData?.surface || "grass",
-                (v) => {
-                  this.hooks.surface(v);
-                  render();
-                },
-                "surface",
-                "Surface",
-              ),
-            )
-          : null,
-        game.mode === "practice" && this.hooks.scene
-          ? row(
-              "menu-scene",
-              SCENE_ROW[1],
-              seg(
-                SCENE_ROW[2],
-                sceneId(game.viewData?.scene),
-                (v) => {
-                  this.hooks.scene(v);
-                  render();
-                },
-                "scene",
-                SCENE_ROW[1],
-              ),
-            )
-          : null,
+        // the practice pitch's own options, scene first (engine 0.14): the Scene
+        // as picture tiles, then a Surface row only where the scene leaves one
+        // (Black & White), from the engine's card (pitch.optionRows)
+        ...(game.mode === "practice" && this.hooks.scene
+          ? this.practiceRows(game, row, render)
+          : game.mode === "practice" && this.hooks.surface
+            ? [
+                row(
+                  "menu-surface",
+                  "Surface",
+                  seg(
+                    SURFACES,
+                    game.viewData?.surface || "grass",
+                    (v) => {
+                      this.hooks.surface(v);
+                      render();
+                    },
+                    "surface",
+                    "Surface",
+                  ),
+                ),
+              ]
+            : []),
         button(
           game.mode === "match" ? "BACK TO THE MATCH" : "BACK TO THE PITCH",
           () => this.close(),
@@ -271,6 +263,57 @@ export class Menu {
 
   // Settings from the menu: the device's rows as a card of their own in the menu's
   // place, DONE (or Escape) back to the menu.
+  // Practice's Scene tiles and, where the scene leaves one, its Surface row.
+  practiceRows(game, row, render) {
+    const scene = sceneId(game.viewData?.scene);
+    let card;
+    try {
+      card = optionRows(scene);
+    } catch {
+      return [];
+    }
+    const sceneRow = card.rows.find(([k]) => k === "scene");
+    const surfaceRow = card.rows.find(([k]) => k === "surface");
+    this.tiles?.stop();
+    this.tiles = sceneTiles({
+      choices: sceneRow[2],
+      value: scene,
+      game,
+      labelledBy: "menu-label-scene",
+      test: "menu-scene-tile",
+      onPick: (v) => {
+        this.hooks.scene(v);
+        render();
+      },
+    });
+    const out = [
+      h(
+        "div.opt.opt-scene",
+        { "data-test": "menu-scene" },
+        h("span.opt-label", { id: "menu-label-scene" }, sceneRow[1]),
+        this.tiles.el,
+      ),
+    ];
+    if (surfaceRow && this.hooks.surface)
+      out.push(
+        row(
+          "menu-surface",
+          surfaceRow[1],
+          seg(
+            surfaceRow[2],
+            game.viewData?.surface || surfaceRow[2][0][0],
+            (v) => {
+              this.hooks.surface(v);
+              render();
+            },
+            "surface",
+            surfaceRow[1],
+          ),
+        ),
+      );
+    return out;
+  }
+
   openSettings() {
     if (!this.el || this.settings) return;
     const { game, sound } = this.hooks;

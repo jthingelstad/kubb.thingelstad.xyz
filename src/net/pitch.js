@@ -60,7 +60,7 @@ import { Reel } from "../ui/reel.js";
 import { reelFromPage } from "./reel.js";
 import { majorMinor, withEngineFor } from "../engine/registry.js";
 import { openSheet } from "../ui/sheet.js";
-import { SCENE_ROW } from "../render/scenes.js";
+import { sceneId } from "../render/scenes.js";
 import { apartNames, playerDefault, teamDefault } from "../game/names.js";
 
 export const tune = {
@@ -202,7 +202,8 @@ export class Pitch {
       this.code,
       [EMBED_ORIGIN, location.origin],
     );
-    game.newPractice({ surface: prefs.get("pitchOptions", {}).surface });
+    const kept = prefs.get("pitchOptions", {});
+    game.newPractice({ surface: kept.surface, scene: sceneId(kept.scene) });
     if (!this.pitchUrl) {
       cards.notice({
         kicker: `PITCH ${this.code}`,
@@ -357,8 +358,10 @@ export class Pitch {
       // the computer's level (engine 0.9 on): cleanOptions knows only the five, and
       // an engine before 0.9 ignores it
       if (LEVELS.includes(saved?.computer)) o.computer = saved.computer;
-      // and the scene the host last picked (a look only, the same way)
-      if (SCENE_ROW[2].some(([v]) => v === saved?.scene)) o.scene = saved.scene;
+      // and the scene the host last picked, always named (engine 0.14: the scene
+      // decides the surface and set, so a kept surface may come back changed)
+      o.scene = sceneId(saved?.scene);
+      if (saved?.surface === "grid") o.surface = "grid";
       const open = new URLSearchParams(location.search).get("open") === "1";
       this.write((doc) => {
         const d = setOptions(doc, o) ?? lobbyOf(doc);
@@ -673,7 +676,11 @@ export class Pitch {
       ...prefs.get("pitchOptions", {}),
       [k]: v,
     });
-    this.write((d) => setOptions(d, { [k]: v }));
+    // every write names the scene (engine 0.14): the engine holds the surface and
+    // set to it
+    this.write((d) =>
+      setOptions(d, { scene: sceneId(optionsOf(d).scene), [k]: v }),
+    );
   }
 
   // The host: open (listed on the web game’s page) or invite only.
@@ -1668,7 +1675,8 @@ export class Pitch {
     this.cards.clearPanel();
     this.game.seat = this.seatFor({ sides: [], cpu: false });
     this.game.useEngine(this.newestEngine);
-    this.game.newPractice({ surface: optionsOf(this.room.doc).surface });
+    const o = optionsOf(this.room.doc);
+    this.game.newPractice({ surface: o.surface, scene: sceneId(o.scene) });
     this.shoutBar.hidden = true;
     this.syncView();
     this.lobby.show();

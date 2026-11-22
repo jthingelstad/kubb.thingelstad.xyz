@@ -123,7 +123,10 @@ test("a match started on the newest plays there; one on 0.9 is never this page's
     assert.equal(w.e, newest.version);
     // the rider names the client and the engine, never the app's version
     assert.equal(w.c, "web");
-    assert.ok(!JSON.stringify(w).includes(APP_VERSION));
+    // (web 0.15.0 runs on engine 0.15.0: the engine's field may say the same number)
+    const { e: engineField, ...rest } = w;
+    assert.equal(engineField, newest.version);
+    assert.ok(!JSON.stringify(rest).includes(APP_VERSION));
     // the bridge says pitch., the engine's own spelling since 0.13
     assert.deepEqual(asked, [
       "pitch.commitAction",

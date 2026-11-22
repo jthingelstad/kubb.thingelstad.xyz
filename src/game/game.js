@@ -51,6 +51,8 @@ import {
   project,
 } from "./draw.js";
 import { Stage } from "../render/scenes.js";
+import { optionRows } from "../net/lobby.js";
+import { flagFor } from "./rulings.js";
 import { viewFit } from "../render/camera.js";
 import { FreeCamera } from "./free-camera.js";
 import {
@@ -71,6 +73,7 @@ import {
   punishCamera,
   poseItem,
   punishNearY,
+  lookAt,
 } from "./scenes.js";
 import {
   raiseGeometry,
@@ -108,6 +111,8 @@ import {
 } from "./auto-raise.js";
 
 export const tune = {
+  // a scene tile's postcard camera (sceneThumb): lookAt's eye, target, focal length
+  thumbCam: [[0.6, -5.2, 1.5], [0, 9, 0.9], 330],
   maxDt: 1 / 20, // s: a longer frame (a hitch, a background tab) is cut to this
   holdAfter: pacing.restAfterThrow, // s the pitch rests after a throw (src/game/pacing.js)
   raiseZoom: 1.8, // a tall canvas's raise scene, over the whole frame across
@@ -170,6 +175,8 @@ export class Game {
     look = null,
   }) {
     this.engine = engine;
+    // the scenes draw where pieces strike the ground (src/render/impacts.js)
+    engine?.setImpacts?.(true);
     // the match's scene (src/render/scenes.js), from its view's `scene`;
     // a scene being picked (showScene) or a look given here (useLook) is
     // kept over it
@@ -367,6 +374,7 @@ export class Game {
       this.engineWide = false;
     }
     this.engine = engine;
+    engine?.setImpacts?.(true);
     this.wide = null;
     this.applyWide();
   }
@@ -1073,7 +1081,7 @@ export class Game {
         p.done = true;
         const r = p.rec.result || {};
         this.result = {
-          flag: r.flag,
+          flag: flagFor(r),
           verdicts: p.local ? r.verdicts : null,
           restText: r.restText,
           age: 0,
@@ -1569,6 +1577,21 @@ export class Game {
   // look like; null goes back to the view's scene.
   showScene(id) {
     this.shownScene = id ?? null;
+    // the practice pitch behind a card is started again in the scene, so it stands
+    // on the scene's own ground too (engine 0.14: a scene decides the surface)
+    if (
+      id &&
+      this.mode === "practice" &&
+      this.phase === "aim" &&
+      this.viewData &&
+      this.viewData.scene !== id
+    ) {
+      try {
+        this.practiceScene(id);
+      } catch {
+        // the look alone, as before
+      }
+    }
   }
 
   // The pitch as it stands, drawn small in scene `id` into `canvas` through a Stage
@@ -1576,7 +1599,9 @@ export class Game {
   // not a sketch). W x H CSS px at 2x. False when there is no picture yet (before
   // the first frame), so the caller may try again.
   sceneThumb(canvas, id, W = 96, H = 56) {
-    const camera = this.out?.camera;
+    // a postcard of the scene: from behind the near baseline, low, looking down the
+    // pitch to past the far end, so its sky and what stands round it show
+    const camera = this.out?.camera ? lookAt(...tune.thumbCam) : null;
     if (!camera || !canvas?.getContext) return false;
     const dpr = 2;
     canvas.width = W * dpr;
@@ -1586,9 +1611,23 @@ export class Game {
     const stage = new Stage({ skin: false, reduced: true });
     stage.use(id);
     const v = this.viewData || {};
+    // the scene on its own ground and with its own set (engine 0.14: the scene
+    // decides them), the surface shown where the scene allows it
+    let ground = { surface: v.surface, set: v.set };
+    try {
+      const card = optionRows(id);
+      const row = card.rows.find(([k]) => k === "surface");
+      ground = {
+        surface: row?.[2].some(([s]) => s === v.surface)
+          ? v.surface
+          : card.defaults.surface,
+        set: card.defaults.set,
+      };
+    } catch {
+      // no room engine: the pitch's own
+    }
     stage.draw(ctx, { width: W, height: H, dpr }, camera, {
-      surface: v.surface,
-      set: v.set,
+      ...ground,
       items: this.items,
     });
     return true;
@@ -1647,6 +1686,8 @@ export class Game {
       set: v.set,
       items: this.items,
       advantageY: aim.advY ?? null,
+      // the Kid line (a Kid match, engine 0.15): dots and two cones
+      kidY: aim.kidY ?? null,
       marker: marker ? { x: marker.x, y: marker.y, r: marker.r } : null,
       arc,
       thrower: aim.thrower
@@ -1742,6 +1783,7 @@ export class Game {
       aim: aim?.marker ? { x: aim.marker.x, y: aim.marker.y } : null,
       marker: aim?.marker?.shown !== false ? aim?.marker : null,
       advantageY: aim?.advY ?? v.minimap?.advY ?? null,
+      kidY: aim?.kidY ?? v.minimap?.kidY ?? null,
       wind: aim?.wind || v.minimap?.wind || null,
       surface: v.surface,
       ...extra,
@@ -1759,6 +1801,7 @@ export class Game {
       set: v.set,
       items: s.items,
       advantageY: this.out?.aim?.advY ?? null,
+      kidY: this.out?.aim?.kidY ?? null,
     });
     this.css();
     const wide = !!this.wide;
@@ -1768,6 +1811,7 @@ export class Game {
       this.drawMap(null, s.items, {
         baton: proj ? { x: proj.x, y: proj.y } : null,
         advantageY: this.out?.aim?.advY ?? null,
+        kidY: this.out?.aim?.kidY ?? null,
         wind: this.out?.aim?.wind || null,
       });
       if (s.dial) this.drawMeter({ ...s.dial, prompt: null });

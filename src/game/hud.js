@@ -73,8 +73,10 @@ export function verdictChips(vs) {
 }
 
 // The verdict as a screen reader hears it, once: the off words first, then the
-// flag, then the on-target words. "Short. Miss. Arc on, steady, straight."
-export function verdictSpeech(flag, vs) {
+// flag, then the on-target words, then where the throw came to rest when the screen
+// shows it under the verdict (as the iPhone says it). "Short. Miss. Arc on,
+// steady, straight. 50 cm away."
+export function verdictSpeech(flag, vs, rest = null) {
   const chips = verdictChips(vs);
   const sentence = (t) => {
     const l = String(t).toLowerCase().replace(/!+$/, "");
@@ -84,6 +86,9 @@ export function verdictSpeech(flag, vs) {
   if (flag) parts.push(`${sentence(flag)}.`);
   const on = chips.filter((c) => !c.off).map((c) => c.text.toLowerCase());
   if (on.length) parts.push(`${sentence(on.join(", "))}.`);
+  // "50 CM AWAY", "1.2 M AWAY" (the engine's restText): "50 cm away."
+  const r = String(rest || "").trim();
+  if (r) parts.push(`${r.toLowerCase()}.`);
   return parts.join(" ");
 }
 
@@ -194,7 +199,8 @@ export class Hud {
       "div.hud.center",
       h("div.flag", { "data-test": "flag", "aria-hidden": "true" }),
       h("div.verdicts", { "data-test": "verdicts", "aria-hidden": "true" }),
-      h("div.rest"),
+      // in the spoken line (verdictSpeech), so hidden from a screen reader here
+      h("div.rest", { "data-test": "rest", "aria-hidden": "true" }),
     );
     // the verdict for a screen reader, said once (verdictSpeech)
     this.said = h("div.visually-hidden", {
@@ -372,7 +378,10 @@ export class Hud {
     }
     // said once to a screen reader, the off word first (the chips and the
     // flag are hidden from it: this line is the verdict)
-    const said = vtext || st.flag ? verdictSpeech(st.flag, st.verdicts) : "";
+    const said =
+      vtext || st.flag || st.restText
+        ? verdictSpeech(st.flag, st.verdicts, st.restText)
+        : "";
     if (this.cache.get("said") !== said) {
       this.cache.set("said", said);
       if (said) this.said.textContent = said;

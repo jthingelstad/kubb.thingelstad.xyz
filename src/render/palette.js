@@ -164,6 +164,7 @@ export const HUD = {
   mapGrass: "#5fa43c",
   mapLine: "#ffffff",
   wind: "#ffffff",
+  kidCone: "#ff7a1f", // the Kid line's cones on the minimap
 };
 
 // The hit bursts.
@@ -186,6 +187,7 @@ export const BURST = {
 export const UI = { ink: INK, paper: PAPER, drop: INK };
 BURST.ink = INK;
 const DAY_SKIN = {
+  team: { A: { ...TEAM.A }, B: { ...TEAM.B } },
   ui: { ...UI },
   hud: { ...HUD },
   burst: { ...BURST },
@@ -196,6 +198,9 @@ function reskin(into, day, over) {
   Object.assign(into, day, over);
 }
 export function useSkin(skin = null) {
+  // the teams' colours too, for a scene that has none (Black & White)
+  reskin(TEAM.A, DAY_SKIN.team.A, skin?.team?.A);
+  reskin(TEAM.B, DAY_SKIN.team.B, skin?.team?.B);
   reskin(UI, DAY_SKIN.ui, skin?.ui);
   reskin(HUD, DAY_SKIN.hud, skin?.hud);
   reskin(BURST, DAY_SKIN.burst, skin?.burst);
@@ -402,6 +407,21 @@ export const NEON = {
       line: "#ffffff",
       glow: "#9cc2ff",
     },
+    // the Techno scene's own floor (engine 0.14's `grid` surface): flat, glossy and
+    // electronic, nothing organic. A faint grid a metre apart on a near-black floor
+    // that mirrors what stands on it (reflect), its pitch a pane a shade lighter,
+    // the lines cyan light.
+    grid: {
+      grid: "#1fd7ee",
+      gridEvery: 1,
+      gridAlpha: 0.55,
+      pitch: "rgba(10, 60, 80, 0.34)",
+      line: "#d8feff",
+      glow: "#2be4ff",
+      floor: "#02060c",
+      sheen: "#0d3a4c",
+      reflect: 0.26,
+    },
   },
   // the pieces' dark bodies (every tone the faces take)
   solid: {
@@ -495,4 +515,98 @@ NEON.skin = {
     "--shadow":
       "0 0 0 1px rgba(95, 240, 255, 0.55), 0 0 16px rgba(43, 228, 255, 0.45)",
   },
+};
+
+// ---------- the outdoor scenes (beach.js, minnesota.js, tournament.js) ----------
+// Each keeps the day's controls (its skin is the day's: the same type, plates and
+// contrast) and draws its own sky, ground and what stands round the pitch, in the
+// day's flat colour with the ink line. Surfaces are the engine's (a scene decides
+// them: Beach sand, Minnesota snow, Tournament grass).
+
+// The beach: a sand pitch by the sea, a hot clear sky.
+export const BEACH = {
+  sky: { top: "#5fb8e3", low: "#d4eef7" },
+  sun: { face: "#fff3c2", halo: "rgba(255, 236, 170, 0.45)" },
+  sea: { near: "#2aa3c7", far: "#1c7fae", haze: "#bfe6f1", foam: "#ffffff" },
+  wet: "#c9a96b", // the sand the waves reach
+  shore: 11.2, // m: where the sand meets the sea, 3 m past the far baseline (the aim
+  // view sees about 6 m past it on a wide screen, the sea a band at its top)
+  ground: {
+    pitch: "#ecd59f",
+    stripe: "#f1dcab",
+    rough: "#e0c184",
+    speck: "#bf9b5c",
+    sky: "#d4eef7",
+    haze: "#e9dcb6",
+    line: "#ffffff",
+  },
+  umbrella: ["#e5484d", "#ffffff", "#f2b705", "#ffffff"],
+  towel: ["#33b6e8", "#ffffff", "#e5484d", "#f2b705"],
+  pole: "#efe6d6",
+  sail: "#ffffff",
+  hull: "#e5484d",
+  grass: "#7a9a4a", // the dune grass
+  puff: ["#e8cf98", "#dcbd80", "#f3e2b8"],
+  cone: { cone: "#ff6a2b", band: "#ffffff", ink: INK },
+};
+
+// Minnesota: a winter park in snow, bare birches and pines, a low cold sun.
+export const MINNESOTA = {
+  sky: { top: "#8fa9c6", low: "#e8eef4" },
+  sun: { face: "#fbf5e2", halo: "rgba(255, 250, 230, 0.4)" },
+  ground: {
+    pitch: "#eef3f8",
+    stripe: "#f7fafd",
+    rough: "#dfe8f1",
+    speck: "#b4c6da",
+    sky: "#e8eef4",
+    haze: "#eef2f6",
+    line: "#3f78bd", // white lines vanish on snow: blue paint, as on a winter pitch
+  },
+  bank: "#f7fafd", // the snowbanks round the park
+  bankShade: "#c9d7e6",
+  pine: { leaf: "#2f5e48", trunk: "#5a4030", snow: "#f7fafd", ink: INK },
+  birch: { bark: "#f4f1ea", ink: INK },
+  shadow: "#3d4c66", // a cold shadow
+  flake: "#ffffff",
+  puff: ["#ffffff", "#eef4fb", "#dfe9f4"],
+  cone: { cone: "#ff6a2b", band: "#ffffff", ink: INK },
+};
+
+// A kubb tournament: pitches side by side on mown grass, rope lines with pennants,
+// scoreboards and people at the neighbouring pitches (no championship's name or logo).
+export const TOURNAMENT = {
+  sky: { top: "#86c3e6", low: "#e2f2f7" },
+  ground: {
+    pitch: "#5fa43c",
+    stripe: "#6bb146",
+    rough: "#4f9234",
+    speck: "#356e23",
+    sky: "#e2f2f7",
+    haze: "#cfe4c4",
+    line: "#ffffff",
+  },
+  neighbour: { pitch: "#5a9c39", stripe: "#64a742", line: "#f4f8ee" },
+  rope: "#f6efe0",
+  pennant: ["#1f3a7a", "#ffffff", "#c8102e", "#f2b705"],
+  post: "#ece2cc",
+  board: {
+    face: "#1f2a3a",
+    frame: "#ece2cc",
+    digit: "#ffffff",
+    plate: "#2e3d52",
+  },
+  tent: { roof: ["#ffffff", "#1f3a7a"], leg: "#d7d0c2" },
+  shirts: [
+    "#e5484d",
+    "#33b6e8",
+    "#f2b705",
+    "#ffffff",
+    "#2f7d4a",
+    "#8e44ad",
+    "#ff7a3d",
+  ],
+  person: { skin: "#e9c39b", trousers: "#2f3a4a", ink: INK },
+  wood: "#ecd2a0",
+  cone: { cone: "#ff6a2b", band: "#ffffff", ink: INK },
 };

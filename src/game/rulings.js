@@ -1,0 +1,28 @@
+// The result flag over the pitch after a throw (hud.js `.flag`), from the
+// recording's result (the engine's docs/SESSION.md "The recording"): its `flag`,
+// except where a Kid match's ruling (engine 0.15, its docs/notes/kid-mode.md) says
+// what happened better. A Kid match has no punishments and no losing throws, so the
+// flag never says one: a king knocked down early is stood back up ("KING BACK UP",
+// the ruling's `kingUp`), a kubb out twice is placed by the engine ("OUT TWICE:
+// PLACED", `placed`), and a helicopter counts (`helicopterCounts`): its flag is what
+// it knocked down ("1 DOWN", "MISS"), never "HELICOPTER", which in the standard game
+// means a throw that does not count.
+export const KID_CODES = ["kingUp", "placed", "helicopterCounts"];
+
+export function rulingCodes(result) {
+  const r = result?.ruling;
+  if (!r) return [];
+  const parts = Array.isArray(r.parts) ? r.parts.map((p) => p?.code) : [];
+  return parts.length ? parts : r.code ? [r.code] : [];
+}
+
+export function flagFor(result) {
+  if (!result) return null;
+  const codes = rulingCodes(result);
+  const short = result.ruling?.short || null;
+  if ((codes.includes("kingUp") || codes.includes("placed")) && short)
+    return short;
+  if (codes.includes("helicopterCounts"))
+    return result.flag === "HELICOPTER" ? short || null : result.flag;
+  return result.flag ?? null;
+}

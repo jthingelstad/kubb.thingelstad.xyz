@@ -99,8 +99,9 @@ browserTest("the menu's rows say what they set and show it", async () => {
       "[data-test=menu-card] .opt-label",
       (els) => els.map((e) => e.textContent),
     );
-    // practice: the pitch's own options under the menu's grid
-    assert.deepEqual(labels, ["Surface", "Scene"]);
+    // practice: the pitch's own options under the menu's grid, scene first; Park
+    // leaves no Surface (engine 0.14: the scene decides it)
+    assert.deepEqual(labels, ["Scene"]);
     // the device's settings in Settings (src/ui/settings.js)
     await page.click("[data-test=menu-settings]");
     const device = await page.$$eval("[data-test=settings] .opt-label", (els) =>

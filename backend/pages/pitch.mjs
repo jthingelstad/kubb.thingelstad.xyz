@@ -260,8 +260,15 @@ function fromSnap(snapText, names) {
     winner: g.winner === "A" || g.winner === "B" ? g.winner : null,
     how: typeof g.how === "string" ? g.how : null,
     pieces: piecesOf(s),
+    // the scene the match is drawn in (its start's options, engine 0.9 on): the
+    // card's ground follows it
+    scene: sceneOf(s?.opts?.scene),
   };
 }
+
+// A scene id as the card draws it (src/site/art.mjs CARD_GROUNDS), else the day.
+const sceneOf = (id) =>
+  typeof id === "string" && /^[a-z0-9-]{1,24}$/.test(id) ? id : "day";
 
 // The pieces on the ground, in world metres (y = 0 Team A's baseline, y = 8 Team
 // B's; x across): { kind: "kubb" | "king" | "baton", x, y, standing, ax, ay },
@@ -410,6 +417,7 @@ export function cardOf(s) {
     host: p.host ?? null,
     line: p.line,
     pieces: s.state === "waiting" ? setOut() : s.pieces,
+    scene: s.scene ?? "day",
   };
 }
 

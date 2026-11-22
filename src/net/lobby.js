@@ -103,6 +103,12 @@ export function cleanName(name) {
 }
 
 export const lobbyOf = (doc) => roomCall("lobbyOf", { doc });
+// The options card for a scene (since 0.14, the engine's docs/PITCH.md `optionRows`):
+// { scene, rows, defaults: { surface, set } }, rows in MATCH_OPTIONS' form, the
+// Scene row first, a Surface row only where the scene leaves one, no Kubbs row
+// while no scene allows two sets. An unknown scene reads as the day.
+export const optionRows = (scene, mm) =>
+  roomCall("optionRows", { scene: scene ?? "day" }, mm);
 
 // Every match option the room holds, defaults filled in: the five in `options` and,
 // since engine 0.9, the computer's level and the scene from the document's top-level

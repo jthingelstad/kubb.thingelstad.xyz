@@ -12,13 +12,16 @@ import {
   engineConstants,
   lobbyOf,
   optionLabel,
+  optionRows,
   optionsOf,
 } from "../net/lobby.js";
 import { roomEngine } from "../net/room-engine.js";
 import { youRow } from "./settings.js";
 import { nameRow } from "./name-row.js";
 import { segBar } from "./seg.js";
-import { SCENE_ROW, sceneId, takesScene } from "../render/scenes.js";
+import { sceneId, takesScene } from "../render/scenes.js";
+import { sceneTiles } from "./scene-tiles.js";
+import { ROW_ORDER } from "./cards.js";
 
 // "Computer level", as the iPhone app and the solo card say it (the engine's label
 // is "Computer")
@@ -310,22 +313,65 @@ export class Lobby {
         h("p.access-note", ACCESS_NOTE[access]),
       );
       this.optionsBox.append(h("h3", "The match"));
-      // the Kubbs row is not shown (the 1.0 design: the scene decides the set, as on
-      // the solo card); the room's set stays what it is, Classic unless an older page
-      // chose another
-      const rows = [
-        ...(mm
-          ? engineConstants(mm).MATCH_OPTIONS
-          : loaded
-            ? MATCH_OPTIONS
-            : MATCH_OPTIONS.filter(([k]) => k in l.options)),
-      ].filter(([k]) => !HIDDEN_ROWS.has(k));
-      // the Scene: the engine takes any id and lists none, so the row is this
-      // client's, shown when the next match's engine takes a scene (0.9 on)
+      // the rows are the engine's card for the room's scene (engine 0.14,
+      // `pitch.optionRows`): the Scene first, a Surface row only where the scene
+      // leaves one (Black & White), no Kubbs row (the scene decides the set), then
+      // Computer level (Kid first since 0.15), Opening, Raising, Wind, as on the solo
+      // card. An engine without optionRows (none carried today) walks its
+      // MATCH_OPTIONS without the set, as before.
       const scened = loaded && takesScene(engineConstants(mm));
       this.scene = scened ? sceneId(options.scene) : "day";
-      if (scened) rows.push(SCENE_ROW);
-      for (const [k, label, choices] of rows) {
+      let rows;
+      try {
+        rows = optionRows(this.scene, mm).rows;
+      } catch {
+        rows = (
+          mm
+            ? engineConstants(mm).MATCH_OPTIONS
+            : loaded
+              ? MATCH_OPTIONS
+              : MATCH_OPTIONS.filter(([k]) => k in l.options)
+        ).filter(([k]) => !HIDDEN_ROWS.has(k));
+      }
+      rows = rows.filter(([k]) => !HIDDEN_ROWS.has(k));
+      const sceneRow = rows.find(([k]) => k === "scene");
+      this.tiles?.stop();
+      this.tiles = null;
+      if (sceneRow) {
+        // the Scene: the host's as picture tiles, everyone else's as its name
+        if (isHost) {
+          this.tiles = sceneTiles({
+            choices: sceneRow[2],
+            value: this.scene,
+            game: this.game,
+            labelledBy: "lobby-label-scene",
+            test: "lobby-scene-tile",
+            onPick: (v) => this.hooks.option("scene", v),
+          });
+        }
+        this.optionsBox.append(
+          h(
+            "div.opt.opt-scene",
+            { "data-test": "lobby-opt-scene" },
+            h("span.opt-label", { id: "lobby-label-scene" }, sceneRow[1]),
+            this.tiles
+              ? this.tiles.el
+              : h(
+                  "span.opt-value",
+                  sceneRow[2].find(([v]) => v === this.scene)?.[1] ??
+                    optionLabel("scene", this.scene),
+                ),
+          ),
+        );
+      }
+      const ordered = rows
+        .filter(([k]) => k !== "scene")
+        .sort(
+          (a, b) =>
+            (ROW_ORDER.indexOf(a[0]) + 1 || 99) -
+            (ROW_ORDER.indexOf(b[0]) + 1 || 99),
+        );
+      for (const [k, label, choices] of ordered) {
         this.optionsBox.append(
           h(
             "div.opt",
@@ -334,16 +380,15 @@ export class Lobby {
             isHost
               ? seg(
                   choices,
-                  k === "scene" ? this.scene : options[k],
+                  options[k],
                   (v) => this.hooks.option(k, v),
                   k,
                   ROW_LABEL[k] ?? label,
                 ).el
               : h(
                   "span.opt-value",
-                  choices.find(
-                    ([v]) => v === (k === "scene" ? this.scene : options[k]),
-                  )?.[1] ?? optionLabel(k, options[k]),
+                  choices.find(([v]) => v === options[k])?.[1] ??
+                    optionLabel(k, options[k]),
                 ),
           ),
         );

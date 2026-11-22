@@ -281,6 +281,17 @@ export class Engine {
   reset() {
     return this.call("reset");
   }
+  // Ground impacts (since 0.14, the engine's docs/SESSION.md "Ground impacts"): while
+  // on, each recording's timeline carries `impacts`, where the pieces met the ground
+  // hard (Techno's rings, Beach's and Minnesota's puffs). This Lua state's, like the
+  // wide view; in no snapshot, action or hash. False where the engine has no such call.
+  setImpacts(on = true) {
+    try {
+      return !!this.call("setImpacts", { on: !!on }).on;
+    } catch {
+      return false;
+    }
+  }
   setSurface(surface) {
     return this.call("setSurface", { surface });
   }

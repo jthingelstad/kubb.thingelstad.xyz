@@ -255,10 +255,25 @@ function drawStaged(id) {
 test("a Stage draws the match's scene; the day and an unknown id are the day", () => {
   for (const id of [undefined, null, "", "day", "dusk", "NIGHT", "night2", 7])
     assert.equal(drawStaged(id), PINNED, String(id));
-  assert.deepEqual(SCENES, ["night", "neon"]);
+  // engine 0.14's catalogue, every scene but the day drawn here
+  assert.deepEqual(SCENES, [
+    "beach",
+    "night",
+    "neon",
+    "minnesota",
+    "tournament",
+    "bw",
+  ]);
   for (const id of SCENES) {
     assert.equal(lookOf(id).id, id);
-    assert.equal(drawStaged(id), drawAll({ look: sceneOf(id), time: 1.5 }));
+    // the scene's own effects as a Stage makes them (Minnesota's snow falls even
+    // with no throw)
+    const fresh = new Stage({ reduced: false });
+    fresh.use(id);
+    assert.equal(
+      drawStaged(id),
+      drawAll({ look: sceneOf(id), fx: fresh.fx, time: 1.5 }),
+    );
   }
   assert.equal(lookOf("day"), null);
   assert.equal(lookOf("dusk"), null);
@@ -286,7 +301,11 @@ function contrast(a, b) {
 
 test("a scene's type is 7:1 or better on its paper and on its accent plates", async () => {
   const P = await import("../../src/render/palette.js");
-  for (const skin of [P.NIGHT.skin, P.NEON.skin]) {
+  const { MONO_SKIN } = await import("../../src/render/mono.js");
+  // Beach, Minnesota and Tournament keep the day's controls (no skin of their own)
+  for (const id of ["beach", "minnesota", "tournament"])
+    assert.equal(sceneOf(id).skin, null, id);
+  for (const skin of [P.NIGHT.skin, P.NEON.skin, MONO_SKIN]) {
     const c = skin.css;
     assert.ok(contrast(c["--ink"], c["--paper"]) >= 7, "ink on paper");
     assert.ok(contrast(c["--muted"], c["--paper"]) >= 7, "muted on paper");
