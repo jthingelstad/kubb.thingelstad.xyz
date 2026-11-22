@@ -158,7 +158,7 @@ function harness(kind = "memory", over = {}) {
 function envelope(
   topic,
   body,
-  { pitch = CODE, made = MADE, secret = SECRET } = {},
+  { pitch = CODE, made = MADE, secret = SECRET, dev } = {},
 ) {
   const k =
     topic === "start"
@@ -176,6 +176,7 @@ function envelope(
       k,
       topic,
       sent: T0,
+      ...(dev !== undefined ? { dev } : {}),
       body: { pitch, ...body },
     }),
   );
@@ -642,6 +643,48 @@ for (const kind of STORES)
     const got = await h.replay();
     assert.equal(got.v, T0 + 5);
     assert.equal(got.replay.log.length, 1);
+  });
+
+// 2026-11-22: the dev Worker pushed into the same bucket and table as live play, so a
+// QA run's pitches are in the recorded games. It marks every push `dev: true`, and the
+// api keeps a dev push's start and actions under games/dev/ only: no preview, no state,
+// no final, no kept replay, so it is never a live pitch's page, replay or reel.
+for (const kind of STORES)
+  test(`${kind}: a dev push is kept apart, under games/dev/, and nothing else`, async () => {
+    const h = harness(kind);
+    const opts = { dev: true };
+    const pushes = [
+      envelope("open", { host: "Calm Cedar" }, opts),
+      start(1, opts),
+      act(1, 1, { over: true, snap: IN_PLAY, ...opts }),
+      keep(1, REPLAY.log, opts),
+    ];
+    for (const p of pushes) assert.equal((await h.push(p)).status, 200);
+    const made = String(MADE).padStart(13, "0");
+    assert.deepEqual(
+      [...h.records.kept.keys()],
+      [
+        `games/dev/pitch/${CODE}/${made}/0001-000000.json.gz`,
+        `games/dev/pitch/${CODE}/${made}/0001-000001.json.gz`,
+      ],
+    );
+    assert.equal(await h.store.getState(CODE), null, "no state");
+    const r = await h.replay();
+    assert.equal(r.replay ?? null, null, "no kept replay");
+    assert.equal(r.state ?? null, null, "no state to read");
+    assert.ok(h.logs.every((l) => !l.push || l.dev === true));
+    // a mark that is not `true` is refused, so a typo is never taken as real play
+    const bad = start(2, { dev: "yes" });
+    assert.equal((await h.push(bad)).status, 400);
+    // and S3 takes the dev key, under its own prefix only
+    const sent = [];
+    const record = s3Pushes({
+      bucket: "games",
+      client: { send: async (cmd) => sent.push(cmd.input) },
+    });
+    const key = `games/dev/pitch/${CODE}/${made}/0001-000000.json.gz`;
+    assert.equal(await record({ key, raw: pushes[1].raw }), "kept");
+    await assert.rejects(record({ key: "games/browser/x.json.gz", raw: "{}" }));
   });
 
 test("mergeState: ordered by (made, n, seq), the start being seq 0", () => {

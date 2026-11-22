@@ -121,6 +121,36 @@ test("the list: newest 20 live entries of the last day, no names", () => {
   assert.equal(out[1].age, 1000);
 });
 
+// 2026-11-22: the dev Worker's pushes went in with live play's. It marks each one
+// (`dev: true`, env PUSH_DEV); the production Worker's envelope is byte for byte as
+// before, with no such field.
+test("the dev Worker marks its pushes; a production push carries no mark", async () => {
+  const base = {
+    url: "https://receiver.example/push",
+    secret: "s3cret",
+    pitch: "k7mpq2rstw",
+    made: 123,
+    k: "act:1:4",
+    topic: "act",
+    body: { n: 1, seq: 4 },
+    sent: 999,
+  };
+  const prod = await pushRequest(base);
+  assert.equal(
+    prod.init.body,
+    '{"v":1,"pitch":"k7mpq2rstw","made":123,"k":"act:1:4","topic":"act","sent":999,"body":{"n":1,"seq":4}}',
+  );
+  const dev = JSON.parse((await pushRequest({ ...base, dev: true })).init.body);
+  assert.equal(dev.dev, true);
+  assert.notEqual(
+    (await pushRequest({ ...base, dev: true })).init.headers[
+      "x-pitch-signature"
+    ],
+    prod.init.headers["x-pitch-signature"],
+    "the mark is inside the signature",
+  );
+});
+
 test("pushes are signed with HMAC-SHA256 over the exact body", async () => {
   // RFC 4231, test case 2
   assert.equal(

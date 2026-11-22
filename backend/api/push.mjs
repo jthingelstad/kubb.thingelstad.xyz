@@ -60,6 +60,11 @@ export function readPush(text, idempotencyKey, limits = LIMITS) {
   }
   if (!isObject(env) || env.v !== 1) bad("A push is { v: 1, ... }.");
   const { pitch, made, k, topic, body } = env;
+  // the dev Worker marks everything it pushes (`dev: true`): kept apart, never as play
+  // (API.md "Dev pushes"); a production push has no such field
+  if (env.dev !== undefined && env.dev !== true)
+    bad("`dev` is true or absent.");
+  const dev = env.dev === true;
   if (typeof pitch !== "string" || !PITCH_CODE.test(pitch))
     bad("`pitch` is not a pitch code.");
   if (!int(made, 1)) bad("`made` must be the pitch's epoch ms.");
@@ -74,7 +79,7 @@ export function readPush(text, idempotencyKey, limits = LIMITS) {
     const host = body.host ?? null;
     if (host !== null && (typeof host !== "string" || host.length > 40))
       bad("`body.host` must be a name or null.");
-    return { pitch, made, k, topic, body: { pitch, host } };
+    return { pitch, made, k, topic, dev, body: { pitch, host } };
   }
   if (!int(body.n, 1)) bad("`body.n` must be the match number.");
   if (topic === "start") {
@@ -83,7 +88,14 @@ export function readPush(text, idempotencyKey, limits = LIMITS) {
     if (!isObject(body.meta ?? {})) bad("`meta` must be an object.");
     if (utf8(JSON.stringify(body.meta ?? {})) > limits.metaBytes)
       bad("`meta` is too big.");
-    return { pitch, made, k, topic, body: { ...body, meta: body.meta ?? {} } };
+    return {
+      pitch,
+      made,
+      k,
+      topic,
+      dev,
+      body: { ...body, meta: body.meta ?? {} },
+    };
   }
   if (topic === "act") {
     if (!int(body.seq, 1)) bad("`body.seq` must be the action's sequence.");
@@ -92,7 +104,7 @@ export function readPush(text, idempotencyKey, limits = LIMITS) {
     if (!isObject(body.a)) bad("`body.a` must be the action.");
     if (!isHash(body.h)) bad("`body.h` must be the hash after the action.");
     checkSnap(body.snap, limits);
-    return { pitch, made, k, topic, body };
+    return { pitch, made, k, topic, dev, body };
   }
   if (topic === "keep") {
     if (k !== `keep:${body.n}`) bad("A keep's key is keep:<n>.");
@@ -104,7 +116,14 @@ export function readPush(text, idempotencyKey, limits = LIMITS) {
       !body.log.every((e) => isObject(e) && isObject(e.a))
     )
       bad("`log` must be a list of { a, h, ts }.");
-    return { pitch, made, k, topic, body: { ...body, meta: body.meta ?? {} } };
+    return {
+      pitch,
+      made,
+      k,
+      topic,
+      dev,
+      body: { ...body, meta: body.meta ?? {} },
+    };
   }
   bad("`topic` must be start, act, keep or open.");
 }
@@ -258,7 +277,7 @@ export const halfKey = ({ made, n }) =>
 // The S3 key a recorded push is kept under, so a retried push lands on the same object:
 //   games/pitch/<code>/<made, 13 digits>/<n, 4 digits>-<seq, 6 digits>.json.gz
 // (a start is seq 0). "pitch" cannot be a pitch code (codes are 8 to 24 characters).
-export function pushKey({ pitch, made, topic, body }) {
+export function pushKey({ pitch, made, topic, body, dev = false }) {
   const seq = topic === "start" ? 0 : body.seq;
-  return `games/pitch/${pitch}/${String(made).padStart(13, "0")}/${String(body.n).padStart(4, "0")}-${String(seq).padStart(6, "0")}.json.gz`;
+  return `games/${dev ? "dev/" : ""}pitch/${pitch}/${String(made).padStart(13, "0")}/${String(body.n).padStart(4, "0")}-${String(seq).padStart(6, "0")}.json.gz`;
 }

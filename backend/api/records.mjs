@@ -4,6 +4,10 @@
 //   games/pitch/<code>/<made>/<n>-<seq>.json.gz   every push of a pitch's start and actions,
 //                                                 the signed envelope byte for byte
 //                                                 (backend/api/push.mjs pushKey)
+//   games/dev/pitch/<code>/<made>/<n>-<seq>.json.gz   the same from the dev Worker, marked
+//                                                 `dev: true`: test play, expired after 14
+//                                                 days (infra/pitches.json), never pulled
+//                                                 by default (tools/games.mjs --dev)
 //   games/browser/<yyyy-mm-dd>/<ms>-<random>.json.gz   a match played on one device:
 //                                                 { t, game }, as the rooms function kept it
 //   reports/<yyyy-mm-dd>/<ms>-<random>.json.gz    a player's report: { t, report }, the same
@@ -53,7 +57,7 @@ const put = (client, bucket, key, body, extra = {}) =>
 // under the same key, so a retried push is "had" and the first copy stays.
 export function s3Pushes({ client, bucket }) {
   return async function recordPush({ key, raw }) {
-    if (!key.startsWith("games/pitch/"))
+    if (!key.startsWith("games/pitch/") && !key.startsWith("games/dev/pitch/"))
       throw new Error(`not a push key: ${key}`);
     try {
       await put(client, bucket, key, raw, { IfNoneMatch: "*" });

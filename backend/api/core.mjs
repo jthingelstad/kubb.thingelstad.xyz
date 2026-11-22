@@ -110,6 +110,21 @@ export function createApi({
       limits,
     );
     let recorded = null;
+    if (p.dev) {
+      // the dev Worker's: its start and actions under games/dev/ (a short lifecycle,
+      // infra/pitches.json), and nothing else: no preview, no state, no kept replay, so a
+      // dev pitch is never a live pitch's page, replay or reel (API.md "Dev pushes")
+      if (p.topic === "start" || p.topic === "act") {
+        if (!recordPush)
+          throw new ApiError("unavailable", "Pushes are not recorded here.");
+        recorded = await recordPush({ key: pushKey(p), raw });
+      } else recorded = "skipped";
+      log({ push: p.k, pitch: p.pitch, made: p.made, dev: true, recorded });
+      return json(200, {
+        ok: true,
+        ...(recorded === "had" ? { duplicate: true } : {}),
+      });
+    }
     if (p.topic === "open") {
       // not a match: nothing for the games bucket, only the link's preview (48 hours)
       recorded = (await store.putOpen(p.pitch, {
