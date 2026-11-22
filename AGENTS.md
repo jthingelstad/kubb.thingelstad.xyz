@@ -622,13 +622,17 @@ by hand, kept only for that match: `src/game/auto-raise.js`, docs/CLIENT.md "Mat
 The panel keeps two slots in every state (the 1.0 design): the automatic choices plain at
 the left, the one confirming action (PLACE IT) go at the right.
 
-Every raise not made by hand is watched (the owner, 2026-11-22: "When you hit auto to
-raise kubbs you should watch the computer raise them."): on the raise view each kubb tips
-up onto the engine's end with the hand's own tip, one after another, 0.4 s before the
-first and half a second a kubb, 4 s at most: AUTO, AUTO ALL, REST OF GAME, MENU's
-Automatic, another browser's or a replay's raises, and the kubbs the engine raises itself
-(a match raising automatically, the computer, watching). The action is sent before its
-clip, so the actions and their order never change; a tap or key skips.
+Every raise that comes as an action with its need, and was not made by hand here, is
+watched (the owner, 2026-11-22: "When you hit auto to raise kubbs you should watch the
+computer raise them."): on the raise view each kubb tips up onto the engine's end with
+the hand's own tip, from the need's own poses, one after another, 0.4 s before the first
+and half a second a kubb, 4 s at most: AUTO, AUTO ALL, REST OF GAME, MENU's Automatic,
+another browser's raises on a shared pitch and a replay's. The action is sent before its
+clip, so the actions and their order never change; a shared pitch holds its queue
+through the clip; a tap or key skips. The kubbs the engine raises itself (a match raising
+automatically, the computer, watching) still stand at once until the engine hands out
+what it raised (engine 0.16.0's `setup.settled`, the seam `settledClips`): JS never turns
+the pitch to work them out.
 `src/game/lift.js`, docs/SYSTEM.md "Watching a raise". The raise camera stands twice as
 far off as it first did (the owner, the same day: "We need to see about twice as much to
 know how to raise them."), the kubb's touch target still 44 px or more (docs/SYSTEM.md

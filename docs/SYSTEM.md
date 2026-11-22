@@ -256,16 +256,21 @@ on the raise view (above), each kubb tipped up onto the end it stands on with th
 tip the hand's drag draws, one after another (`src/game/lift.js`, the Game's `lift`
 phase):
 
-- **Which raises.** AUTO, AUTO ALL, REST OF GAME and MENU's Raising: Automatic (each a
-  `raise` action the page applies, then watches); any `raise` another browser sends (a
-  shared pitch's other player or the computer's seat there, by hand or not) and a
-  replay's; and the kubbs the engine raises itself between a turn's last kubb thrown in
-  and its first baton (a match started with Raising: Automatic, the computer's own
-  raises against you, watching the computer). Those last have no action: the page
-  compares the pieces at the end of the last kubb's throw with the next throw's (a kubb
-  that lay and now stands within a metre of where it lay), turned into the raiser's
-  frame. A punishment kubb placed elsewhere is not tipped; it stands at the end. A raise
-  made by hand is not shown again.
+- **Watched now**: every raise that comes as a `raise` action with its raise need, the
+  clip drawn from the need's own poses (the engine's, in the raise view's frame): AUTO,
+  AUTO ALL, REST OF GAME and MENU's Raising: Automatic in a match that raises by hand
+  (the page sends the actions itself); any `raise` another browser sends on a shared
+  pitch (the other player's, by hand or not, or the computer's seat there); and a
+  replay's raises (its log's actions, each with the need before it). A raise made by
+  hand here is not shown again.
+- **Waiting for the engine**: the kubbs the engine raises itself between a turn's last
+  kubb thrown in and its first baton (a match started with Raising: Automatic, the
+  computer's own raises against you, watching the computer). They come with no need and
+  no action, so they stand at once, as before web 0.17.0. `lift.js` `settledClips` is
+  their seam: it takes the throw need's `setup.settled` and returns no clips until the
+  engine fills it (engine 0.16.0: each kubb raised, its id, the end chosen, and its
+  lying and standing poses in the frame the raise view draws in). The page never works
+  them out itself: that would mean turning the pitch in JavaScript.
 - **The pace** (`lift.js` `tune`, `liftPace`; `pacing.js` `autoRaiseWait`): the first
   kubb of a turn's automatic raise lies **0.4 s** on the raise view, then each kubb takes
   a beat of **0.5 s** (its tip **70%** of the beat, eased, then it stands; a kubb a
@@ -277,17 +282,18 @@ phase):
   rest of that turn's automatic raises stand with no wait and no tip.
 - **Never holding the match.** The action is applied, and sent, before its clip plays:
   the engine's actions and their order are what they were. Actions that arrive during a
-  clip wait behind it as they do behind a throw's playback, and each waiting action
-  makes the clip run 2 times faster more (1 + 2 x waiting), so a shared pitch's other
-  browsers never fall behind. A hidden tab shows none (its steps are quiet), and the
+  clip wait behind it as they do behind a throw's playback: a shared pitch holds its own
+  queue while the phase is `lift` (`Pitch.drain`), so each action is still applied by
+  the Game and checked against its committed hash when its turn comes, and each one
+  waiting makes the clip run 2 times faster more (1 + 2 x waiting, `Game.backlog`), so a
+  shared pitch's other browsers never fall behind. A hidden tab shows none (its steps are quiet), and the
   watching pace (zen) adds its own pause after.
 - **Reduced motion**: no tip: each kubb lies for half its beat, then stands where the
   engine put it, still one at a time.
 - **The engine** (0.15.1) puts `setup.settled` on the throw need for "raised and
   punishment kubbs placed before this throw", but core/match keeps it on the match, not
-  the setup, so it is never filled: the page reads the pieces instead. An engine that
-  filled it, and named each kubb raised with the end it chose, would let a client
-  show the engine's own raises without comparing pieces.
+  the setup, so it is never filled. Engine 0.16.0 is to fill it as above; the web wires
+  it into `settledClips` when it moves to that engine.
 
 ## Scenes, the Kid line, rings and the spin (engine 0.14 and 0.15)
 
