@@ -6,11 +6,37 @@ so a match from an older minor only plays as it was played on that minor's engin
 
 ## The rule
 
-**An engine is carried only while we decide it is supported, not because it was once
-released.** The owner, 2026-11-21: "Let's force all clients to the most recent engine. We
-should only support engines that we decide are worth supporting not just ones that have
-published so that we can push players to the new engines." And: "We are still in dev
-mode. Fine to push breaking changes."
+**The site carries its own engine and the engines of the iPhone builds people have, and
+no others.** The owner, 2026-11-22, with every project at 1.0.0: "Web will support the
+CURRENT App Store release and the CURRENT Test Flight Dev and Beta releases. At most the
+web will support those three versions and whatever version it is running natively." And
+of the Playdate: "Playdate is bundled so it is always with whatever it runs, it doesn't
+matter."
+
+So at most four engines: the newest (what the site plays on) and those of the three
+current iPhone builds below. An engine is dropped when none of the three uses it, never
+because a newer one exists. Before 1.0 the site carried the newest alone (the owner,
+2026-11-21: "We should only support engines that we decide are worth supporting not just
+ones that have published so that we can push players to the new engines." And: "We are
+still in dev mode. Fine to push breaking changes."); support is still a decision, now with
+this rule for it.
+
+### The iPhone builds people have
+
+The site cannot see App Store Connect, so this table is the record. Whoever uploads a
+build or releases one changes its row in the same sitting (throwingwood-ios
+docs/DISTRIBUTION.md says so), and a move to a new engine minor reads it first: `--keep`
+for an engine a row still names, `--drop` only for one no row names.
+
+| Build                             | App version  | Engine | As of      |
+| --------------------------------- | ------------ | ------ | ---------- |
+| App Store                         | none yet     |        | 2026-11-22 |
+| TestFlight Beta (outside testers) | not recorded |        | 2026-11-22 |
+| TestFlight Dev (internal)         | not recorded |        | 2026-11-22 |
+
+On 2026-11-22 the rows were not known here: the site had just moved to 1.0 alone and
+iPhone 1.0.0 (engine 1.0.0) was about to be uploaded. Once it is in both groups every row
+is 1.0 and the site carries what the rule asks.
 
 - **Today the site carries one engine: 1.0 (1.0.0).** It replaced 0.18 (0.18.0) with
   `--drop` on 2026-11-22. 1.0.0 is the released engine, a major by declaration (the

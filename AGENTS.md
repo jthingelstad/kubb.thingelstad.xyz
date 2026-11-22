@@ -16,10 +16,13 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
 - **`vendor/engine/` is never edited.** It is kubb-engine (`../kubb-engine`) at the tag
   in `vendor/engine.json`, byte for byte. Change how the game plays in kubb-engine,
   release a tag, then `npm run vendor:sync -- --tag vX.Y.Z` (`vendor:check` holds it to
-  the engine's manifest). **An engine is carried only while we decide it is supported,
-  not because it was once released** (the owner, 2026-11-21: "We should only support
-  engines that we decide are worth supporting not just ones that have published so that
-  we can push players to the new engines."). Today that is the newest alone, 1.0
+  the engine's manifest). **The site carries its own engine and those of the iPhone builds people
+  have, and no others** (the owner, 2026-11-22: "Web will support the CURRENT App Store
+  release and the CURRENT Test Flight Dev and Beta releases. At most the web will support
+  those three versions and whatever version it is running natively."; the Playdate is
+  bundled with its own and never counts). Which engines those builds carry is the table in
+  `docs/ENGINES.md` "The iPhone builds people have": read it before a move to a new minor,
+  `--keep` an engine a row names, `--drop` only one no row names. Today that is the newest alone, 1.0
   (1.0.0, the released engine); 0.18 was dropped with the move to 1.0, 0.16 with the
   move to 0.18 (the web never carried 0.17), 0.15 with the move to 0.16 and 0.13 with
   the move to 0.15 (all 2026-11-22; the web never carried 0.14), and 0.9, 0.8 and 0.7 on
