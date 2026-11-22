@@ -203,24 +203,21 @@ export async function readPitch(item, code) {
       }
     : null;
   if (state && pitchState({ state }).state === "playing") return { state };
-  // a pitch with no match yet: its `open` record says who made it (one read more,
-  // only then: a match in play or finished costs what it did)
-  let open = null;
-  if (!state) {
-    const op = await item(pk, "open", ["made", "host", "exp"]);
-    open = op ? { made: op.made, host: op.host ?? null } : null;
-    if (pitchState({ open }).state === "waiting") return { state, open };
-  }
-  const kp = await item(pk, "replay", [
-    "v",
-    "made",
-    "n",
-    "s",
-    "hash",
-    "cpu",
-    "level",
-    "exp",
+  // No match in play: the pitch's `open` record (who made it) may be newer than what
+  // is retained. A finished match's state and replay live a year, so a code idle-wiped
+  // 48 hours after its last match and used again would keep showing the old final
+  // until its new pitch's first start; an `open` for a later `made` wins (openOf).
+  // `open` is read beside the kept replay, in the same round trip: a match in play
+  // costs the one read it always did; a finished pitch, or one with nothing on it, one
+  // GetItem more than before (state, then open and replay together, then a reel), at
+  // no more waiting. (An in-play state is not retained under a reused code: it
+  // expires 48 hours after its last push, and the pitch is wiped only 48 hours after
+  // its last change.)
+  const [op, kp] = await Promise.all([
+    item(pk, "open", ["made", "host", "exp"]),
+    item(pk, "replay", ["v", "made", "n", "s", "hash", "cpu", "level", "exp"]),
   ]);
+  const open = op ? { made: op.made, host: op.host ?? null } : null;
   const kept =
     kp && kp.v && kp.s
       ? {
@@ -233,6 +230,8 @@ export async function readPitch(item, code) {
           level: kp.level ?? null,
         }
       : null;
+  if (pitchState({ state, kept, open }).state === "waiting")
+    return { state, kept, open };
   const own = pitchState({ state, kept }).replay;
   return {
     state,

@@ -167,8 +167,9 @@ The pitches stack's table (`pk`, `sk`, TTL on `exp` in seconds; nothing else is 
 | `share#<hash>`                | `share`           | a shared match's code                                                                                                                                                              |
 | `reels#<day>`, `shares#<day>` | `count`           | the day's counters                                                                                                                                                                 |
 
-The pitch pages (`backend/pages/`) read `state`, `open` (only when there is no `state`),
-`replay` and `reel` with `GetItem`; the
+The pitch pages (`backend/pages/`) read `state`, then (unless a match is in play) `open`
+and `replay` together, a newer `open` winning over a retained finished match, then `reel`,
+with `GetItem`; the
 renderer (`backend/reels/`) reads `replay` and writes `reel`. The old rooms table and
 its `room#` items were deleted on 2026-11-21.
 
