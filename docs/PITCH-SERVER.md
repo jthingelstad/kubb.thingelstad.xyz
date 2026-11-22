@@ -368,8 +368,11 @@ table's `pitch#` keys. The delivery stack lets `main` update `throwing-wood-api`
 
 ### The secret: the owner's steps
 
-The simplest scheme: one secret, made in AWS, copied once into the Worker. Claude never
-reads, prints or moves its value. AWS Secrets Manager's `throwing-wood/push-secret` is
+The simplest scheme: one secret, made in AWS, copied once into the Worker. Nobody reads
+or prints its value. Since 2026-11-22 `backend/pitch-server/deploy.sh` carries it from
+Secrets Manager into the Worker inside one process's environment (no file, no log), so a
+deploy needs no 1Password and no person; the steps below are the older way by hand, and
+the 1Password item is a mirror. AWS Secrets Manager's `throwing-wood/push-secret` is
 the authority; the 1Password item `Pitch Server Push Secret - throwing-wood` (vault
 `Otto`) must hold the same value, and the Worker's secrets files are rendered from it.
 

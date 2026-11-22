@@ -65,7 +65,39 @@ items, and `op inject` renders the gitignored files from them. AWS Secrets Manag
 A new dev key is `openssl rand -hex 24`, saved in the 1Password item
 `Pitch Server Dev Key - throwing-wood`.
 
-## Deploy
+## Deploy with nobody there
+
+```sh
+npm ci
+./deploy.sh production   # or: ./deploy.sh dev
+```
+
+`deploy.sh` needs no 1Password and asks nothing, so an agent or a scheduled run can use
+it (the owner, 2026-11-22: "set it up so we can do the Cloudflare deployments without
+1Password access and do it unattended"). Bump the Worker's `version` in
+`cloudflare.config.ts` first, as for any deploy.
+
+- **The secrets come from AWS Secrets Manager**, read as the `cloud-engineer` role:
+  `PUSH_SECRET` from `throwing-wood/push-secret` (the authority) and, for dev,
+  `DEV_KEY` from `throwing-wood/pitch-dev-key` (the pitches stack's `DevKey`, generated
+  there). They go into the script's own environment and nowhere else: the secrets file
+  `cf deploy` is given holds references (`PUSH_SECRET=${PUSH_SECRET}`), which `cf`
+  expands from the environment, so no value is written to disk, printed or logged.
+- **Cloudflare**: the script uses `CLOUDFLARE_API_TOKEN` from the environment if it is
+  set, else the secret `throwing-wood/cloudflare-deploy-token` if it exists, else the
+  `cf auth login` already on the machine. A machine with no login needs the token: one
+  with Workers Scripts edit on the account and nothing more, stored by its owner with
+  `aws secretsmanager create-secret --name throwing-wood/cloudflare-deploy-token
+--secret-string "$(pbpaste)"` straight from the clipboard.
+- The dev key for the driver, without a `.dev.vars`:
+  `DEV_KEY="$(aws secretsmanager get-secret-value --secret-id throwing-wood/pitch-dev-key
+--query SecretString --output text)" node driver/driver.mjs ...`.
+
+## Deploy by hand, from 1Password
+
+The older way, for a person at the machine. The 1Password items mirror the secrets
+above; when they differ, Secrets Manager is right (a dev deploy with `deploy.sh` sets the
+Secrets Manager dev key, so render `.dev.vars` again or use the line above).
 
 ```sh
 npm ci
