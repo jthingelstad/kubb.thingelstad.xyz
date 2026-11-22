@@ -35,8 +35,8 @@
   },
   "reels": {
     "functionArn": "arn:aws:lambda:us-east-1:999153317627:function:kubb-xyz-site-reels",
-    "engines": "0.15",
-    "codeKey": "reels/11559453ed3a7c3f9aecc4d7b9b6724afab922dbf90399f80e7f8ec9f7619bac.zip",
+    "engines": "0.16",
+    "codeKey": "reels/434c7fb5fdd064f63e13802f9213d6fa7a82eec311d5df6fcba49241784a7ced.zip",
     "layerKey": "reels/ffmpeg-f4149bb2b0784e30e99bdda85471c9b5930d3402014e934a5098b41d0f7201b1.zip"
   },
   "pitches": {
