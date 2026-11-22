@@ -421,9 +421,10 @@ row with its level (Beginner, Club, Pro), ↑ ↓, TO A / TO B and REMOVE, every
 host's browser's, never a person's; a team with a person raises by its people, a team of
 computers itself. Kid on the Computer row makes every computer the Kid computer and the
 seats read Kid; the row is "An empty side plays as" while a side has nobody and no seat,
-else a "Kid match" switch while seats play. `roomEngineFor` takes the seats out of the
-teams before asking the engine (engine 0.17.0's `engineFor` counts a seat as a player
-with no engine). The pitch server checks a seat's name as a player name (`bad-name`).
+else a "Kid match" switch while seats play. `roomEngineFor` asks the engine with the
+seats left in: since engine 1.0.0 `engineFor` leaves them out itself (0.17 and 0.18
+counted a seat as a player with no engine, and the page took the seats out first). The
+pitch server checks a seat's name as a player name (`bad-name`).
 docs/MULTIPLAYER.md "Computer players", the numbers and words in docs/SYSTEM.md
 "Computer seats". A solo team (a person with a computer partner on one device) is not
 built: docs/MULTIPLAYER.md "Not done yet" says what it would take.
