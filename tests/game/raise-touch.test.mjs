@@ -11,7 +11,12 @@ import {
   tiltItem,
   tune,
 } from "../../src/game/raise-touch.js";
-import { raiseCamera, poseItem } from "../../src/game/scenes.js";
+import {
+  raiseCamera,
+  poseItem,
+  lookAt,
+  tune as sceneTune,
+} from "../../src/game/scenes.js";
 
 const pose = { x: 0.7, y: 2.3, angle: 0.35, standing: false };
 const foot = (k) => ({
@@ -95,4 +100,32 @@ test("tipped up: lying at 0, on the end's footprint at 1, pivoting on that end's
     toward(tiltItem(need, 1, 0.5)) < toward(lying),
     "end 2 the other way",
   );
+});
+
+test("the raise camera stands twice as far off: the kubb drawn half as big, twice the ground each way", () => {
+  // the camera before web 0.17.0: 1.15 m back, 1.05 m up, looking 0.12 m toward it
+  const p = need.pose;
+  const a = p.angle;
+  let nx = -Math.sin(a),
+    ny = Math.cos(a);
+  if (ny > 0.05) [nx, ny] = [-nx, -ny];
+  const old = lookAt(
+    [p.x + nx * 1.15, p.y + ny * 1.15, 1.05],
+    [p.x + nx * 0.12, p.y + ny * 0.12, 0],
+    sceneTune.raiseF,
+  );
+  const span = (cam) => {
+    const g = raiseGeometry(view, cam, need);
+    return Math.hypot(g.caps[1].x - g.caps[0].x, g.caps[1].y - g.caps[0].y);
+  };
+  const k = span(raiseCamera(need)) / span(old);
+  assert.ok(Math.abs(k - 0.5) < 0.02, `drawn ${k.toFixed(3)} as long`);
+  assert.equal(sceneTune.raiseBack, 2.3);
+  assert.equal(sceneTune.raiseUp, 2.1);
+  // the drawn kubb with the slop is still a finger's target, 44 px or more each way
+  const g = raiseGeometry(view, raiseCamera(need), need);
+  const xs = g.outline.map((q) => q[0]),
+    ys = g.outline.map((q) => q[1]);
+  assert.ok(Math.max(...xs) - Math.min(...xs) + 2 * tune.margin >= 44);
+  assert.ok(Math.max(...ys) - Math.min(...ys) + 2 * tune.margin >= 44);
 });

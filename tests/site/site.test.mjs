@@ -588,7 +588,7 @@ test("the version label: package.json's version and the newest engine's, never t
   // one engine carried: no detail
   assert.equal(releaseOf("0.2.0", sha, carried.slice(0, 1)).detail, null);
   const foot = footer(release.text);
-  assert.match(foot, /data-release>Version 0\.16\.0 \(0\.15\.1\)<\/p>/);
+  assert.match(foot, /data-release>Version 0\.17\.0 \(0\.15\.1\)<\/p>/);
   assert.ok(!foot.includes(sha.slice(0, 7)));
 });
 

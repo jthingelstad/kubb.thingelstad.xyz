@@ -4,6 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  verdictBox,
   layoutFor,
   worldFit,
   stillFit,
@@ -1029,4 +1030,57 @@ test("the tray's numbers on the phones the iPhone app ports", () => {
     minimap: [303.9, 147, 74.1, 144.5],
     arc: 256,
   });
+});
+
+// The verdict's box (web 0.17.0; docs/SYSTEM.md "The verdict"): in every layout it
+// keeps off the header, the minimap, the tray's closed column and the meter's box, and
+// upright the thrower's view puts the far baseline (frame y anchorY) at anchorAt.
+test("the verdict's box keeps off the header, the minimap, the tray and the meter in every layout", () => {
+  const sizes = [
+    [402, 665],
+    [390, 844],
+    [390, 664],
+    [430, 932],
+    [844, 390],
+    [932, 430],
+    [667, 375],
+    [1280, 800],
+    [1280, 768],
+  ];
+  const hit = (a, b) =>
+    a.x < b.x + b.width &&
+    b.x < a.x + a.width &&
+    a.y < b.y + b.height &&
+    b.y < a.y + a.height;
+  for (const [W, H] of sizes)
+    for (const meter of ["clock", "linear"])
+      for (const side of ["right", "left"])
+        for (const coarse of [true, false])
+          for (const adv of [false, true]) {
+            const L = layoutFor(W, H, {}, false, meter, { side, coarse });
+            const v = verdictBox(L, { adv });
+            const what = `${W}x${H} ${L.meter} ${side} ${coarse} ${adv}`;
+            assert.ok(v && v.width >= 150, `${what}: room (${v?.width})`);
+            const box = {
+              x: v.x,
+              y: v.y,
+              width: v.width,
+              height: L.tall ? tune.verdictTall : tune.verdictTallWide - 30,
+            };
+            assert.ok(!hit(box, L.header), `${what}: the header`);
+            assert.ok(!hit(box, L.minimap), `${what}: the minimap`);
+            if (L.tray) assert.ok(!hit(box, L.tray), `${what}: the tray`);
+            assert.ok(!hit(box, L.dial), `${what}: the meter`);
+          }
+  // upright the far baseline stands at 41% of the height
+  for (const [W, H] of [
+    [402, 665],
+    [390, 844],
+  ]) {
+    const f = worldFit(W, H, 200);
+    assert.ok(Math.abs((f.oy + tune.anchorY * f.k) / H - 0.41) < 1e-9);
+    // a throw's own far baseline (a Kid match's, nearer the camera) the same
+    const g = worldFit(W, H, 200, 150);
+    assert.ok(Math.abs((g.oy + 150 * g.k) / H - 0.41) < 1e-9);
+  }
 });
