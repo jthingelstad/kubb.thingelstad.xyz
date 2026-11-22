@@ -80,6 +80,19 @@ test("one slot, the newest wins: a claim takes it, a later write only while it i
   assert.equal(clearSave(b.id, store), true);
   assert.equal(readSave("0.15", store), null);
   assert.equal(keepSave(a, {}, store), true, "an empty slot is anyone's");
+  // a tab may always replace its own earlier match, never another tab's
+  assert.equal(keepSave(a, { claim: true, tab: "t1" }, store), true);
+  assert.equal(
+    keepSave(b, { tab: "t1" }, store),
+    true,
+    "the same tab's next match",
+  );
+  assert.equal(
+    keepSave(a, { tab: "t2" }, store),
+    false,
+    "another tab's other match",
+  );
+  assert.equal(readSave("0.15", store).tab, "t1");
 });
 
 test("only a whole save on this engine is offered; anything else is dropped", () => {

@@ -1224,7 +1224,8 @@ winner card, which records it. Storage that is blocked or full skips the save an
 goes on.
 
 **One slot a device, the newest wins.** A match claims the slot when it starts or is
-resumed, and after that writes only while the slot is its own or empty. A match in
+resumed, and after that writes only while the slot is its own, its own tab's (a save
+names the tab that wrote it, a random id a page load) or empty. A match in
 another tab that finds the slot taken stops being kept and is told once ("Kept in
 another tab": "A newer match against the computer, in another tab, is the one kept on
 this device now. This match plays on, but a reload will not bring it back.", BACK TO THE

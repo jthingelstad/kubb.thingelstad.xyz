@@ -431,9 +431,10 @@ function startSolo(game, cards, { sheet, record, recording, menu, asked }) {
   // claims the slot when it starts or is resumed, then writes while the slot is its own;
   // a newer match in another tab takes it, and this one is told once
   let told = false;
+  const tab = Math.random().toString(36).slice(2, 10);
   const keep = (claim = false) => {
     const s = saveOf(game, engines.newest);
-    if (!s || keepSave(s, { claim }) || told) return;
+    if (!s || keepSave(s, { claim, tab }) || told) return;
     told = true;
     let close;
     close = cards.notice({
