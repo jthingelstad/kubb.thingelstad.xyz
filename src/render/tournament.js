@@ -22,7 +22,6 @@ import {
   inked,
   inkFor,
   middleDepth,
-  person,
   skyGradient,
   standAt,
 } from "./scenery.js";
@@ -33,8 +32,8 @@ import {
 // pitch runs from y to y + 8, x - 2.5 to x + 2.5, like the player's), `pieces` in its
 // own frame (x across from its middle, y from its near baseline): { kind: "kubb" |
 // "king" | "baton", x, y, down, team }, or posed, { kind, x, y, z, axis, team } (a live
-// pitch's: its centre and its long axis, a unit vector), and `people`: { x, y, shirt,
-// arm }. A live pitch also brings its `stakes` (the six, from its near baseline).
+// pitch's: its centre and its long axis, a unit vector). A live pitch also brings its
+// `stakes` (the six, from its near baseline).
 function standardPieces(seed, downs = []) {
   const pieces = [];
   for (let i = 0; i < 5; i++) {
@@ -73,54 +72,31 @@ export const NEIGHBOURS = [
     x: -8,
     y: 0,
     pieces: standardPieces(1, ["b1", "b3"]),
-    people: [
-      { x: -0.8, y: -1.2, shirt: 0, arm: 1 },
-      { x: 0.9, y: -1.0, shirt: 0 },
-      { x: -0.5, y: 9.3, shirt: 1 },
-      { x: 1.1, y: 9.5, shirt: 1 },
-    ],
   },
   {
     x: 8,
     y: 0,
     pieces: standardPieces(2, ["a2"]),
-    people: [
-      { x: 0.6, y: -1.1, shirt: 2 },
-      { x: -0.4, y: 9.4, shirt: 5, arm: 1 },
-      { x: 0.8, y: 9.2, shirt: 5 },
-    ],
   },
   {
     x: -16,
     y: 0,
     pieces: standardPieces(3, ["b0", "b2", "b4"]),
-    people: [
-      { x: 0, y: -1.2, shirt: 4 },
-      { x: 0.3, y: 9.3, shirt: 6 },
-    ],
   },
   {
     x: 16,
     y: 0,
     pieces: standardPieces(4),
-    people: [
-      { x: -0.3, y: -1.3, shirt: 3, arm: 1 },
-      { x: 0.2, y: 9.4, shirt: 2 },
-    ],
   },
   {
     x: -4,
     y: 14,
     pieces: standardPieces(5, ["a1"]),
-    // ahead of the player's pitch: no people (tune.watchers says why)
-    people: [],
   },
   {
     x: 4,
     y: 14,
     pieces: standardPieces(6, ["b2", "b4"]),
-    // ahead of the player's pitch: no people (tune.watchers says why)
-    people: [],
   },
 ];
 
@@ -238,8 +214,8 @@ function piece(ctx, cam, kx, B, nearest, p, set) {
   }
 }
 
-// Every neighbouring pitch: its mown ground, its lines and stakes, its pieces and its
-// players, the farthest first. pitches: NEIGHBOURS' shape.
+// Every neighbouring pitch: its mown ground, its lines and stakes and its pieces, the
+// farthest first. pitches: NEIGHBOURS' shape.
 export function drawNeighbours(
   ctx,
   cam,
@@ -291,12 +267,6 @@ export function drawNeighbours(
         y: p.y + q.y,
         what: "piece",
       })),
-      ...p.people.map((q) => ({
-        ...q,
-        x: p.x + q.x,
-        y: p.y + q.y,
-        what: "person",
-      })),
       ...(
         p.stakes?.map((q) => [q.x, q.y]) || [
           [-2.5, 0],
@@ -312,14 +282,7 @@ export function drawNeighbours(
       })),
     ];
     for (const t of farToNear(cam, things)) {
-      if (t.what === "person") {
-        const at = standAt(cam, t.x, t.y, B, nearest, 2);
-        if (at)
-          person(ctx, at, kx, TOURNAMENT.person, {
-            shirt: TOURNAMENT.shirts[t.shirt % TOURNAMENT.shirts.length],
-            arm: t.arm || 0,
-          });
-      } else if (t.kind === "stake") {
+      if (t.kind === "stake") {
         const at = standAt(cam, t.x, t.y, B, nearest, 0.4);
         if (at) {
           const h = at.s * 0.15;
@@ -345,25 +308,16 @@ export const tune = {
   // most views show (the aim view sees about 6 m past the far baseline)
   rope: { x0: -3.7, x1: 3.7, y0: -2.6, y1: 10.1, h: 0.75, posts: 1.85 }, // m
   pennantEvery: 0.46, // m along the rope
-  // The scoreboards and the people watching stand past the far rope off to the
-  // sides, in the gaps between the pitches, never straight behind the far kubbs: at
-  // real scale a person a few metres past them stands taller on the screen than
-  // anything the player aims at (most of all in a Kid match, the thrower 2 m forward).
-  // The neighbours in line with the player's show no people for the same reason
-  // (src/game/neighbours.js).
+  // The scoreboards stand past the far rope off to the sides, in the gaps between the
+  // pitches, never straight behind the far kubbs: nothing looms over the target.
   boards: [
     { x: -4.9, y: 11.3, a: 3, b: 2 },
     { x: 8, y: 11.4, a: 1, b: 4 },
   ],
-  watchers: [
-    { x: -4.4, y: 10.6, shirt: 5 },
-    { x: -5.6, y: 11.6, shirt: 1 },
-    { x: 4.3, y: 10.9, shirt: 0 },
-    { x: 5.0, y: 11.5, shirt: 4, arm: 1 },
-    { x: 5.8, y: 11.0, shirt: 2 },
-    { x: 4.6, y: 12.2, shirt: 6 },
-  ],
-  tent: { x: 0, y: 26, w: 6, d: 3.4, h: 2.6 },
+  // The canopy stands beyond the grid's far row in the gap between two columns of
+  // pitches (x = 12), not straight behind the pitch ahead, where its legs stood over
+  // the far kubbs at the top of an upright phone (it was at x = 0 until web 0.17.0).
+  tent: { x: 12, y: 26, w: 6, d: 3.4, h: 2.6 },
 };
 
 // The rope round the player's pitch: posts, the rope sagging between them and a
@@ -574,19 +528,9 @@ function drawThings(ctx, cam, kx, B, G, scene) {
     daySetOf(scene.set || "usa"),
   );
   const nearest = middleDepth(cam);
-  const things = [
-    ...tune.boards.map((b) => ({ ...b, what: "board" })),
-    ...tune.watchers.map((w) => ({ ...w, what: "person" })),
-  ];
-  for (const t of farToNear(cam, things)) {
+  for (const t of farToNear(cam, tune.boards)) {
     const at = standAt(cam, t.x, t.y, B, nearest, 2);
-    if (!at) continue;
-    if (t.what === "board") board(ctx, at, t, kx);
-    else
-      person(ctx, at, kx, TOURNAMENT.person, {
-        shirt: TOURNAMENT.shirts[t.shirt % TOURNAMENT.shirts.length],
-        arm: t.arm || 0,
-      });
+    if (at) board(ctx, at, t, kx);
   }
   drawRope(ctx, cam, kx, B);
   void G;

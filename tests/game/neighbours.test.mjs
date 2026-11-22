@@ -1,7 +1,7 @@
 // The page's half of the Tournament's live neighbours (src/game/neighbours.js), with no
 // browser: when a field may be live (the scene gating), the layout, and a worker that
 // never answers, fails or cannot be made: the page goes on, draws the still pitches,
-// and ends the worker.
+// and ends the worker; no people on any pitch, and pieces rise rather than pop up.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -9,8 +9,7 @@ import {
   neighboursWanted,
   Field,
   fieldFor,
-  peopleOf,
-  shirtsOf,
+  riseOf,
   tune,
 } from "../../src/game/neighbours.js";
 
@@ -42,7 +41,7 @@ test("live only in the Tournament, in a match or practice, without reduced motio
   );
 });
 
-test("the ring of 8 in every layout; the pitches in line show no people", () => {
+test("the ring of 8 in every layout; no pitch has people", () => {
   assert.equal(tune.layout, "grid");
   const teams = {
     A: { name: "Brave Birch", players: 3 },
@@ -65,9 +64,11 @@ test("the ring of 8 in every layout; the pitches in line show no people", () => 
       pitch(6, -8, 12),
     ],
   });
-  const drawn = fieldFor(field, 1);
-  const people = Object.fromEntries(drawn.map((p) => [p.id, p.people.length]));
-  assert.deepEqual(people, { 1: 6, 3: 0, 4: 0, 6: 6 });
+  for (const turned of [false, true]) {
+    const drawn = fieldFor(field, 1, turned);
+    assert.equal(drawn.length, 4);
+    for (const p of drawn) assert.equal("people" in p, false, `pitch ${p.id}`);
+  }
 });
 
 // A stand-in worker: records what it is sent, answers only when told.
@@ -205,29 +206,83 @@ test("destroy closes the field, then ends the worker", async () => {
   assert.equal(w.terminated, true);
 });
 
-test("people: the thrower at `from` with the arm up, a cheer, never a name", () => {
-  const teams = {
-    A: { name: "Brave Birch", players: 5 },
-    B: { name: "Lucky Larch", players: 2 },
-  };
-  const p = {
-    id: 1,
-    teams,
-    items: [],
-    phase: "throw",
-    at: 10,
-    rec: { duration: 1.5 },
-    recAt: 10,
-    side: "B",
-    from: { B: { x: 1.2, y: 8 } },
-    shirts: shirtsOf(teams, 1),
-  };
-  const people = peopleOf(p, 10.2);
-  assert.equal(people.length, 3 + 2);
-  const thrower = people.find((q) => q.x === 1.2);
-  assert.ok(thrower && thrower.arm === 1 && thrower.y > 8);
-  assert.ok(people.every((q) => !("name" in q)));
-  assert.notEqual(p.shirts.A, p.shirts.B);
-  const over = { ...p, rec: null, phase: "over", winner: "A", at: 20 };
-  assert.ok(peopleOf(over, 20.4).some((q) => q.arm > 0 && q.y < 0));
+// The long axis's upward part of a drawn piece.
+const upOf = (it) => 1 - 2 * (it.qx ** 2 + it.qy ** 2);
+const lyingKubb = {
+  id: "a1",
+  kind: "kubb",
+  team: "A",
+  x: 0.4,
+  y: 5,
+  z: 0.035,
+  qw: Math.SQRT1_2,
+  qx: -Math.SQRT1_2,
+  qy: 0,
+  qz: 0,
+  toppled: true,
+};
+const standingKubb = {
+  ...lyingKubb,
+  x: 0.45,
+  y: 5.08,
+  z: 0.075,
+  qw: 1,
+  qx: 0,
+  toppled: false,
+};
+
+test("a raised kubb rises over tune.rise rather than appearing standing", () => {
+  const field = new Field({
+    stakes: [],
+    pitches: [
+      {
+        id: 1,
+        offset: { x: 8, y: 0 },
+        teams: {},
+        items: [lyingKubb],
+        phase: "walk",
+        at: 0,
+      },
+    ],
+  });
+  field.apply([{ id: 1, phase: "raise", at: 10, items: [standingKubb] }]);
+  const p = field.pitches[0];
+  // the engine's model stands it at once; the drawing rises
+  assert.equal(field.itemsAt(p, 10.1)[0].toppled, false);
+  const at = (t) => field.shownAt(p, t)[0];
+  assert.ok(upOf(at(10)) < 0.1, "lying at the raise");
+  const mid = at(10 + tune.rise / 2);
+  assert.ok(upOf(mid) > 0.2 && upOf(mid) < 0.9, "part way up");
+  assert.ok(mid.z > lyingKubb.z && mid.z < standingKubb.z);
+  assert.deepEqual(at(10 + tune.rise + 0.01), standingKubb, "then standing");
+  assert.equal(p.rise, null, "done");
+});
+
+test("a fresh pitch's pieces rise one after another on setup", () => {
+  const king = { ...standingKubb, id: "king", kind: "king", x: 0, y: 4 };
+  const b1 = { ...standingKubb, id: "b1", team: "B", x: -2, y: 8 };
+  const field = new Field({
+    stakes: [],
+    pitches: [{ id: 2, offset: { x: -8, y: 0 }, teams: {}, items: [], at: 0 }],
+  });
+  field.apply([
+    { id: 2, phase: "setup", at: 50, items: [standingKubb, king, b1] },
+  ]);
+  const p = field.pitches[0];
+  const shown = (t) => field.shownAt(p, t);
+  // the first is half up while the last has yet to start
+  const s = shown(50 + tune.setupRise / 2);
+  assert.ok(upOf(s[0]) > upOf(s[2]));
+  // every piece stays where it will stand while it rises
+  for (const it of s) {
+    const to = [standingKubb, king, b1].find((q) => q.id === it.id);
+    assert.ok(Math.hypot(it.x - to.x, it.y - to.y) < 1e-9);
+  }
+  const end = 50 + tune.setupRise + 2 * tune.setupEvery + 0.01;
+  assert.deepEqual(shown(end), [standingKubb, king, b1]);
+});
+
+test("riseOf turns from lying to standing, eased", () => {
+  assert.ok(upOf(riseOf(lyingKubb, standingKubb, 0)) < 0.01);
+  assert.ok(upOf(riseOf(lyingKubb, standingKubb, 1)) > 0.999);
 });

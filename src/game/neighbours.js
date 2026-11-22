@@ -6,6 +6,8 @@
 // plays them; this is the page's half: it posts the match clock once a frame, keeps
 // each pitch from the events that come back, plays each throw's recording at real
 // speed, and hands src/render/tournament.js's drawNeighbours the field as it stands.
+// No people play them (the owner, 2026-11-22): pieces only, and their sounds
+// (src/game/neighbour-sound.js): each throw's cues, timed on the match clock.
 //
 // Scenery only: nothing here touches the player's match, its engine, its snapshot or
 // its hashes, and the page never waits on the worker. While the field is not open yet,
@@ -16,8 +18,9 @@
 //   nb.open({ seed, layout }, key)  a field for this match (again for a new key)
 //   nb.tick(dt)                     once a frame: the match clock moves on by dt
 //   nb.field(turned)                the pitches to draw, or null (draw the still ones)
+//   nb.takeCues()                   the sounds due by now: [{ id, kind, at, offset }]
 //   nb.destroy()                    close it and end the worker
-import { TOURNAMENT } from "../render/palette.js";
+import { cuesOf, tune as soundTune } from "./neighbour-sound.js";
 
 export const tune = {
   budgetMs: 2, // ms of the worker's work an advance may take (docs/CLIENTS.md)
@@ -32,15 +35,13 @@ export const tune = {
   // between pitch origins, m, or null for the engine's ({ x: 8, y: 12 }: the pitch
   // ahead's near baseline 4 m past the far rope, where the thrower's view sees it)
   spacing: null,
-  // the people (pitch frame metres and seconds)
-  team: 3, // figures a team, at most
-  behind: 0.8, // m behind its baseline a team stands
-  spread: 1.3, // m between its figures
-  armUp: 0.6, // s the thrower's arm is up after the release
-  walk: 18, // s the teams take to go out on the walk and come back
-  raise: 8, // s a figure stands at the kubbs being raised
-  cheer: 7, // s the winners cheer
-  setup: 6, // s the new teams take to walk on
+  // No people (the owner, 2026-11-22: "Tournament mode should not have people. Just
+  // pitches with live play."): with nobody to throw or carry, a baton is seen only once
+  // it is in the air, and pieces stand up with a short rise rather than appear standing:
+  rise: 0.6, // s a kubb takes to stand up when a pitch's kubbs are raised
+  riseEvery: 0.15, // s between the kubbs of one raise
+  setupRise: 0.5, // s a piece takes to stand when a fresh pitch sets out
+  setupEvery: 0.07, // s between its pieces, in the engine's order
 };
 
 // A client's playback of a neighbour's recording, copied from the engine's
@@ -101,8 +102,6 @@ export function neighboursWanted({
   return open || !modal;
 }
 
-const other = (side) => (side === "A" ? "B" : "A");
-
 // The frame the pitch is drawn in now, Team A's or Team B's, so the neighbours' field
 // is drawn in the same (fieldFor turns it for "B"). One decision for every drawing
 // path the Game has:
@@ -136,7 +135,7 @@ export function pitchFrameOf({
 
 // The model of one opening: each pitch's items as the events leave them (the
 // engine's docs/SESSION.md "What a client keeps for each pitch"), its recording while
-// one plays, and what the people do.
+// one plays, and the pieces rising after a raise or a setup.
 export class Field {
   constructor(open) {
     this.stakes = open.stakes || [];
@@ -152,9 +151,10 @@ export class Field {
       side: null, // the side of the last throw
       from: {}, // where each side last threw from
       winner: null,
-      shirts: shirtsOf(p.teams, p.id),
+      rise: null, // { at, from, dur, every }: pieces standing up (shownAt)
     }));
     this.byId = new Map(this.pitches.map((p) => [p.id, p]));
+    this.cues = []; // the sounds to come, { id, kind, at }, in time order
   }
 
   // A recording played out: its last poses are the pitch's items.
@@ -172,18 +172,27 @@ export class Field {
       if (ev.phase === "throw") {
         p.rec = ev.recording;
         p.recAt = ev.at;
+        for (const c of cuesOf(ev.recording))
+          this.cues.push({ id: p.id, kind: c.kind, at: ev.at + c.t });
+        this.cues.sort((a, b) => a.at - b.at);
         p.side = ev.side;
         if (ev.from) p.from[ev.side] = ev.from;
-      } else if (ev.items) p.items = ev.items;
+      } else if (ev.items) {
+        // kubbs raised, or a fresh pitch: they rise rather than appear standing
+        if (ev.phase === "raise" || ev.phase === "setup")
+          p.rise = {
+            at: ev.at,
+            from: new Map(p.items.map((it) => [it.id, it])),
+            setup: ev.phase === "setup",
+          };
+        p.items = ev.items;
+      }
       if (ev.phase === "over") p.winner = ev.winner ?? null;
       if (ev.phase === "setup") {
         p.winner = null;
         p.side = null;
         p.from = {};
-        if (ev.teams) {
-          p.teams = ev.teams;
-          p.shirts = shirtsOf(ev.teams, p.id);
-        }
+        if (ev.teams) p.teams = ev.teams;
       }
       p.phase = ev.phase;
       p.at = ev.at;
@@ -206,92 +215,111 @@ export class Field {
     p.at = v.at ?? p.at;
   }
 
-  // Each pitch's pieces at `now` on the match clock.
+  // The cues due by `now`, taken off the list (those more than soundTune.stale late are
+  // dropped): [{ id, kind, at, offset }].
+  takeCues(now) {
+    const out = [];
+    while (this.cues.length && this.cues[0].at <= now) {
+      const c = this.cues.shift();
+      if (now - c.at <= soundTune.stale)
+        out.push({ ...c, offset: this.byId.get(c.id)?.offset });
+    }
+    return out;
+  }
+
+  // Each pitch's pieces at `now` on the match clock (the engine's model: equal to
+  // neighbours.view, tests/engine/neighbours.test.mjs).
   itemsAt(p, now) {
     if (p.rec && now >= p.recAt + p.rec.duration) this.settle(p);
     if (!p.rec) return p.items;
     return playRecording(p.items, p.rec, Math.max(0, now - p.recAt));
   }
-}
 
-function textHash(s = "") {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++)
-    h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
-  return h >>> 0;
-}
-
-// Each team's shirt (an index into TOURNAMENT.shirts), from its name: two teams on a
-// pitch never share one. The names themselves are never drawn.
-export function shirtsOf(teams, id = 0) {
-  const n = TOURNAMENT.shirts.length;
-  const a = (textHash(teams?.A?.name) + id) % n;
-  let b = (textHash(teams?.B?.name) + id * 3) % n;
-  if (b === a) b = (b + 1) % n;
-  return { A: a, B: b };
-}
-
-const baseY = (side) => (side === "A" ? -tune.behind : 8 + tune.behind);
-
-// The people on a pitch at `now`, in its own frame (Team A's baseline at y = 0): each
-// team behind its baseline, the thrower at `from` before and as a throw goes, the teams
-// going out and back on the walk, a figure at the kubbs being raised, the winners'
-// arms going up, new teams walking on after setup.
-export function peopleOf(p, now) {
-  const t = Math.max(0, now - p.at);
-  const people = [];
-  const thrower =
-    p.rec || p.phase === "throw" || p.phase === "aim" || p.phase === "raise"
-      ? p.side
-      : p.phase === "walk" && p.side
-        ? other(p.side)
-        : null;
-  for (const side of ["A", "B"]) {
-    const n = Math.max(
-      1,
-      Math.min(tune.team, p.teams?.[side]?.players ?? tune.team),
-    );
-    const y0 = baseY(side);
-    const far = baseY(other(side));
-    for (let i = 0; i < n; i++) {
-      let x = (i - (n - 1) / 2) * tune.spread;
-      let y = y0;
-      let arm = 0;
-      if (i === 0 && side === thrower) {
-        const from = p.from[side];
-        if (from) x = from.x;
-        y = (from?.y ?? (side === "A" ? 0 : 8)) + (side === "A" ? -0.3 : 0.3);
-        if (p.rec && now - p.recAt < tune.armUp) arm = 1;
-      } else if (p.phase === "walk" && t < tune.walk) {
-        // out and back: the side that threw fetches its batons from the far end, the
-        // other picks up its felled kubbs short of the middle
-        const u = Math.sin((Math.PI * t) / tune.walk);
-        const to = side === p.side ? far : 4;
-        const k = side === p.side ? 0.85 : 0.55;
-        y = y0 + (to - y0) * k * u;
-        x += (side === "A" ? -0.4 : 0.4) * u;
-      } else if (p.phase === "over" && side === p.winner && t < tune.cheer) {
-        arm = Math.floor(t * 3 + i) % 2 ? 1 : 0.5;
-      } else if (p.phase === "setup" && t < tune.setup) {
-        const u = Math.min(1, t / tune.setup);
-        x = 4.5 + i * 0.6 + (x - 4.5 - i * 0.6) * u;
-      }
-      people.push({ x, y, shirt: p.shirts[side], arm });
-    }
+  // The pieces as drawn at `now`: itemsAt, with kubbs just raised (and a fresh pitch's
+  // pieces) rising to stand rather than appearing standing (riseOf).
+  shownAt(p, now) {
+    const items = this.itemsAt(p, now);
+    const r = p.rise;
+    if (!r || p.rec) return items;
+    const t = now - r.at;
+    const dur = r.setup ? tune.setupRise : tune.rise;
+    const every = r.setup ? tune.setupEvery : tune.riseEvery;
+    let k = 0;
+    let busy = false;
+    const out = items.map((it) => {
+      if (!risesFrom(it, r.from.get(it.id), r.setup)) return it;
+      const u = (t - every * k++) / dur;
+      if (u >= 1) return it;
+      busy = true;
+      return riseOf(r.from.get(it.id), it, u, r.setup);
+    });
+    if (!busy) p.rise = null;
+    return out;
   }
-  if (p.phase === "raise" && t < tune.raise && p.side) {
-    const k = p.items.find(
-      (it) => it.kind === "kubb" && it.y > 0.6 && it.y < 7.4,
-    );
-    if (k)
-      people.push({
-        x: k.x + 0.35,
-        y: k.y + (p.side === "A" ? 0.2 : -0.2),
-        shirt: p.shirts[other(p.side)],
-        arm: 0,
-      });
-  }
-  return people;
+}
+
+// Quaternions [w, x, y, z].
+function qmul(a, b) {
+  return [
+    a[0] * b[0] - a[1] * b[1] - a[2] * b[2] - a[3] * b[3],
+    a[0] * b[1] + a[1] * b[0] + a[2] * b[3] - a[3] * b[2],
+    a[0] * b[2] - a[1] * b[3] + a[2] * b[0] + a[3] * b[1],
+    a[0] * b[3] + a[1] * b[2] - a[2] * b[1] + a[3] * b[0],
+  ];
+}
+const qOf = (it) => [it.qw ?? 1, it.qx ?? 0, it.qy ?? 0, it.qz ?? 0];
+const uprightOf = (it) => {
+  const [, qx, qy] = qOf(it);
+  return Math.abs(1 - 2 * (qx * qx + qy * qy)) > 0.7;
+};
+const HALF_SIDE = { kubb: 0.035, king: 0.045 };
+
+// Does this piece stand up now: a kubb or the king standing that lay before (or, on a
+// fresh pitch, any standing kubb or king; a stake never).
+function risesFrom(it, was, setup) {
+  if (it.kind !== "kubb" && it.kind !== "king") return false;
+  if (it.toppled || !uprightOf(it)) return false;
+  if (setup) return true;
+  return !!was && (was.toppled || !uprightOf(was));
+}
+
+// A piece part way up (u, 0 to 1): from where it lay (or, on a fresh pitch, lying where
+// it will stand, along the pitch) to standing, its turn eased.
+export function riseOf(was, it, u, setup = false) {
+  const e = u <= 0 ? 0 : u * u * (3 - 2 * u);
+  const lay =
+    setup || !was
+      ? (() => {
+          const q = qmul(qOf(it), [Math.SQRT1_2, -Math.SQRT1_2, 0, 0]);
+          const z = HALF_SIDE[it.kind] ?? 0.035;
+          return {
+            x: it.x,
+            y: it.y,
+            z,
+            qw: q[0],
+            qx: q[1],
+            qy: q[2],
+            qz: q[3],
+          };
+        })()
+      : was;
+  let a = qOf(lay);
+  const b = qOf(it);
+  if (a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3] < 0)
+    a = a.map((v) => -v);
+  const q = a.map((v, n) => v + (b[n] - v) * e);
+  const l = Math.hypot(...q) || 1;
+  return {
+    ...it,
+    x: lay.x + (it.x - lay.x) * e,
+    y: lay.y + (it.y - lay.y) * e,
+    z: (lay.z ?? 0) + ((it.z ?? 0) - (lay.z ?? 0)) * e,
+    qw: q[0] / l,
+    qx: q[1] / l,
+    qy: q[2] / l,
+    qz: q[3] / l,
+    toppled: false,
+  };
 }
 
 // The long axis (local z) of a pose in the pitch frame.
@@ -308,7 +336,7 @@ function axisOf(it) {
 }
 
 // The field as drawNeighbours takes it (src/render/tournament.js): each pitch's near
-// baseline's middle in the drawn frame, its pieces and people from there. `turned`:
+// baseline's middle in the drawn frame, its pieces from there (no people). `turned`:
 // the player's pitch is drawn in Team B's frame (the thrower's view of Team B), so the
 // whole field turns half about (0, 4) with it, as the engine's docs/SESSION.md "The
 // pitch frame" says: a point (ox + x, oy + y) is drawn at (-(ox + x), 8 - (oy + y)).
@@ -320,7 +348,7 @@ export function fieldFor(field, now, turned = false) {
     return { x, y };
   });
   for (const p of field.pitches) {
-    const items = field.itemsAt(p, now);
+    const items = field.shownAt(p, now);
     const pieces = [];
     for (const it of items) {
       if (it.kind === "stake") continue;
@@ -335,19 +363,11 @@ export function fieldFor(field, now, turned = false) {
         axis: turned ? [-a[0], -a[1], a[2]] : a,
       });
     }
-    // the pitches in line with the player's (straight ahead and behind) play without
-    // their people: a person a few metres past the far kubbs stands taller on the
-    // screen than anything the player aims at, and one behind over the near end
-    const people = (p.offset.x === 0 ? [] : peopleOf(p, now)).map((q) => {
-      const [x, y] = pt(q.x, q.y);
-      return { ...q, x, y };
-    });
     out.push({
       id: p.id,
       x: turned ? -p.offset.x : p.offset.x,
       y: turned ? -p.offset.y : p.offset.y,
       pieces,
-      people,
       stakes,
       live: true,
     });
@@ -483,6 +503,12 @@ export class Neighbours {
   field(turned = false) {
     if (this.failed || !this.fieldData) return null;
     return fieldFor(this.fieldData, this.clock, turned);
+  }
+
+  // The sounds due by the match clock now (Field.takeCues), or [].
+  takeCues() {
+    if (this.failed || !this.fieldData) return [];
+    return this.fieldData.takeCues(this.clock);
   }
 
   get isOpen() {

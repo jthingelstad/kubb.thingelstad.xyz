@@ -574,7 +574,8 @@ export const MINNESOTA = {
 };
 
 // A kubb tournament: pitches side by side on mown grass, rope lines with pennants,
-// scoreboards and people at the neighbouring pitches (no championship's name or logo).
+// scoreboards and a canopy round the neighbouring pitches (no championship's name or
+// logo, and no people: the owner, 2026-11-22).
 export const TOURNAMENT = {
   sky: { top: "#86c3e6", low: "#e2f2f7" },
   ground: {
@@ -597,16 +598,6 @@ export const TOURNAMENT = {
     plate: "#2e3d52",
   },
   tent: { roof: ["#ffffff", "#1f3a7a"], leg: "#d7d0c2" },
-  shirts: [
-    "#e5484d",
-    "#33b6e8",
-    "#f2b705",
-    "#ffffff",
-    "#2f7d4a",
-    "#8e44ad",
-    "#ff7a3d",
-  ],
-  person: { skin: "#e9c39b", trousers: "#2f3a4a", ink: INK },
   wood: "#ecd2a0",
   cone: { cone: "#ff6a2b", band: "#ffffff", ink: INK },
 };
