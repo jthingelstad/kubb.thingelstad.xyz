@@ -142,8 +142,9 @@ export class Engine {
     return this.call("recording");
   }
   // The score sheet: { text, name, shown: [line, ...], done } for a match ({} in
-  // practice). text is the game file in Planet Kubb Notation, positions included;
-  // shown is each line without them, as the screen shows it.
+  // practice). text is the game file in Planet Kubb Notation, positions included
+  // (from 0.13.1 Notation 2's "@" and "*" position lines; before, "(@ ...)" comments on
+  // the turn lines); shown is the file without them, as the screen shows it.
   sheet() {
     return this.call("sheet");
   }

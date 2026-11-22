@@ -1,5 +1,6 @@
 // The settings in a real browser, where each lives by its scope (docs/CLIENT.md
-// "Settings"): the device's (your name, your level, the meter and its side, the sound)
+// "Settings"): the device's (your name, the meter and its side, the sound; no level of
+// your own since engine 0.13, though a stored one is kept)
 // in one place, MENU in every mode and the /settings/ page from the web game's page;
 // a match's options on the solo card, the practice MENU and the lobby, nowhere else;
 // the part-way raising on the raise panel. Skipped with a notice when Playwright's
@@ -62,19 +63,16 @@ browserTest(
       await page.click('a[href="/settings/"]');
       await page.waitForSelector("[data-test=settings]");
       assert.equal(await page.inputValue("[data-test=settings-name]"), "Aspen");
-      assert.equal(
-        await page.getAttribute(
-          "[data-test=menu-level] [aria-checked=true]",
-          "data-value",
-        ),
-        "pro",
-      );
-      // no match option here
-      for (const t of ["menu-surface", "menu-scene", "menu-raise"])
+      // no match option here, and no level of your own (engine 0.13: one meter)
+      for (const t of [
+        "menu-surface",
+        "menu-scene",
+        "menu-raise",
+        "menu-level",
+      ])
         assert.equal(await has(page, t), false, t);
       await page.fill("[data-test=settings-name]", "Oak");
       await page.press("[data-test=settings-name]", "Enter");
-      await pick(page, "menu-level", "beginner");
       await pick(page, "menu-meter", "linear");
       await pick(page, "menu-side", "left");
       await pick(page, "mute", "off");
@@ -96,7 +94,8 @@ browserTest(
       });
       assert.deepEqual(g, {
         name: "Oak",
-        level: "beginner",
+        // the older choice is kept, never reset, though nothing sets it now
+        level: "pro",
         meter: "linear",
         side: "left",
         muted: true,
@@ -127,7 +126,6 @@ browserTest(
       await practice.click("[data-test=menu]");
       for (const t of [
         "settings-name",
-        "menu-level",
         "menu-meter",
         "menu-side",
         "mute",
@@ -136,6 +134,7 @@ browserTest(
       ])
         assert.ok(await has(practice, t), `practice MENU has ${t}`);
       assert.equal(await has(practice, "menu-raise"), false);
+      assert.equal(await has(practice, "menu-level"), false);
       assert.equal(
         await practice.inputValue("[data-test=settings-name]"),
         "Birch",
@@ -146,9 +145,14 @@ browserTest(
       await solo.waitForFunction(() => window.__kubb.game.mode === "match");
       await solo.click("[data-test=handoff-go]");
       await solo.click("[data-test=menu]");
-      for (const t of ["settings-name", "menu-level", "menu-meter", "mute"])
+      for (const t of ["settings-name", "menu-meter", "mute"])
         assert.ok(await has(solo, t), `match MENU has ${t}`);
-      for (const t of ["menu-surface", "menu-scene", "menu-raise"])
+      for (const t of [
+        "menu-surface",
+        "menu-scene",
+        "menu-raise",
+        "menu-level",
+      ])
         assert.equal(await has(solo, t), false, `match MENU has no ${t}`);
       assert.deepEqual([...practice.errors, ...solo.errors], []);
     } finally {
@@ -171,7 +175,7 @@ browserTest(
     );
     try {
       await page.waitForSelector("[data-test=solo-name]");
-      // the box and the level line share the one You row, with one button
+      // the box is the one You row, with one button, and no level line
       assert.equal(
         await page
           .locator("[data-test=solo-you] [data-test=solo-name]")
@@ -179,8 +183,8 @@ browserTest(
         1,
       );
       assert.equal(
-        await page.textContent("[data-test=solo-you] .opt-value"),
-        "Throwing at Club.",
+        await page.locator("[data-test=solo-you] .opt-value").count(),
+        0,
       );
       assert.equal(
         await page
@@ -205,25 +209,15 @@ browserTest(
       await page.click("[data-test=rematch]");
       await page.waitForSelector("[data-test=solo-you]");
       assert.equal(await has(page, "solo-name"), false, "asked once");
-      // seen as "Birch · Throwing at Club.", heard as "Birch, Throwing at Club."
+      // the name alone: no "Throwing at ..." line since engine 0.13
       const parts = await page.$$eval(
         "[data-test=solo-you] .opt-value > span",
-        (els) =>
-          els.map((e) => [
-            e.className,
-            e.textContent,
-            e.getAttribute("aria-hidden"),
-          ]),
+        (els) => els.map((e) => [e.className, e.textContent]),
       );
-      assert.deepEqual(parts, [
-        ["you-name", "Birch", null],
-        ["you-dot", " · ", "true"],
-        ["visually-hidden", ", ", null],
-        ["you-level", "Throwing at Club.", null],
-      ]);
+      assert.deepEqual(parts, [["you-name", "Birch"]]);
       assert.equal(
         await page.getAttribute("[data-test=solo-you-menu]", "aria-label"),
-        "Change in MENU: your name and level",
+        "Change in MENU: your name",
       );
       assert.equal(
         await page

@@ -1,10 +1,11 @@
 // tests/fixtures/replay-north-south.json: a kept replay (src/net/lobby.js replayOf) of a
 // whole computer-against-computer match, North against South (South topples the king in
-// turn 18 under kubb-engine 0.2.0 and 0.3.0; the tests read "South 1, North 0"), played through this
-// checkout's engine. The embed and pitch pages tests serve it; tests/engine/fixtures
-// fails when the engine no longer plays it to the hashes it carries. After an engine
-// change that moves hashes (a new minor version), write it again, and if South no
-// longer wins choose another seed:
+// turn 18 under kubb-engine 0.2.0 and 0.3.0, and with seed 22 in turn 10 under 0.13.0; the
+// tests read "South 1, North 0"), played through this checkout's engine. The embed and
+// pitch pages tests serve it; tests/engine/fixtures fails when the engine no longer plays
+// it to the hashes it carries. After an engine change that moves hashes (a new minor
+// version), write it again, and if South no longer wins choose another seed for that
+// engine in seedFor (an older engine's fixture keeps its own seed):
 //
 //   node tools/replay-fixture.mjs           write the fixture
 //   node tools/replay-fixture.mjs --check   fail unless the file is what it would write
@@ -28,6 +29,13 @@ export function fixtureFor(mm, newest = carriedEngines()[0].mm) {
     : `tests/fixtures/replay-north-south-${mm}.json`;
 }
 
+// The seed an engine's fixture is played with: 6 up to 0.9, where South wins; 22 from
+// 0.13, where seed 6 has North win.
+export function seedFor(version) {
+  const [major, minor] = String(version).split(".").map(Number);
+  return major === 0 && minor < 13 ? 6 : 22;
+}
+
 export const SETUP = {
   seed: 6,
   cpu: "both",
@@ -43,7 +51,8 @@ export const SETUP = {
 export async function playFixture(sources = bundleLua()) {
   const engine = await Engine.create({ sources });
   useRoomEngine(engine);
-  engine.newMatch(SETUP);
+  const setup = { ...SETUP, seed: seedFor(engine.version) };
+  engine.newMatch(setup);
   const h0 = engine.hash().hash;
   const log = [];
   for (let frames = 0; engine.need().kind !== "over"; frames++) {
@@ -55,7 +64,7 @@ export async function playFixture(sources = bundleLua()) {
     over: true,
     n: 1,
     seq: log.length,
-    setup: SETUP,
+    setup,
     h0,
     log,
     snap: engine.snapshot(),

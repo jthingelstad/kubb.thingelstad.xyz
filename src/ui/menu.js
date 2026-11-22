@@ -1,5 +1,5 @@
 // The menu, from the button in the top corner. Its top half is the device's
-// settings (src/ui/settings.js: your name, your level, the meter and its side, the
+// settings (src/ui/settings.js: your name, the meter and its side, the
 // sound), the same rows as the /settings/ page; below them, on the practice pitch,
 // that pitch's own options (surface and scene), and watching the computer, the
 // view. Then the actions: how to throw, resign, the score sheet (in a match), send
@@ -28,8 +28,6 @@ function gameDevice(game, sound) {
   return {
     name: game.playerName,
     setName: (t) => game.setPlayerName(t),
-    level: game.level,
-    setLevel: (v) => game.setLevel(v),
     meter: game.meter,
     setMeter: (v) => game.setMeter(v),
     meterSide: game.meterSide,

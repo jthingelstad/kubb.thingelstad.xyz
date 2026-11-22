@@ -235,7 +235,7 @@ const sceneShown = (page, label) =>
   );
 
 browserTest(
-  "a pitch on 0.9: the host sets the Scene, a guest and a late joiner see it, the match draws it on every page",
+  "a pitch on 0.9 or newer: the host sets the Scene, a guest and a late joiner see it, the match draws it on every page",
   async () => {
     const code = makePitchCode();
     const host = await join(code, "Hanna");
@@ -313,7 +313,7 @@ browserTest(
       await sceneShown(guest, "Neon");
       await guest.click("[data-test=join-B]");
       await guest.waitForFunction(
-        () => window.__kubb.pitch.room.me.engines?.length === 3,
+        () => window.__kubb.pitch.room.me.engines?.length === 4,
       );
       // an iPhone tester's build: it carries 0.8 and 0.7 (room-engines.test.mjs)
       await guest.evaluate(() => {

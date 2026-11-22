@@ -362,9 +362,6 @@ function startSolo(game, cards, { sheet, record, menu, asked }) {
   const options = () =>
     cards.options((o) => play(o), {
       home,
-      // the level you throw at is this device's (MENU), not the card's
-      level: game.level,
-      onLevel: (f) => game.onLevel(f),
       menu: () => menu.open(),
       // and your name, this device's too: asked here only while none is kept
       name: game.playerName,

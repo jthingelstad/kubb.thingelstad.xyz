@@ -76,17 +76,18 @@ test("the settings page reads and writes the device's prefs, the game's keys", (
   });
   const d = prefsDevice(p);
   assert.equal(d.name, "Aspen");
-  assert.equal(d.level, "pro");
+  // no level of your own since engine 0.13 (src/game/throw-level.js): the page
+  // neither shows nor writes one
+  assert.equal("level" in d, false);
   assert.equal(d.meter, "linear");
   assert.equal(d.meterSide, "right");
   assert.equal(d.muted, true);
   d.setName("Oak");
-  d.setLevel("beginner");
   d.setMeter("clock");
   d.setMeterSide("left");
   d.setMuted(false);
   assert.deepEqual(
     ["name", "level", "meter", "meterSide", "muted"].map((k) => p.m.get(k)),
-    ["Oak", "beginner", "clock", "left", false],
+    ["Oak", undefined, "clock", "left", false],
   );
 });

@@ -206,10 +206,10 @@ export class Cards {
 
   // ---------- the solo options ----------
 
-  // level: the device's throw level, shown, not picked (MENU sets it: menu() opens
-  // it over this card, onLevel(f) hears a change); the Computer level row is the
-  // computer's, a match option. name: the device's name (src/game/player-name.js),
-  // shown the same way once kept; while there is none the card asks for it once and
+  // The Computer level row is the computer's, a match option; a person's own level
+  // is not shown (from engine 0.13 a person throws on one meter). name: the
+  // device's name (src/game/player-name.js), shown once kept (menu() opens MENU
+  // over this card to change it); while there is none the card asks for it once and
   // setName(t) keeps it on the device; onName(f) hears a change made in MENU.
   // scene: the Scene row's value when the address names one (?scene=), else the
   // saved one; onScene(id) hears it picked, so the pitch behind the card can show it.
@@ -217,9 +217,7 @@ export class Cards {
     onStart,
     {
       home,
-      level = null,
       menu = null,
-      onLevel = null,
       name: kept = "",
       setName = null,
       onName = null,
@@ -244,8 +242,8 @@ export class Cards {
           "data-test": "solo-name",
         });
     let current = kept;
-    // one "You" row: the name (or its box) and the level, one CHANGE IN MENU
-    const you = youRow("solo", { name: kept, level, input: name, menu });
+    // one "You" row: the name (or its box), one CHANGE IN MENU
+    const you = youRow("solo", { name: kept, input: name, menu });
     const stopName = onName?.((v) => {
       current = v;
       you.setName(v);
@@ -268,7 +266,6 @@ export class Cards {
         seg.el,
       );
     });
-    const stopLevel = onLevel?.((v) => you.setLevel(v));
     const start = () => {
       if (name && tidyName(name.value)) {
         setName?.(name.value);
@@ -301,7 +298,6 @@ export class Cards {
     });
     const close = this.show(el, null, {
       onClose: () => {
-        stopLevel?.();
         stopName?.();
       },
     });

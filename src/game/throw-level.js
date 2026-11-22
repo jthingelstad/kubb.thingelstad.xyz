@@ -1,25 +1,30 @@
-// The player's own throw level (Beginner, Club or Pro): how much help their
-// throw gets. One value on this device, set in MENU (the web's settings) and
-// never asked per match (Jamie, 2026-11-20: "Yes this is a device/user
-// setting... not a per game setting."), as the iPhone app has it (its
-// ThrowLevel.swift). Practice, a match against the computer and a shared pitch
-// all throw at it. The engine reads the thrower's level for each throw, so a
-// change applies from the player's next throw.
+// The player's own throw level (Beginner, Club or Pro). From Kubb Engine 0.13 a
+// level is the computer's standard only: every person throws on one meter, the
+// bars going by the throw's distance (the engine's docs/notes/throw.md "The
+// person's meter"; the owner, 2026-11-21: "player level really should only mean
+// for the computer opponent"). So the web no longer asks for it: MENU's Your
+// level row and the solo card's and lobby's "Throwing at ..." line are gone.
+//
+// The value is still read, passed and kept, never reset: the engine takes it and
+// keeps it (the view's plan.level, a player's level in a start), a shared pitch's
+// presence carries it (`me.level`), and a match on a carried engine before 0.13
+// (a pitch with an iPhone still on 0.9, a replay of a 0.9 match) throws a person
+// at it, as it always did. A device keeps the level it last chose; one that never
+// chose throws at Club.
 //
 // The computer's level is another thing: a match option, "Computer level" on
 // the solo card and the lobby (engine 0.9 on), kept as `computer` in the solo
 // card's saved options.
 //
-// Moving a device's older choice across, once, so nobody's level resets: the
-// web kept the player's level in the `level` pref (MENU and the lobby wrote
-// it, and the solo card's START too), and the solo card's own `level` row set
-// both the player and the computer. So the device level is the `level` pref,
-// else the solo card's saved level, else Club; and the solo card's saved
-// level becomes its computer level when it has none yet.
+// Moving a device's older choice across, once: the web kept the player's level
+// in the `level` pref (MENU and the lobby wrote it, and the solo card's START
+// too), and the solo card's own `level` row set both the player and the
+// computer. So the device level is the `level` pref, else the solo card's saved
+// level, else Club; and the solo card's saved level becomes its computer level
+// when it has none yet.
 
 export const LEVEL_CHOICES = ["beginner", "club", "pro"];
 export const FALLBACK = "club";
-export const LEVEL_LABELS = { beginner: "Beginner", club: "Club", pro: "Pro" };
 
 const known = (v) => LEVEL_CHOICES.includes(v);
 
@@ -42,10 +47,3 @@ export function soloOptions(saved) {
   delete o.level;
   return o;
 }
-
-// What the solo card and the lobby show instead of a picker.
-export const levelLine = (level) =>
-  `Throwing at ${LEVEL_LABELS[level] || LEVEL_LABELS[FALLBACK]}.`;
-
-// Under MENU's row, where a change waits for the next throw.
-export const LEVEL_NOTE = "A change applies from your next throw.";

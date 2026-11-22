@@ -30,11 +30,12 @@ browser's member id (`kubb.member` in localStorage) as a `player` with
 `me = { name, level, engine, engines }`. `engine` is the
 vendored engine's major.minor (`"0.3"`), read from `room.constants`. The lobby card shows:
 
-- **You**: your name and your level, both this device's (`kubb:name`, `kubb:level`), in
-  one row ("Birch · Throwing at Club.") with one CHANGE IN MENU. A device with no name
-  yet gets a box here once, the level line under it; what is typed
-  is kept as the device's name and sent as you type. A change in MENU is sent too. Each
-  player's throw level is their own.
+- **You**: your name, this device's (`kubb:name`), in one row with one CHANGE IN MENU. A
+  device with no name yet gets a box here once; what is typed is kept as the device's
+  name and sent as you type. A change in MENU is sent too. No level is shown: from
+  engine 0.13 every person throws on one meter. `me.level` is still sent, the device's
+  stored level (`kubb:level`, Club when never chosen), so a match the pitch runs on a
+  carried 0.9 engine (an iPhone still on 0.9) throws each person at it as before.
 - **Team A** (marigold) and **Team B** (violet), up to six a side, in throwing order, each
   member with a dot for connected and HOST and YOU tags. JOIN A, JOIN B, or WATCH INSTEAD
   to sit out. An empty side says "The computer plays this side." when the other has

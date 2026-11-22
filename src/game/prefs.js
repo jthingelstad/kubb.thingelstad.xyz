@@ -1,5 +1,6 @@
 // What the browser remembers between visits (localStorage, "kubb:" keys): the
-// device's settings (name, level, meter, meterSide, muted; src/ui/settings.js),
+// device's settings (name, meter, meterSide, muted; src/ui/settings.js; and the
+// throw level, still kept though no longer picked: src/game/throw-level.js),
 // the solo card's match options, the practice pitch's surface and scene, a host's
 // last pitch options and whether HOW TO THROW has been seen. Every read and write is guarded: a
 // private window or blocked storage just forgets.

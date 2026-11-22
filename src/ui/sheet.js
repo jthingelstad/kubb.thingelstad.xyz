@@ -1,8 +1,11 @@
 // The score sheet (MENU, SCORE SHEET during a match; SCORE SHEET on the winner card):
 // the match so far as a Planet Kubb Notation game file, the same text the Playdate game
-// keeps (engine.sheet(), vendor/engine/session/session.lua). On screen each line is shown without the
-// positions on the pitch (gamefile.shown); SHOW POSITIONS puts them back. COPY and
-// DOWNLOAD always take the whole file, positions included. Like the report card, it is
+// keeps (engine.sheet(), vendor/engine/session/session.lua). Since engine 0.13.1 the file is
+// Planet Kubb Notation 2, whose positions are lines of their own after a turn ("@a" or
+// "@b" for the pitch under attack, "*a" or "*b" for where each baton's kubbs fell; older
+// engines wrote "(@ ...)" comments on the turn line). On screen the file is shown without
+// them (the engine's `shown`); SHOW POSITIONS puts them back. COPY and DOWNLOAD always
+// take the whole file, positions included. Like the report card, it is
 // modal while open and everything else under the root is inert.
 import { h, button } from "./dom.js";
 

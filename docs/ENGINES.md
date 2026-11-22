@@ -7,14 +7,26 @@ The web is the client that carries more than one (Jamie: "it feels like the web 
 needs to support a wide variety ... the iPhone, if it were running an older version than
 what web runs, could just request the match out of certain version."). The iPhone app
 carries one engine; the site carries the newest and the older minors it still plays
-back. Today that is 0.9 (the newest, 0.9.0), 0.8 (0.8.2) and 0.7 (0.7.4): 0.8.0 changed
-short batons under 2 m, so a 0.7 match plays differently on 0.8, and 0.9.0 made the
-sliders take any value, keeps a kubb's spin for the turn and lets the computer throw at
-a kubb a step away, so a 0.8 match plays differently on 0.9. iPhone testers' builds
-carry 0.8 and 0.7, so a pitch with one of them plays 0.8.
+back. Today that is 0.13 (the newest, 0.13.1), 0.9 (0.9.0), 0.8 (0.8.2) and 0.7 (0.7.4):
+0.8.0 changed short batons under 2 m, so a 0.7 match plays differently on 0.8; 0.9.0 made
+the sliders take any value, keeps a kubb's spin for the turn and lets the computer throw
+at a kubb a step away, so a 0.8 match plays differently on 0.9; and 0.10 to 0.13 each
+changed what a seeded match does (the arc by distance, the kubb's dead landing and roll,
+raising by side, one meter for every person with the bars by distance), so a 0.9 match
+plays differently on 0.13. No client shipped 0.10 to 0.12, so none is carried. The
+iPhone app on 0.9 carries 0.9, 0.8 and 0.7, so a pitch with it plays 0.9; an older
+tester's build carries 0.8 and 0.7, so a pitch with it plays 0.8.
 
-The version label a player sees names only the newest: `0.8.0 (0.9.0)`, with "Also plays
-0.8.2 and 0.7.4" where detail is shown (docs/CLIENT.md "Version and freshness"). A match names its
+Engine 0.13 renamed the shared pitch's directory `room/` to `pitch/` (its calls are
+`pitch.<name>`, and `room.<name>` stays as their old spelling). `tools/lua-bundle.mjs`
+(`DIRS`) and `tools/vendor.mjs` (`ENGINE_DIRS`) list both and skip a directory an engine
+does not have, so 0.13's bundle has `pitch/lobby` and the rest and 0.7 to 0.9 keep
+`room/lobby`. The bridge (`roomCall` in `src/net/room-engine.js`) still says `room.`,
+which 0.13 answers and the carried engines are the only spelling of; it moves to `pitch.`
+once 0.7 to 0.9 are dropped, or per engine before then.
+
+The version label a player sees names only the newest: `0.10.0 (0.13.1)`, with "Also
+plays 0.9.0, 0.8.2 and 0.7.4" where detail is shown (docs/CLIENT.md "Version and freshness"). A match names its
 own engine, never the app's version.
 
 ## The rule
@@ -23,8 +35,9 @@ own engine, never the app's version.
   engine beside the others.
 - Practice, a solo match and watch always play on the newest. A shared pitch plays its
   next match on the room's engine: the newest every player and the host carry, so a
-  pitch with an iPhone build that carries 0.8 and 0.7 plays 0.8, an older tab that
-  carries only 0.7 plays 0.7, and two current pages play 0.9 ("Playing together" below).
+  pitch with the iPhone app on 0.9 plays 0.9, one with a build that carries 0.8 and 0.7
+  plays 0.8, an older tab that carries only 0.7 plays 0.7, and two current pages play
+  0.13 ("Playing together" below).
 - Carrying an older minor is a decision made when the newer one is vendored, never an
   accident: `vendor:sync` stops on a new minor until it is told `--keep` or `--drop`.
 
@@ -58,9 +71,10 @@ newest as `lua-sources-<hash>.json`, as it always was; an older one as
 
 ```json
 "luaUrl": "/assets/lua-sources-<hash>.json",
-"engine": "0.9.0",
+"engine": "0.13.1",
 "engines": {
-  "0.9": { "version": "0.9.0", "luaUrl": "/assets/lua-sources-<hash>.json" },
+  "0.13": { "version": "0.13.1", "luaUrl": "/assets/lua-sources-<hash>.json" },
+  "0.9": { "version": "0.9.0", "luaUrl": "/assets/lua-sources-0.9-<hash>.json" },
   "0.8": { "version": "0.8.2", "luaUrl": "/assets/lua-sources-0.8-<hash>.json" },
   "0.7": { "version": "0.7.4", "luaUrl": "/assets/lua-sources-0.7-<hash>.json" }
 }
@@ -88,13 +102,14 @@ down" set out, so that clients carrying one engine (the iPhone app, a tab from b
 this deploy) agree with the page without any change to them. In `src/net/pitch.js`:
 
 - **What the page says.** It joins announcing everything it carries,
-  `me = { engine: "0.9+engines", engines: ["0.9", "0.8", "0.7"] }` (`room.announce`), and
+  `me = { engine: "0.13+engines", engines: ["0.13", "0.9", "0.8", "0.7"] }`
+  (`room.announce`), and
   announces again whenever the room's engine changes: on every member, seat and host
   change in the lobby (`Pitch.lobbyEngine`, `speak`), and the match's engine when a
-  match starts. An older client reads `"0.9+engines"` as `0.9`.
+  match starts. An older client reads `"0.13+engines"` as `0.13`.
 - **The room's engine** is `room.engineFor(doc, members, host, me, carries)` on the
   newest: the newest major.minor the host and every lineup player carry; watchers do not
-  count, so a watcher on 0.7 never pulls a 0.9 pitch down. A member's `engines` is
+  count, so a watcher on 0.7 never pulls a 0.13 pitch down. A member's `engines` is
   believed only while its `engine` carries the `+engines` mark, so an older tab rejoining
   under the same member id (which overwrites `engine` and leaves the list) counts as
   0.7 alone.
@@ -125,19 +140,19 @@ this deploy) agree with the page without any change to them. In `src/net/pitch.j
   WATCH.
 - The lobby's reducers and the seat rules stay on the newest: `room/` is the same Lua in
   0.7.4, 0.8.2 and 0.9.0 but for the calls each added, 0.9's `settings` (below) and
-  `startMatch`'s stamp. START, `matchOptions`, commits and `mayPlay` are the room
+  `startMatch`'s stamp, and 0.13's `pitch/` is 0.9's `room/` renamed. START, `matchOptions`, commits and `mayPlay` are the room
   engine's.
 - **The match options** are read with `optionsOf(doc)` (`src/net/lobby.js`): since 0.9
   the engine's `room.optionsOf`, which adds the computer's level and the scene from the
   document's top-level `settings`; before 0.9, which has no such call, `lobbyOf(doc)`'s
   five. The lobby's rows are the room engine's `MATCH_OPTIONS`, so the Computer level
-  row shows only on a 0.9 pitch; the Scene row, the web's own (the engine lists no
+  row shows only on a pitch on 0.9 or newer; the Scene row, the web's own (the engine lists no
   scenes), shows when the room engine's `OPTION_DEFAULTS` has `scene` (docs/SCENES.md). A 0.8 client's writes keep `settings` as the host set
   it (a top-level key it does not know), and a 0.8 match's `matchOptions` leaves it out:
   the match it always started.
 - **Tests:** `tests/net/room-engines.test.mjs` (the wrappers with both engines),
-  `tests/game/room-engines.test.mjs` (pages in a real browser: 0.9 by default, 0.8 with
-  an iPhone build that carries 0.8 and 0.7, 0.7 for a player who carries only 0.7, the blocked lobby, a page arriving at a 0.7 match, a
+  `tests/game/room-engines.test.mjs` (pages in a real browser: 0.13 by default, 0.9 with
+  the iPhone app on 0.9, 0.8 with an iPhone build that carries 0.8 and 0.7, 0.7 for a player who carries only 0.7, the blocked lobby, a page arriving at a 0.7 match, a
   host that cannot play the match).
 
 ## Looking back at a match
