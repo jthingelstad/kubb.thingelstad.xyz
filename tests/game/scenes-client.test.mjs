@@ -9,7 +9,15 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
-import { serve, open, waitPhase, VIEWPORTS, played } from "./browser.mjs";
+import {
+  serve,
+  open,
+  waitPhase,
+  VIEWPORTS,
+  played,
+  swing,
+  sweep,
+} from "./browser.mjs";
 import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { makePitchCode } from "../../src/net/pitch-client.js";
 
@@ -337,6 +345,78 @@ browserTest(
       for (const p of pages) assert.deepEqual(p.errors, []);
     } finally {
       await Promise.all(pages.map((p) => p.context().close()));
+    }
+  },
+);
+
+// QA, 2026-11-22: Team B's violet with white type is 5.87:1, under the 7:1 the dark
+// scenes hold. Camping and Techno draw Team B's controls in #6c3483 (8.55:1): the
+// header's chip, the WATCH tab and the minimap; Park keeps #8e44ad.
+browserTest(
+  "Team B is the deeper violet in Camping and Techno only",
+  async () => {
+    const lum = (rgb) => {
+      const c = rgb.map((v) => {
+        v /= 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    };
+    const ratio = (a, b) => {
+      const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+      return (x + 0.05) / (y + 0.05);
+    };
+    for (const [scene, want] of [
+      ["night", "rgb(108, 52, 131)"],
+      ["neon", "rgb(108, 52, 131)"],
+      ["day", "rgb(142, 68, 173)"],
+    ]) {
+      const page = await open(env, "/p/abcdefgh?solo=1&nohowto=1", "desktop", {
+        prefs: { solo: { scene, computer: "kid" }, throwsMade: 5 },
+      });
+      try {
+        await page.click("[data-test=start]");
+        await page.click("[data-test=handoff-go]");
+        await waitPhase(page, "aim", 15000);
+        const chip = await page.evaluate(() => {
+          const cs = getComputedStyle(
+            document.querySelector("[data-test=rail-n-B]"),
+          );
+          return { bg: cs.backgroundColor, fg: cs.color };
+        });
+        assert.equal(chip.bg, want, scene);
+        const nums = (s) => s.match(/\d+/g).slice(0, 3).map(Number);
+        const r = ratio(nums(chip.bg), nums(chip.fg));
+        if (scene !== "day") assert.ok(r >= 7, `${scene}: ${r.toFixed(2)}:1`);
+        // the computer's WATCH tab draws from the same team colour (the computer is B)
+        for (let i = 0; i < 2; i++) {
+          await waitPhase(page, "aim", 15000);
+          const p = await page.evaluate(() => window.__kubb.game.out.aim.plan);
+          await swing(
+            page,
+            sweep({
+              back: (p.powerLo + p.powerHi) / 2,
+              stop: p.release,
+              backDps: 900,
+              flickDps: 3600,
+            }),
+          );
+          await waitPhase(page, "play", 5000);
+          await page.evaluate(() => window.__kubb.game.skip());
+        }
+        await page.waitForFunction(
+          () => window.__kubb.game.meterShown?.prompt === "WATCH",
+          null,
+          { timeout: 20000 },
+        );
+        const tab = await page.evaluate(
+          () => window.__kubb.game.meterShown.promptFill,
+        );
+        assert.equal(tab, scene === "day" ? "#8e44ad" : "#6c3483", scene);
+        assert.deepEqual(page.errors, []);
+      } finally {
+        await page.context().close();
+      }
     }
   },
 );
