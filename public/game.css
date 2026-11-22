@@ -278,6 +278,38 @@ body.game {
   max-width: none;
   transform: none;
 }
+/* a wide screen's verdict: the flag and its chips in one row (wrapping), so it stays
+   short in the header's row */
+.center-placed.verdict-row .center {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+}
+.center-placed.verdict-row .flag {
+  flex: none;
+}
+.center-placed.verdict-row .verdicts {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: flex-start;
+}
+/* a narrow verdict box (beside the tray upright, layout.js verdictCompactW): the flag
+   26 px, an off word 15 px and the on-target chips 12 px, so the verdict keeps to two
+   rows of chips over the target */
+.verdict-compact .flag {
+  font-size: 26px;
+  padding: 3px 14px 5px;
+}
+.verdict-compact .chip {
+  padding: 1px 7px;
+  font-size: 12px;
+}
+.verdict-compact .chip.off {
+  gap: 4px;
+  padding: 3px 9px 4px;
+  font-size: 15px;
+}
 /* under the status pill when it shows (a shared pitch's YOUR THROW, the
    header row's centre on a wide screen, under the header upright) */
 .center-placed .center.status-on {

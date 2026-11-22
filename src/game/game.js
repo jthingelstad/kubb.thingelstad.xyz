@@ -1747,6 +1747,7 @@ export class Game {
     // the flag and the verdicts keep off the header, the minimap, the tray and the
     // meter, and above what is aimed at (layout.js verdictBox)
     const vb = this.wide ? null : verdictBox(this.L, { adv: !!this.advShown });
+    const verdictCompactW = layoutTune.verdictCompactW;
     const cl = vb ? vb.x : null;
     const cw = vb ? vb.width : null;
     const ct = vb ? vb.y : null;
@@ -1757,6 +1758,13 @@ export class Game {
     if (this.roomKey === key) return;
     this.roomKey = key;
     root.classList?.toggle("center-placed", !!ck);
+    // a wide screen lays the flag and its chips in a row, so the verdict is short; a
+    // narrow box (beside the tray upright) takes the compact chips (game.css)
+    root.classList?.toggle("verdict-row", !!vb && !L?.tall);
+    root.classList?.toggle(
+      "verdict-compact",
+      !!vb && vb.width < verdictCompactW,
+    );
     if (ck) {
       root.style.setProperty("--center-l", `${Math.round(cl)}px`);
       root.style.setProperty("--center-w", `${Math.round(cw)}px`);

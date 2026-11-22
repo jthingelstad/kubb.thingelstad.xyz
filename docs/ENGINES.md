@@ -26,7 +26,7 @@ mode. Fine to push breaking changes."
   `--drop`. The default answer is `--drop`.
 - One engine per major.minor. A patch replaces its minor's engine.
 
-The version label a player sees names the newest: `0.16.0 (0.15.1)`, with "Also plays
+The version label a player sees names the newest: `0.17.0 (0.15.1)`, with "Also plays
 ..." under it in MENU only while an older engine is carried (none today; docs/CLIENT.md
 "Version and freshness"). A match names its own engine, never the app's version.
 
