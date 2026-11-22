@@ -272,7 +272,8 @@ the details.
 - **The checks** (a client is not proof): a page never reads a snapshot's fields to
   judge names; the engine does (since 0.13.4). The lobby shows a name from the pitch's
   document and members only where `names.check({ document, members })` passes it, else
-  the default for its place ("Player n", "Team A"/"Team B"); every snapshot from outside
+  the default for its place ("Player n", "Team A"/"Team B"; a computer seat's
+  `computers.<id>.name`, "Computer"); every snapshot from outside
   is adopted through the strict `restore` (`{ snap, names: "check" }`,
   `Engine.restoreChecked`, `Pitch.adoptSnap`) and every replay loaded with
   `names: "check"`, so a forged match or replay is not shown ("This match has a name the
@@ -404,6 +405,27 @@ counts, state and age only, never names, the 20 newest, refreshed every 30 s, ea
 JOIN and WATCH (Observer mode). The host's
 browser tells the pitch server what to list (`docs/MULTIPLAYER.md`), and the page reads
 the list from the pitch server's `GET /open` (`backend/pitch-server/PROTOCOL.md`).
+
+## Computer players
+
+A team on a pitch may hold computer players beside its people, six a team together, each
+at its own level (the owner, 2026-11-22: "In online play we should be able to add
+computer players to the match, with a specified level. I may have three friends and we
+want to play a team of three computers (two at club and one at pro). Or we want to play
+2 v 2 where Tyler and I each have a pro computer player as a partner."). Engine 0.17's
+seats (its docs/PITCH.md "Computer seats"): the host's ADD COMPUTER per team, a seat's
+row with its level (Beginner, Club, Pro), ↑ ↓, TO A / TO B and REMOVE, everyone else's
+"Bold Birch · computer · Pro" (`src/ui/lobby.js` over `addComputer`, `setComputerLevel`,
+`moveComputer`, `removeComputer` in `src/net/lobby.js`). A computer player's throw is the
+host's browser's, never a person's; a team with a person raises by its people, a team of
+computers itself. Kid on the Computer row makes every computer the Kid computer and the
+seats read Kid; the row is "An empty side plays as" while a side has nobody and no seat,
+else a "Kid match" switch while seats play. `roomEngineFor` takes the seats out of the
+teams before asking the engine (engine 0.17.0's `engineFor` counts a seat as a player
+with no engine). The pitch server checks a seat's name as a player name (`bad-name`).
+docs/MULTIPLAYER.md "Computer players", the numbers and words in docs/SYSTEM.md
+"Computer seats". A solo team (a person with a computer partner on one device) is not
+built: docs/MULTIPLAYER.md "Not done yet" says what it would take.
 
 ## The welcome
 
@@ -655,9 +677,10 @@ clip, so the actions and their order never change; a shared pitch holds its queu
 through the clip; a tap or key skips. Since web 0.19.0 the kubbs the engine raises itself
 (a match raising automatically, the computer, watching) and a punishment kubb it places
 are watched the same way, from engine 0.16.0's `setup.settled` on the next throw need,
-in its order (`settledClips`): its poses are the raiser's frame, drawn as given, with the
-king round them (the wide view: the whole pitch, both the world's), never compared or
-turned; after a restore there is none, and watching keeps its zen pause after them.
+in its order (`settledClips`): its poses are the raiser's frame, drawn as given, and
+since web 0.21.0 (engine 0.17.0) each with its own surroundings, `others` and `king`,
+drawn round it as the raise-by-hand view draws its need, entry by entry, never compared
+or turned; after a restore there is none, and watching keeps its zen pause after them.
 `src/game/lift.js`, docs/SYSTEM.md "Watching a raise". The raise camera stands twice as
 far off as it first did (the owner, the same day: "We need to see about twice as much to
 know how to raise them."), the kubb's touch target still 44 px or more (docs/SYSTEM.md
