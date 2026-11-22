@@ -57,13 +57,17 @@ const testing =
   location.hostname === "127.0.0.1" ||
   location.hostname === "localhost";
 
-const loading = h(
-  "div.loading",
-  { "data-test": "loading", role: "status" },
-  h("h1.display.loading-title", "Kubb", h("span", "Throwing Wood")),
-  h("p.loading-text", "Setting out the pitch..."),
-);
-ui.append(loading);
+// the page carries the loading card from its first paint (src/site/layout.mjs LOADING)
+const loading =
+  ui.querySelector("[data-test=loading]") ??
+  ui.appendChild(
+    h(
+      "div.loading",
+      { "data-test": "loading", role: "status" },
+      h("h1.display.loading-title", "Kubb", h("span", "Throwing Wood")),
+      h("p.loading-text", "Setting out the pitch..."),
+    ),
+  );
 
 function fail(err) {
   console.error(err);
