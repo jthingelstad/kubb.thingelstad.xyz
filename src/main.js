@@ -496,6 +496,8 @@ function startWatch(game, cards, { sheet, record, menu, asked }) {
       seed: Math.floor(Math.random() * 2 ** 31),
       teams: { A: team("North"), B: team("South") },
       cpu: "both",
+      // the card's Computer level for both (Kid makes it a Kid match, engine 0.15)
+      ...(takesComputer() ? { computer: o.computer } : {}),
       first,
       opening: o.opening,
       raising: "auto",

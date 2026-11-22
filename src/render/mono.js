@@ -256,7 +256,7 @@ export function makeMono({ reduced = false } = {}) {
     },
     clearing: null,
     cone: { cone: WHITE, band: BLACK, ink: BLACK },
-    // the spin's in-between poses solid, never a grey (world.js drawSpin)
+    // a spinning piece's own pose never faded over its in-between poses: no greys
     spinOpaque: true,
     // every frame: the patterns move with the far baseline
     sky: (ctx, cam) => phase(cam),

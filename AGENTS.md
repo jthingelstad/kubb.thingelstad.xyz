@@ -19,10 +19,11 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
   the engine's manifest). **An engine is carried only while we decide it is supported,
   not because it was once released** (the owner, 2026-11-21: "We should only support
   engines that we decide are worth supporting not just ones that have published so that
-  we can push players to the new engines."). Today that is the newest alone, 0.13
-  (0.13.4); 0.9, 0.8 and 0.7 were dropped on 2026-11-21, so a client on one of them (an
-  iPhone build on 0.9) cannot share a pitch with the web and is told to update, and a
-  kept match of one says it can no longer be replayed (`docs/ENGINES.md`). The supported
+  we can push players to the new engines."). Today that is the newest alone, 0.15
+  (0.15.0); 0.13 was dropped with the move to 0.15 (2026-11-22; the web never carried
+  0.14), and 0.9, 0.8 and 0.7 on 2026-11-21, so a client on one of them (an iPhone build
+  on 0.13) cannot share a pitch with the web and is told to update, and a kept match of
+  one says it can no longer be replayed (`docs/ENGINES.md`). The supported
   set is written in one place, `vendor/engine.json` (the newest and `older`, empty
   today), read by the build, the registry and the reels' `REEL_ENGINES`; carrying an
   older minor again would be its own decision, vendored into `vendor/engines/<mm>/`. A
@@ -150,7 +151,7 @@ address or home path in `dist/`, no account id in Markdown).
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `0.14.1 (0.13.4)`, at the foot of
+the full version of the newest engine the site carries, `0.15.0 (0.15.0)`, at the foot of
 every reading page and of MENU, with "Also plays ..." under it in MENU only while older
 engines are carried (none today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
@@ -655,7 +656,7 @@ labels are plain words.
   engine's Playdate "BASE 5" (`railCount` in `src/game/hud.js`).
 - MENU (a word in the header's plate since the 1.0 design) is a two by two grid,
   SETTINGS, SCORE SHEET, HOW TO THROW and FEEDBACK, then Raising (a match by hand), View
-  (watching), Surface and Scene (practice), BACK TO THE MATCH, RESIGN and HOME. Its rows
+  (watching), Scene and Black & White's Surface (practice), BACK TO THE MATCH, RESIGN and HOME. Its rows
   and Settings' say what they set and show their value as a segmented bar: Your name (the
   name row), Sound (On/Off, once a SOUND: ON button), Meter, Meter side. docs/CLIENT.md
   "Match flow" and "The 1.0 system".
@@ -664,8 +665,8 @@ labels are plain words.
   card, from MENU's SETTINGS in every mode and on `/settings/`, linked from the web game's
   page, closing with DONE at the bottom right;
   never asked per match. Game settings (Computer level, surface, opening, raising, wind,
-  kubb set, scene, who can join) are on the solo card, the practice MENU (surface,
-  scene) and the lobby only. Turn and throw settings (stand, spin; arc, tilt) are on the
+  kubb set, scene, who can join) are on the solo card, the practice MENU (scene, and
+  Black & White's surface) and the lobby only. Turn and throw settings (stand, spin; arc, tilt) are on the
   throw controls. Your name is the device's generated name, picked in the name row
   wherever it is shown (Settings, the solo card's and the lobby's You row): "Names"
   below. docs/CLIENT.md "Settings".
@@ -675,31 +676,38 @@ labels are plain words.
   the throw's distance, so the web asks nobody for their own level: MENU's Your level
   row and the solo card's and lobby's "Throwing at ..." line are gone, and the You row
   is the name alone. A device's stored level (`level` pref) is still read, passed and
-  kept, never reset (`src/game/throw-level.js`): it changes nothing on 0.13, and the
-  site no longer carries the 0.9 engine where it counted. The computer's level is a match option, Computer level, on
-  the solo card and, set by the host, in the lobby of a pitch on 0.9 or newer.
+  kept, never reset (`src/game/throw-level.js`): it changes nothing since 0.13, and the
+  site no longer carries the 0.9 engine where it counted. The computer's level is a match
+  option, Computer level (Kid, Beginner, Club, Pro since 0.15), on the solo card and, set
+  by the host, in the lobby.
 - **Sliders, not step buttons** (Jamie: "the finger must not cover the control; teach on
   the control"). From engine 0.9 ARC, TILT and SPIN take any value in `aim.controls`'
   range (`setArc`, `setTilt`, `setSpin`), ticks drawn from `tick`; a kubb's spin is kept
   for the turn and nothing on the page resets it. (The step buttons were for 0.8 and
   0.7, no longer carried.)
-- **Scenes** (Jamie, 2026-11-20: "i absolutely adore the two new scenes! lets make it
-  real"). A scene is a look only: the day, the night and the neon (shown as Park, Camping
-  and Techno), a match option, Scene, from engine
-  0.9 (the engine keeps the id in `settings.scene` and `view.scene` and never reads it).
-  The names a player sees are one table, `SCENE_NAMES` in `src/render/scenes.js`: Park,
-  Camping and Techno since the 1.0 design (the owner, 2026-11-22: "Park camping and
-  techno."); the stored ids stay `day`, `night` and `neon`. The solo card has them
-  as three picture tiles drawn by the game (`Game.sceneThumb`) and decides the kubb set
-  by them (no Kubbs row since the 1.0 design: the night and the neon play their own
-  sets, the day Classic; the lobby leaves the row out too); watching the computer takes
-  the card's; MENU has it on the
-  practice pitch, and the host sets it in the lobby of a pitch whose next match runs on
-  0.9 or newer (every engine the site carries). The pitch behind the card
-  or lobby shows the pick. Every surface draws a match through one `Stage`
-  (`src/render/scenes.js`): play, replay, embed and the reel. An id the web does not
-  draw is the day. `?scene=` picks one off a pitch, never on one. Batons stay plain.
-  docs/SCENES.md.
+- **Scenes, first** (Jamie, 2026-11-20: "i absolutely adore the two new scenes! lets make it
+  real"; 2026-11-21: "a Scene should have an allowed set of surfaces and pitch types").
+  Since engine 0.14 the scenes are the engine's (its docs/notes/scenes.md): seven, Park
+  (`day`), Beach, Camping (`night`), Techno (`neon`, the `grid` floor), Minnesota,
+  Tournament and Black & White (`bw`, grass, sand or snow), each deciding its surface and
+  kubb set. Every options card (the solo card, the lobby, practice's MENU) builds its
+  rows from `pitch.optionRows({ scene })`: the Scene first as picture tiles drawn by the
+  game (`src/ui/scene-tiles.js`, `Game.sceneThumb`; three a row on a phone, four on a wide
+  card), a Surface row only where the scene leaves one, no Kubbs row, then Computer level
+  (Kid first), Opening, Raising, Wind. Every `newMatch`, `newPractice` and `setOptions`
+  names the scene, and the page draws what the view says (`scene`, `surface`, `set`). The
+  shown names are the engine's; the stored ids never change. Every surface draws a match
+  through one `Stage` (`src/render/scenes.js`): play, replay, embed and the reel; the
+  share card takes the scene's ground. An id the web does not draw is Park. Techno rings
+  where pieces strike its floor, from the engine's ground impacts (`setImpacts`); a piece
+  spinning faster than the frames is drawn as a spin. `?scene=` picks one off a pitch,
+  never on one. Batons stay plain. docs/SCENES.md.
+- **Kid matches** (engine 0.15; Jamie, 2026-11-21: "kid level is for kids to have fun
+  with kubb"): Kid on the Computer row makes the match a Kid match; the web draws the Kid
+  line (dots and two cones) on the pitch and the minimap, says "Kid match" on the
+  hand-off, and words the Kid rulings so nothing tells a child of a punishment or a loss
+  (`src/game/rulings.js`, `src/ui/handoff-words.js`). The rules page has a Kid match
+  section. docs/CLIENT.md "Kid matches".
 - The web game's page and the rules page describe the web's controls in their own words, with one line
   that it is the same game as on Playdate and iPhone.
 

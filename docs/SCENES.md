@@ -1,21 +1,33 @@
 # Scenes
 
-A scene is how a match looks: the day (the pitch as it has always been drawn), the
-night (a moonlit clearing under the stars, glowing lines and pieces, stardust) and
-the neon (a black world on a grid of light, pieces edged in their team's light, a
-ribbon behind the thrown piece). Night and Neon are our own designs.
+A scene is how a match looks, and since Kubb Engine 0.14 also where it is played: the
+engine owns the scenes (its docs/SESSION.md "Scenes", docs/notes/scenes.md) and decides
+each one's surfaces and kubb set. Seven, in the engine's order:
 
-## A scene is a look only
+| id           | shown         | ground              | set       | the look (`src/render/`)                                                                                                                                                                                   |
+| ------------ | ------------- | ------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `day`        | Park          | grass               | Classic   | the pitch as it has always been drawn (`world.js`)                                                                                                                                                         |
+| `beach`      | Beach         | sand                | Classic   | a sand pitch by the sea: a hot sky and a low sun over the water, foam 3 m past the far baseline, wet sand, striped umbrellas and towels, dune grass, a sail; sand puffs (`beach.js`)                       |
+| `night`      | Camping       | grass               | (glowing) | a moonlit clearing under the stars, glowing lines and pieces, stardust (`night.js`)                                                                                                                        |
+| `neon`       | Techno        | grid                | (neon)    | a near-black glossy floor with a faint grid that mirrors the pieces, one light per side, a ribbon of light behind the thrown piece, haze at the horizon, a ring at every strike (`neon.js`)                |
+| `minnesota`  | Minnesota     | snow                | Minnesota | a winter park: a pale cold sky and low sun, snowbanks a metre off the sidelines, pines with snow on their tiers and bare birches, falling snow, slate-blue shadows; snow sprays (`minnesota.js`)           |
+| `tournament` | Tournament    | grass               | USA       | the player's pitch roped off with pennants among neighbouring pitches with their own pieces and players, people watching past the far rope, flip scoreboards with numbers only, a canopy (`tournament.js`) |
+| `bw`         | Black & White | grass, sand or snow | Classic   | the Playdate's own 1-bit look: white ground, black ink and shadows, dither patterns for every grey and for each surface's rough, the controls black and white (`mono.js`)                                  |
 
-The match carries its scene as an id: the engine's `scene` match option (Kubb Engine
-0.9: lowercase letters, digits and hyphens, at most 24, "day" when absent), shown as
-`view.scene`. The engine keeps the id and never reads it. A scene never changes the
-engine, the physics, a throw, a hash or what is recorded beyond that id: the same
-throw goes the same way in every scene. Anything that would change how the game
-plays is not a scene.
+Camping and Techno draw their own sets over the engine's Classic (the glowing set, the
+neon solids), as they always have. Night, Neon and every new look are our own designs: no
+name, logo, typeface or likeness from a film, a game, a brand or a championship. Techno
+takes its qualities from the owner's private stills (near-black space, one glowing
+colour per side, light from edges and rims, lingering light, haze), never their designs.
 
-An id this client does not know is drawn as the day, so an older client can show a
-newer client's match.
+## A scene is a look, the engine's choice of ground
+
+The match carries its scene as an id: the engine's `scene` option, shown as `view.scene`.
+A scene never changes the physics of a throw beyond the ground it decides: the same throw
+on the same surface goes the same way in every scene. Every options card names the scene
+with every `newMatch`, `newPractice` and `setOptions`, and draws what the view says
+(`scene`, `surface`, `set`). The engine reads an id it does not list as Park and does not
+keep it; an id this client does not draw (a newer engine's) is drawn as Park too.
 
 ## One entry: the Stage
 
@@ -30,7 +42,7 @@ Every surface that draws a match draws it through one `Stage`
 const stage = new Stage({ reduced, skin }); // skin: also skin the page
 stage.use(view.scene); // "day" or an unknown id: the day
 stage.watch(rec); // a throw starts playing
-stage.observe(items, t); // a shown frame of it, at shown time t
+stage.observe(items, t); // a shown frame of it, at shown time t (and each piece's spin)
 stage.tick(dt); // between throws
 stage.draw(ctx, view, camera, scene, time); // drawWorld in the scene
 ```
@@ -40,42 +52,36 @@ pictures is pinned by hash (`tests/render/scene-day.test.mjs`), for no scene, th
 by name and any unknown id.
 
 The share image of a pitch (`/og/`, `pitchCardImage` in `src/site/art.mjs`) is a
-drawing from above of its own and stays the day's for now.
+drawing from above of its own, on the scene's ground (`CARD_GROUNDS`).
 
-## Picking one: the Scene option
+## Picking one: scene first
 
-Scene is a match option on engine 0.9, the way Computer level is: one row, Scene,
-shown as Park, Camping and Techno for the ids `day`, `night` and `neon` (`SCENE_NAMES`
-and `SCENE_ROW` in `src/render/scenes.js`, the one table of shown names since the 1.0
-design; the engine takes any id and lists none, so the labels are the web's; the stored
-ids never change). The day (Park) is the default and is what every match before it was.
-On the solo card the choice is three picture tiles drawn by the game; in the lobby and
-practice's MENU each choice carries a small picture of its scene, and the pitch
-behind the card or lobby shows the pick while it is chosen (`Game.showScene`), skin
-and all.
+Every options card is the engine's card for the scene picked, `pitch.optionRows({ scene
+})`: the Scene first as picture tiles (`src/ui/scene-tiles.js`; seven, three a row on a
+phone with the seventh centred, four a row on a wide card, each the game's own postcard
+of the pitch in that scene, `Game.sceneThumb`, on the scene's own ground and set), a
+Surface row only where the scene leaves one (Black & White), no Kubbs row, then Computer
+level, Opening, Raising and Wind. The pitch behind the card or lobby is started again in
+the pick (`Game.showScene`), skin and ground.
 
-- **Play the computer**: the solo card's Scene tiles, kept with the card's options
-  (prefs `solo.scene`). The match starts with `scene` (`newMatch`), so its view, its
-  recording and a share of it carry it.
+- **Play the computer**: the solo card (prefs `solo`), so its view, its recording and a
+  share of it carry the scene. Kept options go through the scene (`soloSaved`,
+  `throughScene`): a sand surface kept on Park comes back grass.
 - **Watch the computer**: the solo card's saved Scene.
-- **Practice**: MENU, Scene, kept as `practiceScene`. The engine keeps a practice's
-  scene from its start, so a change starts the practice again in it, on the same
-  surface and throwing the same (`Game.practiceScene`).
-- **A shared pitch**: the host's row in the lobby, written with `setOptions` into the
-  room's `settings.scene` and read with `optionsOf`; everyone in the lobby sees the
-  word and the skin, and the match is started with it (the engine's `matchOptions`).
-  The host's pick is kept for their next pitch (`pitchOptions.scene`). The row is
-  shown only when the next match's engine takes a scene (`takesScene`: `scene` is in
-  its `OPTION_DEFAULTS`, 0.9 on): a pitch that will play on 0.8 or 0.7 shows no row,
-  shows the day, and starts its match without one.
-- **`?scene=night`** (`neon`, `day`) picks one for practice, solo and watch over the
-  saved one (on the solo card it sets the row), for links and testing. It is never a
-  shared pitch's: there the host's choice is.
+- **Practice**: MENU's Scene tiles and, for Black & White, its Surface, kept as
+  `practiceScene` and `practiceSurface`. A change starts the practice again in it.
+- **A shared pitch**: the host's tiles in the lobby, written with `setOptions` (with the
+  scene named every time) into the room's `settings.scene`; a guest reads its name. The
+  host's pick is kept for their next pitch (`pitchOptions.scene`).
+- **`?scene=beach`** (any id) picks one for practice, solo and watch over the saved one,
+  for links and testing. Never a shared pitch's.
 
 End to end: a solo match's start names its scene, the renderer's share check
 (`backend/reels/check.mjs`) replays it unchanged into the sealed room's document and
 replay, and the reel of that replay is drawn in it (`tests/reel/scene.test.mjs`). A
-pitch's replay and embed play its match's views, which carry it.
+pitch's replay and embed play its match's views, which carry it. A pitch's share card
+(`/og/`, `pitchCardImage` in `src/site/art.mjs`) takes the scene's ground
+(`CARD_GROUNDS`).
 
 ## What a scene is made of
 
@@ -85,8 +91,12 @@ pitch's replay and embed play its match's views, which carry it.
   Data: `groundOf` (the ground's colours by surface), `setOf` (the pieces' wood),
   `light` (the sun's direction and shadow), `paint` (the pieces' ink, and
   `litOf(item)` for a piece's own light), `clearing` (the rough round the pitch).
-  Hooks, each `(ctx, cam, kx, B, ...)`: `sky`, `rough`, `lightGround`, `lines`,
-  `beforePieces`, `baton`, `afterPieces`. A hook left out is the day's.
+  Hooks, each `(ctx, cam, kx, B, ...)`, in drawing order: `sky`, `rough` (with a
+  clearing), `beyond` (ground past the rough: the sea), `lightGround`, `lines`,
+  `scenery` (what stands round the pitch, before every mark and piece), `beforePieces`,
+  `baton`, `afterPieces`. Data besides: `reflect` (a glossy floor's reflections, from the
+  ground's paint), `cone` (the Kid line's cones), `spinOpaque` (Black & White: a spinning
+  piece's own pose is never faded). A hook left out is the day's.
 - **The skin tokens** (`skin`): the colours of everything drawn over the pitch, for
   the canvas (`ui`, `hud`, `burst`, `aim`: `useSkin` in `src/render/palette.js`) and
   for the page (`css`: custom properties on the root, and `data-scene`). The accent
@@ -97,11 +107,46 @@ pitch's replay and embed play its match's views, which carry it.
   Night has the stardust (`src/render/stardust.js`); neon wraps it as sparks and adds
   the ribbon (`NeonFx` in `src/render/neon.js`).
 
+## What stands round a pitch
+
+The cameras look down at the pitch: the aim view on a wide screen sees about 6 m past
+the far baseline and little past the sidelines, the impact camera less. So what tells a
+scene apart stands near: the sea 3 m past the far baseline, snowbanks a metre off the
+sidelines, the rope 1.2 m off them and people just past the far rope; the trees, the
+neighbouring pitches and the canopy are for a tall screen's aim view, the wide view and
+the throw's wider shots. Things are flat pictures standing at their place
+(`src/render/scenery.js`: `standAt`, `pine`, `birch`, `person`, `cone`), scaled by
+their distance, with the ink line (3 CSS px up close, never under 1). Anything nearer
+the camera than the pitch's middle is left out, so the wide view never has a tree
+between it and the pitch.
+
+The Tournament's neighbours are data drawn by one function, `drawNeighbours(ctx, cam,
+kx, B, pitches)` (`NEIGHBOURS`, or a scene's own `neighbours`): each pitch's place and
+its pieces and people in its own frame, so a later engine that makes them live hands it
+their pieces as they stand.
+
+## Ground impacts, the spin
+
+Techno rings where a piece strikes the floor, Beach puffs sand and Minnesota sprays snow,
+all from the engine's ground impacts (`setImpacts`, `timeline.impacts`), each started
+when playback reaches its `t` and aged by the throw's own clock (slow motion included):
+`src/render/impacts.js`. A ring grows to 0.22 m plus 0.17 m for each m/s the piece came
+down at (0.95 m at most) over 0.75 s, in its side's light (the king's own, a baton's
+cyan); none nearer the camera than 2.2 m. A puff is a small inked cloud, never more
+than 11 CSS px a disc on the screen.
+
+A piece that turns faster than the frames can show is drawn with four solid in-between
+poses under its own, faded (`spinAmount` and `Stage.observe` in `src/render/scenes.js`,
+`drawSpin` in `world.js`): from 30 degrees a frame about its long axis (a square section
+repeats every quarter turn), fully at 50; end over end from 60 to 100.
+
 ## Adding a scene
 
 1. A file in `src/render/` with `make<Name>({ reduced })` returning the look (`night.js`
-   and `neon.js` are the models), its colours and skin in `palette.js`.
-2. Its id in `sceneOf` and `SCENES` (`src/render/scenes.js`).
+   and `beach.js` are the models), its colours and skin in `palette.js`. The engine must
+   list its id first (core/scenes).
+2. Its id in `MAKERS`, `SCENES` and `SCENE_NAMES` (`src/render/scenes.js`), and its ground
+   in `CARD_GROUNDS` (`src/site/art.mjs`).
 3. The tests: it draws and differs from the day, its type is 7:1 or better on its
    paper and its accent plates (`tests/render/scene-day.test.mjs`), and the day pin
    still holds.
@@ -114,18 +159,26 @@ No name, logo, typeface or likeness from a film, a game or a brand.
 With `prefers-reduced-motion`, a scene keeps its look and drops what moves on its
 own: the night's stars do not twinkle and the stardust has no trail, a little spin
 dust and small, short puffs; the neon has no ribbon and no hit flash, and few
-sparks. The glows stay, still. The reel is drawn in full.
+sparks; Techno's rings do not grow (a ring fades where it struck); no snow falls in
+Minnesota and puffs only shrink where they struck. The glows stay, still. The reel is
+drawn in full.
 
 ## Contrast
 
 WCAG contrast of the type, 7:1 or better everywhere (pinned for each skin's tokens in
-`tests/render/scene-day.test.mjs`):
+`tests/render/scene-day.test.mjs`). Beach, Minnesota and Tournament keep the day's
+controls, so the day's numbers are theirs:
 
-| scene | ink on paper | muted on paper | type on an accent plate | MENU, lowest pair on the page |
-| ----- | ------------ | -------------- | ----------------------- | ----------------------------- |
-| day   | 16.29        | 7.51           | 10.18 (marigold)        | 7.51                          |
-| night | 14.98        | 9.55           | 10.61 (`#9cc8ff`)       | 9.55                          |
-| neon  | 18.42        | 10.51          | 14.97 (`#5ff0ff`)       | 10.18                         |
+| scene               | ink on paper | muted on paper | type on an accent plate   | MENU, lowest pair on the page |
+| ------------------- | ------------ | -------------- | ------------------------- | ----------------------------- |
+| day (and the three) | 16.29        | 7.51           | 10.18 (marigold)          | 7.51                          |
+| night               | 14.98        | 9.55           | 10.61 (`#9cc8ff`)         | 9.55                          |
+| neon                | 18.42        | 10.51          | 14.97 (`#5ff0ff`)         | 10.18                         |
+| bw                  | 21.00        | 21.00          | 21.00 (black, white type) | 21.00                         |
+
+The focus ring is 3 px of `--ink` 2 px off every control: 21:1 on Black & White's white,
+as the day's on its paper. On the pitch the Kid line's cones are orange (`#ff7a1f`) with
+a white band and the ink line, white with black in Black & White.
 
 ## Frame cost
 

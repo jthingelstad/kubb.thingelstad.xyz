@@ -83,9 +83,9 @@ export const tune = {
   arcDash: [7, 6],
   arcStopShort: 0.45, // m: the arc in the air ends this far (along the ground) before it lands
   // a piece spinning faster than the frames can show (drawSpin)
-  spinGhosts: 4, // in-between poses drawn
-  spinGhostAlpha: 0.42, // each, at full blur
-  spinSharpFade: 0.55, // the piece's own pose fades this much at full blur
+  reflectFade: 0.45, // m: a piece's reflection is gone when it is this far up
+  spinGhosts: 4, // in-between poses drawn, solid, under the piece's own
+  spinSharpFade: 0.55, // the piece's own pose fades this much over them at full blur
 };
 
 // Sizes (DESIGN 4.1; core/body.lua): half extents along local x, y, z.
@@ -1643,12 +1643,19 @@ function drawReflections(ctx, cam, kx, B, shown, drawPiece, alpha) {
   }
   if (!m.length) return;
   ctx.save();
-  ctx.globalAlpha = alpha;
-  for (const i of depthOrder(m, cam, boxes)) drawPiece(m[i], P[i]);
+  // a piece up in the air mirrors fainter, and not at all from reflectFade up
+  for (const i of depthOrder(m, cam, boxes)) {
+    const lift = Math.max(0, -m[i].item.z - SIZES[m[i].item.kind]?.[2] || 0);
+    const a = alpha * Math.max(0, 1 - lift / tune.reflectFade);
+    if (a <= 0.01) continue;
+    ctx.globalAlpha = a;
+    drawPiece(m[i], P[i]);
+  }
   ctx.restore();
 }
 // The spin's in-between poses: from where the piece was the frame before (item.from)
-// to where it is, `tune.spinGhosts` of them, each faded by u.
+// to where it is, `tune.spinGhosts` of them, solid; the caller then draws the piece's
+// own pose over them, faded by u (not in Black & White, which has no greys).
 function slerp(a, b, t) {
   let [aw, ax, ay, az] = a;
   let [bw, bx, by, bz] = b;
@@ -1679,7 +1686,7 @@ function slerp(a, b, t) {
     az * ka + bz * kb,
   ];
 }
-function drawSpin(ctx, cam, kx, s, u, drawPiece, opaque) {
+function drawSpin(ctx, cam, kx, s, u, drawPiece) {
   const it = s.item,
     f = it.from;
   const q1 = [f.qw ?? 1, f.qx ?? 0, f.qy ?? 0, f.qz ?? 0];
@@ -1702,7 +1709,8 @@ function drawSpin(ctx, cam, kx, s, u, drawPiece, opaque) {
     const gs = solid(g, cam);
     const P = projectSolid(cam, gs);
     if (!P) continue;
-    ctx.globalAlpha = opaque ? 1 : tune.spinGhostAlpha * u;
+    // solid, so the pitch never shows through a spinning piece: the swept shape of
+    // its turn, the newest pose drawn last
     drawPiece(gs, P);
   }
   ctx.globalAlpha = 1;
@@ -1797,7 +1805,7 @@ export function drawWorld(ctx, view, camera, scene) {
       // about 66 degrees a frame at 60 fps, and a square kubb looks the same every
       // quarter turn, so the plain drawing seems to stand or turn back): its
       // in-between poses, faded in by how fast it turns (Stage.observe sets spin)
-      drawSpin(ctx, cam, k, s, u, drawPiece, lk?.spinOpaque);
+      drawSpin(ctx, cam, k, s, u, drawPiece);
       ctx.globalAlpha = lk?.spinOpaque ? 1 : 1 - tune.spinSharpFade * u;
       drawPiece(s, projs[i]);
       ctx.globalAlpha = 1;
