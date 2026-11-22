@@ -280,27 +280,28 @@ test("the words: a seat's row, what is said, the header line and the hand-off", 
   assert.equal(handoffCpu({ thrower: "Mighty Maple" }), null);
 });
 
-test("the room's engine is the people's: a seat carries none (engines 0.17.0 and 0.18.0's engineFor count it)", () => {
+test("the room's engine is the people's: a seat carries none, and the engine leaves it out (engine 1.0.0)", () => {
   const d = seated();
   const carrying = members.map((m) => ({
     ...m,
     me: { ...m.me, engine: `${ENGINE}+engines`, engines: [ENGINE] },
   }));
-  assert.deepEqual(roomEngineFor(d, carrying, "jamie001"), {
-    engine: ENGINE,
-    missing: [],
-    unknown: [],
-  });
-  // the engine alone, with the seats left in, names them as players with no engine
+  const found = { engine: ENGINE, missing: [], unknown: [] };
+  assert.deepEqual(roomEngineFor(d, carrying, "jamie001"), found);
+  // the engine alone, with the seats left in the teams, finds the engine: since 1.0.0
+  // engineFor asks no engine of a seat (0.17.0 and 0.18.0 named the seats as players
+  // with none, and the page took them out before asking)
+  assert.ok(
+    d.teams.A.some(isSeat) || d.teams.B.some(isSeat),
+    "the pitch has a seat",
+  );
   const raw = engine.call("pitch.engineFor", {
     doc: d,
     members: carrying,
     host: "jamie001",
   }).value;
-  assert.equal(
-    raw.engine,
-    null,
-    "if this passes the engine skips seats: drop withoutSeats",
+  assert.deepEqual(
+    { engine: raw.engine, missing: raw.missing, unknown: raw.unknown },
+    found,
   );
-  assert.deepEqual([...raw.unknown].sort(), ["cpu:1", "cpu:2"]);
 });

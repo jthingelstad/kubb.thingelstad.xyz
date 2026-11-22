@@ -287,12 +287,12 @@ browserTest(
             teams: { A: [pitch.you], B: [] },
             started: true,
             n: 1,
-            match: { n: 1, players, cpu: "B", host: pitch.you, engine: "0.18" },
+            match: { n: 1, players, cpu: "B", host: pitch.you, engine: "1.0" },
           },
           n: 1,
           h: e.hash().hash,
           snap: e.snapshot(),
-          meta: { v: 1, engine: "0.18", players, cpu: "B" },
+          meta: { v: 1, engine: "1.0", players, cpu: "B" },
         });
       });
       assert.ok(r, "the pitch server cannot see into the snapshot");
@@ -352,12 +352,12 @@ browserTest(
             teams: { A: [pitch.you], B: [] },
             started: true,
             n: 1,
-            match: { n: 1, players, cpu: "B", host: pitch.you, engine: "0.18" },
+            match: { n: 1, players, cpu: "B", host: pitch.you, engine: "1.0" },
           },
           n: 1,
           h: "forged",
           snap,
-          meta: { v: 1, engine: "0.18", players, cpu: "B" },
+          meta: { v: 1, engine: "1.0", players, cpu: "B" },
         });
       }, FORGED);
       assert.ok(r, "the pitch server cannot see into the snapshot");

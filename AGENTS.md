@@ -19,11 +19,12 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
   the engine's manifest). **An engine is carried only while we decide it is supported,
   not because it was once released** (the owner, 2026-11-21: "We should only support
   engines that we decide are worth supporting not just ones that have published so that
-  we can push players to the new engines."). Today that is the newest alone, 0.18
-  (0.18.0); 0.16 was dropped with the move to 0.18 (the web never carried 0.17), 0.15
-  with the move to 0.16 and 0.13 with the move to 0.15 (all 2026-11-22; the web never
-  carried 0.14), and 0.9, 0.8 and 0.7 on 2026-11-21, so a client on one of them (an
-  iPhone build on 0.17) cannot share a pitch with the web and
+  we can push players to the new engines."). Today that is the newest alone, 1.0
+  (1.0.0, the released engine); 0.18 was dropped with the move to 1.0, 0.16 with the
+  move to 0.18 (the web never carried 0.17), 0.15 with the move to 0.16 and 0.13 with
+  the move to 0.15 (all 2026-11-22; the web never carried 0.14), and 0.9, 0.8 and 0.7 on
+  2026-11-21, so a client on one of them (an iPhone build on 0.18) cannot share a pitch
+  with the web and
   is told to update, and a kept match of one says it can no longer be replayed
   (`docs/ENGINES.md`). The supported
   set is written in one place, `vendor/engine.json` (the newest and `older`, empty
@@ -169,7 +170,7 @@ preview`, the browser tests, CI) gives it the pitch server on this machine
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `0.21.0 (0.18.0)`, at the foot of
+the full version of the newest engine the site carries, `1.0.0 (1.0.0)`, at the foot of
 every reading page and of MENU, with "Also plays ..." under it in MENU only while older
 engines are carried (none today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.

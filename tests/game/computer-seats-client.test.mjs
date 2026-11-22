@@ -155,7 +155,9 @@ async function setLevel(host, id, level) {
   );
 }
 
-async function throwOnce(page) {
+// short: drawn back to half the power band's foot, so the throw falls well short of
+// the king and the base kubbs (still a throw: the flick is the same).
+async function throwOnce(page, { short = false } = {}) {
   const p = await page.evaluate(() => window.__kubb.game.out.aim.plan);
   assert.ok(p, "an aim plan");
   // one pointer event a frame from inside the page, as a browser delivers a drag: the
@@ -163,7 +165,7 @@ async function throwOnce(page) {
   await swingInPage(
     page,
     sweep({
-      back: (p.powerLo + p.powerHi) / 2,
+      back: short ? p.powerLo / 2 : (p.powerLo + p.powerHi) / 2,
       stop: p.release,
       backDps: 900,
       flickDps: 3600,
@@ -348,7 +350,10 @@ async function hostLeavesAndReturns(host, others, code) {
       if (await cpuNow()) break wait;
       const o = await look(p);
       assert.ok(!o.over, "the match ended before a computer threw");
-      if (o.mine && !o.thrower?.cpu) await throwOnce(p);
+      // the people throw short while they wait: since engine 1.0.0 (a kubb falls more
+      // readily) three people throwing on the line could end the match on their own
+      // turn, before the computers' next one (four runs in nine on 1.0.0)
+      if (o.mine && !o.thrower?.cpu) await throwOnce(p, { short: true });
       if (Date.now() - said > 20000) {
         said = Date.now();
         trace(
