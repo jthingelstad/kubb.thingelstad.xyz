@@ -19,11 +19,12 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
   the engine's manifest). **An engine is carried only while we decide it is supported,
   not because it was once released** (the owner, 2026-11-21: "We should only support
   engines that we decide are worth supporting not just ones that have published so that
-  we can push players to the new engines."). Today that is the newest alone, 0.15
-  (0.15.1); 0.13 was dropped with the move to 0.15 (2026-11-22; the web never carried
-  0.14), and 0.9, 0.8 and 0.7 on 2026-11-21, so a client on one of them (an iPhone build
-  on 0.13) cannot share a pitch with the web and is told to update, and a kept match of
-  one says it can no longer be replayed (`docs/ENGINES.md`). The supported
+  we can push players to the new engines."). Today that is the newest alone, 0.16
+  (0.16.0); 0.15 was dropped with the move to 0.16 and 0.13 with the move to 0.15 (both
+  2026-11-22; the web never carried 0.14), and 0.9, 0.8 and 0.7 on 2026-11-21, so a
+  client on one of them (an iPhone build on 0.15) cannot share a pitch with the web and
+  is told to update, and a kept match of one says it can no longer be replayed
+  (`docs/ENGINES.md`). The supported
   set is written in one place, `vendor/engine.json` (the newest and `older`, empty
   today), read by the build, the registry and the reels' `REEL_ENGINES`; carrying an
   older minor again would be its own decision, vendored into `vendor/engines/<mm>/`. A
@@ -151,7 +152,7 @@ address or home path in `dist/`, no account id in Markdown).
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `0.17.1 (0.15.1)`, at the foot of
+the full version of the newest engine the site carries, `0.19.0 (0.16.0)`, at the foot of
 every reading page and of MENU, with "Also plays ..." under it in MENU only while older
 engines are carried (none today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
@@ -629,10 +630,12 @@ the hand's own tip, from the need's own poses, one after another, 0.4 s before t
 and half a second a kubb, 4 s at most: AUTO, AUTO ALL, REST OF GAME, MENU's Automatic,
 another browser's raises on a shared pitch and a replay's. The action is sent before its
 clip, so the actions and their order never change; a shared pitch holds its queue
-through the clip; a tap or key skips. The kubbs the engine raises itself (a match raising
-automatically, the computer, watching) still stand at once until the engine hands out
-what it raised (engine 0.16.0's `setup.settled`, the seam `settledClips`): JS never turns
-the pitch to work them out.
+through the clip; a tap or key skips. Since web 0.19.0 the kubbs the engine raises itself
+(a match raising automatically, the computer, watching) and a punishment kubb it places
+are watched the same way, from engine 0.16.0's `setup.settled` on the next throw need,
+in its order (`settledClips`): its poses are the raiser's frame, drawn as given, with the
+king round them (the wide view: the whole pitch, both the world's), never compared or
+turned; after a restore there is none, and watching keeps its zen pause after them.
 `src/game/lift.js`, docs/SYSTEM.md "Watching a raise". The raise camera stands twice as
 far off as it first did (the owner, the same day: "We need to see about twice as much to
 know how to raise them."), the kubb's touch target still 44 px or more (docs/SYSTEM.md
@@ -709,6 +712,17 @@ labels are plain words.
   range (`setArc`, `setTilt`, `setSpin`), ticks drawn from `tick`; a kubb's spin is kept
   for the turn and nothing on the page resets it. (The step buttons were for 0.8 and
   0.7, no longer carried.)
+- **The drive** (web 0.19.0, engine 0.16.0; the owner, 2026-11-22: "We need a way to
+  throw low and hard into a group." and "When throwing at a close Kubb players do not
+  even have the baton flip."): a baton's ARC runs from `aim.controls.arc.min`, the
+  throw's floor, read every frame, to 165; under `arc.knee` (15) is the drive, which
+  takes up to 30% of the track (`driveShare`), tinted and named DRIVE, the knee a heavy
+  mark, and nothing under the knee once the floor is there (8 m). A drive reads `DRIVE
+−5°` on the plate and the slider ("Arc, 5 degrees down, drive"), its plate's picture
+  falls into a kubb, its caption is "A drive goes in low and hard, with no flip.", and a
+  drive the engine calls SHORT has the coach lead the next throw with "A DRIVE NEEDS MORE
+  POWER." The side view draws the engine's `aim.arc` as it is, down as well as up.
+  `src/game/plan-sliders.js`, docs/SYSTEM.md "The drive".
 - **Scenes, first** (Jamie, 2026-11-20: "i absolutely adore the two new scenes! lets make it
   real"; 2026-11-21: "a Scene should have an allowed set of surfaces and pitch types").
   Since engine 0.14 the scenes are the engine's (its docs/notes/scenes.md): seven, Park
@@ -738,9 +752,11 @@ labels are plain words.
   0.17.0 (the owner, 2026-11-22: "Tournament mode should not have people. Just pitches
   with live play. We should hear the sounds from the other pitches.") nobody is drawn
   in the Tournament, on the pitches or watching, raised and fresh pieces rise rather than
-  pop, and the other pitches are heard: the game's knocks at each topple, landing and
-  king, quiet with distance and panned, three at most, never near the player's own knock
-  (`src/game/neighbour-sound.js`). docs/SCENES.md "The Tournament's live neighbours".
+  pop, and the other pitches are heard: the game's knocks, quiet with distance and
+  panned, three at most, never near the player's own knock (`src/game/neighbour-sound.js`).
+  Since web 0.19.0 they are cued from engine 0.16.0's `hits` and `landing`: a topple as
+  loud as its hit was hard, a kubb struck and left standing a quiet tap, the landing at
+  `landing.t`, nothing read from poses. docs/SCENES.md "The Tournament's live neighbours".
 - **Kid matches** (engine 0.15; Jamie, 2026-11-21: "kid level is for kids to have fun
   with kubb"): Kid on the Computer row makes the match a Kid match; the web draws the Kid
   line (dots and two cones) on the pitch and the minimap, says "Kid match" on the

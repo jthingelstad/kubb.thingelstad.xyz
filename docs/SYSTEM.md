@@ -263,14 +263,29 @@ phase):
   pitch (the other player's, by hand or not, or the computer's seat there); and a
   replay's raises (its log's actions, each with the need before it). A raise made by
   hand here is not shown again.
-- **Waiting for the engine**: the kubbs the engine raises itself between a turn's last
-  kubb thrown in and its first baton (a match started with Raising: Automatic, the
-  computer's own raises against you, watching the computer). They come with no need and
-  no action, so they stand at once, as before web 0.17.0. `lift.js` `settledClips` is
-  their seam: it takes the throw need's `setup.settled` and returns no clips until the
-  engine fills it (engine 0.16.0: each kubb raised, its id, the end chosen, and its
-  lying and standing poses in the frame the raise view draws in). The page never works
-  them out itself: that would mean turning the pitch in JavaScript.
+- **The engine's own raises** (since web 0.19.0, engine 0.16.0): the kubbs the engine
+  raises itself between a turn's last kubb thrown in and its first baton (a match
+  started with Raising: Automatic, the computer's own raises, watching the computer) and
+  a punishment kubb it places come with no need and no action. The engine hands them out
+  on the next throw need, `setup.settled = { raised, punished, list }`, `list` in the
+  order done: `{ kind: "raise", id, side, which, lying, standing, displaced, crowded }`
+  or `{ kind: "punish", id, side, pose }`. `lift.js` `settledClips` makes a clip of each
+  in that order: a raised kubb lies at `lying` and tips onto end `which` (1 the kubb's
+  +axis end, 2 the -axis end, as core/raising has them; there are no footprints, so the
+  tip goes along its own axis) and then stands, sliding to `standing` if the engine stood
+  it elsewhere; a punishment kubb lies at `pose` and is stood up there (it is not on the
+  pitch before its turn). The list's kubbs before the one tipping stand, the ones after
+  it still lie. The poses are the raiser's view frame, drawn as given on the raise view
+  (`raiseCamera` of the lying pose): never compared with the pitch and never turned.
+  - **What is drawn round them.** The raiser is the defender, never the next thrower, so
+    in the thrower's view the throw need's items are in the other team's frame and only
+    the king (on the pitch's centre in either frame) is drawn with the list's kubbs. In
+    the wide view every entry says `frame: "world"` and the view's items are the world's
+    too, so the whole pitch is drawn round them. (The list carries no other pieces: see
+    "What the engine could add".)
+  - After a restore there is none: the kubbs already stand. Watching the computer keeps
+    its zen pause, which comes after the clips (the next throw need is entered when they
+    end).
 - **The pace** (`lift.js` `tune`, `liftPace`; `pacing.js` `autoRaiseWait`): the first
   kubb of a turn's automatic raise lies **0.4 s** on the raise view, then each kubb takes
   a beat of **0.5 s** (its tip **70%** of the beat, eased, then it stands; a kubb a
@@ -290,10 +305,77 @@ phase):
   watching pace (zen) adds its own pause after.
 - **Reduced motion**: no tip: each kubb lies for half its beat, then stands where the
   engine put it, still one at a time.
-- **The engine** (0.15.1) puts `setup.settled` on the throw need for "raised and
-  punishment kubbs placed before this throw", but core/match keeps it on the match, not
-  the setup, so it is never filled. Engine 0.16.0 is to fill it as above; the web wires
-  it into `settledClips` when it moves to that engine.
+- **What the engine could add** (for the engine's next minor; nothing waits on it): each
+  `setup.settled` entry's neighbours as `raiseInfo` gives a raise by hand (`others` and
+  `king`, in the same raiser's frame), or the pitch's items in the raiser's frame before
+  the first entry. Without them the thrower's view draws the engine's raises with the
+  list's own kubbs and the king only: a kubb standing near them from an earlier turn,
+  and the raiser's base kubbs, are not on the raise view while they are watched. The
+  page cannot add them without turning the throw need's items, which it never does.
+
+## The drive (engine 0.16)
+
+The owner, after playing 0.15: "We need a way to throw low and hard into a group." and
+"When throwing at a close Kubb players do not even have the baton flip." Engine 0.16's ARC
+reaches down through flat to a downward drive (the engine's docs/notes/throw.md "The
+drive"); the web lets a player reach it and see it.
+
+- **ARC's range** is `aim.controls.arc` every frame it is drawn: `min` is the throw's
+  floor (0 at a kubb a metre away, 0.3 at 1.5 m, 5 at 2 m, about 12.3 at 4 m, 15 from
+  about 5 m; it moves with the circle and the stance), `max` 165, `knee` 15 (half past 5),
+  where the drive begins. The value is never under `min`.
+- **The track** (`src/game/plan-sliders.js` `valueAt`, `fractionOf`, `driveShare`): two
+  straight scales joined at the knee. The part under the knee takes `drive.share` **30%**
+  of the track when the floor is 0, times (knee - floor) / knee: **29%** at 1.5 m, **20%**
+  at 2 m, **5%** at 4 m, **none** once the floor is the knee (8 m: nothing under it is
+  offered, and the track is the floor to 165 in a line). A linear track would give the
+  whole drive 9% of ARC, too little for a thumb. A kubb's ARC (no knee) and TILT and SPIN
+  are linear as before. The keys keep the engine's numbers: R/F and the arrow keys a
+  `tick` (5) of release from the value, PageUp and PageDown a `step` (15), Home the floor,
+  End 165.
+- **The marks**: one every 5 degrees of the clock's release from the first over the floor,
+  a full one every 15 (counted from 0, not from the floor), the long heavy one at 90 (3
+  o'clock); the knee a heavy mark across the lane (3 px, the lane's width); none in the
+  drive part. The drive part is tinted with the wood colour at 55% in 4 px diagonal
+  stripes 8 px apart, its top the knee's 3 px ink line, and named **DRIVE** up the lane
+  (Londrina 900, 10 px, read bottom to top, 0.04em) wherever the part is at least 44 px
+  tall (a container query): 1.5 m upright and on the desktop; not on a phone on its side
+  (about 52 px of a 180 px track at 1.5 m: the word, 36 px, is hidden under 44) nor at
+  4 m (a sliver).
+- **The words**: a release under the knee is a drive. The plate's band and the open
+  slider's head read **`DRIVE 3°`**, **`DRIVE −5°`** (the launch loft, a true minus when
+  the baton leaves the hand going down), else `ARC 22°` as before. Spoken: plate
+  `Arc, 3 degrees, drive`, `Arc, 5 degrees down, drive`; slider `Arc 5 degrees down,
+drive`. The aria range is the floor and 165, rounded.
+- **The closed plate's picture** (70 by 32): a drive is a dashed line from the hand high
+  at the left (6, 10) falling into a kubb at the right (a 6 by 14 rect at 60, 16), its
+  curve's control at y = 10 - loft x 0.9 (loft kept to -15 to 7), so a downward drive
+  falls from the start; above the knee the rising arc as before.
+- **The caption** (while ARC is held, through the peek): a baton's
+  **`A HIGHER ARC DROPS IN STEEPER. A LOWER ARC DRIVES IN HARDER.`**, and while the plan is
+  a drive **`A DRIVE GOES IN LOW AND HARD, WITH NO FLIP.`**; a kubb's stays `A HIGHER ARC
+DROPS IN STEEPER. A LOWER ONE SKIDS IN.` (a thrown kubb has no drive).
+- **The coach**: after a drive (planned under the knee) the engine called SHORT, the next
+  throw is coached, learned or not, led by **`A DRIVE NEEDS MORE POWER.`** (SLOW's
+  lead wins when both apply). A drive is planned hard, so its stripes are far round: a
+  backswing of about 95 at 1.5 m on the default, 131 at 4 m, and 140 (the engine's
+  `driveBackMaxDeg`) at the floor.
+- **The side view, the peek and the main view's dotted line** draw `aim.arc` as given,
+  through the camera: the flight leaves the hand at about 0.49 m and falls all the way to
+  the kubb's face at 1.5 m (the engine's 23 points). Nothing in the page assumes the arc
+  rises first (`arcInAir` cuts the last 0.45 m along the ground, whatever the height).
+- **No flip**: a close drive's baton leaves the hand tipped forward about 17 degrees and
+  holds it to the kubb's face (0.2 s at 1.5 m), so the spin drawing (`spinAmount`) is 0
+  through its flight: no in-between poses, no ghost.
+- **The meter at a drive**: the power band moves out with the planned speed. At 4 m on
+  the default (release 13.6) it is 125.2 to 136.4; at the floor it is 134.4 to 145.6 (4 m,
+  release 12.3) and 133.5 to 146.5 (1.5 m, release 0.3: the engine's `driveBackMaxDeg`
+  140 in the middle). The overpowered zone starts at 150 (11 o'clock, `overDeg`) or at
+  the band's top if that were further (`overFrom`), so at the floor the two stand 3.5
+  degrees apart and never overlap, and neither reaches 12 o'clock: on the clock and the
+  linear meter, either side, upright and wide (the screenshots of 2026-11-22). A drive's
+  release band reaches under 0 (6 o'clock) onto the backswing's side, -24 to 25 at 1.5 m
+  at the floor; it is drawn there as it is.
 
 ## Scenes, the Kid line, rings and the spin (engine 0.14 and 0.15)
 
@@ -341,10 +423,10 @@ docs/SCENES.md has the looks; these are the numbers a second client matches.
 | name row       | SHUFFLE; stepper labels Previous first word, Next first word, First word (and second, third)                                                                                                                                                                                                                                                                                 |
 | welcome        | `WELCOME_WORDS` in `src/ui/welcome.js`                                                                                                                                                                                                                                                                                                                                       |
 | lobby          | You are, WATCH INSTEAD, HOME, START                                                                                                                                                                                                                                                                                                                                          |
-| tray           | ARC 22°, TILT 7R, TILT 0, SPIN 1.3L, STAND; spoken Arc, 22 degrees; Tilt, 7 degrees right; Tilt, none; Stand, middle, on the line; the group Throw set-up                                                                                                                                                                                                                    |
+| tray           | ARC 22°, DRIVE 3°, DRIVE −5°, TILT 7R, TILT 0, SPIN 1.3L, STAND; spoken Arc, 22 degrees; Arc, 5 degrees down, drive; Tilt, 7 degrees right; Tilt, none; Stand, middle, on the line; the group Throw set-up; DRIVE under ARC's knee                                                                                                                                           |
 | meter          | the distance tab `8 M`; WATCH on the thrower's team colour                                                                                                                                                                                                                                                                                                                   |
 | verdict        | SHORT, LONG, LOW, HIGH, SLOW, SHAKY, PULLED LEFT, PULLED RIGHT (off, with arrows); POWER ON, ARC ON, STEADY, STRAIGHT; spoken `Short. Miss. Arc on, steady, straight. 50 cm away.` (the rest text last, when shown)                                                                                                                                                          |
 | hand-off       | Your turn, `Lucky Larch’s turn`; `HANDOFF_LINES` in `src/ui/handoff-words.js`: `Six batons. Two field kubbs to clear first.`, `Six batons. Aim for the base kubbs.`, `Six batons. Go for the king.`, `Throw three kubbs into the other half.`, `Stand your kubbs up.`, `Place one punishment kubb.`; THROW, READY, WATCH                                                     |
-| coach          | PULL BACK TO THE STRIPES, NO RUSH GOING BACK, NOW FLICK FAST AND STOP ON THE SOLID MARK, led by SLOW FLICK. FLICK FASTER.                                                                                                                                                                                                                                                    |
+| coach          | PULL BACK TO THE STRIPES, NO RUSH GOING BACK, NOW FLICK FAST AND STOP ON THE SOLID MARK, led by SLOW FLICK. FLICK FASTER. or A DRIVE NEEDS MORE POWER.                                                                                                                                                                                                                       |
 | stand-ins      | prompt `Wind back, 8 metres`; meter `Clock meter. Draw back to the stripes, then flick and let go on the solid mark.` (or `Linear meter`, `shown for watching only.`); minimap `Map of the pitch: Mighty Maple 5 kubbs standing, Computer 4. The target is 8 metres out.`                                                                                                    |
 | link preview   | `<host> is waiting for players · Kubb: Throwing Wood`; card `CHEERFUL CEDAR` over `IS WAITING FOR PLAYERS`; `IN PLAY · TURN 7 · TAP TO WATCH`; `<WINNER> WON · 9 TURNS · TAP TO WATCH` (with a replay)                                                                                                                                                                       |

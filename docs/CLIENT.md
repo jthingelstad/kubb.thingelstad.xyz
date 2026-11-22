@@ -184,11 +184,23 @@ play date". The four step buttons were the Playdate's "hold B and press the d-pa
 are two sliders now, and PLAN VIEW is SIDE VIEW.
 
 - **ARC** is vertical, up a higher arc, and continuous: the track is the engine's planned
-  release, 15 to 165 degrees on the clock (`plan.tune.releaseMinDeg/MaxDeg`), fed through
-  `engine.setArc`. A higher release is a higher loft, and the header reads the loft as
-  before (`ARC 32°`). The knob sits where `aim.plan.release` says, so the engine's clamp
-  and a fresh plan move it. Its marks are the clock's hours from 1 to 5, 3 o'clock (the
-  normal throw, loft 32) long.
+  release on the clock, fed through `engine.setArc`. A higher release is a higher loft,
+  and the header reads the loft (`ARC 32°`). The knob sits where `aim.plan.release` says,
+  so the engine's clamp and a fresh plan move it.
+- **The drive** (engine 0.16; the owner: "We need a way to throw low and hard into a
+  group."). A baton's ARC runs from `aim.controls.arc.min`, the throw's floor, read every
+  frame it is drawn (0 at a kubb a metre away, about 12 at 4 m, 15 from about 5 m; it
+  moves with the circle and the stance), to 165, and `arc.knee` (15) is where the drive
+  begins: under it the baton leaves the hand flat or going down, hard, and does not turn
+  end over end. The track is two straight scales joined at the knee, the drive taking up
+  to 30% of it at a floor of 0 and none once the floor is the knee (`valueAt`,
+  `fractionOf`, `driveShare`), so a thumb can reach it; the part is tinted and named
+  DRIVE where it is tall enough, the knee a heavy mark. A plan under the knee reads
+  `DRIVE 3°` or `DRIVE −5°` on the plate and the slider, "Arc, 5 degrees down, drive" to a
+  screen reader, its plate's picture a line falling into a kubb, and its caption "A drive
+  goes in low and hard, with no flip." A drive that falls SHORT has the coach lead the
+  next throw with "A DRIVE NEEDS MORE POWER." A thrown kubb's ARC starts at the
+  knee and has no drive. Numbers in docs/SYSTEM.md "The drive".
 - **TILT** (a baton) or **SPIN** (a kubb) is horizontal, 0 in the middle with a long heavy
   mark, to 20 degrees either way for a baton's tilt and 3 for a kubb's spin.
 - **Any value** (engine 0.9 on; Jamie, 2026-11-20: "sliders, not step buttons"). The
@@ -220,7 +232,9 @@ step, unit, scope }` for `arc`, `tilt` and `spin`), and the slider takes any val
   all", and nothing said how arc and tilt affect the toss; Jamie: "Have the UI show it not
   a separate how to page"). While a slider is held, and through the peek after, one line
   above the plan says what it does, in the iPhone's words set in the HUD's capitals:
-  ARC "A higher arc drops in steeper. A lower one skids in.", TILT "Tilt leans the baton
+  ARC "A higher arc drops in steeper. A lower arc drives in harder." (a kubb's "A
+  higher arc drops in steeper. A lower one skids in.", and a drive's "A drive goes in low
+  and hard, with no flip."), TILT "Tilt leans the baton
   to steer it through a group.", SPIN "Spin keeps a drilled kubb steady in the air."
   (`plan-sliders.js` `CAPTIONS`, `Hud.showCaption`). It sits above the plan's block (and
   above the linear meter's prompt tab), where the finger on the slider is not, below the
@@ -745,9 +759,12 @@ header's row on a wide screen, clear of the target, the tray, the minimap and th
   a tap or a key skips to the end and stands the rest of the turn's at once; a hidden
   tab shows none; reduced motion stands each kubb without tipping, still one at a time.
   The kubbs the engine raises itself (a match raising automatically, the computer's
-  raises, watching) still stand at once: they wait for the engine to hand them out
-  (`lift.js` `settledClips`, engine 0.16.0's `setup.settled`). `src/game/lift.js`
-  (pure), numbers in docs/SYSTEM.md "Watching a raise".
+  raises, watching) and a punishment kubb it places are watched the same way since web
+  0.19.0, from engine 0.16.0's `setup.settled` on the next throw need, in its order
+  (`lift.js` `settledClips`, `Game.settledLifts`): each kubb's poses are the raiser's
+  frame, drawn as given, with the king round them (the wide view: the whole pitch, both
+  the world's); after a restore there is none. `src/game/lift.js` (pure), numbers in
+  docs/SYSTEM.md "Watching a raise".
 - **Punishment**: drag or tap the kubb in the defender's half; the stakes and the king carry
   keep-out circles and a refused spot says why (TOO NEAR A STAKE); PLACE IT when allowed.
 - **The panel on a phone on its side** (a screen 460 px high or less): the raise and
@@ -1333,7 +1350,7 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
 - **The label** (`src/site/release.js`): every app shows its own version with the Kubb
   Engine's beside it, `<app version> (<engine version>)` (Jamie, 2026-11-20). On the web
   that is `package.json`'s version and the full version of the newest engine the page
-  carries: `0.17.1 (0.15.1)`. Nothing but that engine's version is in the parentheses: an
+  carries: `0.19.0 (0.16.0)`. Nothing but that engine's version is in the parentheses: an
   older engine the page still plays would be only in the detail, `Also plays ...` (none
   today: the site carries the newest alone, `docs/ENGINES.md`), and the
   web commit never shows. The release is `{ version, web, engine, also, text, detail }`
@@ -1341,7 +1358,7 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
   `releaseOf`) reads the version from `package.json`, the web commit from `GITHUB_SHA` in
   CI or `git rev-parse HEAD`, and the engines from the vendored set; it puts the release
   in the game pages' config (`config.release`) and writes it as `/version.json`.
-- **Shown** small, in the shared type tokens: "Version 0.17.1 (0.15.1)" at the foot of
+- **Shown** small, in the shared type tokens: "Version 0.19.0 (0.16.0)" at the foot of
   every reading page (beside the link to the engine page), and the label at the foot of
   MENU in the game, with "Also plays ..." under it only while an older engine is carried.
 - **Exact identity** is the web commit: freshness (below) compares it, and a feedback
