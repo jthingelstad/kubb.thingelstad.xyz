@@ -308,7 +308,10 @@ async function boot() {
       record: () => {
         const sent = record();
         if (testing) window.__kubb.recorded.push(sent);
+        return sent;
       },
+      // whether this page can send a record at all (an api address)
+      recording: !!apiUrl(),
     };
     if (mode === "solo") startSolo(game, cards, { ...env, menu, asked });
     else startWatch(game, cards, { ...env, menu, asked });
@@ -412,7 +415,7 @@ function startPractice(game, cards, asked) {
 // older engine is told.
 const takesComputer = () => MATCH_OPTIONS.some(([k]) => k === "computer");
 
-function startSolo(game, cards, { sheet, record, menu, asked }) {
+function startSolo(game, cards, { sheet, record, recording, menu, asked }) {
   game.seat = { sides: ["A"], cpu: true };
   game.localSide = "A";
   // the match is kept on the device after every action (src/game/solo-save.js)
@@ -472,9 +475,9 @@ function startSolo(game, cards, { sheet, record, menu, asked }) {
   game.onNeed = (need) => {
     cards.tick(game);
     if (need.kind === "over") {
-      // a finished match is never offered back
-      clearSave();
-      record();
+      // sent once (the trail is marked); the kept match goes when the record is kept,
+      // and a finished match is never offered back (solo-save.js "Over")
+      settleSave(record(), recording);
       share?.destroy();
       share =
         apiUrl() && shareable({ trail: game.trail, need })
@@ -507,6 +510,18 @@ function startSolo(game, cards, { sheet, record, menu, asked }) {
   // a match in progress kept on this device: RESUME or NEW MATCH (PLAY NOW too)
   const save = readSave(engines.newest);
   if (!save) return begin();
+  // one that is already over (the page went during its last throw, or its record was
+  // not kept): straight to its winner card, which records it; never offered
+  if (save.over) {
+    try {
+      game.resumeMatch(save);
+    } catch (err) {
+      console.warn("The kept match could not be restored:", err);
+      clearSave();
+      begin();
+    }
+    return;
+  }
   game.newPractice({ ...sceneOpt(save.scene) });
   cards.resume(save, RESUME_WORDS, SCENE_NAMES[save.scene] ?? null, {
     resume: () => {
@@ -522,6 +537,27 @@ function startSolo(game, cards, { sheet, record, menu, asked }) {
       clearSave();
       begin();
     },
+  });
+}
+
+// A finished match's save, once its record is sent (src/game/solo-save.js "Over"): kept
+// records clear it; with no api address there is nothing to send and it clears at once;
+// a send that fails leaves it, marked, for the next load to send again, once: a second
+// failure drops it (said in the console), so a record is never sent twice and never
+// waits for ever.
+function settleSave(sent, recording) {
+  if (!recording) return clearSave();
+  Promise.resolve(sent).then((ok) => {
+    if (ok) return clearSave();
+    const s = readSave(engines.newest);
+    if (!s) return;
+    if ((s.tries ?? 0) >= 1) {
+      console.warn(
+        "This match could not be recorded (two tries); it is not kept to try again.",
+      );
+      return clearSave();
+    }
+    writeSave({ ...s, over: true, tries: (s.tries ?? 0) + 1 });
   });
 }
 
