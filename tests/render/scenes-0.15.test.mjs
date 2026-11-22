@@ -421,7 +421,10 @@ test("Kid rulings' flags: the king back up, a kubb placed, a helicopter that cou
     flagFor(r("KING BACK UP", "KING BACK UP", "miss", "kingUp")),
     "KING BACK UP",
   );
-  assert.equal(flagFor(r("1 DOWN", "KING BACK UP", "base", "kingUp")), "1 DOWN");
+  assert.equal(
+    flagFor(r("1 DOWN", "KING BACK UP", "base", "kingUp")),
+    "1 DOWN",
+  );
   assert.equal(
     flagFor(r(null, "OUT TWICE: PLACED", "placed")),
     "OUT TWICE: PLACED",

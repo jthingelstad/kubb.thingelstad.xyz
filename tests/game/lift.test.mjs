@@ -175,7 +175,10 @@ test("the engine's own raises: a clip a kubb, in its order, from its own poses",
       for (const o of x.others) {
         const it = items.find((q) => q.id === o.id);
         assert.ok(it, `${o.id} drawn`);
-        assert.ok(near(it.x, o.pose.x) && near(it.y, o.pose.y), `${o.id} as given`);
+        assert.ok(
+          near(it.x, o.pose.x) && near(it.y, o.pose.y),
+          `${o.id} as given`,
+        );
       }
       const king = items.find((it) => it.id === "king");
       assert.ok(near(king.x, x.king.x) && near(king.y, x.king.y));
