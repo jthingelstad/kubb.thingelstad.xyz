@@ -193,7 +193,11 @@ export function openReport(root, opts) {
   const typing = [happened, should, feedback];
   const body = h(
     "div.card.report",
-    { "data-test": "report-card" },
+    {
+      "data-test": "report-card",
+      role: "dialog",
+      "aria-label": "Send feedback",
+    },
     h("h2.display", "Send feedback"),
     kinds,
     throwPart,
@@ -203,6 +207,8 @@ export function openReport(root, opts) {
     actions,
   );
   show(kind);
+  // where the keyboard was (MENU), to go back to when the card closes
+  const opener = document.activeElement;
   const scrim = h("div.scrim.report-scrim", body);
   let closed = false;
   let sending = false;
@@ -216,6 +222,8 @@ export function openReport(root, opts) {
     for (const el of quieted) el.inert = false;
     window.removeEventListener("keydown", esc);
     game.modal = Math.max(0, game.modal - 1);
+    if (opener && opener !== document.body && opener.isConnected)
+      opener.focus({ preventScroll: true });
   }
   const editing = () => {
     clear(actions);
