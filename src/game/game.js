@@ -111,9 +111,10 @@ import {
 } from "./auto-raise.js";
 
 // The Kid line to draw from an aim view (engine 0.15's `kidY`), or null. It is on the
-// thrower's side of the middle, within 4 m of their line (`lineY`); engine 0.15's wide
-// view turns `lineY` for Team B but not `kidY` (session/wide.lua), so there a kidY on
-// the far side is not drawn rather than drawn on the wrong end (JS never turns it).
+// thrower's side of the middle, within 4 m of their line (`lineY`). Engine 0.15.0's wide
+// view turned `lineY` for Team B but not `kidY`; 0.15.1 turns both, so the far side's
+// line is drawn too. The guard stays: a kidY that is not near its line is not drawn
+// rather than drawn on the wrong end (JS never turns it).
 export function kidLineOf(aim) {
   const k = aim?.kidY;
   if (k == null) return null;
