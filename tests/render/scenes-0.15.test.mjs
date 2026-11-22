@@ -442,6 +442,34 @@ test("Kid rulings' flags: the king back up, a kubb placed, a helicopter that cou
     assert.doesNotMatch(f, /PUNISH|GAME OVER|LOSE|DOESN'T COUNT/);
 });
 
+test("a thrown kubb's flag is the engine's ruling: out, in, rethrown, punished, lowered, rescued", () => {
+  // QA, 2026-11-22: the engine's flag is empty for every kubb thrown in, so a kubb
+  // thrown out said nothing; the ruling's short words are its flag now
+  const r = (short, ...codes) => ({
+    flag: null,
+    ruling: { short, parts: codes.map((code) => ({ code })) },
+  });
+  for (const [short, codes] of [
+    ["OUT FOR NOW", ["outForNow"]],
+    ["IN FOR NOW", ["inForNow"]],
+    ["IN", ["in"]],
+    ["ALL IN", ["in"]],
+    ["OUT: THROW AGAIN", ["rethrow"]],
+    ["2 OUT: THROW AGAIN", ["rethrow"]],
+    ["OUT TWICE: PUNISHMENT", ["punish"]],
+    ["ON A KUBB: LOWERED", ["lowered"]],
+    ["RESCUE", ["rescue"]],
+    ["IN", ["in", "lowered"]],
+  ])
+    assert.equal(flagFor(r(short, ...codes)), short);
+  // a baton keeps the engine's flag; a ruling with no flag and no kubb code stays empty
+  assert.equal(
+    flagFor({ flag: "1 DOWN", ruling: { short: "1 DOWN", code: "field" } }),
+    "1 DOWN",
+  );
+  assert.equal(flagFor(r("MISS", "miss")), null);
+});
+
 test("the hand-off says Kid match, and never a punishment or a loss", () => {
   assert.equal(handoffKid({ kind: "throw", setup: {} }), null);
   assert.equal(
