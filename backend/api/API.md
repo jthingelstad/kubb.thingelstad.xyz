@@ -153,6 +153,20 @@ Every push that was taken answers `200 { "ok": true }`; one already had adds
   sealed pitch, and the half item goes. A half for a match the replay already holds,
   or one older, is not kept.
 
+### Dev pushes
+
+The dev Worker (`throwingwood-pitches-dev`, `PUSH_DEV` in
+`backend/pitch-server/cloudflare.config.ts`) marks every push `"dev": true` inside the
+signed envelope; the production Worker sends no such field, byte for byte as before. A
+marked push is test play: its `start` and `act` are kept under
+`games/dev/pitch/<code>/<made>/<n>-<seq>.json.gz` (expired after 14 days by the games
+bucket's lifecycle rule), and nothing else is written: no `open`, no state, no final,
+no kept replay. So a dev pitch is never a live pitch's page, preview, replay or reel,
+whatever its code, and the pull tools leave it out unless asked (`tools/games.mjs pull
+--dev`). Any other value of `dev` is refused (400). (2026-11-22: before this the dev
+Worker's pushes went in with live play's; a QA pass's four pitches are there for good,
+listed in `tools/games.mjs` `TEST_PITCHES`.)
+
 ## Records
 
 The pitches stack's table (`pk`, `sk`, TTL on `exp` in seconds; nothing else is in it):

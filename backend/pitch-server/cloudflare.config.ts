@@ -23,7 +23,7 @@ const PUSH_URL =
 const WORKERS = {
   dev: {
     name: "throwingwood-pitches-dev",
-    version: "dev-5",
+    version: "dev-6",
     origins:
       "https://throwingwood.com,https://app.throwingwood.com,http://localhost,http://127.0.0.1",
     dev: true,
@@ -62,8 +62,15 @@ export default defineConfig(({ mode }) => {
         ALLOWED_ORIGINS: bindings.text(w.origins),
         PUSH_URL: bindings.text(PUSH_URL),
         // Pitch codes starting with this play write-first, to measure both orders on
-        // one deploy. Dev only.
-        ...(w.dev ? { DEV_WRITE_FIRST_PREFIX: bindings.text("wf") } : {}),
+        // one deploy. Dev only. And every push the dev Worker makes is marked dev, so the
+        // receiver keeps it under games/dev/ and never as real play (backend/api/API.md
+        // "Dev pushes").
+        ...(w.dev
+          ? {
+              DEV_WRITE_FIRST_PREFIX: bindings.text("wf"),
+              PUSH_DEV: bindings.text("1"),
+            }
+          : {}),
         PITCH: bindings.durableObject({
           worker: w.name,
           exportName: "PitchDO",

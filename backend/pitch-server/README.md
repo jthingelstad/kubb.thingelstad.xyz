@@ -155,6 +155,13 @@ steps are `docs/PITCH-SERVER.md` section 12. `--scenario match` proves the chain
 plays one short match to its end, waits for the outbox to empty and, with
 `--replay <the function URL>`, for the api to serve the kept replay.
 
+Since `dev-6` the dev Worker marks every push `dev: true` (`PUSH_DEV`), and the api keeps
+a marked push's start and actions under `games/dev/` for 14 days and nothing else
+(backend/api/API.md "Dev pushes"): its pitches are never live pitches' pages, replays or
+reels. So `--replay` against the dev Worker finds no kept replay by design; the chain's
+records are under `games/dev/pitch/<code>/`. No browser test, default build or CI run
+opens a pitch on the dev Worker (AGENTS.md "Build and check").
+
 ## Test
 
 ```sh

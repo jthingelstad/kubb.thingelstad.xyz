@@ -22,8 +22,20 @@ export const PUSH = Object.freeze({
 
 // The text that is sent and signed. `sent` is when this attempt went (the receiver may
 // refuse one far from its own clock: it is inside the signature, so it cannot be moved).
-export function envelope({ pitch, made, k, topic, body, sent }) {
-  return JSON.stringify({ v: PUSH.version, pitch, made, k, topic, sent, body });
+// `dev`: the dev Worker's mark (env PUSH_DEV, cloudflare.config.ts), so the receiver keeps
+// its pushes apart from real play; a production push carries no such field, byte for
+// byte as before.
+export function envelope({ pitch, made, k, topic, body, sent, dev = false }) {
+  return JSON.stringify({
+    v: PUSH.version,
+    pitch,
+    made,
+    k,
+    topic,
+    sent,
+    ...(dev ? { dev: true } : {}),
+    body,
+  });
 }
 
 export const idempotencyKey = (pitch, made, k) => `${pitch}:${made}:${k}`;
@@ -64,8 +76,9 @@ export async function pushRequest({
   topic,
   body,
   sent,
+  dev = false,
 }) {
-  const text = envelope({ pitch, made, k, topic, body, sent });
+  const text = envelope({ pitch, made, k, topic, body, sent, dev });
   return {
     url,
     init: {

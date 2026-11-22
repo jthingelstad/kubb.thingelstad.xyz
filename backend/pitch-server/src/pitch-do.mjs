@@ -355,6 +355,8 @@ export class PitchDO extends DurableObject {
         topic: e.topic,
         body: e.body,
         sent: this.clock(),
+        // the dev Worker marks every push (cloudflare.config.ts PUSH_DEV)
+        dev: this.env.PUSH_DEV === "1",
       });
       const res = await fetch(req.url, {
         ...req.init,
