@@ -211,8 +211,9 @@ items 5 to 10 and 13). `src/game/layout.js` (`layoutFor`, `trayAt`, `headerBox`,
   track the power band is dashed. The overpowered zone is cross-hatched, so the stripes
   are the power band's alone.
 - **The distance**: beside the prompt (WIND BACK, DRAW BACK, FLICK!) an inverted tab with
-  the throw's distance to the nearest metre, `8 M` (the plan's distance, stance to
-  circle): on the clock the pair centred over it, 0.3 of the plate's height apart; on the
+  the throw's distance (the plan's distance, stance to circle), to the tenth under 5 m,
+  `1.5 M`, and to the nearest metre from there, `8 M` (since web 1.0.0; the iPhone's
+  `MeterWords.distance` should match): on the clock the pair centred over it, 0.3 of the plate's height apart; on the
   linear meter on the prompt tab's free end.
 - **The verdict** (`hud.js` `verdictChips`, `VERDICT_ICON`): the off word first, inverted,
   Inter 900 **18 px**, radius 6, with a 14 px arrow in its own colour: down for SHORT and

@@ -311,8 +311,10 @@ strongly prefers the circle, so the dial stays and stays the default.
   overpowered zone is cross-hatched (it was hatched one way), so the stripes are the
   power band's alone, as the coach's "the stripes" needs.
 - **The distance** (the 1.0 design): beside the prompt (WIND BACK, DRAW BACK, FLICK!) an
-  inverted tab with the throw's distance to the nearest metre, "8 M", from the plan's own
-  distance (stance to circle, the session's `plan.dist`): on the clock the two centred over
+  inverted tab with the throw's distance, from the plan's own distance (stance to circle,
+  the session's `plan.dist`): to the tenth under 5 m, "1.5 M", and to the nearest metre
+  from there, "8 M" (`metresWords` in `src/game/game.js`; until web 1.0.0 every distance
+  was whole, so 1.5 m read "2 M"), spoken "1.5 metres": on the clock the two centred over
   it, on the linear meter at the prompt tab's free end (`tabRect` allows 7 of its heights
   for the two). Only on this player's own throw.
 - **A watched turn** (the computer's, or another player's on a shared pitch): the meter at

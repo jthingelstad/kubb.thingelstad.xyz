@@ -650,8 +650,8 @@ follows the stroke: PULL BACK TO THE STRIPES, NO RUSH GOING BACK, NOW FLICK FAST
 STOP ON THE SOLID MARK, led by SLOW FLICK. FLICK FASTER. after a slow one (the 1.0 design
 names the marks by shape: the owner, 2026-11-21, with the iPhone's Coach.swift), in one
 inverted ink chip. The power band is striped and the release band solid, both
-end-marked, and the overpowered zone cross-hatched; the throw's distance ("8 M") sits
-beside the prompt on an inverted tab. The pull back's
+end-marked, and the overpowered zone cross-hatched; the throw's distance ("8 M", to the tenth under
+5 m: "1.5 M") sits beside the prompt on an inverted tab. The pull back's
 speed does not matter; the flick's does. `src/game/coach.js` (pure); drawing only.
 The red overpowered zone starts past the power band when the band reaches past 11
 o'clock (`dial.js` `overFrom`), as the engine's overpower cost does.

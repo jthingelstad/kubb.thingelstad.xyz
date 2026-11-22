@@ -158,6 +158,13 @@ export function headerName(railName, need = null) {
     .replace(/(^|[\s:])([a-z])/g, (m, a, b) => a + b.toUpperCase());
 }
 
+// The meter tab's distance spoken ("8 M", "1.5 M" from metresWords in game.js):
+// "8 metres", "1.5 metres", "1 metre".
+export function spokenMetres(words) {
+  const n = parseFloat(words);
+  return `${n} ${n === 1 ? "metre" : "metres"}`;
+}
+
 // The minimap as one image for a screen reader: the kubbs standing in each
 // half, by team, and how far out the target is. "Map of the pitch: Mighty
 // Maple 5 kubbs standing, Computer 4. The target is 8 metres out."
@@ -484,19 +491,15 @@ export class Hud {
         .trim();
       return l.charAt(0).toUpperCase() + l.slice(1);
     };
-    const metres = (d) => {
-      const n = parseInt(d, 10);
-      return `${n} ${n === 1 ? "metre" : "metres"}`;
-    };
     const kind = L.meter === "linear" ? "Linear meter" : "Clock meter";
     const words = {
       prompt: m.prompt
-        ? `${sentence(m.prompt)}${m.distance ? `, ${metres(m.distance)}` : ""}`
+        ? `${sentence(m.prompt)}${m.distance ? `, ${spokenMetres(m.distance)}` : ""}`
         : "",
       meter: st.watching
         ? `${kind}, shown for watching only.`
         : `${kind}. Draw back to the stripes, then flick and let go on the solid mark.`,
-      map: mapSummary(st, m.distance ? metres(m.distance) : null),
+      map: mapSummary(st, m.distance ? spokenMetres(m.distance) : null),
     };
     for (const [k, el] of [
       ["prompt", this.promptProxy],
