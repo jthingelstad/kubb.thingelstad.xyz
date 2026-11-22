@@ -150,7 +150,7 @@ address or home path in `dist/`, no account id in Markdown).
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `0.13.0 (0.13.4)`, at the foot of
+the full version of the newest engine the site carries, `0.14.0 (0.13.4)`, at the foot of
 every reading page and of MENU, with "Also plays ..." under it in MENU only while older
 engines are carried (none today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
@@ -553,9 +553,9 @@ the phone turns (Jamie, 2026-11-19, of the iPhone app: "Bug: On iPhone if I turn
 and then rotate it goes back to the circular swing."): on a wide screen the box has the
 whole safe height at its edge (10 px under the safe top to 7 px over the safe bottom, at
 most 450), MENU or the rail moves in beside it, 10 px off its body (`meterRoom`), the coach
-line hangs under its tab, the plan block never goes over the tab (`planAt`: the far edge,
-the minimap over the block or not drawn; where nothing fits, or the header row's
-plates would meet, `headerPlates`, the clock: windows under about 580 px), and a finger grabs only the knob's channel, the
+line hangs under its tab, the tray and the minimap never go over the tab (`trayAt`,
+`linearClear`; where nothing fits, or the header row's plates would meet,
+`headerPlates`, the clock: windows under about 560 px in a match, 600 in practice), and a finger grabs only the knob's channel, the
 rest of the body and the meter's half being throw zone. Keep these numbers the iPhone
 app's (`WideLayout`), all but that floor; a desktop window tall enough for the 450 px box is as before. It
 is a quarter shorter than it was first built (a tester, 2026-11-19: "Make it 1/4
@@ -590,8 +590,12 @@ recorded. docs/CLIENT.md "The throw".
 The coach line (a tester, 2026-11-19: "Does it matter how quickly or slowly I track my
 finger"; Jamie: "Have the UI show it not a separate how to page"): over the meter's prompt,
 for a device with fewer than 3 throws and for the throw after a SLOW verdict, a line that
-follows the stroke: PULL BACK TO THE ORANGE MARK, NO RUSH GOING BACK, NOW FLICK FAST AND
-STOP ON THE BLUE MARK, led by SLOW FLICK. FLICK FASTER. after a slow one. The pull back's
+follows the stroke: PULL BACK TO THE STRIPES, NO RUSH GOING BACK, NOW FLICK FAST AND
+STOP ON THE SOLID MARK, led by SLOW FLICK. FLICK FASTER. after a slow one (the 1.0 design
+names the marks by shape: the owner, 2026-11-21, with the iPhone's Coach.swift), in one
+inverted ink chip. The power band is striped and the release band solid, both
+end-marked, and the overpowered zone cross-hatched; the throw's distance ("8 M") sits
+beside the prompt on an inverted tab. The pull back's
 speed does not matter; the flick's does. `src/game/coach.js` (pure); drawing only.
 The red overpowered zone starts past the power band when the band reaches past 11
 o'clock (`dial.js` `overFrom`), as the engine's overpower cost does.
@@ -631,16 +635,21 @@ labels are plain words.
 
 - **STAND** replaced WALK (the Playdate's held A, which made the next drag on the pitch a
   joystick). The thrower's spot is below the screen in the thrower's view, so there is
-  nothing on the pitch to drag: STAND is a plate in the plan, the line from above with
+  nothing on the pitch to drag: STAND is a plate in the tray, the line from above with
   the allowed ground and a ring where the thrower stands. Press and drag puts the thrower
   under the finger; the engine's `setStance` clamps it. A/D/W/S and STAND's arrow keys
   still walk. `src/game/stand-pad.js`, docs/CLIENT.md "Standing".
-- **Two hands on a phone on its side** (Jamie, 2026-11-19: "in landscape the tilt, arc,
-  stand controls should be pushed to the left hand side of the screen so the user can
-  control those with the left hand and the throw with the right hand"). On a wide
-  touchscreen the plan block is at the edge away from the meter (the right edge with
-  Meter side, Left), the minimap on its inner side; a mouse keeps it beside the meter.
-  `planAt` in `src/game/layout.js`, docs/CLIENT.md "The plan block on a wide screen".
+- **The tray** (the 1.0 design, the owner, 2026-11-21: "the set-up tray (ARC, TILT,
+  STAND as three equal plates) stays visible at the edge away from the meter; SIDE VIEW is
+  no longer a button"; it grew from Jamie's two hands of 2026-11-19: "in landscape the
+  tilt, arc, stand controls should be pushed to the left hand side of the screen so the
+  user can control those with the left hand and the throw with the right hand"). ARC,
+  TILT and STAND are three plates of one size (86 by 60 on a phone, 104 by 70 wider) in a
+  column at the screen's edge away from the meter, upright and wide, mouse and touch; a
+  tap opens one into its control, one at a time, ARC open is the side view, and Escape or
+  a tap outside closes it. The minimap hangs under the header's right end in every
+  layout. `src/game/tray.js`, `trayAt` in `src/game/layout.js`, docs/CLIENT.md "The
+  tray", the numbers in docs/SYSTEM.md "Play screens".
 - Practice's tray is BATONS | KUBBS, the one in use pressed (it was one button naming the
   other mode). The rail counts in words ("5 BASE KUBBS", "TARGET 2.3 M"), not the
   engine's Playdate "BASE 5" (`railCount` in `src/game/hud.js`).

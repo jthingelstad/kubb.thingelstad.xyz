@@ -297,10 +297,27 @@ export async function watchThrows(page) {
   });
 }
 
+// Open a plate of the tray (src/game/tray.js) if it is closed: which "arc",
+// "side" or "stand". Its control shows only while it is open.
+export async function openPlate(page, which) {
+  const open = await page.evaluate(
+    (which) =>
+      document
+        .querySelector(`[data-test=plate-${which}]`)
+        ?.hasAttribute("data-open"),
+    which,
+  );
+  if (open) return;
+  await page.click(`[data-test=${which}-plate]`);
+  await nextFrame(page);
+  await nextFrame(page);
+}
+
 // A plan slider's point for place f (0..1: bottom to top for ARC, left to
 // right for TILT), in CSS px; which: "arc" | "side". `across` (0..1) is
-// where across the body the pointer goes.
+// where across the body the pointer goes. Its plate is opened first.
 export async function sliderPoint(page, which, f, across = 0.5) {
+  await openPlate(page, which);
   return page.evaluate(
     ({ which, f, across }) => {
       const el = document.querySelector(`[data-test=${which}]`);

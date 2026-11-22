@@ -38,6 +38,9 @@ export class Cards {
       card,
     );
     this.layer.append(scrim);
+    // a card that dims the pitch (all but a watched turn's banner): the game
+    // draws no meter round it
+    this.dims = !banner;
     if (game && modal) game.modal++;
     let closed = false;
     const close = () => {
@@ -45,7 +48,10 @@ export class Cards {
       closed = true;
       scrim.remove();
       if (game && modal) game.modal = Math.max(0, game.modal - 1);
-      if (this.open === close) this.open = null;
+      if (this.open === close) {
+        this.open = null;
+        this.dims = false;
+      }
       onClose?.();
     };
     this.open = close;

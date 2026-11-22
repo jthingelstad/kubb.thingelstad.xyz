@@ -49,6 +49,9 @@ const coach = (page) =>
       line: el.querySelector(".coach-line").textContent,
       lead: lead.hidden ? null : lead.textContent,
       box: box(el),
+      // one style (the 1.0 design): one inverted ink chip, lead and line in it
+      chips: el.querySelectorAll(".coach-chip").length,
+      ink: getComputedStyle(el.querySelector(".coach-chip")).backgroundColor,
       plans: [...document.querySelectorAll("[data-test=plans] > *")].map(box),
       menu: box(document.querySelector("[data-test=menu]")),
     };
@@ -74,7 +77,10 @@ for (const [kind, prefs, name] of [
       const c = await coach(page);
       assert.equal(c.shown, true);
       assert.equal(c.line, LINES.rest);
+      assert.equal(c.line, "PULL BACK TO THE STRIPES");
       assert.equal(c.lead, null);
+      assert.equal(c.chips, 1, "one chip");
+      assert.equal(c.ink, "rgb(22, 19, 15)", "inverted: ink");
       const L = await page.evaluate(() => window.__kubb.game.L);
       let meter = L.dial;
       if (L.meter !== "linear") {

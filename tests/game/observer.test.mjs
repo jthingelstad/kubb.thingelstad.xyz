@@ -259,7 +259,8 @@ browserTest(
     assert.equal(h0.wide, "thrower");
     assert.equal(h0.members, 2, "the observer is a member, shown watching");
 
-    // the hand-off card: a player keeps the engine's words, a watcher gets the teams
+    // the hand-off card (the 1.0 design: a title, one line, one go button): a
+    // watcher's speaks of the team, never to it
     const handoffOn = (page) =>
       page.evaluate(() => {
         const { cards, game } = window.__kubb;
@@ -282,9 +283,7 @@ browserTest(
         cards.engineCard(card, game.need, game);
         const el = document.querySelector("[data-test=handoff]");
         const out = {
-          bases: [...el.querySelectorAll(".bases .chip")].map(
-            (c) => c.textContent,
-          ),
+          title: el.querySelector("[data-test=handoff-title]").textContent,
           go: el.querySelector("[data-test=handoff-go]").textContent,
           text: el.textContent,
         };
@@ -292,16 +291,9 @@ browserTest(
         return { ...out, teams: game.need.teams };
       });
     const hc = await handoffOn(host);
-    assert.deepEqual(
-      hc.bases,
-      ["YOUR BASE 5", "THEIRS 4"],
-      "players unchanged",
-    );
+    assert.doesNotMatch(hc.text, /BASE/, "no bases line");
     const oc = await handoffOn(obs);
-    assert.deepEqual(oc.bases, [
-      `${oc.teams.B.toUpperCase()} BASE 4`,
-      `${oc.teams.A.toUpperCase()} BASE 5`,
-    ]);
+    assert.equal(oc.title, `${oc.teams.A}’s turn`);
     assert.equal(oc.go, "WATCH");
     assert.doesNotMatch(oc.text, /YOUR|THEIRS|you throw/i);
 

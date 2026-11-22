@@ -33,47 +33,48 @@ options card, as `?solo=1`. The HOW TO THROW overlay
 
 ## Files
 
-| File                                          | What it does                                                                                                                                                                     |
-| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/main.js`                                 | Boot, the routes above, the practice tray, the solo flow; hands `/p/<code>` to `src/net/pitch.js`.                                                                               |
-| `src/game/game.js`                            | `Game`: the loop, input, playback, the raise and punishment scenes, framing. The seam.                                                                                           |
-| `src/game/hud.js`                             | `Hud`: the rail (who throws, what, the counts), the verdict flag and chips, the rest distance, SLOW MOTION and WATCH, the advantage, the plan (sliders, SIDE VIEW, STAND).       |
-| `src/game/plan-sliders.js`                    | The plan's ARC and TILT/SPIN sliders (`PlanSlider`, DOM) and their scales and words (pure, `tests/game/plan-sliders.test.mjs`).                                                  |
-| `src/game/layout.js`                          | Pure: where the dial (or the linear meter), the wide plan block and minimap go, the tall-canvas framing (`worldFit`, `stillFit`, `panFor`), and the wide view's box (`wideBox`). |
-| `src/game/scenes.js`                          | The client's own cameras for raising and punishment, and the pieces in them.                                                                                                     |
-| `src/game/auto-raise.js`                      | Pure: automatic raising for the turn (AUTO ALL) or the match (REST OF GAME on the raise panel).                                                                                  |
-| `src/game/player-name.js`                     | Pure: the device's name (the `name` pref), a generated one: rolled on the first run, a typed name from before replaced on load ("Names").                                        |
-| `src/game/names.js`                           | The engine's `names.*` door: roll, step, choices, the single-name check (`passes`, `shown`), the lobby's "II" (`apartNames`) ("Names").                                          |
-| `src/ui/name-row.js`                          | The name row: the name and SHUFFLE; in Settings a stepper per word; `NAME_FIT` ("Names").                                                                                        |
-| `src/ui/seg.js`                               | The segmented bar: every two to four way choice, one Tab stop with the arrow keys inside ("The 1.0 system", below).                                                              |
-| `src/ui/welcome.js`                           | The pitch link's welcome for a device new to the game (docs/MULTIPLAYER.md "The welcome").                                                                                       |
-| `src/game/raise-touch.js`                     | Pure: raising by touch, where the drawn kubb is, which end a tap or drag means, its tilt.                                                                                        |
-| `src/game/sound.js`                           | `Sound`: the knocks and the king's chord through Web Audio; unlock on the first pointer down; mute remembered.                                                                   |
-| `src/game/nudge.js`, `src/render/nudge.js`    | The throw's nudge: when it shows and the ghost's throw (pure), and its drawing over the meter ("The nudge", below).                                                              |
-| `src/game/prefs.js`                           | `prefs`: localStorage, wrapped so a blocked store only forgets.                                                                                                                  |
-| `src/game/draw.js`                            | The renderer's functions the game uses, in one place.                                                                                                                            |
-| `src/ui/cards.js`                             | `Cards`: the engine's hand-off, pass and settle cards (naming who acts on a shared pitch), the winner, solo options, a plain notice, and the raise and punishment panels.        |
-| `src/ui/lobby.js`                             | `Lobby`: the shared pitch's lobby card.                                                                                                                                          |
-| `src/ui/watching.js`                          | `WatchCard`: an observer's card between matches, in place of the lobby (docs/OBSERVER.md).                                                                                       |
-| `src/ui/watch-view.js`                        | `WatchView` (WIDE VIEW or THROWER'S VIEW, MENU's View, V) and `CamBar` (the hint, RESET VIEW) for anyone watching.                                                               |
-| `src/render/freecam.js`                       | The free camera's orbit and its limits (pure, docs/OBSERVER.md).                                                                                                                 |
-| `src/game/free-camera.js`                     | `FreeCamera`: the mouse, fingers, wheel and keys that move the free camera (docs/OBSERVER.md).                                                                                   |
-| `src/net/pitch.js`                            | `Pitch`: the shared pitch's controller: joins the pitch, runs the lobby, drives the Game through the seam, aim casts, shouts.                                                    |
-| `src/net/lobby.js`, `seats.js`, `sync.js`     | Thin wrappers over kubb-engine's `room.*` rules; cached seat/actor reads keep these calls out of the render loop (docs/MULTIPLAYER.md).                                          |
-| `src/net/pitch-client.js`, `src/net/aim.js`   | The pitch server's client (`backend/pitch-server/PROTOCOL.md`) and the aim on the wire (docs/MULTIPLAYER.md).                                                                    |
-| `src/net/api.js`                              | `apiCall`: the HTTPS api (`backend/api/API.md`) that replays, reels, shares, reports and records go through.                                                                     |
-| `src/game/stand-pad.js`                       | STAND: where the thrower stands, the plate's map to the ground and back and its words (pure), and `StandPad`, its DOM and pointer ("Standing", below).                           |
-| `src/ui/settings.js`                          | The device's settings rows (Your name, Meter, Meter side, Sound), shared by MENU and the `/settings/` page ("Settings", below).                                                  |
-| `src/ui/menu.js`                              | `Menu`: the device's rows (`src/ui/settings.js`), View when watching, Surface and Scene in practice, then how to throw, resign, feedback, rules, home.                           |
-| `src/ui/report.js`, `src/net/report.js`       | The report card, and what a report carries and how it is sent (below, and docs/ROOMS.md section 8).                                                                              |
-| `src/ui/sheet.js`                             | The score sheet card (below).                                                                                                                                                    |
-| `src/net/record.js`                           | What a solo or watch match's record carries and how it is sent (`POST /api/game`).                                                                                               |
-| `src/replay/player.js`, `src/replay/fetch.js` | The replay player (`ReplayPlayer`, `startReplay`) and `fetchReplay`, a pitch's kept replay by its code (below).                                                                  |
-| `src/ui/reel.js`, `src/net/reel.js`           | MAKE A HIGHLIGHT REEL: the button and its card (DOM), and the card's states, words and requests (pure, `tests/net/reel-client.test.mjs`); "Highlight reels", below.              |
-| `src/ui/howto.js`                             | The HOW TO THROW overlay.                                                                                                                                                        |
-| `src/ui/dom.js`                               | `h()` and `button()`.                                                                                                                                                            |
-| `public/game.css`                             | The game pages' styles, linked by `src/site/pages.mjs` after the site's.                                                                                                         |
-| `tests/game/`                                 | `layout.test.mjs` (pure), `client.test.mjs` and `multiplayer.test.mjs` (Playwright); `browser.mjs` is their helper.                                                              |
+| File                                          | What it does                                                                                                                                                                          |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/main.js`                                 | Boot, the routes above, the practice tray, the solo flow; hands `/p/<code>` to `src/net/pitch.js`.                                                                                    |
+| `src/game/game.js`                            | `Game`: the loop, input, playback, the raise and punishment scenes, framing. The seam.                                                                                                |
+| `src/game/hud.js`                             | `Hud`: the rail (who throws, what, the counts), the verdict flag and chips, the rest distance, SLOW MOTION and WATCH, the advantage, the tray's place, the stand-ins.                 |
+| `src/game/tray.js`                            | The tray (the 1.0 design): ARC, TILT/SPIN and STAND as plates of one size, opened one at a time; their words and pictures (pure, `tests/game/tray.test.mjs`).                         |
+| `src/game/plan-sliders.js`                    | The plan's ARC and TILT/SPIN sliders (`PlanSlider`, DOM) and their scales and words (pure, `tests/game/plan-sliders.test.mjs`).                                                       |
+| `src/game/layout.js`                          | Pure: where the dial (or the linear meter), the tray, the header and the minimap go, the tall-canvas framing (`worldFit`, `stillFit`, `panFor`), and the wide view's box (`wideBox`). |
+| `src/game/scenes.js`                          | The client's own cameras for raising and punishment, and the pieces in them.                                                                                                          |
+| `src/game/auto-raise.js`                      | Pure: automatic raising for the turn (AUTO ALL) or the match (REST OF GAME on the raise panel).                                                                                       |
+| `src/game/player-name.js`                     | Pure: the device's name (the `name` pref), a generated one: rolled on the first run, a typed name from before replaced on load ("Names").                                             |
+| `src/game/names.js`                           | The engine's `names.*` door: roll, step, choices, the single-name check (`passes`, `shown`), the lobby's "II" (`apartNames`) ("Names").                                               |
+| `src/ui/name-row.js`                          | The name row: the name and SHUFFLE; in Settings a stepper per word; `NAME_FIT` ("Names").                                                                                             |
+| `src/ui/seg.js`                               | The segmented bar: every two to four way choice, one Tab stop with the arrow keys inside ("The 1.0 system", below).                                                                   |
+| `src/ui/welcome.js`                           | The pitch link's welcome for a device new to the game (docs/MULTIPLAYER.md "The welcome").                                                                                            |
+| `src/game/raise-touch.js`                     | Pure: raising by touch, where the drawn kubb is, which end a tap or drag means, its tilt.                                                                                             |
+| `src/game/sound.js`                           | `Sound`: the knocks and the king's chord through Web Audio; unlock on the first pointer down; mute remembered.                                                                        |
+| `src/game/nudge.js`, `src/render/nudge.js`    | The throw's nudge: when it shows and the ghost's throw (pure), and its drawing over the meter ("The nudge", below).                                                                   |
+| `src/game/prefs.js`                           | `prefs`: localStorage, wrapped so a blocked store only forgets.                                                                                                                       |
+| `src/game/draw.js`                            | The renderer's functions the game uses, in one place.                                                                                                                                 |
+| `src/ui/cards.js`                             | `Cards`: the engine's hand-off, pass and settle cards (naming who acts on a shared pitch), the winner, solo options, a plain notice, and the raise and punishment panels.             |
+| `src/ui/lobby.js`                             | `Lobby`: the shared pitch's lobby card.                                                                                                                                               |
+| `src/ui/watching.js`                          | `WatchCard`: an observer's card between matches, in place of the lobby (docs/OBSERVER.md).                                                                                            |
+| `src/ui/watch-view.js`                        | `WatchView` (WIDE VIEW or THROWER'S VIEW, MENU's View, V) and `CamBar` (the hint, RESET VIEW) for anyone watching.                                                                    |
+| `src/render/freecam.js`                       | The free camera's orbit and its limits (pure, docs/OBSERVER.md).                                                                                                                      |
+| `src/game/free-camera.js`                     | `FreeCamera`: the mouse, fingers, wheel and keys that move the free camera (docs/OBSERVER.md).                                                                                        |
+| `src/net/pitch.js`                            | `Pitch`: the shared pitch's controller: joins the pitch, runs the lobby, drives the Game through the seam, aim casts, shouts.                                                         |
+| `src/net/lobby.js`, `seats.js`, `sync.js`     | Thin wrappers over kubb-engine's `room.*` rules; cached seat/actor reads keep these calls out of the render loop (docs/MULTIPLAYER.md).                                               |
+| `src/net/pitch-client.js`, `src/net/aim.js`   | The pitch server's client (`backend/pitch-server/PROTOCOL.md`) and the aim on the wire (docs/MULTIPLAYER.md).                                                                         |
+| `src/net/api.js`                              | `apiCall`: the HTTPS api (`backend/api/API.md`) that replays, reels, shares, reports and records go through.                                                                          |
+| `src/game/stand-pad.js`                       | STAND: where the thrower stands, the plate's map to the ground and back and its words (pure), and `StandPad`, its DOM and pointer ("Standing", below).                                |
+| `src/ui/settings.js`                          | The device's settings rows (Your name, Meter, Meter side, Sound), shared by MENU and the `/settings/` page ("Settings", below).                                                       |
+| `src/ui/menu.js`                              | `Menu`: the device's rows (`src/ui/settings.js`), View when watching, Surface and Scene in practice, then how to throw, resign, feedback, rules, home.                                |
+| `src/ui/report.js`, `src/net/report.js`       | The report card, and what a report carries and how it is sent (below, and docs/ROOMS.md section 8).                                                                                   |
+| `src/ui/sheet.js`                             | The score sheet card (below).                                                                                                                                                         |
+| `src/net/record.js`                           | What a solo or watch match's record carries and how it is sent (`POST /api/game`).                                                                                                    |
+| `src/replay/player.js`, `src/replay/fetch.js` | The replay player (`ReplayPlayer`, `startReplay`) and `fetchReplay`, a pitch's kept replay by its code (below).                                                                       |
+| `src/ui/reel.js`, `src/net/reel.js`           | MAKE A HIGHLIGHT REEL: the button and its card (DOM), and the card's states, words and requests (pure, `tests/net/reel-client.test.mjs`); "Highlight reels", below.                   |
+| `src/ui/howto.js`                             | The HOW TO THROW overlay.                                                                                                                                                             |
+| `src/ui/dom.js`                               | `h()` and `button()`.                                                                                                                                                                 |
+| `public/game.css`                             | The game pages' styles, linked by `src/site/pages.mjs` after the site's.                                                                                                              |
+| `tests/game/`                                 | `layout.test.mjs` (pure), `client.test.mjs` and `multiplayer.test.mjs` (Playwright); `browser.mjs` is their helper.                                                                   |
 
 ## The multiplayer seam
 
@@ -137,7 +138,8 @@ game page no text selection. A press is tried in this order: the meter (the cloc
 the linear meter's knob, then its body, which takes the press and does nothing), the
 target circle (56 px round it on touch, 30 px with a mouse), the thrower, then
 the clock's finger track (touch), the linear meter's throw zone, and last a tap on the
-pitch. The plan (its sliders, SIDE VIEW and STAND) is DOM and comes before all of it. On a
+pitch. The tray (ARC, TILT and STAND, "The tray" below) is DOM and comes before all of it;
+a press outside it first closes an open plate. On a
 wide canvas a finger grabs the linear meter's knob across its channel only, and the rest
 of its body is throw zone (a tap aims, a drag strokes): `linearFirst` and `inLinearZone`
 in `src/game/layout.js`, "A phone on its side" below.
@@ -155,12 +157,13 @@ in `src/game/layout.js`, "A phone on its side" below.
   drag there strokes the meter; a drag on the clock's finger track still turns the arm.
 - **Standing**: STAND in the plan, a drag on a picture of the line ("Standing", below).
   Or A/D and W/S, or STAND's arrow keys. There is no WALK.
-- **The plan**: the ARC and TILT (a baton) or SPIN (a kubb) sliders, SIDE VIEW and STAND
-  ("The plan's sliders", below); R/F and Q/E step them. Where the block sits is "The
-  plan block on a wide screen", below.
+- **The plan**: the ARC and TILT (a baton) or SPIN (a kubb) sliders and STAND, each a
+  plate of the tray opened by a tap ("The tray" and "The plan's sliders", below); R/F and
+  Q/E step them without opening anything.
 - **Side view** (the engine's plan view: the camera out over the shoulder, the planned arc
-  dashed): SIDE VIEW is a toggle for every pointer; held Shift peeks; dragging a slider
-  shows it. Starting a throw turns it off.
+  dashed): shown while ARC's plate is open (SIDE VIEW is no longer a button: the 1.0
+  design); held Shift peeks; dragging TILT shows it. Starting a throw turns it off (the
+  press closes the plate).
 - Space skips a playback.
 
 **The plan's sliders** (2026-11-19, `src/game/plan-sliders.js`). Jamie: "I'd like to make
@@ -201,7 +204,7 @@ step, unit, scope }` for `arc`, `tilt` and `spin`), and the slider takes any val
   the focus.
 - **Dragging shows the arc.** While a slider is held, and `tune.slidePeek` (0.5 s) after,
   the engine is fed `plan` (the side view), so the player sees what the change did without
-  a second button. SIDE VIEW does not light for it.
+  a second button; ARC's open plate shows it the whole time it is open.
 - **The slider says what it does** (a tester, 2026-11-19: "I can't tell what tilt does at
   all", and nothing said how arc and tilt affect the toss; Jamie: "Have the UI show it not
   a separate how to page"). While a slider is held, and through the peek after, one line
@@ -221,12 +224,8 @@ step, unit, scope }` for `arc`, `tilt` and `spin`), and the slider takes any val
 - **Online**, the aim is cast on its own clock, 15 a second at most and only when it
   changed (`src/net/aim.js`): a drag that changes the aim every frame sends no more than
   walking or dragging the circle does, under the pitch server's 16 a second.
-- **Where.** A wide screen: one block on the meter's inner side, TILT over STAND, and
-  ARC over SIDE VIEW by the meter (`mirror` when the block is right of the meter). It is
-  no taller than TILT and STAND, so it stays under the linear meter's prompt on a
-  desktop and clear of the target circle on a phone on its side. A tall one: split
-  either side of the throwing line, ARC over SIDE VIEW on the left and TILT over STAND
-  on the right (`Hud.place`).
+- **Where.** In the tray ("The tray", below): each slider is the inside of its plate,
+  shown while the plate is open. ARC's lane of marks is toward the screen's centre.
 - B still peeks as Shift does (the Playdate's B button) but is not documented on the
   page.
 
@@ -237,7 +236,7 @@ pitch a joystick for the thrower: the same press meant something else depending 
 button pressed before it. The pitch could not take a direct drag instead: in the
 thrower's view the camera stands behind the thrower, whose spot projects below the
 screen's bottom edge (about 180 px below a phone's, far more on a desktop). So STAND
-(`src/game/stand-pad.js`) is a plate in the plan, at least 44 px tall: the throwing line
+(`src/game/stand-pad.js`) is a plate in the tray, at least 44 px tall open: the throwing line
 seen from above, the ground behind it the rules allow (light), the advantage line dashed
 when there is one, and a ring where the thrower stands.
 
@@ -252,7 +251,8 @@ when there is one, and a ring where the thrower stands.
   walk keys are. JS does not clamp. Nothing is thrown and the target circle stays.
 - While held, and `tune.standPeek` (1 s) after, the caption above the plan says where and
   what: "1.2 M LEFT, 0.5 M BACK. Stand on your line or behind it." (or "... or
-  up to the advantage line."). The aria-label carries the same words.
+  up to the advantage line."). The aria-label carries the same words. STAND is the tray's
+  third plate: closed, the line from above with the ring; open, this plate.
 - With the focus, the arrow keys step it `tune.keyStep` (0.25 m). A/D/W/S still walk as
   the engine's keys do. The pitch's presses (a tap aims, a drag moves the circle, the
   linear zone's stroke) never walk.
@@ -268,11 +268,27 @@ strongly prefers the circle, so the dial stays and stays the default.
 - **The linear meter** (`src/render/linear.js`) is the dial unrolled into a straight track
   at the right edge of the screen: the knob's home in the middle is the clock's 6, the
   backswing runs down from it (toward the player) and the forward swing up (toward the
-  target). Grab the knob, draw back to the orange mark, fling up through the middle and let
-  go on the blue mark. The body is two columns: the lane on the left carries the targets
+  target). Grab the knob, draw back to the stripes (the power band), fling up through the
+  middle and let go on the solid mark (the release band). The body is two columns: the lane on the left carries the targets
   and the live peak, and the channel carries the knob and the last throw's ghosts, so the
   knob and the finger on it never hide a target. The prompt is a tab on its left at the
   knob's home.
+- **The marks by pattern** (the 1.0 design, "Meter"): the power band is striped (its
+  colour in stripes on paper, the deep colour the same across the ring or the lane), the
+  release band solid, both with heavy ink end-marks; on the clock's finger track the power
+  band is dashed. Colour stays, but it is no longer the only signal, in every scene. The
+  overpowered zone is cross-hatched (it was hatched one way), so the stripes are the
+  power band's alone, as the coach's "the stripes" needs.
+- **The distance** (the 1.0 design): beside the prompt (WIND BACK, DRAW BACK, FLICK!) an
+  inverted tab with the throw's distance to the nearest metre, "8 M", from the plan's own
+  distance (stance to circle, the session's `plan.dist`): on the clock the two centred over
+  it, on the linear meter at the prompt tab's free end (`tabRect` allows 7 of its heights
+  for the two). Only on this player's own throw.
+- **A watched turn** (the computer's, or another player's on a shared pitch): the meter at
+  half strength, its prompt a WATCH tab on the thrower's team colour, and no WATCH pill
+  over the pitch (the 1.0 design's computer's turn: "the header, a WATCH tab in the
+  computer's colour and the faded meter"). Round a card that dims the pitch the meter is
+  not drawn at all.
 - **The last throw's marks are ghosts, not targets** (a tester, 2026-11-19, of the hollow
   ink rings that marked it: "the target dot is in the red"). Where the last throw's back
   and stop were, both meters draw a faded ghost of the knob (and on the clock the outer
@@ -349,7 +365,7 @@ strongly prefers the circle, so the dial stays and stays the default.
   tray or the view tray, SKIP and the update note at the right, the rail, the shout bar
   and the shouts at the left
   (`meterRoom`; the game sets `--meter-r` and `--meter-l` for `game.css`; nothing moves in
-  the wide view, which draws no meter). The plan block, the coach line and the nudge go as
+  the wide view, which draws no meter). The tray, the coach line and the nudge go as
   below.
 
 - **Not yet**: the meter in use is not recorded with the throw (that needs an engine
@@ -420,61 +436,60 @@ canvas's linear meter whose box reaches the header row moves the rail in beside 
 clock is centred and the side has no effect on it (the menu says so); the linear meter's
 plan splits across what the meter leaves.
 
-**The plan block on a wide screen** (Jamie, 2026-11-19: "in landscape the tilt, arc,
-stand controls should be pushed to the left hand side of the screen so the user can
-control those with the left hand and the throw with the right hand"). On a wide canvas the
-plan is one block, `tune.planW` x `tune.planH` (202 x 168 CSS px: TILT over STAND in a
-124 px column, ARC over SIDE VIEW in a 70 px one), its foot 10 px above the meter's box's
-foot. `layoutFor` returns it as `plan` (its rect) and `planEdge` (`planAt` in
-`src/game/layout.js`):
+**The tray** (the Throwing Wood 1.0 design, "Aim layout", the owner's choice of
+2026-11-21: "the set-up tray (ARC, TILT, STAND as three equal plates) stays visible at
+the edge away from the meter; SIDE VIEW is no longer a button"; it carries on Jamie's two
+hands of 2026-11-19: "in landscape the tilt, arc, stand controls should be pushed to the
+left hand side of the screen so the user can control those with the left hand and the
+throw with the right hand"). `src/game/tray.js` is the DOM and the keys, `layout.js`
+`trayAt` the place, `hud.js` `place` the sizes; docs/SYSTEM.md "Play screens" has every
+number.
 
-- **A touchscreen** (`coarse`): the block is at the screen's edge away from the meter, 8 px
-  inside the safe area: the left edge with the meter on the right (the default), the right
-  edge with Meter side, Left (`planEdge` "left" or "right"). It is the same block slid to
-  the edge, mirrored at the right edge, so TILT and STAND are always at the screen's edge
-  and ARC and SIDE VIEW toward the middle. The minimap leaves its corner for the block's
-  inner side, 12 px from it, its foot where it was, so it is out from under the thumb and
-  far from the clock's touch zone beside the ring (2.1 radii). The clock or the linear
-  meter stays where it was. On an iPhone on its side (852 x 393, 59 px insets left and
-  right, 21 at the bottom) the block is at x 67 to 269 and the minimap 281 to 344, the
-  throwing line at 426.
-- **A mouse**: the block stays beside the meter on its inner side (`planEdge` null): one
-  hand does everything there, so near is better. So does a touchscreen too narrow to keep
-  the block and the minimap `tune.planClear` (24 px) short of the throwing line.
-- **Beside the linear meter** the block never goes over the prompt tab (`tabRect` in
-  `linear.js`, 5 tab heights wide). Where beside would reach it (a short window with a
-  mouse, now that the linear meter holds there) the block goes to the far edge as on a
-  touchscreen. Where the far edge cannot keep the block and the minimap off the throwing
-  line, the block stays there and the minimap goes over it, 12 px above, its inner edge
-  with the block's (`mapStacked`), or is not drawn (`minimap` null) where it would come
-  within `tune.stackedMapGap` (10 px) of the rail's box: 600 x 420 has it, 600 x 380 not.
-  Beside the clock this is as before.
-- **No room, the clock** (Codex on PR #71, twice). Where no placement keeps the block off
-  the tab and the minimap (`planAt` returns null), or where the plates the meter moves in
-  would crowd the header row (`headerFits`), the layout is the clock's, whole, and nothing
-  moves. `layoutFor` decides it in one place and never returns a linear layout with a
-  known collision. The game passes what its header holds (`opts.header`: `"practice"`,
-  `"watch"` or null for a match; `Game.setHeader`, set by `main.js` with the tray), and
-  `headerPlates` places the two plates with the widths measured in the browser: the rail
-  at its widest (practice's 140, watching's 237, the counts' nowrap widest, a match's 44% of
-  the canvas, since its names are the players') must end `tune.headerGap` (8 px) short of
-  the right corner's row (MENU 64 with SKIP 60 under it, or the tray: practice's BATONS |
-  KUBBS and RESET 222, or the view tray 90, its right edge 100 px in). The sweep in
-  `tests/game/layout.test.mjs` (360 to 1400 by 300 to 900 px, both sides, mouse and touch,
-  no insets, a notch, a top bar, each header) holds every linear layout free of overlaps;
-  `client.test.mjs` holds the page's plates to those widths. Of the sizes with room for the track, the clock is drawn on windows up
-  to 580 px wide in practice (480 x 350 among them), 540 while watching and 460 in a match
-  (400 x 350); with notch insets 660, 640 and 560. Every phone on its side keeps
-  the linear meter in every mode. With a moved row the update note wraps short of the
-  rail's widest (`.meter-room`), and the shout bar keeps inside the canvas.
-- **A tall canvas** has no block (`plan` null): the plan splits either side of the line.
+- **Three plates of one size**, ARC, TILT (SPIN for a kubb) and STAND top to bottom, 86
+  by 60 on a phone (a short side under 520 px) and 104 by 70 wider, 8 px apart, each its
+  value on a wood band over a small picture of it (the planned arc dashed, the leaning
+  baton, the line with the ring). A plate is a button (`aria-expanded`, its value
+  spoken: "Arc, 22 degrees"); the column is the group "Throw set-up".
+- **Where.** At the screen's edge away from the meter, 12 px inside the safe area:
+  upright the left edge beside the clock or the linear meter (the right edge with Meter
+  side, Left), wide the left edge with the meter at the right and the right with it at
+  the left. A mouse too: the block beside the meter went (one hand did everything there,
+  but the design gives one place). The foot is 10 px above the meter's box's foot;
+  upright beside the clock it stands above the clock's face and, on a touchscreen, its
+  finger track where its inner edge is (the throwing thumb's ground stays clear: on 390 x
+  844 the column is at 12, 340 to 536 while the clock's centre is at 667), and above the
+  prompt. On a short screen the column comes down toward the safe bottom, then its
+  plates grow shorter, never under 48 px to a finger.
+- **Open.** A tap opens a plate, one at a time: it grows up from its place, the column's
+  foot staying, into its control: ARC's slider, TILT's or SPIN's, STAND's line from above
+  (TILT and STAND also grow in toward the middle, short of the screen's centre by 24 px
+  and of the minimap where it stands lower beside the column). Where the room under the
+  header (or the minimap, or a corner's plates) leaves an open plate under 100 px with
+  the others showing, it covers them from the foot up. ARC open is the side view until it
+  closes. The band of the open plate closes it, and so do Escape (the focus back on the
+  plate), a press anywhere outside the tray (which then does what it does: a tap still
+  aims, a press on the meter throws) and opening another. From the keyboard: Tab reaches
+  each plate, Enter or Space opens it and gives its control the focus, the arrows step
+  it; the arrows on a closed plate step it too.
+- **What went.** `planAt`'s block beside the meter for a mouse, the split either side of
+  the throwing line upright, SIDE VIEW, the minimap stacked over the block or left out on
+  a narrow canvas, and the plan's own size (202 x 168). What stayed: the clock where a
+  screen cannot give the linear track its travel (`minTravel`, `wideMinTravel`), and
+  where the header row would be crowded (`headerFits`); the far edge for the other hand
+  on a phone on its side (now everywhere); nothing on the throwing line on a wide screen.
+- **The minimap** hangs under the header's right end in every layout, 8 px under it, so it
+  never moves while a control is held: the header has a fixed width for the layout
+  (`headerBox`; tall the safe width, wide 40% of it, 260 to 400 px). Since the minimap
+  can meet a narrow window's prompt tab, the linear meter now holds from 560 px wide in a
+  match (it was 480), 580 in practice and 540 watching as before; with notch insets 640,
+  680 and 640.
 
-The held slider's caption grows from the block's edge at the screen's edge toward the
-middle (beside the meter, away from the meter); it is lifted above the linear meter's tab
-only where its span reaches the tab, and above a stacked minimap. The web's captions sit
-over the block, so the iPhone's caption strip beside SHOUT (its 112 pt floor and own line
-under the header row) has no web counterpart. The coach line measures the block as
-before. On a short screen only the newest shout shows, above the block.
+The held slider's caption stands over the tray, growing from the screen's edge the tray
+is at toward the middle, at least 330 px wide where there is room (never onto a tall
+canvas's linear meter, and lifted above a wide canvas's prompt tab where its span reaches
+it); where an open plate has taken the room over the tray it stands beside that plate's
+top on its inner side. The iPhone's caption strip beside SHOUT has no web counterpart. On
+a short screen only the newest shout shows.
 
 **The nudge** (2026-11-19). Jamie: "A couple of users have had a lot of confusion on how
 to throw. It would be awesome if we see the user not making progress on a throw to
@@ -526,9 +541,11 @@ hooks, right after `drawMeter`. The HOW TO THROW card is unchanged.
 **The coach line** (2026-11-19). A tester: "Does it matter how quickly or slowly I track
 my finger". It does, but only one way, and the meter now says so in place (Jamie: "Have
 the UI show it not a separate how to page"). A line of words sits just over the meter's
-prompt and follows the stroke: PULL BACK TO THE ORANGE MARK at rest, NO RUSH GOING BACK
-while drawing back short of the power band, and NOW FLICK FAST AND STOP ON THE BLUE MARK
-from the band on (the marks are the HOW TO THROW card's words). That is the engine: the
+prompt and follows the stroke: PULL BACK TO THE STRIPES at rest, NO RUSH GOING BACK
+while drawing back short of the power band, and NOW FLICK FAST AND STOP ON THE SOLID MARK
+from the band on (the 1.0 design names the marks by their shape, not their colour: the
+owner's decision of 2026-11-21, with the iPhone's Coach.swift). It is one inverted ink
+chip, the SLOW lead on its own line inside it, never pills of their own. That is the engine: the
 pull back sets the power at any speed, a flick slower than `fullFlickDps` delivers only
 part of it (the verdict SLOW), and the throw leaves where the flick stops.
 `src/game/coach.js` is the pure part (`coachFor`, `stageOf`, `slowVerdict`; tested in
@@ -540,11 +557,11 @@ part of it (the verdict SLOW), and the throw leaves where the flick stops.
   this player's own aim (the plan showing), never while watching, in the wide view, while
   the nudge's ghost plays the same stroke, or while a slider's caption is up (one voice at
   a time).
-- **Where.** Centred over the clock's prompt plate, or over the linear meter's tab from
-  the meter's inner edge, 8 px above it, at most 280 px wide and short of any plan control
-  level with it, so it never covers the sliders, the minimap or MENU. On a wide canvas
-  with the plan block at the far edge (a phone on its side) it hangs 8 px under the tab
-  instead, in the meter's half (`planClear` short of the centre line), as on the iPhone:
+- **Where.** Centred over the clock's prompt plate (moved over, not squeezed, by an open
+  plate beside it), or over the linear meter's tab from the meter's inner edge, 8 px above
+  it, at most 280 px wide and short of any plate level with it, so it never covers the
+  tray, the minimap or MENU. Beside a wide canvas's linear meter (the tray is always at the
+  far edge now) it hangs 8 px under the tab instead, in the meter's half (`planClear` short of the centre line), as on the iPhone:
   over the tab it would meet the verdicts and the header on a short screen. It takes no presses:
   a tap through it still aims.
 - **Drawing only.** Never fed to the engine, sent or recorded.
@@ -654,8 +671,23 @@ throws he took for perfect had been judged long.
 
 ## Match flow
 
-- The engine's cards: the hand-off (whose turn, what they throw, both bases, a map), the
-  pass and the settle cards. The computer's turn shows as WATCH.
+- **The hand-off** (the 1.0 design): a short card at the foot of the screen, the header
+  whole over the dim: the title ("Your turn" for this browser's own turn, else the
+  name's: "Lucky Larch’s turn"), one line and one go button (THROW; WATCH for a turn it
+  only watches). No turn number (the header says it), no map (the minimap is the map),
+  no bases. The settle card before a raise or punishment by hand is the same card, its go
+  READY. The line says what the thrower faces, from the session's need, in plain words
+  (`handoffLine` in `src/ui/handoff-words.js`, the words in one table, `HANDOFF_LINES`):
+  a turn of batons "Six batons. Two field kubbs to clear first." (the field kubbs standing
+  in the other half, from the engine's hand-off card), "Six batons. Aim for the base
+  kubbs." with none, "Six batons. Go for the king." when every base kubb of the other
+  side is down; an inkast "Throw three kubbs into the other half."; a raise by hand "Stand
+  your kubbs up."; and, which the design's list did not cover, punishment kubbs "Place one
+  punishment kubb.". Counts are words up to ten. The pass card inside a team is as before.
+  Someone else's turn on a shared pitch is the same card as a banner at the top, the pitch
+  live under it, closing itself.
+- **The computer's turn** shows no card: the header, the meter faded with WATCH on the
+  computer's colour.
 - **Raising by hand**: the kubb lying, its two ends numbered on the pitch. Tap or click
   anywhere on the kubb (its drawn outline plus `tune.margin`, 24 px) and it stands on the
   nearer end; a tap within `tune.labelR` of a number takes that end. A drag that starts on
@@ -759,9 +791,12 @@ throws he took for perfect had been judged long.
   as two numbers on the team colours, A marigold and B violet (the need's `standing`,
   field and base kubbs together: the engine gives no base-only count), with the spoken
   label "Kubbs standing: Mighty Maple 5, Computer 5", and MENU as a word inside the plate
-  (`hud.menuSlot`). Under a card that dims the pitch it is not shown. A tall screen gives
-  it the width the minimap leaves; what stood under it there stands under its height
-  (`--rail-h`). The counts in words (`railCount`) are the engine's Playdate "BASE 5" made
+  (`hud.menuSlot`). Under a card that dims the pitch it is not shown (the hand-off's short
+  card excepted: there it stands whole over the dim). Its width is fixed for the layout
+  (`layout.js` `headerBox`, `--rail-w`): a tall screen's safe width, a wide one's 40%
+  (260 to 400 px); the minimap hangs under its right end, and the page's measured height
+  (`--rail-h`, `railH`) moves both. Nothing of the aim's controls (the tray, SKIP, the
+  coach, the caption, the meter) shows round a card that dims the pitch. The counts in words (`railCount`) are the engine's Playdate "BASE 5" made
   plain. Practice's tray is a joined pair, BATONS | KUBBS, the one in use pressed, then
   RESET, at the top right.
 
@@ -789,8 +824,19 @@ matches them.
   ring round the whole bar and the part ringed inside.
 - **Focus and touch**: a 3 px ink ring 2 px off every control; Escape closes an open card
   (the menu, Settings back to the menu, the share, sheet, reel, embed and report cards, the
-  how-to); every control 44 px tall, 48 on a touchscreen, the steppers and quiet links
-  included (the plan's plates keep their size until the aim layout's stage).
+  how-to), and an open plate of the tray; every control 44 px tall, 48 on a touchscreen,
+  the steppers and quiet links included, the tray's plates 86 by 60 at their smallest.
+- **The play screens** (stage 3; docs/SYSTEM.md "Play screens"): the tray ("The tray"
+  under "The throw"), the minimap under the header's right end with Team A's kubbs
+  circles and Team B's squares, the meter's striped and solid marks and the distance tab,
+  the verdict (the off word first, inverted, 18 px, with an arrow: down for SHORT and
+  LOW, up for LONG and HIGH, left and right for PULLED, a wavy line for SHAKY, a clock
+  hand for SLOW; the on-target words small after it; said once to a screen reader, the
+  off word first), SKIP a plain button of normal size, the hand-off and the computer's
+  turn ("Match flow"), and the coach as one ink chip. Stand-ins over the canvas
+  (`hud.js` `proxies`) give the keyboard and a screen reader the design's order: the
+  header, the prompt and distance, the meter, the tray, the minimap as one image with a
+  spoken summary.
 
 ## Names
 
@@ -1250,13 +1296,16 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
 - `tests/game/plan-client.test.mjs` (Playwright): dragging ARC lands between the old
   15-degree steps and its header follows; TILT takes a value off its ticks, reaches 20
   either way and an arrow moves it a tick, SPIN (KUBBS) 3; a kubb's spin is the next
-  kubb's; a drag shows the side view and it goes after the peek; SIDE VIEW
-  toggles with a mouse click; and in every layout (a wide screen with the clock right and
-  left, a tall phone with the clock and with the linear meter right and left, a phone on
-  its side with the meter right and left, a 390 x 664 window) the plan overlaps neither
-  the meter, the minimap nor MENU, a wide screen's block is the size `layout.js` plans
-  for (`tune.planW`, `planH`) and on a phone on its side at the far edge, and each
-  slider's hit area, and STAND's, is at least 44 px across its drag.
+  kubb's; ARC open is the side view until it closes and a TILT drag peeks; the plates
+  open one at a time and close on Escape, a tap outside (which still aims) and their
+  band; the keyboard reaches each plate, Enter opens it with its control focused, the
+  arrows step it and Escape gives the focus back, in the design's Tab order; and in every
+  layout (a wide screen with the clock right and left, a tall phone with the clock and
+  with the linear meter right and left, a phone on its side with the meter right and
+  left, a 390 x 664 window) the column is where and as big as `layout.js` plans, at the
+  edge away from the meter, and each plate, closed and open, overlaps neither the meter,
+  the minimap nor the header, the minimap does not move while one is open, and each
+  control's hit area is at least 44 px across its drag.
 - `tests/game/settings-client.test.mjs` (Playwright): `/settings/` from the web game's
   page replaces a device's typed name with a generated one and shows no text field, has
   no match option and no level of your own, keeps the device's older level, and what it

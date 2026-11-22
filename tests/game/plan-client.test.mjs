@@ -2,8 +2,10 @@
 // 2026-11-19: "I'd like to make arc and tilt less buttons and more a slider
 // with continuous movement"): ARC, TILT and SPIN take any value in the engine's
 // range (engine 0.9's aim.controls; on 0.8 and 0.7 TILT and SPIN settled on
-// steps), a drag shows the side view, SIDE VIEW is a toggle, and
-// in every layout the sliders keep clear of the meter, the minimap and MENU.
+// steps), and the tray (the 1.0 design: src/game/tray.js): three plates of
+// one size, each opened by a tap into its control, one at a time, ARC open the
+// side view, closed by Escape, a tap outside or its band; in every layout the
+// plates, closed and open, keep clear of the meter, the minimap and the header.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -15,6 +17,7 @@ import {
   waitPhase,
   dialGeometry,
   dragSlider,
+  openPlate,
   nextFrame,
   sweep,
   swing,
@@ -234,31 +237,44 @@ browserTest("throwing KUBBS the slider is SPIN, to 3 either way", async () => {
   }
 });
 
-browserTest("a drag shows the side view, and it goes soon after", async () => {
-  const page = await open(env, "/practice/?nohowto=1", "desktop");
-  try {
-    await waitPhase(page, "aim", 10000);
-    assert.equal(await sideViewWanted(page), false);
-    const release = await dragSlider(page, "arc", [0.5, 0.7], { keep: true });
-    await page.waitForTimeout(400);
-    assert.equal(await sideViewWanted(page), true, "on while held");
-    const mix = await page.evaluate(() => window.__kubb.game.out.aim.mix);
-    assert.ok(mix > 0, `the camera swings out: ${mix}`);
-    await release();
-    await nextFrame(page);
-    assert.equal(await sideViewWanted(page), true, "still out just after");
-    await page.waitForTimeout(800);
-    assert.equal(await sideViewWanted(page), false, "back after the peek");
-    assert.equal(
-      await page.getAttribute("[data-test=side-view]", "aria-pressed"),
-      "false",
-      "the button did not light",
-    );
-    assert.deepEqual(page.errors, []);
-  } finally {
-    await page.context().close();
-  }
-});
+browserTest(
+  "ARC open is the side view until it closes; a TILT drag peeks, and the peek goes soon after",
+  async () => {
+    const page = await open(env, "/practice/?nohowto=1", "desktop");
+    try {
+      await waitPhase(page, "aim", 10000);
+      assert.equal(await sideViewWanted(page), false);
+      await openPlate(page, "arc");
+      await page.waitForTimeout(400);
+      assert.equal(await sideViewWanted(page), true, "on while ARC is open");
+      const mix = await page.evaluate(() => window.__kubb.game.out.aim.mix);
+      assert.ok(mix > 0, `the camera swings out: ${mix}`);
+      await page.keyboard.press("Escape");
+      await nextFrame(page);
+      assert.equal(await sideViewWanted(page), false, "off when it closes");
+      // TILT open is no side view; its drag is, and half a second after
+      await openPlate(page, "side");
+      assert.equal(
+        await sideViewWanted(page),
+        false,
+        "TILT open: no side view",
+      );
+      const release = await dragSlider(page, "side", [0.5, 0.7], {
+        keep: true,
+      });
+      assert.equal(await sideViewWanted(page), true, "on while held");
+      await release();
+      await nextFrame(page);
+      assert.equal(await sideViewWanted(page), true, "still out just after");
+      await page.waitForTimeout(800);
+      assert.equal(await sideViewWanted(page), false, "back after the peek");
+      assert.equal(await page.locator("[data-test=side-view]").count(), 0);
+      assert.deepEqual(page.errors, []);
+    } finally {
+      await page.context().close();
+    }
+  },
+);
 
 // The engine takes no swing while the plan view is wanted, so the half
 // second of side view after a slider must end the moment a throw begins.
@@ -321,25 +337,154 @@ browserTest(
   },
 );
 
-browserTest("SIDE VIEW is a toggle with a mouse", async () => {
-  const page = await open(env, "/practice/?nohowto=1", "desktop");
-  try {
-    await waitPhase(page, "aim", 10000);
-    const btn = page.locator("[data-test=side-view]");
-    assert.equal(await btn.textContent(), "SIDE VIEW");
-    await btn.click();
-    await page.waitForTimeout(300);
-    assert.equal(await sideViewWanted(page), true, "on after the click");
-    assert.equal(await btn.getAttribute("aria-pressed"), "true");
-    await btn.click();
-    await page.waitForTimeout(300);
-    assert.equal(await sideViewWanted(page), false, "off after another");
-    assert.equal(await btn.getAttribute("aria-pressed"), "false");
-    assert.deepEqual(page.errors, []);
-  } finally {
-    await page.context().close();
-  }
-});
+// The tray (the 1.0 design): a tap opens a plate, one at a time; Escape, a tap
+// outside the tray and the open plate's band close it. The keyboard reaches
+// each plate with Tab (its value spoken), Enter opens it with the control
+// focused, the arrows step it, and Escape gives the focus back to the plate.
+const plates = (page) =>
+  page.evaluate(() =>
+    ["arc", "side", "stand"].map((k) => {
+      const el = document.querySelector(`[data-test=plate-${k}]`);
+      const t = el.querySelector(".plate-toggle");
+      return {
+        open: el.hasAttribute("data-open"),
+        expanded: t.getAttribute("aria-expanded"),
+        label: t.getAttribute("aria-label"),
+        head: t.querySelector(".plate-head").textContent,
+      };
+    }),
+  );
+
+browserTest(
+  "the plates open one at a time; Escape, a tap outside and the band close them",
+  async () => {
+    const page = await open(env, "/practice/?nohowto=1", "portrait");
+    try {
+      await waitPhase(page, "aim", 10000);
+      let p = await plates(page);
+      assert.deepEqual(
+        p.map((x) => x.head),
+        ["ARC 22°", "TILT 0", "STAND"],
+      );
+      assert.deepEqual(
+        p.map((x) => x.label),
+        ["Arc, 22 degrees", "Tilt, none", "Stand, middle, on the line"],
+      );
+      assert.ok(p.every((x) => !x.open && x.expanded === "false"));
+      assert.equal(
+        await page.getAttribute("[data-test=plans]", "aria-label"),
+        "Throw set-up",
+      );
+      // one at a time
+      await page.click("[data-test=arc-plate]");
+      p = await plates(page);
+      assert.deepEqual(
+        p.map((x) => x.open),
+        [true, false, false],
+      );
+      assert.equal(p[0].expanded, "true");
+      await page.click("[data-test=side-plate]");
+      p = await plates(page);
+      assert.deepEqual(
+        p.map((x) => x.open),
+        [false, true, false],
+      );
+      assert.equal(await sideViewWanted(page), false, "ARC closed with it");
+      // Escape
+      await page.keyboard.press("Escape");
+      assert.ok(
+        (await plates(page)).every((x) => !x.open),
+        "Escape closes",
+      );
+      // a tap outside the tray (on the pitch: it still aims)
+      await page.click("[data-test=stand-plate]");
+      assert.equal((await plates(page))[2].open, true);
+      const before = (await state(page)).marker;
+      await page.touchscreen.tap(250, 300);
+      await nextFrame(page);
+      assert.ok(
+        (await plates(page)).every((x) => !x.open),
+        "a tap outside",
+      );
+      const after = (await state(page)).marker;
+      assert.notDeepEqual(after, before, "and the tap still aims");
+      // the open plate's band
+      await page.click("[data-test=arc-plate]");
+      await page.click("[data-test=arc-plate]");
+      assert.ok(
+        (await plates(page)).every((x) => !x.open),
+        "the band",
+      );
+      assert.equal(await sideViewWanted(page), false);
+      assert.deepEqual(page.errors, []);
+    } finally {
+      await page.context().close();
+    }
+  },
+);
+
+browserTest(
+  "the keyboard: Tab to a plate, Enter opens it, the arrows step it, Escape back",
+  async () => {
+    const page = await open(env, "/practice/?nohowto=1", "desktop");
+    try {
+      await waitPhase(page, "aim", 10000);
+      await page.focus("[data-test=arc-plate]");
+      await page.keyboard.press("Enter");
+      await nextFrame(page);
+      await nextFrame(page);
+      assert.equal(
+        await page.evaluate(() => document.activeElement.dataset.test),
+        "arc",
+        "the slider has the focus",
+      );
+      assert.equal(await sideViewWanted(page), true, "ARC open: the side view");
+      const r0 = (await state(page)).plan.release;
+      await page.keyboard.press("ArrowUp");
+      await nextFrame(page);
+      assert.ok((await state(page)).plan.release > r0, "an arrow steps it");
+      await page.keyboard.press("Escape");
+      await nextFrame(page);
+      assert.equal(
+        await page.evaluate(() => document.activeElement.dataset.test),
+        "arc-plate",
+        "the focus is back on the plate",
+      );
+      assert.equal((await plates(page))[0].open, false);
+      assert.equal(await sideViewWanted(page), false);
+      // the tray's order after the header: ARC, TILT, STAND, then the minimap
+      const order = await page.evaluate(() =>
+        [...document.querySelectorAll("#ui [tabindex='0'], #ui button")]
+          .filter(
+            (el) => el.offsetParent !== null || el.getClientRects().length,
+          )
+          .map((el) => el.dataset.test)
+          .filter(Boolean),
+      );
+      const at = (k) => order.indexOf(k);
+      assert.ok(at("menu") < at("prompt-proxy"), order.join(" "));
+      assert.ok(at("prompt-proxy") < at("meter-proxy"), order.join(" "));
+      assert.ok(at("meter-proxy") < at("arc-plate"), order.join(" "));
+      assert.ok(at("arc-plate") < at("side-plate"), order.join(" "));
+      assert.ok(at("side-plate") < at("stand-plate"), order.join(" "));
+      assert.ok(at("stand-plate") < at("map-proxy"), order.join(" "));
+      // R/F still set the arc without opening anything
+      const r1 = (await state(page)).plan.release;
+      await page
+        .locator("#pitch")
+        .focus()
+        .catch(() => {});
+      await page.evaluate(() => document.activeElement?.blur());
+      await page.keyboard.press("KeyR");
+      await nextFrame(page);
+      assert.ok((await state(page)).plan.release > r1, "R raises the arc");
+      assert.ok((await plates(page)).every((x) => !x.open));
+      assert.deepEqual(page.errors, []);
+    } finally {
+      await page.context().close();
+    }
+  },
+);
 
 const overlaps = (a, b) =>
   a.x < b.x + b.width &&
@@ -451,61 +596,70 @@ for (const [kind, prefs, name] of [
           height: g.r * 2.45,
         };
       }
-      const boxes = await page.evaluate(() => {
-        const box = (el) => {
-          const r = el.getBoundingClientRect();
-          return { x: r.x, y: r.y, width: r.width, height: r.height };
-        };
-        const plans = [
-          ...document.querySelectorAll("[data-test=plans] > *"),
-        ].map((el) => ({ name: el.dataset.test, ...box(el) }));
-        const menu = box(document.querySelector("[data-test=menu]"));
-        const block = box(document.querySelector("[data-test=plans]"));
-        return { plans, menu, block, W: innerWidth, H: innerHeight };
-      });
-      assert.equal(boxes.plans.length, 4);
-      // a wide screen's block is the size layout.js plans for (tune.planW,
-      // planH), and on a touchscreen at the edge away from the meter
-      if (L.plan) {
-        const b = boxes.block;
-        for (const k of ["x", "y", "width", "height"])
-          assert.ok(Math.abs(b[k] - L.plan[k]) < 1, `the block's ${k}`);
-      }
-      if (kind === "landscape")
-        assert.equal(
-          L.planEdge,
-          prefs.meterSide === "left" ? "right" : "left",
-          "the block at the far edge",
-        );
-      const map = L.minimap;
-      for (const b of boxes.plans) {
-        assert.ok(b.width > 0 && b.height > 0, `${b.name} shows`);
-        assert.ok(!overlaps(b, meter), `${b.name} is clear of the meter`);
-        assert.ok(!overlaps(b, map), `${b.name} is clear of the minimap`);
-        assert.ok(!overlaps(b, boxes.menu), `${b.name} is clear of MENU`);
-        assert.ok(
-          b.x >= 0 && b.y >= 0 && b.x + b.width <= boxes.W,
-          `${b.name} is on the screen`,
-        );
-        assert.ok(b.y + b.height <= boxes.H, `${b.name} is above the bottom`);
-      }
-      // a slider's hit area is at least 44 px across its drag direction
-      const bodies = await page.evaluate(() =>
-        [...document.querySelectorAll("[data-test=plans] .slider-body")].map(
-          (el) => {
+      const box = (sel) =>
+        page.evaluate((sel) => {
+          return [...document.querySelectorAll(sel)].map((el) => {
             const r = el.getBoundingClientRect();
-            return { width: r.width, height: r.height };
-          },
-        ),
+            return {
+              name: el.dataset.test,
+              x: r.x,
+              y: r.y,
+              width: r.width,
+              height: r.height,
+            };
+          });
+        }, sel);
+      const W = await page.evaluate(() => innerWidth);
+      const H = await page.evaluate(() => innerHeight);
+      const header = (await box("[data-test=rail]"))[0];
+      const closed = await box("[data-test=plans] > .plate");
+      assert.equal(closed.length, 3);
+      // the column is where layout.js puts it, its plates the size it plans
+      const t = L.tray;
+      const col = (await box("[data-test=plans]"))[0];
+      assert.ok(Math.abs(col.x - t.x) < 1, "the column's x");
+      assert.ok(Math.abs(col.y + col.height - t.foot) < 1, "the column's foot");
+      for (const b of closed) {
+        assert.ok(Math.abs(b.width - t.plateW) < 0.6, `${b.name} wide`);
+        assert.ok(Math.abs(b.height - t.plateH) < 0.6, `${b.name} tall`);
+      }
+      assert.equal(
+        L.planEdge,
+        prefs.meterSide === "left" ? "right" : "left",
+        "the column at the edge away from the meter",
       );
-      assert.equal(bodies.length, 3);
-      assert.ok(bodies[0].width >= 44, `ARC ${bodies[0].width} wide`);
-      assert.ok(bodies[1].height >= 44, `TILT ${bodies[1].height} tall`);
-      // STAND is dragged both ways
-      assert.ok(
-        bodies[2].width >= 44 && bodies[2].height >= 44,
-        `STAND ${bodies[2].width} x ${bodies[2].height}`,
-      );
+      const map = L.minimap;
+      const clear = (b, what) => {
+        assert.ok(b.width > 0 && b.height > 0, `${what} shows`);
+        assert.ok(!overlaps(b, meter), `${what} is clear of the meter`);
+        assert.ok(!overlaps(b, map), `${what} is clear of the minimap`);
+        assert.ok(!overlaps(b, header), `${what} is clear of the header`);
+        assert.ok(
+          b.x >= 0 && b.y >= 0 && b.x + b.width <= W,
+          `${what} on screen`,
+        );
+        assert.ok(b.y + b.height <= H, `${what} is above the bottom`);
+      };
+      for (const b of closed) clear(b, `${b.name} closed`);
+      // each open in turn: clear of the same, its control at least 44 px across
+      // its drag, the minimap where it was
+      for (const k of ["arc", "side", "stand"]) {
+        await openPlate(page, k);
+        const [b] = await box(`[data-test=plate-${k}]`);
+        clear(b, `${k} open`);
+        const [body] = await box(`[data-test=plate-${k}] .slider-body`);
+        if (k === "arc") assert.ok(body.width >= 44, `ARC ${body.width} wide`);
+        if (k === "side")
+          assert.ok(body.height >= 44, `TILT ${body.height} tall`);
+        if (k === "stand")
+          assert.ok(
+            body.width >= 44 && body.height >= 44,
+            `STAND ${body.width} x ${body.height}`,
+          );
+        const L2 = await page.evaluate(() => window.__kubb.game.L);
+        assert.deepEqual(L2.minimap, map, "the minimap does not move");
+        await page.keyboard.press("Escape");
+      }
       assert.deepEqual(page.errors, []);
     } finally {
       await page.context().close();
