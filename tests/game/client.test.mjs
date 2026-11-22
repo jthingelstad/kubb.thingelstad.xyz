@@ -715,10 +715,11 @@ browserTest(
 // The engine's own raises, not a staged one: the computer's throws of a seeded
 // match (both sides, played here in Node) are applied in the page to a pass and
 // play match that raises by hand, up to its nth raise, which the page then
-// draws. On engine 0.9 with seed 116 the 1st raise is South's (Team B's turned
+// draws. On engine 0.13 with seed 115 the 1st raise is South's (Team B's turned
 // frame), the 2nd North's, and the 3rd South's with end 1 refused by the rules, each
-// after a throw, so each has its settle card (on 0.8 it was seed 5 and the 5th).
-const REAL_RAISE_SEED = 116;
+// after a throw, so each has its settle card (on 0.9 it was seed 116, on 0.8 seed 5
+// and the 5th).
+const REAL_RAISE_SEED = 115;
 function realRaiseOptions(cpu, raising) {
   return {
     seed: REAL_RAISE_SEED,
@@ -1283,9 +1284,18 @@ browserTest(
     assert.match(shown, /\[Team A "/);
     assert.match(shown, /\[Team B "Computer"\]/);
     const file = await page.evaluate(() => window.__kubb.engine.sheet().text);
-    // on screen without the positions (" (@ x,y ...)"); the file keeps them
-    assert.equal(shown, file.replace(/\n$/, "").replace(/ ?\(@[^()]*\)/g, ""));
-    assert.ok(!shown.includes("(@"), "positions hidden");
+    // on screen without the position lines (Planet Kubb Notation 2's "@a ..." pitch
+    // and "*a ..." felled lines, engine 0.13.1 on); the file keeps them
+    const positionLine = (l) => /^[@*][ab]\b/.test(l);
+    assert.equal(
+      shown,
+      file
+        .replace(/\n$/, "")
+        .split("\n")
+        .filter((l) => !positionLine(l))
+        .join("\n"),
+    );
+    assert.ok(!shown.split("\n").some(positionLine), "positions hidden");
     await page.click("[data-test=sheet-positions]");
     assert.equal(
       await page.textContent("[data-test=sheet-text]"),

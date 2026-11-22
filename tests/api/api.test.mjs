@@ -1152,7 +1152,8 @@ test("the pages and reels are refused nothing the roles do not allow: they read 
 
 test("share end to end: a real match through the real check, kept by the api, read by the pages", async () => {
   const sources = bundleLua();
-  const played = await playSolo(soloSetup(2), sources);
+  // seed 3: Riverside (the person) wins on engine 0.13 (seed 2 did on 0.9)
+  const played = await playSolo(soloSetup(3), sources);
   const h = harness("dynamo", {
     reelEngines: [MINOR],
     checkShare: (g) =>

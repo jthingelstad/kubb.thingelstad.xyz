@@ -1,13 +1,9 @@
-// src/game/throw-level.js: the device's throw level, and moving a device's
-// older choices across so nobody's level resets.
+// src/game/throw-level.js: the device's stored throw level (no longer picked since
+// engine 0.13, still kept and passed), and moving a device's older choices across
+// so nobody's level resets.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  loadThrowLevel,
-  soloOptions,
-  levelLine,
-  LEVEL_NOTE,
-} from "../../src/game/throw-level.js";
+import { loadThrowLevel, soloOptions } from "../../src/game/throw-level.js";
 
 const store = (init) => {
   const m = new Map(Object.entries(init));
@@ -43,10 +39,4 @@ test("the solo card's older level becomes its computer level", () => {
     computer: "beginner",
   });
   assert.deepEqual(soloOptions(null), { computer: "club" });
-});
-
-test("the words", () => {
-  assert.equal(levelLine("pro"), "Throwing at Pro.");
-  assert.equal(levelLine(undefined), "Throwing at Club.");
-  assert.equal(LEVEL_NOTE, "A change applies from your next throw.");
 });

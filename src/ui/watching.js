@@ -76,7 +76,6 @@ export class WatchCard {
 
   // the lobby's: an observer starts nothing and throws nothing
   setEngine() {}
-  setLevel() {}
   // a name changed in MENU: the Watching line shows it when the room says so
   setName() {}
 

@@ -253,7 +253,6 @@ export class Pitch {
           game,
           {
             name: (t) => this.setName(t),
-            // the level you throw at is MENU's (src/game/throw-level.js)
             menu: () => this.menu?.open(),
             team: (side) => this.pickTeam(side),
             option: (k, v) => this.setOption(k, v),
@@ -263,12 +262,10 @@ export class Pitch {
             replay: () => this.lastReplay && this.watch(this.lastReplay),
             home: this.home,
           },
-          { code: this.code, name, level: game.level },
+          { code: this.code, name },
         );
 
-    // a change of level in MENU: the lobby says it, the pitch hears it
-    this.stopLevel = game.onLevel((v) => this.levelChanged(v));
-    // and a change of name there (or the first one typed in the lobby): the pitch hears it
+    // a change of name in MENU (or the first one typed in the lobby): the pitch hears it
     this.stopName = game.onPlayerName((v) => this.nameChanged(v));
 
     this.buildHud();
@@ -566,14 +563,6 @@ export class Pitch {
     if (name === this.name) return;
     this.name = name;
     this.room?.setMe({ name });
-  }
-
-  // The device's throw level changed (MENU). A match in play reads it from this
-  // browser's throws; the room's copy is for the next START, sent now in the lobby
-  // and again on the way back to it.
-  levelChanged(v) {
-    this.lobby?.setLevel(v);
-    if (this.mode === "lobby") this.room?.setMe({ level: v });
   }
 
   async pickTeam(side) {
@@ -1401,9 +1390,6 @@ export class Pitch {
     this.game.newPractice({ surface: optionsOf(this.room.doc).surface });
     this.shoutBar.hidden = true;
     this.syncView();
-    // the level may have changed from the menu during the match
-    this.lobby.setLevel(this.game.level);
-    this.room.setMe({ level: this.game.level });
     this.lobby.show();
     this.renderLobby();
     this.lobby.setReplay(false);

@@ -225,10 +225,11 @@ export class Game {
     this.shownCards = new Set();
     this.listeners = [];
     this.panX = 200;
-    // the device's throw level, set in MENU (src/game/throw-level.js); watchers
-    // (the lobby, a shared pitch's presence) hear a change through onLevel
+    // the device's stored throw level (src/game/throw-level.js): no longer picked
+    // (from engine 0.13 a person throws on one meter whatever level is named), but
+    // still passed and kept, so a match on a carried 0.9 engine, a shared pitch's
+    // presence and older records see the value they always had
     this.level = loadThrowLevel(prefs);
-    this.levelWatch = new Set();
     // the player's name, this device's too (src/game/player-name.js): "" until
     // typed once; the solo card and the lobby hear a change through onPlayerName
     this.playerName = loadName(prefs);
@@ -1243,23 +1244,6 @@ export class Game {
       scene,
       ...(this.need?.drill ? { drill: true } : {}),
     });
-  }
-
-  setLevel(level) {
-    const changed = level !== this.level;
-    this.level = level;
-    prefs.set("level", level);
-    if (this.phase === "aim" && this.mayAct()) {
-      const r = this.engine.setLevel(level);
-      if (r && r.aim) this.out = { ...this.out, aim: r.aim, camera: r.camera };
-    }
-    if (changed) for (const f of this.levelWatch) f(level);
-  }
-
-  // f(level) on every change of the throw level; returns the way to stop.
-  onLevel(f) {
-    this.levelWatch.add(f);
-    return () => this.levelWatch.delete(f);
   }
 
   // The device's name (Settings, or the first time a card asks for it).

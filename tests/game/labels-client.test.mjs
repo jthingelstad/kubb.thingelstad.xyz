@@ -102,7 +102,6 @@ browserTest("the menu's rows say what they set and show it", async () => {
     // the device's settings first (src/ui/settings.js), then the practice pitch's own
     assert.deepEqual(labels, [
       "Your name",
-      "Your level",
       "Meter",
       "Meter side",
       "Sound",
@@ -123,11 +122,11 @@ browserTest("the menu's rows say what they set and show it", async () => {
     // the older engines the page also plays under it
     assert.equal(
       await page.textContent("[data-test=menu-version-label]"),
-      "0.9.1 (0.9.0)",
+      "0.10.0 (0.13.1)",
     );
     assert.equal(
       await page.textContent("[data-test=menu-version-also]"),
-      "Also plays 0.8.2 and 0.7.4",
+      "Also plays 0.9.0, 0.8.2 and 0.7.4",
     );
     assert.deepEqual(page.errors, []);
   } finally {

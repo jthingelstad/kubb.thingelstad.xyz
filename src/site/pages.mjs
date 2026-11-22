@@ -285,8 +285,7 @@ const GAME_PAGES = {
   settings: {
     path: "/settings/",
     title: `Settings · ${SITE_TITLE}`,
-    description:
-      "Your name, your level, the meter and the sound, kept in this browser.",
+    description: "Your name, the meter and the sound, kept in this browser.",
   },
 };
 

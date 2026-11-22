@@ -1,6 +1,8 @@
-// The two levels in a real browser (src/game/throw-level.js): the level you throw at
-// is this device's, set in MENU only; the computer's is a match option ("Computer
-// level", engine 0.9 on), on the solo card and, set by the host, in a pitch's lobby.
+// The levels in a real browser (src/game/throw-level.js): the computer's is a match
+// option ("Computer level", engine 0.9 on), on the solo card and, set by the host,
+// in a pitch's lobby. A person's own level is no longer picked anywhere (engine
+// 0.13: every person throws on one meter); a device's stored one is kept and passed
+// as before, never reset.
 // Skipped with a notice when Playwright's Chromium is not installed.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -38,7 +40,7 @@ const matchOpts = (page) =>
   page.evaluate(() => JSON.parse(window.__kubb.game.engine.snapshot()).opts);
 
 browserTest(
-  "solo on 0.9: the Computer level row sets the computer, you throw at MENU's level",
+  "solo: the Computer level row sets the computer; no level of your own, the stored one kept",
   async () => {
     // a device from before: its solo card's Level row said Pro, no level of its own
     const page = await open(env, "/p/abcdefgh?solo=1&nohowto=1", "desktop", {
@@ -49,8 +51,8 @@ browserTest(
       // nobody's level resets: the old choice is the device's and the computer's
       assert.equal(await page.evaluate(() => window.__kubb.game.level), "pro");
       assert.equal(
-        await page.textContent("[data-test=solo-you] .you-level"),
-        "Throwing at Pro.",
+        await page.locator("[data-test=solo-you] .you-level").count(),
+        0,
       );
       const checked = (key) =>
         page.getAttribute(
@@ -62,19 +64,11 @@ browserTest(
         await page.textContent("[data-test=solo-opt-computer] .opt-label"),
         "Computer level",
       );
-      // MENU, opened from the card, changes the device's level; the card follows
+      // MENU, opened from the card, has no level row
       await page.click("[data-test=solo-you-menu]");
       await page.waitForSelector("[data-test=menu-card]");
-      assert.equal(
-        await page.textContent("[data-test=menu-level] .opt-note"),
-        "A change applies from your next throw.",
-      );
-      await page.click("[data-test=menu-level] .seg-btn:has-text('Club')");
+      assert.equal(await page.locator("[data-test=menu-level]").count(), 0);
       await page.keyboard.press("Escape");
-      assert.equal(
-        await page.textContent("[data-test=solo-you] .you-level"),
-        "Throwing at Club.",
-      );
       await page.click("[data-test=solo-opt-computer] [data-value=beginner]");
       await page.click("[data-test=start]");
       await waitPhase(page, "aim", 15000);
@@ -82,7 +76,8 @@ browserTest(
       assert.equal(o.computer, "beginner", "a game setting since 0.9");
       assert.deepEqual(
         [o.teams.A.players[0].level, o.teams.B.players[0].level],
-        ["club", "beginner"],
+        ["pro", "beginner"],
+        "the stored level is still passed (it changes nothing on 0.13)",
       );
       const saved = await page.evaluate(() =>
         JSON.parse(localStorage.getItem("kubb:solo")),
@@ -93,7 +88,7 @@ browserTest(
         await page.evaluate(() =>
           JSON.parse(localStorage.getItem("kubb:level")),
         ),
-        "club",
+        "pro",
       );
       assert.deepEqual(page.errors, []);
     } finally {
@@ -128,16 +123,16 @@ async function join(code, name, level) {
 }
 
 browserTest(
-  "a pitch on 0.9: the host sets the computer's level, the computer throws at it",
+  "a pitch: the host sets the computer's level, the computer throws at it",
   async () => {
     const code = makePitchCode();
     const host = await join(code, "Hanna", "beginner");
     const guest = await join(code, "Ola", "pro");
     try {
-      // no level picker in the lobby: the line says MENU's
+      // no level of your own in the lobby, neither a picker nor a line
       assert.equal(
-        await host.textContent("[data-test=lobby-you] .you-level"),
-        "Throwing at Beginner.",
+        await host.locator("[data-test=lobby-you] .you-level").count(),
+        0,
       );
       assert.equal(await host.locator("[data-test=lobby-you] .seg").count(), 0);
       await host.click("[data-test=join-A]");
@@ -187,7 +182,7 @@ browserTest(
         assert.deepEqual(
           [o.teams.A.players[0].level, o.teams.B.players[0].level],
           ["beginner", "pro"],
-          "Hanna throws at her device's level, the computer at the host's choice",
+          "Hanna's stored level is passed as before, the computer at the host's choice",
         );
       }
       for (const p of [host, guest]) assert.deepEqual(p.errors, []);

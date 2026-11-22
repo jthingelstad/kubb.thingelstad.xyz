@@ -1,5 +1,5 @@
 // The device's settings, in one place (the owner's settings sheet, 2026-11-20):
-// your name, your level, the meter and its side, and the sound. Each is kept on
+// your name, the meter and its side, and the sound. Each is kept on
 // this device and is never asked per match. The same rows are MENU's top half
 // (src/ui/menu.js, inside every mode) and the /settings/ page, reached from the
 // web game's page (openSettingsPage below). Match options (surface, scene, the
@@ -7,30 +7,18 @@
 // MENU and the lobby.
 import { h, button } from "./dom.js";
 import { prefs } from "../game/prefs.js";
-import { LEVEL_NOTE, levelLine, loadThrowLevel } from "../game/throw-level.js";
 import { loadName, saveName, NAME_MAX } from "../game/player-name.js";
 
-// The solo card's and the lobby's one "You" row: the device's name and the level
-// it throws at, with one CHANGE IN MENU, never a picker ("Birch · Throwing at
-// Club."). While the device keeps no name yet, `input` (the card's name box) takes
-// the name's place and the level line sits under it. A screen reader hears "You,
-// Birch, Throwing at Club.": the dot is drawn only. `key` names the row for tests
-// (`<key>-you`, its button `<key>-you-menu`).
-export function youRow(
-  key,
-  { name = "", level = null, input = null, menu = null },
-) {
+// The solo card's and the lobby's one "You" row: the device's name, with one
+// CHANGE IN MENU. While the device keeps no name yet, `input` (the card's name
+// box) takes the name's place. There is no level here: from engine 0.13 a
+// person throws on one meter (src/game/throw-level.js). `key` names the row for
+// tests (`<key>-you`, its button `<key>-you-menu`).
+export function youRow(key, { name = "", input = null, menu = null }) {
   const nameText = h("span.you-name", name);
-  const levelText = h("span.you-level", level ? levelLine(level) : "");
-  const dot = h("span.you-dot", { "aria-hidden": "true" }, " · ");
-  const comma = h("span.visually-hidden", ", ");
-  const value = input
-    ? h("span.opt-value", levelText)
-    : h("span.opt-value", nameText, dot, comma, levelText);
+  const value = input ? null : h("span.opt-value", nameText);
   const sync = () => {
-    const both = Boolean(nameText.textContent && levelText.textContent);
-    dot.hidden = comma.hidden = !both;
-    value.hidden = !value.textContent.trim();
+    if (value) value.hidden = !nameText.textContent.trim();
   };
   sync();
   const el = h(
@@ -41,7 +29,7 @@ export function youRow(
     value,
     menu
       ? button("CHANGE IN MENU", () => menu(), "small", {
-          "aria-label": "Change in MENU: your name and level",
+          "aria-label": "Change in MENU: your name",
           "data-test": `${key}-you-menu`,
         })
       : null,
@@ -52,18 +40,9 @@ export function youRow(
       nameText.textContent = v;
       sync();
     },
-    setLevel(v) {
-      levelText.textContent = v ? levelLine(v) : "";
-      sync();
-    },
   };
 }
 
-export const LEVELS = [
-  ["beginner", "Beginner"],
-  ["club", "Club"],
-  ["pro", "Pro"],
-];
 // the throw's meter (src/game/game.js setMeter)
 export const METERS = [
   ["clock", "Clock"],
@@ -80,7 +59,7 @@ export const SOUND = [
 ];
 
 // The rows for a device:
-//   { name, setName(t), level, setLevel(v), meter, setMeter(v), meterSide,
+//   { name, setName(t), meter, setMeter(v), meterSide,
 //     setMeterSide(v), muted, setMuted(on), meterNote?, sideNote? }
 // render() draws them again after a pick (the name is not drawn again while typed).
 export function deviceRows(dev, render) {
@@ -114,18 +93,6 @@ export function deviceRows(dev, render) {
       { "data-test": "settings-name-row" },
       h("span.opt-label", "Your name"),
       name,
-    ),
-    // the level this device throws at, in practice, against the computer and on
-    // a shared pitch alike (src/game/throw-level.js): set here only
-    h(
-      "div.opt",
-      { "data-test": "menu-level" },
-      h("span.opt-label", "Your level"),
-      seg(LEVELS, dev.level, (v) => {
-        dev.setLevel(v);
-        render();
-      }),
-      h("p.opt-note", LEVEL_NOTE),
     ),
     h(
       "div.opt",
@@ -174,11 +141,6 @@ export function prefsDevice(store = prefs) {
     name: loadName(store),
     setName(t) {
       this.name = saveName(store, t);
-    },
-    level: loadThrowLevel(store),
-    setLevel(v) {
-      this.level = v;
-      store.set("level", v);
     },
     meter: store.get("meter", "clock") === "linear" ? "linear" : "clock",
     setMeter(v) {

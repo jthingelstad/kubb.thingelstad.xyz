@@ -12,11 +12,11 @@ the engine's.
 
 | Page                | What it is                                                                                                                                                                                                                                                                                          |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/practice/`        | The open practice pitch: BATONS or KUBBS (the drill), surface, reset and level.                                                                                                                                                                                                                     |
-| `/settings/`        | The device's settings alone (your name, your level, meter, meter side, sound): the same rows as MENU's, from Settings on the web game's page, with DONE back to it. No engine is loaded.                                                                                                            |
-| `/p/<code>?solo=1`  | A match against the computer. The options card first (You: your name and the level you throw at in one row with one CHANGE IN MENU; Computer level, surface, opening, raising, wind, kubb set, scene; remembered), then START.                                                                      |
+| `/practice/`        | The open practice pitch: BATONS or KUBBS (the drill), surface and reset.                                                                                                                                                                                                                            |
+| `/settings/`        | The device's settings alone (your name, meter, meter side, sound): the same rows as MENU's, from Settings on the web game's page, with DONE back to it. No engine is loaded.                                                                                                                        |
+| `/p/<code>?solo=1`  | A match against the computer. The options card first (You: your name in one row with one CHANGE IN MENU; Computer level, surface, opening, raising, wind, kubb set, scene; remembered), then START.                                                                                                 |
 | `/p/<code>?watch=1` | The computer against itself, match after match: no options card, the solo card's saved options, North against South. The winner card stays up 10 s (NEXT MATCH, STOP, HOME), then the next match starts by itself, the other team first. Seen in the wide view by default ("The wide view", below). |
-| `/p/<code>`         | A shared pitch: the lobby (your name and the level you throw at, Team A or B or watching, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md.                                                                                                          |
+| `/p/<code>`         | A shared pitch: the lobby (your name, Team A or B or watching, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md.                                                                                                                                     |
 | `/e/<code>`         | The embed: a kept replay alone, for a frame on another site ("The embed", below).                                                                                                                                                                                                                   |
 
 `/p/<code>?observe=1` is a shared pitch watched without a seat (WATCH on the open games
@@ -55,7 +55,7 @@ the web game's page, `/web/` (`/` is the landing page for the whole game). The H
 | `src/net/pitch-client.js`, `src/net/aim.js`   | The pitch server's client (`backend/pitch-server/PROTOCOL.md`) and the aim on the wire (docs/MULTIPLAYER.md).                                                                    |
 | `src/net/api.js`                              | `apiCall`: the HTTPS api (`backend/api/API.md`) that replays, reels, shares, reports and records go through.                                                                     |
 | `src/game/stand-pad.js`                       | STAND: where the thrower stands, the plate's map to the ground and back and its words (pure), and `StandPad`, its DOM and pointer ("Standing", below).                           |
-| `src/ui/settings.js`                          | The device's settings rows (Your name, Your level, Meter, Meter side, Sound), shared by MENU and the `/settings/` page ("Settings", below).                                      |
+| `src/ui/settings.js`                          | The device's settings rows (Your name, Meter, Meter side, Sound), shared by MENU and the `/settings/` page ("Settings", below).                                                  |
 | `src/ui/menu.js`                              | `Menu`: the device's rows (`src/ui/settings.js`), View when watching, Surface and Scene in practice, then how to throw, resign, feedback, rules, home.                           |
 | `src/ui/report.js`, `src/net/report.js`       | The report card, and what a report carries and how it is sent (below, and docs/ROOMS.md section 8).                                                                              |
 | `src/ui/sheet.js`                             | The score sheet card (below).                                                                                                                                                    |
@@ -684,15 +684,15 @@ throws he took for perfect had been judged long.
   who acts; the others see the status pill and no panel, as before.
 - **The winner**: REMATCH (back to the options; on a shared pitch the host's only, back to
   the lobby with the same teams), SCORE SHEET and HOME.
-- **The menu**: the device's settings first ("Settings", below: Your name, Your level
-  with "A change applies from your next throw.", Meter, Meter side, Sound), then View
+- **The menu**: the device's settings first ("Settings", below: Your name, Meter, Meter
+  side, Sound), then View
   when watching, and on the practice pitch that pitch's own options, Surface and Scene.
   Each row shows its value as a choice. Then how to throw, score sheet (a match), resign,
   send feedback, rules, home; Escape closes it. It opens over a card too, from CHANGE IN
   MENU. A match's options are never in it.
 - **Settings** (the owner's settings sheet, 2026-11-20: each setting lives where its
   scope says). Device settings are kept on the device and never asked per match: your
-  name (prefs `name`, `src/game/player-name.js`), your level (`level`), the meter
+  name (prefs `name`, `src/game/player-name.js`), the meter
   (`meter`), its side (`meterSide`) and the sound (`muted`). They are one set of rows,
   `deviceRows` in `src/ui/settings.js`, shown at the top of MENU in every mode and as the
   `/settings/` page, linked as Settings on the web game's page (`prefsDevice` reads and
@@ -700,22 +700,26 @@ throws he took for perfect had been judged long.
   surface, opening, raising, wind, kubb set, scene, and online who can join) live on the
   match options only: the solo card, the practice MENU (surface and scene) and the lobby.
   Turn and throw settings (stand, spin; arc, tilt) live on the throw controls and the
-  engine keeps their scope. The solo card and the lobby show your name and level as one
-  row, You ("Birch · Throwing at Club.", heard as "Birch, Throwing at Club."), with one
-  CHANGE IN MENU (`youRow` in `src/ui/settings.js`); while the device keeps no name yet
-  the row asks for it once (a box, the level line under it), and what is typed becomes the device's (`Game.setPlayerName`, heard through
+  engine keeps their scope. The solo card and the lobby show your name as one row, You
+  ("Birch"), with one CHANGE IN MENU (`youRow` in `src/ui/settings.js`); while the device
+  keeps no name yet the row asks for it once (a box), and what is typed becomes the device's (`Game.setPlayerName`, heard through
   `Game.onPlayerName`; the pitch sends it to the room). A device's older name moves
   across once: `name`, else the solo card's `solo.name` unless it is the "You"
   placeholder. The solo card no longer saves a name in `solo`.
-- **Two levels** (Jamie, 2026-11-20; `src/game/throw-level.js`), as the iPhone app has
-  them. The level you throw at is this device's setting, set in MENU only (prefs
-  `level`): practice, a match against the computer and a shared pitch all throw at it,
-  and the solo card and the lobby show it as a line ("Throwing at Club.") with CHANGE
-  IN MENU. The computer's level is a match option, Computer level (Beginner, Club, Pro):
-  the solo card's row (prefs `solo.computer`, passed as `computer` and on the computer's
-  player), and on a pitch the host's row (engine 0.9 on). A device's older choices move
-  across once: the device level is the `level` pref, else the solo card's old Level,
-  else Club; the solo card's old Level becomes its Computer level.
+- **One level: the computer's** (the owner, 2026-11-21, with engine 0.13;
+  `src/game/throw-level.js`). From engine 0.13 a level is the computer's standard only:
+  every person throws on one meter, the bars going by the throw's distance (the engine's
+  docs/notes/throw.md "The person's meter"), so nobody is asked for their own level. The
+  device's stored level (prefs `level`) is still read and passed as before (practice's
+  `level`, a player's `level` in a start, `setLevel` before each of a person's throws,
+  `me.level` on a pitch), never reset: it changes nothing on 0.13, and on a match that runs
+  on a carried 0.9 engine (a pitch with the iPhone app on 0.9, a replay) it throws a person
+  at the level it always did. A device that never chose one throws at Club. The
+  computer's level is a match option, Computer level (Beginner, Club, Pro): the solo
+  card's row (prefs `solo.computer`, passed as `computer` and on the computer's player),
+  and on a pitch the host's row (engine 0.9 on). A device's older choices move across
+  once: the device level is the `level` pref, else the solo card's old Level, else Club;
+  the solo card's old Level becomes its Computer level.
 - **The scene** (docs/SCENES.md): Scene (Day, Night, Neon), a look only. The solo card's
   last row (prefs `solo.scene`, passed as `scene`; watching the computer takes it), MENU's
   row on the practice pitch (prefs `practiceScene`; a change starts the practice again
@@ -931,8 +935,13 @@ whole match.", a link "How to read it" to the Planet Kubb Notation page
 engine writes (`engine.sheet()`, `Session:sheet()` in the engine's session/session.lua: the core's
 score sheet as it stands), SHOW POSITIONS / HIDE POSITIONS, COPY, DOWNLOAD and BACK.
 
-- Positions (the `{...}` lines after each turn) are hidden by default; the toggle shows
-  them. COPY and DOWNLOAD always take the whole file, positions included: COPY says
+- Positions are hidden by default; the toggle shows them. From engine 0.13.1 the file is
+  Planet Kubb Notation 2 (`[Notation "2"]` first) and its positions are lines of their
+  own under a turn: `@a` or `@b` with where the pitch's kubbs stood in the half under
+  attack, and `*a` or `*b` with where each baton's felled kubbs were (`-` for a baton
+  that felled none), in the notation's frame in metres. A match on an older engine
+  writes them as `(@ ...)` comments on the turn line. The engine's `shown` leaves either
+  out. COPY and DOWNLOAD always take the whole file, positions included: COPY says
   "Copied the game file." (or "Could not copy. The file is selected to copy."), DOWNLOAD
   saves the game file under its notation file name (a `.txt`) and says "Saved <file name>.".
 - The text is monospaced and wraps, in a box that scrolls on its own, so it reads at
@@ -1062,16 +1071,16 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
 - **The label** (`src/site/release.js`): every app shows its own version with the Kubb
   Engine's beside it, `<app version> (<engine version>)` (Jamie, 2026-11-20). On the web
   that is `package.json`'s version and the full version of the newest engine the page
-  carries: `0.8.0 (0.9.0)`. Nothing but that engine's version is in the parentheses: an
-  older engine the page still plays is only in the detail, `Also plays 0.8.2 and 0.7.4`, and the
+  carries: `0.10.0 (0.13.1)`. Nothing but that engine's version is in the parentheses: an
+  older engine the page still plays is only in the detail, `Also plays 0.9.0, 0.8.2 and 0.7.4`, and the
   web commit never shows. The release is `{ version, web, engine, also, text, detail }`
   (`text` the label, `detail` the older engines or null). The build (`tools/build.mjs`
   `releaseOf`) reads the version from `package.json`, the web commit from `GITHUB_SHA` in
   CI or `git rev-parse HEAD`, and the engines from the vendored set; it puts the release
   in the game pages' config (`config.release`) and writes it as `/version.json`.
-- **Shown** small, in the shared type tokens: "Version 0.8.0 (0.9.0)" at the foot of
+- **Shown** small, in the shared type tokens: "Version 0.10.0 (0.13.1)" at the foot of
   every reading page (beside the link to the engine page), and the label with "Also plays
-  0.8.2 and 0.7.4" under it at the foot of MENU in the game.
+  0.9.0, 0.8.2 and 0.7.4" under it at the foot of MENU in the game.
 - **Exact identity** is the web commit: freshness (below) compares it, and a feedback
   report carries the label (`build.label`) beside `build.version`, `build.commit` and the
   Lua bundle it played on.
@@ -1104,16 +1113,17 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
   for (`tune.planW`, `planH`) and on a phone on its side at the far edge, and each
   slider's hit area, and STAND's, is at least 44 px across its drag.
 - `tests/game/settings-client.test.mjs` (Playwright): `/settings/` from the web game's
-  page shows a device's older name and level, has no match option, and what it sets is
-  what the game reads; MENU has the device's rows in practice and in a match, the
+  page shows a device's older name, has no match option and no level of your own, keeps
+  the device's older level, and what it sets is what the game reads; MENU has the device's rows in practice and in a match, the
   practice pitch's Surface and Scene only in practice, and no Raising; the solo card asks
   a new device's name once, the match carries it, the next card shows it and MENU changes
   it, each in one You row with one CHANGE IN MENU; the lobby's You row shows a kept name
   and the room hears a change.
   `tests/game/player-name.test.mjs` is the move across and `prefsDevice`.
 - `tests/game/levels-client.test.mjs` (Playwright): a device from before keeps its
-  level; the solo card's Computer level sets the computer on 0.9 while you throw at MENU's
-  level, changed from the card's You row and its CHANGE IN MENU; on a pitch the host sets the computer's
+  level, passed as before though nothing shows or sets it; the solo card's Computer level
+  sets the computer, and neither the card, its You row nor MENU has a level of your own;
+  on a pitch the host sets the computer's
   level, a watcher reads it, and the match starts with it. `tests/game/throw-level.test.mjs`
   is the move across, `tests/game/plan-sliders.test.mjs` the controls' values and marks.
 - `tests/game/stand-client.test.mjs` (Playwright): no WALK; a drag on STAND (mouse on a

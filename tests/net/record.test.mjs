@@ -123,7 +123,8 @@ test("a finished match is sent whole, kept under games/browser/ and replays", as
   assert.equal(record.end.over, true);
   assert.equal(record.end.hash, game.engine.hash().hash);
   assert.match(record.file, /\[Team A "North"\]/);
-  assert.match(record.file, /\(@ /, "the file keeps the positions");
+  // Planet Kubb Notation 2's position lines (engine 0.13.1 on): "@a ..." and "*a ..."
+  assert.match(record.file, /^[@*][ab] /m, "the file keeps the positions");
   assert.match(record.name, /^2026-11-16-0905-north-v-south\.txt$/);
   const text = asciiJson(record);
   for (const word of ["userAgent", "member", "conn", "ip"])

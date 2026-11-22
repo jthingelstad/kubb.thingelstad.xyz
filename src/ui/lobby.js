@@ -1,6 +1,5 @@
-// The lobby on a pitch link (docs/MULTIPLAYER.md): your name and the level you
-// throw at (both the device's, set in MENU; the name is typed here only while the
-// device keeps none), the two teams with who is on them, who is connected and who is host, who is
+// The lobby on a pitch link (docs/MULTIPLAYER.md): your name (the device's, set
+// in MENU; typed here only while the device keeps none), the two teams with who is on them, who is connected and who is host, who is
 // watching, the link to share, who can join (open or invite only), the host's
 // match options and START. Built
 // once; update(state) changes only what changed, so typing a name is never
@@ -35,7 +34,7 @@ export const ACCESS_NOTE = {
 export class Lobby {
   // hooks: { name(text), team(side|null), option(key, v), access(open),
   //          start(), share(), home(), menu() }
-  constructor(cards, game, hooks, { code, name, level }) {
+  constructor(cards, game, hooks, { code, name }) {
     this.cards = cards;
     this.game = game;
     this.hooks = hooks;
@@ -73,11 +72,10 @@ export class Lobby {
         timer = setTimeout(sendName, 600);
       });
     }
-    // one "You" row: the name (or its box) and the level you throw at, which is this
-    // device's too, set in MENU (src/game/throw-level.js); one CHANGE IN MENU
+    // one "You" row: the name (or its box), one CHANGE IN MENU; no level, as a
+    // person throws on one meter from engine 0.13 (src/game/throw-level.js)
     this.you = youRow("lobby", {
       name: name || "",
-      level,
       input: this.nameInput,
       menu: () => hooks.menu?.(),
     });
@@ -358,11 +356,6 @@ export class Lobby {
     this.you.setName(v);
     if (this.nameInput && document.activeElement !== this.nameInput)
       this.nameInput.value = v;
-  }
-
-  // The device's throw level changed (in MENU).
-  setLevel(v) {
-    this.you.setLevel(v);
   }
 }
 

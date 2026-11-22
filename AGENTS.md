@@ -19,8 +19,12 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
   the engine's manifest). The same goes for each older minor the site still carries in
   `vendor/engines/<major.minor>/` (`docs/ENGINES.md`): practice, solo and watch play on
   the newest and a shared pitch on the room's engine (the newest every player carries).
-  Today the site carries 0.9.0 (the newest), 0.8.2 and 0.7.4; iPhone testers' builds
-  carry 0.8 and 0.7, so a pitch with one of them plays 0.8. The carried set is
+  Today the site carries 0.13.1 (the newest), 0.9.0, 0.8.2 and 0.7.4; the iPhone app on
+  0.9 carries 0.9, 0.8 and 0.7, so a pitch with it plays 0.9 (an older tester's build
+  with 0.8 and 0.7, 0.8). Engine 0.13 renamed the shared pitch's directory `room/` to
+  `pitch/` (calls `pitch.<name>`, `room.<name>` kept as their old spelling); the tools
+  read both and skip the one an engine lacks, and the bridge still says `room.`, which
+  every carried engine answers. The carried set is
   `vendor/engine.json` (the newest and `older`), read by the build, the registry and the
   reels' `REEL_ENGINES`: there is no list to keep by hand. A new
   minor is vendored with `--keep` (carry the old one on) or `--drop`, never by
@@ -128,8 +132,8 @@ address or home path in `dist/`, no account id in Markdown).
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `0.9.1 (0.9.0)`, at the foot of
-every reading page and of MENU, with "Also plays 0.8.2 and 0.7.4" under it in MENU while older
+the full version of the newest engine the site carries, `0.10.0 (0.13.1)`, at the foot of
+every reading page and of MENU, with "Also plays 0.9.0, 0.8.2 and 0.7.4" under it in MENU while older
 engines are carried (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
 The app's version never goes on the room wire, the rider or a kept match, replay, embed,
@@ -555,34 +559,36 @@ labels are plain words.
 - Practice's tray is BATONS | KUBBS, the one in use pressed (it was one button naming the
   other mode). The rail counts in words ("5 BASE KUBBS", "TARGET 2.3 M"), not the
   engine's Playdate "BASE 5" (`railCount` in `src/game/hud.js`).
-- MENU's rows say what they set and show their value: Your name, Your level, Meter,
+- MENU's rows say what they set and show their value: Your name, Meter,
   Meter side, Sound (On/Off, once a SOUND: ON button), View (watching), Surface and Scene
   (practice).
 - **Settings by scope** (the owner's settings sheet, 2026-11-20). Device settings (your
-  name, your level, meter, meter side, sound) are one set of rows (`src/ui/settings.js`)
+  name, meter, meter side, sound) are one set of rows (`src/ui/settings.js`)
   at the top of MENU in every mode and on `/settings/`, linked from the web game's page;
   never asked per match. Game settings (Computer level, surface, opening, raising, wind,
   kubb set, scene, who can join) are on the solo card, the practice MENU (surface,
   scene) and the lobby only. Turn and throw settings (stand, spin; arc, tilt) are on the
   throw controls. Your name is typed once (the solo card or the lobby ask only while the
   device keeps none) and changed in Settings. docs/CLIENT.md "Settings".
-- **Two levels** (Jamie, 2026-11-20, as the iPhone has them). The level you throw at is
-  the device's, set in MENU only, with "A change applies from your next throw."; the
-  solo card and the lobby show it beside your name in one You row ("Birch · Throwing
-  at Club.") with one CHANGE IN MENU, never a picker. The computer's level is a match
-  option, Computer level, on the solo card and, set by the host, in the lobby of a 0.9
-  pitch. `src/game/throw-level.js` moves a
-  device's older choice across so nobody's level resets.
+- **One level: the computer's** (the owner, 2026-11-21, with engine 0.13: "player level
+  really should only mean for the computer opponent. It doesn't mean anything for the
+  human player."). From engine 0.13 every person throws on one meter, the bars going by
+  the throw's distance, so the web asks nobody for their own level: MENU's Your level
+  row and the solo card's and lobby's "Throwing at ..." line are gone, and the You row
+  is the name alone. A device's stored level (`level` pref) is still read, passed and
+  kept, never reset (`src/game/throw-level.js`): a match on a carried 0.9 engine throws
+  a person at it as before. The computer's level is a match option, Computer level, on
+  the solo card and, set by the host, in the lobby of a pitch on 0.9 or newer.
 - **Sliders, not step buttons** (Jamie: "the finger must not cover the control; teach on
-  the control"). On engine 0.9 ARC, TILT and SPIN take any value in `aim.controls`'
+  the control"). From engine 0.9 ARC, TILT and SPIN take any value in `aim.controls`'
   range (`setArc`, `setTilt`, `setSpin`), ticks drawn from `tick`; a kubb's spin is kept
   for the turn and nothing on the page resets it. A match on 0.8 or 0.7 steps as before.
 - **Scenes** (Jamie, 2026-11-20: "i absolutely adore the two new scenes! lets make it
-  real"). A scene is a look only: Day, Night and Neon, a match option, Scene, on engine
+  real"). A scene is a look only: Day, Night and Neon, a match option, Scene, from engine
   0.9 (the engine keeps the id in `settings.scene` and `view.scene` and never reads it).
   The solo card has the row (watching the computer takes the card's), MENU has it on the
   practice pitch, and the host sets it in the lobby of a pitch whose next match runs on
-  0.9; a pitch on 0.8 or 0.7 shows no row and draws the day. The pitch behind the card
+  0.9 or newer; a pitch on 0.8 or 0.7 shows no row and draws the day. The pitch behind the card
   or lobby shows the pick. Every surface draws a match through one `Stage`
   (`src/render/scenes.js`): play, replay, embed and the reel. An id the web does not
   draw is the day. `?scene=` picks one off a pitch, never on one. Batons stay plain.
