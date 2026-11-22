@@ -215,32 +215,17 @@ export const matchOptions = (doc, lineup, { seed, start }, mm) =>
 // The engine the pitch's next match runs on: { engine, missing: [ids], unknown: [ids] },
 // engine null when none is carried by the host and every player. `me` (this browser's
 // member id) counts this browser too, with `carries` (what it carries) while its own
-// presence is still on its way.
-//
-// Engine 0.17.0's engineFor (and 0.18.0's) counts a computer seat in the lineup as a player who names
-// no engine (it is in `unknown` and `missing`, and `engine` is null), so a pitch with a
-// seat could never start. A seat has no engine to carry (startCheck skips it): the
-// seats are taken out of the document's teams before the engine is asked. When the
-// engine skips them itself this does nothing.
+// presence is still on its way. A computer seat carries the pitch's engine: since engine
+// 1.0.0 `engineFor` leaves seats out of the players it asks (its docs/PITCH.md
+// "Computer seats"), so the document goes to it as it is.
 export const roomEngineFor = (doc, members, host, me, carries) =>
   roomCall("engineFor", {
-    doc: withoutSeats(doc),
+    doc,
     members,
     host: host ?? null,
     ...(me == null ? {} : { me }),
     ...(carries ? { carries } : {}),
   });
-
-function withoutSeats(doc) {
-  const t = doc?.teams;
-  if (!t || typeof t !== "object") return doc;
-  const has = (list) => Array.isArray(list) && list.some((id) => isSeat(id));
-  if (!has(t.A) && !has(t.B)) return doc;
-  const teams = { ...t };
-  for (const s of ["A", "B"])
-    if (Array.isArray(t[s])) teams[s] = t[s].filter((id) => !isSeat(id));
-  return { ...doc, teams };
-}
 
 // The major.minors a member's presence says it carries, newest first.
 export const carriedBy = (me) => roomCall("carried", { me: me ?? null });
