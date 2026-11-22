@@ -2863,36 +2863,53 @@ browserTest(
       await load();
       await page.waitForSelector("[data-test=options]");
       assert.equal(games.kept.length, 1, "not sent again");
-      // 3. a resign whose record fails: kept, sent on the next load, once
+      // 3. a resign whose record fails: the match leaves the slot, its record waits
+      // apart and goes on the next load, in the background, once
+      const pending = () =>
+        page.evaluate(() =>
+          JSON.parse(localStorage.getItem("kubb:soloPending") ?? "{}"),
+        );
+      const keptCount = async (n) => {
+        const deadline = Date.now() + 10000;
+        while (games.kept.length < n && Date.now() < deadline)
+          await page.waitForTimeout(100);
+        return games.kept.length;
+      };
       await page.route("**/api/game", (r) => r.abort());
       await startMatch();
       await page.click("[data-test=menu]");
       await page.click("[data-test=menu-resign]");
       await page.waitForSelector("[data-test=winner]");
       await page.waitForFunction(() => Promise.all(window.__kubb.recorded));
-      await page.waitForFunction(
-        () => JSON.parse(localStorage.getItem("kubb:soloMatch"))?.tries === 1,
+      assert.equal(await kept(), null, "the finished match left the slot");
+      assert.deepEqual(
+        Object.values(await pending()).map((p) => p.tries),
+        [1],
       );
       await page.unroute("**/api/game");
       await load();
-      await page.waitForSelector("[data-test=winner]");
-      assert.equal(await waitKept(2), 2, "sent on the next load");
-      assert.equal(await kept(), null);
+      await page.waitForSelector("[data-test=options]");
+      assert.equal(await keptCount(2), 2, "sent on the next load");
+      await page.waitForFunction(
+        () => localStorage.getItem("kubb:soloPending") === "{}",
+      );
       await load();
       await page.waitForSelector("[data-test=options]");
+      await page.waitForTimeout(500);
       assert.equal(games.kept.length, 2, "once");
       // 4. failing twice: dropped, and said
       await page.route("**/api/game", (r) => r.abort());
       await startMatch();
       await page.click("[data-test=menu]");
       await page.click("[data-test=menu-resign]");
-      await page.waitForFunction(
-        () => JSON.parse(localStorage.getItem("kubb:soloMatch"))?.tries === 1,
+      await page.waitForFunction(() =>
+        Object.values(
+          JSON.parse(localStorage.getItem("kubb:soloPending") ?? "{}"),
+        ).some((p) => p.tries === 1),
       );
       await load();
-      await page.waitForSelector("[data-test=winner]");
       await page.waitForFunction(
-        () => localStorage.getItem("kubb:soloMatch") === "null",
+        () => localStorage.getItem("kubb:soloPending") === "{}",
       );
       assert.ok(warnings.some((w) => /could not be recorded/.test(w)));
       assert.equal(games.kept.length, 2);
@@ -2903,3 +2920,178 @@ browserTest(
     }
   },
 );
+
+// Codex on #117, again: a REMATCH made while the last match's record was still on its
+// way had the new match's save cleared (a kept record) or marked over (a failed one).
+// Every step that clears or marks a save or a waiting record checks the match's id;
+// a closed tab mid-send leaves the record waiting, sent on a later load, once.
+browserTest(
+  "a record still on its way never touches the next match's save",
+  async () => {
+    const rooms = await startPitchServer();
+    const games = keptUnder(rooms, "games/browser/");
+    const ctx = await env.browser.newContext(VIEWPORTS.desktop);
+    await ctx.addInitScript(() => {
+      if (sessionStorage.getItem("qa")) return;
+      sessionStorage.setItem("qa", "1");
+      localStorage.setItem("kubb:throwsMade", "5");
+      localStorage.setItem("kubb:howtoSeen", "true");
+    });
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    const url = `${env.base}/p/abcdefgh?solo=1&nohowto=1&pitchserver=${encodeURIComponent(rooms.url)}&api=${encodeURIComponent(rooms.apiUrl)}`;
+    const load = async () => {
+      await page.goto(url);
+      await page.waitForSelector("body[data-ready='1']", { timeout: 30000 });
+    };
+    const slot = () =>
+      page.evaluate(() => JSON.parse(localStorage.getItem("kubb:soloMatch")));
+    const pending = () =>
+      page.evaluate(() =>
+        JSON.parse(localStorage.getItem("kubb:soloPending") ?? "{}"),
+      );
+    const startMatch = async () => {
+      await page.click("[data-test=start]");
+      await page.click("[data-test=handoff-go]");
+      await waitPhase(page, "aim", 10000);
+    };
+    const resign = async () => {
+      await page.click("[data-test=menu]");
+      await page.click("[data-test=menu-resign]");
+      await page.waitForSelector("[data-test=winner]");
+    };
+    const keptCount = async (n) => {
+      const deadline = Date.now() + 10000;
+      while (games.kept.length < n && Date.now() < deadline)
+        await page.waitForTimeout(100);
+      return games.kept.length;
+    };
+    try {
+      for (const outcome of ["kept", "failed"]) {
+        // the record held 1.5 s, then kept or refused; REMATCH and START meanwhile
+        let release;
+        const held = new Promise((r) => (release = r));
+        await page.route("**/api/game", async (r) => {
+          await held;
+          if (outcome === "kept") await r.continue();
+          else await r.abort();
+        });
+        await load();
+        await startMatch();
+        await resign();
+        const first = (await pending()) && Object.keys(await pending());
+        assert.equal(first.length, 1, "the record waits apart");
+        await page.click("[data-test=rematch]");
+        await startMatch();
+        const next = (await slot()).id;
+        assert.notEqual(next, first[0]);
+        release();
+        await page.waitForFunction(() => Promise.all(window.__kubb.recorded));
+        await page.waitForTimeout(300);
+        const s = await slot();
+        assert.equal(s.id, next, `${outcome}: the new match's save is its own`);
+        assert.equal(s.over, false, `${outcome}: and not over`);
+        const p = await pending();
+        if (outcome === "kept") assert.deepEqual(Object.keys(p), []);
+        else assert.deepEqual(Object.keys(p), first, "the old record waits");
+        await page.unroute("**/api/game");
+        // reloaded: the new match is offered (not taken for over)
+        await load();
+        await page.waitForSelector("[data-test=resume]");
+        await page.click("[data-test=resume-new]");
+        await page.waitForSelector("[data-test=options]");
+      }
+      // the failed one was sent on that load, in the background, once
+      assert.equal(await keptCount(2), 2);
+      // leaving mid-send (HOME, a closed tab): the record waits; the next load sends it
+      await page.route("**/api/game", () => {}); // never answered
+      await startMatch();
+      await resign();
+      await load();
+      assert.equal(
+        Object.values(await pending()).length,
+        1,
+        "left waiting, its try counted",
+      );
+      await page.unroute("**/api/game");
+      await load();
+      assert.equal(await keptCount(3), 3, "sent on the next load");
+      await page.waitForFunction(
+        () => localStorage.getItem("kubb:soloPending") === "{}",
+      );
+      assert.deepEqual(errors, []);
+    } finally {
+      await ctx.close();
+      await rooms.close();
+    }
+  },
+);
+
+// Two tabs on one device, each playing the computer: one kept match a device, the
+// newest wins. A match live in one tab is never offered for RESUME in another; a newer
+// match takes the slot, and the older tab is told once and stops being kept.
+browserTest("two tabs never resume or clear each other's match", async () => {
+  const ctx = await env.browser.newContext(VIEWPORTS.desktop);
+  await ctx.addInitScript(() => {
+    if (localStorage.getItem("kubb:throwsMade") === null) {
+      localStorage.setItem("kubb:throwsMade", "5");
+      localStorage.setItem("kubb:howtoSeen", "true");
+    }
+  });
+  const url = `${env.base}/p/abcdefgh?solo=1&nohowto=1`;
+  const tab = async () => {
+    const p = await ctx.newPage();
+    p.errors = [];
+    p.on("pageerror", (e) => p.errors.push(e.message));
+    await p.goto(url);
+    await p.waitForSelector("body[data-ready='1']", { timeout: 30000 });
+    return p;
+  };
+  const slotId = (p) =>
+    p.evaluate(() => JSON.parse(localStorage.getItem("kubb:soloMatch"))?.id);
+  const myId = (p) =>
+    p.evaluate(() => {
+      const o = JSON.parse(window.__kubb.game.trail.start).opts;
+      const s = o.start;
+      return `${o.seed}@${s.year}-${s.month}-${s.day}T${s.hour}:${s.min}`;
+    });
+  try {
+    const a = await tab();
+    await a.click("[data-test=start]");
+    await a.click("[data-test=handoff-go]");
+    await waitPhase(a, "aim", 10000);
+    const idA = await myId(a);
+    assert.equal(await slotId(a), idA);
+    // B: A's match is live there, so it is not offered: the options card
+    const b = await tab();
+    await b.waitForSelector("[data-test=options]");
+    assert.equal(await b.locator("[data-test=resume]").count(), 0);
+    await b.click("[data-test=start]");
+    await b.click("[data-test=handoff-go]");
+    await waitPhase(b, "aim", 10000);
+    const idB = await myId(b);
+    assert.equal(await slotId(b), idB, "the newest wins");
+    // A's next action finds the slot taken: told once, and B's save stands
+    await throwOnce(a);
+    await a.waitForSelector("[data-test=kept-elsewhere]");
+    assert.equal(await slotId(a), idB);
+    await a.click("[data-test=kept-elsewhere] .btn");
+    await a.evaluate(() => window.__kubb.game.skip());
+    await waitPhase(a, "aim", 10000);
+    await throwOnce(a);
+    await a.waitForTimeout(300);
+    assert.equal(await a.locator("[data-test=kept-elsewhere]").count(), 0);
+    assert.equal(await slotId(a), idB);
+    // B closed: its match is offered to the next tab; A's, still live, never was
+    await b.close();
+    const c = await tab();
+    await c.waitForSelector("[data-test=resume]");
+    await c.click("[data-test=resume-go]");
+    await c.waitForFunction(() => window.__kubb.game.mode === "match");
+    assert.equal(await myId(c), idB);
+    for (const p of [a, c]) assert.deepEqual(p.errors, []);
+  } finally {
+    await ctx.close();
+  }
+});

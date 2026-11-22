@@ -1209,25 +1209,50 @@ and the card's states are a pure reducer in `src/net/share.js` (`shareStart`,
 
 Since QA, 2026-11-22 (the iPhone app keeps its own the same way, its docs/MATCH.md): a
 match against the computer is kept on the device after every action
-(`src/game/solo-save.js`, the `soloMatch` pref): its start, every action and the hash
-after it, the snapshot after the last, the turn and the scene. Reopening `/p/<code>?solo=1`,
+(`src/game/solo-save.js`, the `soloMatch` pref): its identity (`id`, the match's seed and
+start), its start, every action and the hash after it, the snapshot after the last, the
+turn, the scene and whether the engine says it is over. Reopening `/p/<code>?solo=1`,
 PLAY NOW, or reloading with one in progress shows "Your match is waiting" ("A match
 against the computer is kept on this device (Park, turn 4). Carry on where you left
 off, or start a new one.") with NEW MATCH and RESUME (go). RESUME adopts the snapshot
-through the engine's strict door (`Game.resumeMatch`, `restoreChecked`), checks it ends
-on the kept hash, and takes the trail from the match's own start, so the match is still
+through the engine's strict door with the match's own trail in place and its hash
+checked before the view is entered (`Game.resumeMatch`, `adopt`), so the match is still
 recorded once, whole, when it ends; a save that is refused, on another engine
-major.minor or not whole is dropped and the card is the options card. NEW MATCH clears
-it. The save is written as each action is tracked, before its throw plays, so whether
-the match is over is the engine's (`over`): a kept match that is over (the page went
-during the winning throw, or its record was not kept) is never offered; the next load
-goes straight to its winner card, the trail in place before the view is entered, which
-records it once, whole. The save goes when its record is kept (at once with no api
-address); a send that fails leaves it, marked, for the next load to send again, once,
-and a second failure drops it with a console warning, so a record is never sent twice
-and never waits for ever. One match a device;
-watching the computer and practice keep nothing. Storage that is blocked or full skips
-the save and play goes on.
+major.minor or not whole is dropped and the card is the options card. A kept match that
+is over (the page went during its last throw) is never offered: the next load shows its
+winner card, which records it. Storage that is blocked or full skips the save and play
+goes on.
+
+**One slot a device, the newest wins.** A match claims the slot when it starts or is
+resumed, and after that writes only while the slot is its own or empty. A match in
+another tab that finds the slot taken stops being kept and is told once ("Kept in
+another tab": "A newer match against the computer, in another tab, is the one kept on
+this device now. This match plays on, but a reload will not bring it back.", BACK TO THE
+MATCH); if the slot empties again it is kept again. A tab holds a Web Lock on the match
+it plays (`src/game/match-lock.js`, `kubb:solo:<id>`), so another tab never offers a
+match live elsewhere for RESUME, nor sends its record; a closed tab lets its locks go.
+
+**The record waits apart.** When a match ends its record message is kept under its id
+(`soloPending`), the try counted before it is sent, and the match leaves the slot if the
+slot is still its own; the api keeping it drops the entry. One that is not kept (a
+failed send, a tab closed mid-send) is sent again by a later load in the background,
+once, unless its match is locked by a live tab; a second failure drops it with a console
+warning. Every step checks the id, so a REMATCH made while the last record is still on
+its way keeps its own save.
+
+What can overlap, and what holds (each tested in `tests/game/client.test.mjs` or
+`tests/game/solo-save.test.mjs`):
+
+| Overlap                                                                                | What holds                                                                           |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| a record on its way, and REMATCH, NEW MATCH or a new START                             | the record settles only its own pending entry; the new match's save is untouched     |
+| a record on its way, and the tab closing or going HOME                                 | the entry stays with its try counted; a later load sends it once more, then drops it |
+| a record waiting, and a later load in another tab while the match's tab still shows it | the waiting record is skipped while its match is locked                              |
+| the save after each action, and a newer match in another tab                           | the newer match's claim wins; the older tab stops writing and is told once           |
+| RESUME in one tab, and the same match live in another                                  | not offered while it is locked there                                                 |
+| a reload during the winning throw                                                      | the save says over; its winner card records it once, whole                           |
+| watching the computer starting its next match                                          | nothing: watching keeps no save and sends its record as before                       |
+| a share or reel request from the winner card                                           | nothing: they read the match's trail, never the save or the waiting record           |
 
 ## Score sheet
 

@@ -52,11 +52,19 @@ import {
 import { startStamp } from "./game/clock.js";
 import {
   saveOf,
-  writeSave,
+  keepSave,
   readSave,
   clearSave,
+  matchId,
+  addPending,
+  dropPending,
+  pendingRecords,
+  RECORD_TRIES,
   RESUME_WORDS,
+  YIELD_WORDS,
 } from "./game/solo-save.js";
+import { holdMatch, matchHeld } from "./game/match-lock.js";
+import { resendGame } from "./net/record.js";
 
 const config = readConfig();
 const ui = document.getElementById("ui");
@@ -233,9 +241,9 @@ async function boot() {
     pitch?.openSheet ? pitch.openSheet() : openSheet(ui, { game });
   // A solo or watch match, when it ends, goes to the api to be kept
   // (src/net/record.js); a shared pitch's server records it.
-  const record = () =>
+  const record = (opts = {}) =>
     apiUrl()
-      ? recordMatch({ game, mode, config, url: apiUrl() })
+      ? recordMatch({ game, mode, config, url: apiUrl(), ...opts })
       : Promise.resolve(false);
   const menu = new Menu(ui, {
     game,
@@ -306,8 +314,8 @@ async function boot() {
     const env = {
       sheet,
       // the test hook keeps each send's outcome
-      record: () => {
-        const sent = record();
+      record: (opts) => {
+        const sent = record(opts);
         if (testing) window.__kubb.recorded.push(sent);
         return sent;
       },
@@ -419,9 +427,35 @@ const takesComputer = () => MATCH_OPTIONS.some(([k]) => k === "computer");
 function startSolo(game, cards, { sheet, record, recording, menu, asked }) {
   game.seat = { sides: ["A"], cpu: true };
   game.localSide = "A";
-  // the match is kept on the device after every action (src/game/solo-save.js)
-  const keep = () => writeSave(saveOf(game, engines.newest));
-  game.onTracked = keep;
+  // the match is kept on the device after every action (src/game/solo-save.js): it
+  // claims the slot when it starts or is resumed, then writes while the slot is its own;
+  // a newer match in another tab takes it, and this one is told once
+  let told = false;
+  const keep = (claim = false) => {
+    const s = saveOf(game, engines.newest);
+    if (!s || keepSave(s, { claim }) || told) return;
+    told = true;
+    let close;
+    close = cards.notice({
+      kicker: YIELD_WORDS.kicker,
+      title: YIELD_WORDS.title,
+      text: YIELD_WORDS.text,
+      actions: [[YIELD_WORDS.back, () => close(), "go"]],
+      test: "kept-elsewhere",
+    });
+  };
+  game.onTracked = () => keep(false);
+  // the lock on the match this tab plays (match-lock.js), and its id
+  const locks = new Map();
+  const own = (id) => {
+    told = false;
+    if (id && !locks.has(id)) locks.set(id, holdMatch(id));
+  };
+  const letGo = (id) => {
+    locks.get(id)?.();
+    locks.delete(id);
+  };
+  const playingId = () => matchId(game.trail?.start);
   // MAKE A HIGHLIGHT REEL on the winner card: the match is shared (with the name picked
   // on the share card) only when that card's SHARE is pressed (src/ui/share.js). Not
   // while watching the computer against itself (docs/REEL.md), nor in practice.
@@ -465,14 +499,30 @@ function startSolo(game, cards, { sheet, record, recording, menu, asked }) {
       set: o.set,
       start: startStamp(now),
     });
-    keep();
+    own(playingId());
+    keep(true);
   };
   game.onNeed = (need) => {
     cards.tick(game);
     if (need.kind === "over") {
-      // sent once (the trail is marked); the kept match goes when the record is kept,
-      // and a finished match is never offered back (solo-save.js "Over")
-      settleSave(record(), recording);
+      // sent once (the trail is marked), kept apart until the api has kept it; the
+      // finished match leaves the slot, if it is still its own (solo-save.js)
+      const id = playingId();
+      if (!recording) {
+        clearSave(id);
+        letGo(id);
+      } else {
+        const sent = record({
+          onMessage: (message) => {
+            addPending(id, message);
+            clearSave(id);
+          },
+        });
+        Promise.resolve(sent).then((ok) => {
+          settlePending(id, ok);
+          letGo(id);
+        });
+      }
       share?.destroy();
       share =
         apiUrl() && shareable({ trail: game.trail, need })
@@ -502,58 +552,64 @@ function startSolo(game, cards, { sheet, record, recording, menu, asked }) {
     game.newPractice({ surface: kept.surface, ...sceneOpt(kept.scene) });
     options();
   };
-  // a match in progress kept on this device: RESUME or NEW MATCH (PLAY NOW too)
-  const save = readSave(engines.newest);
-  if (!save) return begin();
-  // one that is already over (the page went during its last throw, or its record was
-  // not kept): straight to its winner card, which records it; never offered
-  if (save.over) {
+  const resume = (save) => {
+    own(save.id);
     try {
+      // the slot holds this save already; a match that is over records itself as it
+      // is entered and leaves the slot (onNeed), so nothing is written here
       game.resumeMatch(save);
     } catch (err) {
-      console.warn("The kept match could not be restored:", err);
-      clearSave();
+      console.warn("The kept match could not be resumed:", err);
+      letGo(save.id);
+      clearSave(save.id);
       begin();
     }
-    return;
-  }
-  game.newPractice({ ...sceneOpt(save.scene) });
-  cards.resume(save, RESUME_WORDS, SCENE_NAMES[save.scene] ?? null, {
-    resume: () => {
-      try {
-        game.resumeMatch(save);
-      } catch (err) {
-        console.warn("The kept match could not be resumed:", err);
-        clearSave();
+  };
+  // records a finished match left unsent (a closed tab, a failed send), not live in
+  // another tab: tried once more, in the background
+  if (recording) resendPending();
+  // a match in progress kept on this device: RESUME or NEW MATCH (PLAY NOW too); never
+  // one being played in another tab
+  const save = readSave(engines.newest);
+  if (!save) return begin();
+  matchHeld(save.id).then((held) => {
+    if (held) return begin();
+    // one that is already over (the page went during its last throw): straight to its
+    // winner card, which records it; never offered
+    if (save.over) return resume(save);
+    game.newPractice({ ...sceneOpt(save.scene) });
+    cards.resume(save, RESUME_WORDS, SCENE_NAMES[save.scene] ?? null, {
+      resume: () => resume(save),
+      fresh: () => {
+        clearSave(save.id);
         begin();
-      }
-    },
-    fresh: () => {
-      clearSave();
-      begin();
-    },
+      },
+    });
   });
 }
 
-// A finished match's save, once its record is sent (src/game/solo-save.js "Over"): kept
-// records clear it; with no api address there is nothing to send and it clears at once;
-// a send that fails leaves it, marked, for the next load to send again, once: a second
-// failure drops it (said in the console), so a record is never sent twice and never
-// waits for ever.
-function settleSave(sent, recording) {
-  if (!recording) return clearSave();
-  Promise.resolve(sent).then((ok) => {
-    if (ok) return clearSave();
-    const s = readSave(engines.newest);
-    if (!s) return;
-    if ((s.tries ?? 0) >= 1) {
-      console.warn(
-        "This match could not be recorded (two tries); it is not kept to try again.",
-      );
-      return clearSave();
-    }
-    writeSave({ ...s, over: true, tries: (s.tries ?? 0) + 1 });
-  });
+// A finished match's record (solo-save.js "pending"): kept, it is dropped; not kept,
+// it waits for a later load, which tries it once more (resendPending), then it is
+// dropped with a warning. Only ever its own entry, by id.
+function settlePending(id, ok) {
+  if (ok) return dropPending(id);
+  const p = pendingRecords().find((r) => r.id === id);
+  if (p && p.tries >= RECORD_TRIES) {
+    console.warn(
+      `This match could not be recorded (${p.tries} tries); it is not kept to try again.`,
+    );
+    dropPending(id);
+  }
+}
+
+async function resendPending() {
+  for (const p of pendingRecords()) {
+    if (await matchHeld(p.id)) continue;
+    addPending(p.id, p.message); // the try counts before it is made
+    resendGame({ url: apiUrl(), message: p.message }).then((ok) =>
+      settlePending(p.id, ok),
+    );
+  }
 }
 
 // ---------- the computer against itself ----------

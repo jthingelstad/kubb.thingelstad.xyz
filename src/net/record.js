@@ -132,6 +132,9 @@ export function recordMatch({
   url,
   send = sendGame,
   now = Date.now,
+  // the message, just before it is sent (a solo match keeps it until it is kept:
+  // src/game/solo-save.js "pending")
+  onMessage = null,
 }) {
   try {
     const trail = game?.trail;
@@ -141,8 +144,22 @@ export function recordMatch({
     trail.recorded = true;
     const record = matchRecord({ game, mode, config, now });
     if (!record) return Promise.resolve(false);
+    const message = gameMessage(record);
+    onMessage?.(message);
+    return resendGame({ url, message, send });
+  } catch (err) {
+    console.warn("The match was not recorded:", err);
+    return Promise.resolve(false);
+  }
+}
+
+// Send a record's message as it was made (again, from a later load: solo-save.js).
+// Resolves true when the server kept it, false otherwise; never rejects.
+export function resendGame({ url, message, send = sendGame }) {
+  try {
+    if (!url || !message) return Promise.resolve(false);
     return Promise.resolve()
-      .then(() => send({ url, message: gameMessage(record) }))
+      .then(() => send({ url, message }))
       .then(
         () => true,
         (err) => {
