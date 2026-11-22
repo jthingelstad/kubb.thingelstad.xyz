@@ -17,6 +17,8 @@ import { poseItem } from "./scenes.js";
 export const tune = {
   margin: 24, // px round the drawn kubb a tap still takes it (a finger's width)
   labelR: 40, // px round an end's numbered label a tap takes that end
+  labelR0: 17, // px, the numbered label's drawn radius
+  labelGap: 4, // px between the footprint's outer edge and the label's circle
   travelMin: 90, // px: the shortest drag that tips the kubb all the way up
   travelK: 1.1, // the drag that tips it all the way: this times the kubb's drawn length
   stand: 0.5, // let go past this part of the way up and it stands

@@ -70,6 +70,7 @@ import {
   panFor,
   isTall,
   stillFit,
+  verdictBox,
   wideBox,
   tune as layoutTune,
 } from "./layout.js";
@@ -121,6 +122,15 @@ import {
 // view turned `lineY` for Team B but not `kidY`; 0.15.1 turns both, so the far side's
 // line is drawn too. The guard stays: a kidY that is not near its line is not drawn
 // rather than drawn on the wrong end (JS never turns it).
+// The far baseline's frame y in an aim camera (the thrower's view frame: y = 8), held
+// to a sane range; null without one (layout.js worldFit's own anchor then).
+export function farFrameOf(camera) {
+  if (!camera) return null;
+  const p = project(camera, 0, 8, 0);
+  if (!p || !Number.isFinite(p[1])) return null;
+  return Math.max(40, Math.min(180, p[1]));
+}
+
 export function kidLineOf(aim) {
   const k = aim?.kidY;
   if (k == null) return null;
@@ -156,7 +166,12 @@ export const tune = {
   zoneFrom: 0.6,
   panEase: 5, // 1/s: how quickly a tall view pans after the circle
   remoteAimFresh: 1.5, // s a remote aim stays shown without news
-  flagFor: 6, // s a result flag stays up into the next aim
+  // s a result flag and its verdict chips stay up after the throw comes to rest
+  // (6 until web 0.17.0; the owner, 2026-11-22: "the display stays on the screen for
+  // a while keeping the player from being able to aim at times"): long enough to read
+  // the flag and four chips, about 2.7 s of the next aim after the pitch's 0.8 s rest.
+  // The first aim input takes it away at once (Game.aimInput).
+  flagFor: 3.5,
   keyMove: 1, // the move and walk axes from keys
   standPeek: 1, // s STAND's caption stays up after it is let go
   holdFeed: 1 / 30 - 0.002, // s: a held pointer's arm is fed again after this
@@ -624,6 +639,9 @@ export class Game {
     const n = this.need;
     // the last throw set up: the pitch's frame between throws (pitchFrame)
     if (n.kind === "throw" && n.side) this.lastThrower = n.side;
+    // where its aim camera puts the far baseline (frame y), so a tall canvas fits
+    // that line at layout.js anchorAt whoever throws from where (worldFit)
+    if (n.kind === "throw") this.farFrameY = farFrameOf(view.camera);
     if (n.kind === "throw") {
       this.phase = "aim";
       this.nudge.aimBegan();
@@ -863,8 +881,7 @@ export class Game {
     }
     if (!out.event) this.out = out;
     else this.out = { ...this.out, ...out };
-    if (out.dial && out.dial.phase !== "idle" && this.result)
-      this.result.age = Math.max(this.result.age, tune.flagFor - 0.3);
+    if (out.dial && out.dial.phase !== "idle") this.aimInput();
 
     if (!may && this.remoteFeed) {
       const s = this.remoteFeed();
@@ -891,7 +908,16 @@ export class Game {
   // call a drag of the thrower on the pitch makes. The ground the picture
   // shows is fixed at the press, so it never shifts under the finger.
   // Returns false when the press is not taken.
+  // The player has started to aim (a press on the pitch, the meter or a tray plate,
+  // a slider, STAND or an aim key): the last throw's verdict goes at once, so it never
+  // stands over what is aimed at (docs/SYSTEM.md "The verdict").
+  aimInput() {
+    if (this.phase === "aim" && this.result && this.mayAct())
+      this.result.age = Math.max(this.result.age, tune.flagFor);
+  }
+
   standAt(fx, fy, phase) {
+    this.aimInput();
     if (phase === "down") {
       if (this.phase !== "aim" || !this.mayAct() || this.modal) return false;
       this.sound?.unlock();
@@ -927,6 +953,7 @@ export class Game {
 
   // STAND's arrow keys: a step along the line (dx) or up and back (dy), m.
   standStep(dx, dy) {
+    this.aimInput();
     if (this.phase !== "aim" || !this.mayAct() || this.modal) return;
     this.nudge.input();
     const t = this.out?.aim?.thrower;
@@ -946,6 +973,7 @@ export class Game {
   // `fine` a tick (an arrow key on a slider) where the engine has ticks (0.9 on,
   // `aim.controls`); an older engine steps.
   planStep(what, step, fine = false) {
+    this.aimInput();
     if (this.phase !== "aim" || !this.mayAct()) return;
     this.nudge.input();
     const aim = this.out?.aim;
@@ -990,6 +1018,7 @@ export class Game {
   // A plate opened or closed in the tray (key: "arc", "side", "stand" or
   // null): ARC open is the side view, until it closes.
   plateOpened(key) {
+    this.aimInput();
     this.sound?.unlock();
     this.nudge.input();
     this.planOpen = key === "arc";
@@ -1008,6 +1037,7 @@ export class Game {
   // latest place once a frame (applySlide), so a fast drag costs one engine
   // call a frame at most. Returns false when the press is not taken.
   planSlide(what, f, phase) {
+    this.aimInput();
     if (phase === "down") {
       if (this.phase !== "aim" || !this.mayAct() || this.modal) return false;
       this.sound?.unlock();
@@ -1528,7 +1558,7 @@ export class Game {
       this.dialArm = null;
       this.dialNext = null;
     }
-    this.fit = worldFit(W, H, this.panX);
+    this.fit = worldFit(W, H, this.panX, this.farFrameY);
     if (this.engine) this.applyWide();
     this.placeRoom();
   }
@@ -1544,34 +1574,23 @@ export class Game {
     // the header's fixed width (layout.js headerBox): the minimap stands
     // under its right end
     const rw = this.L?.header ? Math.round(this.L.header.width) : null;
-    // the flag and the verdicts keep off the header and the minimap: upright
-    // left of the minimap, on a wide screen right of the header's end (centred
-    // on the screen where that leaves them room)
+    // the flag and the verdicts keep off the header, the minimap, the tray and the
+    // meter, and above what is aimed at (layout.js verdictBox)
+    const vb = this.wide ? null : verdictBox(this.L, { adv: !!this.advShown });
+    const cl = vb ? vb.x : null;
+    const cw = vb ? vb.width : null;
+    const ct = vb ? vb.y : null;
+    const ck =
+      cl == null ? "" : `${Math.round(cl)}:${Math.round(cw)}:${Math.round(ct)}`;
     const L = this.L;
-    let cl = null;
-    let cw = null;
-    if (L?.minimap && !this.wide) {
-      if (L.tall) {
-        cl = L.safe.left + 12;
-        cw = L.minimap.x - 8 - cl;
-      } else {
-        // short of the meter at the right edge (its prompt and the coach)
-        const a = L.minimap.x + L.minimap.width + 12;
-        const b =
-          L.meterSide === "right" ? L.dial.x - 12 : L.W - L.safe.right - 12;
-        const half = L.W / 2 - a;
-        cl = a;
-        cw = half >= 160 && a + 2 * half <= b ? 2 * half : b - a;
-      }
-    }
-    const ck = cl == null ? "" : `${Math.round(cl)}:${Math.round(cw)}`;
-    const key = `${r.left}:${r.right}:${rw}:${L?.tall}:${L?.meter}:${L?.meterSide}:${ck}`;
+    const key = `${r.left}:${r.right}:${rw}:${L?.tall}:${L?.meter}:${L?.meterSide}:${ck}:${!!this.advShown}`;
     if (this.roomKey === key) return;
     this.roomKey = key;
     root.classList?.toggle("center-placed", !!ck);
     if (ck) {
       root.style.setProperty("--center-l", `${Math.round(cl)}px`);
       root.style.setProperty("--center-w", `${Math.round(cw)}px`);
+      root.style.setProperty("--center-t", `${Math.round(ct)}px`);
     }
     if (rw) root.style.setProperty("--rail-w", `${rw}px`);
     // upright, SKIP takes the bottom corner away from a linear meter
@@ -1608,7 +1627,7 @@ export class Game {
       const a = dt > 0 ? Math.min(1, dt * tune.panEase) : 1;
       this.panX += (want - this.panX) * a;
     }
-    this.fit = worldFit(this.W, this.H, this.panX);
+    this.fit = worldFit(this.W, this.H, this.panX, this.farFrameY);
   }
 
   // A scene id shown over the pitch's own while it is being picked (the solo
@@ -1888,6 +1907,12 @@ export class Game {
       caption: this.captionWanted(),
       coach,
     });
+    // the Kid or advantage line's chip under the header: the verdict stands under it
+    const adv = !wide && !!aim?.advText;
+    if (adv !== !!this.advShown) {
+      this.advShown = adv;
+      this.placeRoom();
+    }
   }
 
   // Which slider's caption shows: the one held, or the last one through the
@@ -2066,7 +2091,7 @@ export class Game {
       const e = n.ends[i];
       if (!q) return;
       const pt = [q.lx, q.ly];
-      const r = 17;
+      const r = raiseTune.labelR0;
       ctx.fillStyle = "#16130f";
       ctx.beginPath();
       ctx.arc(pt[0] + 3, pt[1] + 3, r, 0, Math.PI * 2);
@@ -2095,20 +2120,31 @@ export class Game {
     const cam = raiseCamera(n);
     return (n.ends || []).map((e) => {
       const p = projectView(this.view, cam, e.pose.x, e.pose.y, 0);
-      // the label: a little beyond the footprint, along the kubb from its middle
+      // the label: just past the footprint's outer edge, along the kubb from its
+      // middle, its circle clear of the footprint (raiseTune.labelGap px) however
+      // small the camera draws it
       const dx = e.pose.x - n.pose.x,
         dy = e.pose.y - n.pose.y;
       const l = Math.hypot(dx, dy) || 1;
       const q = projectView(
         this.view,
         cam,
-        e.pose.x + (dx / l) * 0.07,
-        e.pose.y + (dy / l) * 0.07,
+        e.pose.x + (dx / l) * 0.035,
+        e.pose.y + (dy / l) * 0.035,
         0,
       );
-      return p && q
-        ? { x: p[0], y: p[1], lx: q[0], ly: q[1], ok: e.ok !== false }
-        : null;
+      if (!p || !q) return null;
+      const ex = q[0] - p[0],
+        ey = q[1] - p[1];
+      const el = Math.hypot(ex, ey) || 1;
+      const out = raiseTune.labelR0 + raiseTune.labelGap;
+      return {
+        x: p[0],
+        y: p[1],
+        lx: q[0] + (ex / el) * out,
+        ly: q[1] + (ey / el) * out,
+        ok: e.ok !== false,
+      };
     });
   }
 
@@ -2171,6 +2207,7 @@ export class Game {
   down(e) {
     this.sound?.unlock();
     if (this.modal || this.ptr) return;
+    this.aimInput();
     const { x, y } = this.pos(e);
     // a watcher's free camera takes every press on the pitch (docs/OBSERVER.md)
     if (this.freeOn()) {
@@ -2530,6 +2567,7 @@ export class Game {
       "KeyS",
     ];
     this.nudge.input();
+    if (!isTyping(e.target)) this.aimInput();
     if (aimKeys.includes(code)) {
       this.keys.add(code);
       e.preventDefault();

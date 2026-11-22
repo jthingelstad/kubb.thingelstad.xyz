@@ -113,11 +113,18 @@ export function settleItems(need, kubbPose = need.pose) {
   return items;
 }
 
+// The raise camera stands twice as far from the kubb as it first did (the owner,
+// 2026-11-22: "When raising kubbs the camera view is too close. We need to see about
+// twice as much to know how to raise them."): the same angle down and the same lens,
+// so twice the ground shows each way round the kubb, its neighbours, the lines near
+// it and often the king, and the kubb is drawn half as big (its touch target stays at
+// least 44 px across: the 24 px slop round it, tests/game/raise-touch.test.mjs).
+// docs/SYSTEM.md "The raise view".
 export const tune = {
-  raiseBack: 1.15, // m from the kubb, across its length, the raise camera stands
-  raiseUp: 1.05, // m up
+  raiseBack: 2.3, // m from the kubb, across its length, the raise camera stands (1.15 before)
+  raiseUp: 2.1, // m up (1.05 before)
   raiseF: 520,
-  raiseLead: 0.12, // m the look point sits toward the camera (the kubb reads above the middle)
+  raiseLead: 0.24, // m the look point sits toward the camera (the kubb reads above the middle)
   punishEye: [0, -2.6, 5.4],
   punishAt: [0, 1.05, 0],
   punishF: 300,
