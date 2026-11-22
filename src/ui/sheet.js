@@ -16,6 +16,20 @@ export const NOTATION_URL =
 // engine: the engine holding the match, when it is not the Game's (a finished match from
 // an older engine the site carries, docs/ENGINES.md).
 // Returns null when there is no match to show (practice).
+// The match's length is known only when an action carried the clock (`at`: a resign
+// since QA 2026-11-22; a person's throw cannot until the engine takes it, see
+// docs/CLIENT.md "Score sheet"). Without one the engine writes the finish as the start,
+// `[Duration "0m"]`, which is not true: the sheet shown leaves that line out. The file
+// kept in the record is the engine's as it is.
+export const UNKNOWN_DURATION = /^\[Duration "0m"\]$/;
+export const knownLines = (lines) =>
+  lines.filter((l) => !UNKNOWN_DURATION.test(l));
+export const knownText = (text) =>
+  text
+    .split("\n")
+    .filter((l) => !UNKNOWN_DURATION.test(l))
+    .join("\n");
+
 export function openSheet(root, opts) {
   const { game, engine = game.engine } = opts;
   let sheet = null;
@@ -25,6 +39,11 @@ export function openSheet(root, opts) {
     console.warn("No score sheet:", err);
   }
   if (!sheet || typeof sheet.text !== "string") return null;
+  sheet = {
+    ...sheet,
+    text: knownText(sheet.text),
+    shown: Array.isArray(sheet.shown) ? knownLines(sheet.shown) : sheet.shown,
+  };
   // where the keyboard was (MENU, or the winner card's SCORE SHEET), to go back to
   const opener = document.activeElement;
   const lines = sheet.text.replace(/\n$/, "").split("\n");

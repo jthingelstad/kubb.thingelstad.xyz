@@ -187,8 +187,9 @@ export class Cards {
         "data-test": "watch-replay",
       });
     const stats = [`${w.turns} ${w.turns === 1 ? "turn" : "turns"}`];
-    if (w.minutes != null)
-      stats.push(w.minutes < 1 ? "under a min" : `${w.minutes} min`);
+    // the length only when it is known: the engine gives 0 when no action carried the
+    // clock (a person's throw cannot yet), and "under a min" was then said of every match
+    if (w.minutes >= 1) stats.push(`${w.minutes} min`);
     if (w.thrown)
       stats.push(`baton hits ${Math.round((100 * w.hits) / w.thrown)}%`);
     const noteEl = note

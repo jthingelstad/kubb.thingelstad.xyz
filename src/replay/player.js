@@ -35,7 +35,7 @@
 import { h, button } from "../ui/dom.js";
 import { VIEWS, CamBar } from "../ui/watch-view.js";
 import { prefs } from "../game/prefs.js";
-import { openSheet } from "../ui/sheet.js";
+import { openSheet, knownLines } from "../ui/sheet.js";
 import { fetchReplay } from "./fetch.js";
 import { engineFor, majorMinor } from "../engine/registry.js";
 
@@ -444,9 +444,9 @@ export class ReplayPlayer {
       return;
     }
     if (!s || typeof s.text !== "string") return;
-    const lines = Array.isArray(s.shown)
-      ? s.shown
-      : s.text.replace(/\n$/, "").split("\n");
+    const lines = knownLines(
+      Array.isArray(s.shown) ? s.shown : s.text.replace(/\n$/, "").split("\n"),
+    );
     const text = lines.join("\n");
     if (this.sheetText.textContent === text) return;
     this.sheetText.textContent = text;
