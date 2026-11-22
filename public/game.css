@@ -56,7 +56,13 @@ body.game {
   display: none !important;
 }
 
-/* ---------- buttons ---------- */
+/* ---------- buttons ----------
+   The 1.0 design's three kinds, no others: go (marigold with ink type, the one
+   thing to press next, one per screen, last in its row), plain (paper) and quiet
+   (underlined display capitals, a full 44 px target, for leaving: HOME, RESIGN,
+   NOT NOW, JUST WATCH). A control is a 3 px ink line, radius 6 and a 3 px shadow;
+   44 px tall, 48 on a touchscreen. Every control's focus is a 3 px ink ring 2 px
+   off it. */
 
 .btn {
   appearance: none;
@@ -67,14 +73,14 @@ body.game {
   min-height: 44px;
   min-width: 44px;
   padding: 6px 16px;
-  border: 3px solid var(--ink);
-  border-radius: 6px;
+  border: var(--line) solid var(--ink);
+  border-radius: var(--radius-control);
   background: var(--paper);
   color: var(--ink);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-control);
   font-family: var(--display);
   font-weight: 900;
-  font-size: 19px;
+  font-size: 20px;
   letter-spacing: 0.02em;
   line-height: 1;
   text-transform: uppercase;
@@ -87,9 +93,9 @@ body.game {
   transform: translate(3px, 3px);
   box-shadow: none;
 }
-.btn:focus-visible {
+#ui :is(button, a, select, textarea, input, summary, [tabindex]):focus-visible {
   outline: 3px solid var(--ink);
-  outline-offset: 3px;
+  outline-offset: 2px;
 }
 .btn:disabled {
   opacity: 0.55;
@@ -100,21 +106,36 @@ body.game {
   color: var(--on-accent);
 }
 .btn.big {
-  min-height: 60px;
-  font-size: 30px;
-  padding-inline: 34px;
+  min-height: 56px;
+  font-size: 26px;
+  padding-inline: 30px;
 }
 .btn.small {
-  font-size: 16px;
+  font-size: 17px;
   padding: 4px 12px;
 }
+/* quiet: for leaving. Its words are the target: no line, no shadow, the full 44 px
+   (48 on a touchscreen) all the same */
+.btn.quiet,
 .btn.plain {
   border-color: transparent;
   background: transparent;
   box-shadow: none;
+  padding-inline: 8px;
   text-decoration: underline;
   text-decoration-thickness: 2px;
-  text-underline-offset: 3px;
+  text-underline-offset: 4px;
+}
+.btn.quiet:active,
+.btn.plain:active {
+  transform: none;
+}
+@media (pointer: coarse) {
+  .btn,
+  .seg-btn,
+  .name-step-btn {
+    min-height: 48px;
+  }
 }
 .btn.plan {
   font-size: 15px;
@@ -131,37 +152,91 @@ body.game {
 #ui .hud {
   pointer-events: none;
 }
+/* The header (the 1.0 design, src/game/hud.js): one plate at the top left,
+   "Turn 4 · baton 2 of 6" in the label's capitals over the name in sentence case,
+   the kubbs standing in each half as two numbers on the team colours, and MENU as
+   a word inside it. A tall screen gives it the width the minimap leaves; what
+   stood under it there stands under its height (--rail-h, set by the HUD). */
 .hud-rail {
   position: absolute;
   color: var(--ink);
   top: calc(var(--safe-top) + 10px);
   left: calc(var(--safe-left) + 12px + var(--meter-l));
-  max-width: 44vw;
-  padding: 5px 12px 6px;
-  border: 3px solid var(--ink);
-  border-radius: 6px;
+  max-width: max(44vw, 260px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "what what what"
+    "name score menu";
+  align-items: center;
+  column-gap: 8px;
+  padding: 5px 5px 5px 12px;
+  border: var(--line) solid var(--ink);
+  border-radius: var(--radius-control);
   background: var(--paper);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-control);
+}
+.rail-what {
+  grid-area: what;
+  padding-right: 4px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 .rail-name {
+  grid-area: name;
   font-family: var(--display);
   font-weight: 900;
-  font-size: 20px;
-  line-height: 1.05;
-  /* a generated name breaks between its words: every word fits the narrowest rail
-     (tests/game/names-fit-client.test.mjs), so no name is cut */
+  font-size: 22px;
+  line-height: 1.02;
+  /* a generated name breaks between its words: every word fits the narrowest
+     header (tests/game/names-fit-client.test.mjs), so no name is cut */
   overflow-wrap: normal;
   white-space: normal;
 }
-.rail-what,
-.rail-counts {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  white-space: nowrap;
+.rail-score {
+  grid-area: score;
+  display: flex;
+  gap: 6px;
 }
-.rail-counts {
-  color: var(--muted);
+.rail-score[hidden] {
+  display: none;
+}
+/* a number on its team's colour: a chip (2 px, no shadow: it is not pressed) */
+.rail-n {
+  min-width: 32px;
+  padding: 3px 6px;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-control);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.rail-n.team-a {
+  background: var(--marigold);
+  color: var(--ink);
+}
+.rail-n.team-b {
+  background: var(--violet);
+  color: #fff;
+}
+.rail-menu {
+  grid-area: menu;
+  display: flex;
+}
+.rail-menu:empty {
+  display: none;
+}
+#ui .rail-menu .menu-btn {
+  pointer-events: auto;
+  box-shadow: none;
+  border-width: 2px;
+  padding: 4px 12px;
 }
 
 .center {
@@ -201,7 +276,7 @@ body.game {
   border: 2px solid var(--ink);
   border-radius: 4px;
   background: var(--paper);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.04em;
   white-space: nowrap;
@@ -250,7 +325,7 @@ body.game {
   border: 2px solid var(--ink);
   border-radius: 4px;
   background: var(--paper);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.05em;
   white-space: nowrap;
@@ -425,7 +500,7 @@ body.game {
   display: none;
 }
 .cap-text {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1.25;
   letter-spacing: 0.04em;
@@ -462,7 +537,7 @@ body.game {
   border: 2px solid var(--ink);
   border-radius: 4px;
   box-shadow: 2px 2px 0 var(--ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1.25;
   letter-spacing: 0.04em;
@@ -771,15 +846,10 @@ body.game {
   top: calc(var(--safe-top) + 64px);
 }
 
-.menu-btn {
-  position: absolute;
-  top: calc(var(--safe-top) + 10px);
-  right: calc(var(--safe-right) + 12px + var(--meter-r));
-}
 .tray {
   position: absolute;
   top: calc(var(--safe-top) + 10px);
-  right: calc(var(--safe-right) + 100px + var(--meter-r));
+  right: calc(var(--safe-right) + 12px + var(--meter-r));
   display: flex;
   gap: 8px;
 }
@@ -924,7 +994,7 @@ body.game {
   margin: 0 0 8px;
 }
 .kicker {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -939,7 +1009,7 @@ body.game {
 }
 .card .detail {
   font-family: var(--jt-font-mono);
-  font-size: 12px;
+  font-size: 14px;
   word-break: break-word;
 }
 
@@ -982,53 +1052,92 @@ body.game {
 .options {
   width: min(560px, 100%);
 }
+/* A row (the 1.0 design's "Row"): the label at the left, the control at the
+   right, 48 px tall; where the card is too narrow the control drops under its
+   label. */
 .opt {
-  display: grid;
-  grid-template-columns: 6.5em 1fr;
-  gap: 4px 10px;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  min-height: 48px;
   margin-top: 8px;
 }
 /* a line under an option: why it is not as chosen */
 .opt-note {
-  grid-column: 2;
+  flex: 1 0 100%;
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
+  color: var(--muted);
 }
+.card p.opt-note {
+  margin: 0;
+}
+/* row labels and kickers: Inter bold 14, capitals, 0.06em */
 .opt-label {
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+/* a rule between a card's groups of rows */
+.card hr.rule {
+  height: 0;
+  margin: 10px 0 2px;
+  border: 0;
+  border-top: 2px solid var(--ink);
+}
+
+/* The segmented bar (src/ui/seg.js; the 1.0 design): one joined bar for two to
+   four options, the chosen part ink with paper type, the others white. One Tab
+   stop: the focus ring goes round the whole bar, and the part the keyboard is on
+   is ringed inside it. */
 .seg {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  display: inline-flex;
+  max-width: 100%;
+  border: var(--line) solid var(--ink);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  background: var(--field);
+}
+.seg:focus-within {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
 }
 .seg-btn {
   appearance: none;
+  flex: 1 1 auto;
   min-height: 44px;
-  padding: 4px 11px;
-  border: 2px solid var(--ink);
-  border-radius: 6px;
-  background: var(--paper);
+  min-width: 52px;
+  margin: 0;
+  padding: 0 12px;
+  border: 0;
+  border-left: 2px solid var(--ink);
+  border-radius: 0;
+  background: var(--field);
   color: var(--ink);
-  font: 700 14px var(--jt-font-body);
+  font: 700 15px/1.2 var(--jt-font-body);
+  white-space: nowrap;
   cursor: pointer;
   touch-action: manipulation;
+}
+.seg-btn:first-child {
+  border-left: 0;
 }
 .seg-btn[aria-checked="true"] {
   background: var(--ink);
   color: var(--paper);
 }
-.seg-btn:focus-visible {
-  outline: 3px solid var(--ink);
-  outline-offset: 2px;
+#ui .seg-btn:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 3px var(--paper),
+    inset 0 0 0 5px var(--ink);
 }
-/* The Scene row: each choice carries a small picture of its scene, sky over
-   ground, so the row shows what it picks (src/render/scenes.js SCENE_ROW).
-   The words carry the choice; the swatch is only a hint. */
+/* The Scene row (the lobby, practice's MENU): each choice carries a small picture
+   of its scene, sky over ground, so the row shows what it picks. The words carry
+   the choice; the swatch is only a hint. */
 .seg[data-key="scene"] .seg-btn::before {
   content: "";
   display: inline-block;
@@ -1051,6 +1160,106 @@ body.game {
   background:
     linear-gradient(#5ff0ff, #5ff0ff) 50% 50% / 100% 1.5px no-repeat,
     linear-gradient(#02050a 50%, #0a2a33 50%);
+}
+
+/* The solo card's Scene: three picture tiles (src/ui/cards.js sceneTiles), each
+   the scene's own pitch as the game draws it (src/render/scenes.js), its name
+   under it. Chosen: the name ink on paper type and the tile's shadow; not chosen:
+   flat. One Tab stop, the arrow keys inside, as the segmented bar. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+.tile {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: var(--line) solid var(--ink);
+  border-radius: var(--radius-control);
+  background: var(--baton);
+  color: var(--ink);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.tile canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 96 / 56;
+  height: auto;
+}
+.tile-name {
+  display: block;
+  padding: 6px 2px;
+  border-top: var(--line) solid var(--ink);
+  font: 700 14px/1.2 var(--jt-font-body);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+}
+.tile[aria-checked="true"] {
+  box-shadow: var(--shadow-control);
+}
+.tile[aria-checked="true"] .tile-name {
+  background: var(--ink);
+  color: var(--paper);
+}
+.scene-note {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* a card's foot: what is quiet at the left, the go button at the right */
+.card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  margin-top: 16px;
+}
+.card-foot .menu-version {
+  margin: 0;
+}
+/* a card's main button across its width (REMATCH, BACK TO THE MATCH) */
+.card .btn.wide {
+  display: flex;
+  width: 100%;
+  margin-top: 12px;
+}
+.card .btn.go.wide {
+  min-height: 56px;
+  font-size: 26px;
+}
+/* two plain buttons side by side (WATCH REPLAY and SCORE SHEET); the menu's two
+   by two grid */
+.card-pair,
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.card-pair:empty {
+  display: none;
+}
+.card-pair .btn,
+.menu-grid .btn {
+  white-space: normal;
+  text-align: center;
+}
+/* the share card's link and COPY LINK */
+.share-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 8px;
 }
 
 .menu .menu-list {
@@ -1090,7 +1299,7 @@ body.game {
   border-radius: 6px;
   background: var(--paper);
   box-shadow: var(--shadow-sm);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 /* beside a wide screen's linear meter (Game.placeRoom): it wraps rather
@@ -1185,7 +1394,7 @@ body.game {
 .report-dot {
   position: absolute;
   transform: translate(-50%, -50%);
-  font-size: 10px;
+  font-size: 14px;
   padding: 3px;
   min-width: 18px;
   z-index: 1;
@@ -1264,7 +1473,7 @@ body.game {
   border: 3px solid var(--ink);
   border-radius: 6px;
   background: var(--field);
-  font: 500 13px/1.45 var(--jt-font-mono);
+  font: 500 14px/1.45 var(--jt-font-mono);
   color: var(--ink);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1312,6 +1521,20 @@ body.game {
 }
 .panel .row {
   margin-top: 8px;
+}
+/* two fixed slots (src/ui/cards.js slots): the automatic choices at the left,
+   the confirming action at the right */
+.panel-slots {
+  justify-content: space-between;
+}
+.panel-auto,
+.panel-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.panel-confirm {
+  margin-left: auto;
 }
 .panel-text {
   margin: 2px 0 0;
@@ -1388,7 +1611,7 @@ body.game {
 .team-count {
   float: right;
   font-family: var(--jt-font-body);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   line-height: 22px;
 }
@@ -1434,7 +1657,7 @@ body.game {
   padding: 0 5px;
   border: 2px solid var(--ink);
   border-radius: 3px;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.05em;
 }
@@ -1468,7 +1691,7 @@ body.game {
 .link-text {
   min-width: 0;
   font-family: var(--jt-font-mono);
-  font-size: 13px;
+  font-size: 14px;
   overflow-wrap: anywhere;
   user-select: text;
   -webkit-user-select: text;
@@ -1490,79 +1713,109 @@ body.game {
   grid-column: 2;
   justify-self: start;
 }
-/* ---------- the name row (src/ui/name-row.js): a generated name, its words'
-   pickers, a lock each and SHUFFLE. It spans the option's whole width, under its
-   label, so the widest name fits on a phone (tests/game/names-fit-client.test.mjs
-   measures every name against NAME_FIT). ---------- */
+/* ---------- the name row (src/ui/name-row.js; the 1.0 design): the name and
+   SHUFFLE on one line; in Settings a stepper per word under it (previous, the
+   word, next). It spans the option's whole width, so the widest name fits on a
+   phone (tests/game/names-fit-client.test.mjs measures every name against
+   NAME_FIT). ---------- */
 .opt > .name-row {
-  grid-column: 1 / -1;
+  flex: 1 0 100%;
 }
 .name-row {
   display: grid;
-  gap: 6px;
+  gap: 10px;
   min-width: 0;
 }
 .name-head {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: 6px 10px;
 }
 .name-text {
-  /* NAME_FIT.text: the widest name the engine makes, in this type */
+  /* NAME_FIT.text: the widest name the engine makes, in this type (the
+     display face's "name", 24 px) */
   min-width: 200px;
-  font: 800 17px var(--jt-font-body);
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 24px;
+  line-height: 1.02;
   white-space: nowrap;
 }
-.name-words {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+/* one stepper a line, the card's width: two side by side leave a phone too little
+   room for the widest word */
+.name-steps {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
 }
 .name-prefix {
   font: 700 15px var(--jt-font-body);
   padding: 0 2px;
 }
-.name-word {
+/* a stepper: the segmented bar's look, the word in the middle part */
+.name-step {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  align-items: stretch;
+  border: var(--line) solid var(--ink);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  background: var(--field);
 }
-.name-pick {
+.name-step-btn {
+  appearance: none;
+  flex: none;
+  min-width: 48px;
   min-height: 44px;
-  /* NAME_FIT.word: the widest word, with the arrow's room */
-  min-width: 9em;
-  padding: 4px 8px;
-  border: 2px solid var(--ink);
-  border-radius: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
   background: var(--field);
   color: var(--ink);
-  font: 700 15px var(--jt-font-body);
-  touch-action: manipulation;
-}
-.name-pick:focus-visible,
-.name-lock:focus-visible {
-  outline: 3px solid var(--ink);
-  outline-offset: 2px;
-}
-.name-lock {
-  appearance: none;
-  min-height: 44px;
-  min-width: 44px;
-  padding: 4px 8px;
-  border: 2px solid var(--ink);
-  border-radius: 6px;
-  background: var(--paper);
-  color: var(--ink);
-  font: 800 11px var(--jt-font-body);
-  letter-spacing: 0.04em;
+  font: 700 22px/1 var(--jt-font-body);
   cursor: pointer;
   touch-action: manipulation;
 }
-.name-lock[aria-pressed="true"] {
+#ui .name-step-btn:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 3px var(--paper),
+    inset 0 0 0 5px var(--ink);
+}
+.name-step:focus-within {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+.name-step-word {
+  /* NAME_FIT.word: the widest word the engine has, in this type */
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  padding: 0 4px;
+  border-inline: 2px solid var(--ink);
   background: var(--ink);
   color: var(--paper);
+  font: 700 15px/1.2 var(--jt-font-body);
+  white-space: nowrap;
+}
+/* the name with a caption over it, in a box (the lobby's "You are", the welcome
+   card's "You will be") */
+.you.boxed {
+  display: grid;
+  gap: 2px;
+  margin-top: 10px;
+  padding: 6px 6px 6px 12px;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-control);
+  background: var(--baton);
+}
+.you-caption {
+  color: var(--muted);
+}
+.options > .you {
+  margin-top: 6px;
 }
 /* a side of several's team name in the lobby */
 .team-name {
@@ -1634,7 +1887,7 @@ body.game {
   border: 2px solid var(--ink);
   border-radius: 4px;
   background: var(--paper);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.05em;
   text-align: center;
@@ -1680,7 +1933,7 @@ body.game {
 }
 .shout-name {
   margin-right: 6px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
 }
 .shout-word {
@@ -1726,14 +1979,14 @@ body.game {
 }
 .replay-count {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.05em;
   white-space: nowrap;
 }
 .replay-note {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: #7a3b00;
 }
@@ -1769,7 +2022,7 @@ body.game {
   min-height: 0;
   margin: 6px 0 0;
   overflow: auto;
-  font: 500 12px/1.45 var(--jt-font-mono);
+  font: 500 14px/1.45 var(--jt-font-mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   user-select: text;
@@ -1803,7 +2056,7 @@ body.embed {
   border-radius: 6px;
   background: var(--paper);
   color: var(--ink);
-  font: 700 13px/1.2 var(--jt-font-sans, system-ui, sans-serif);
+  font: 700 14px/1.2 var(--jt-font-sans, system-ui, sans-serif);
   text-decoration: none;
 }
 /* the link has the top-left corner, so the HUD's panel sits below it */
@@ -1841,7 +2094,7 @@ body.embed .replay-controls {
   border: 3px solid var(--ink);
   border-radius: 6px;
   background: var(--field);
-  font: 500 13px/1.45 var(--jt-font-mono);
+  font: 500 14px/1.45 var(--jt-font-mono);
   resize: none;
   user-select: text;
   -webkit-user-select: text;
@@ -1860,7 +2113,7 @@ body.embed .replay-controls {
 /* the state line under the title: MAKING YOUR REEL */
 .reel-line {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -1929,7 +2182,7 @@ body.embed .replay-controls {
   margin-top: 10px;
 }
 .share-when {
-  font-size: 13px;
+  font-size: 14px;
 }
 .share-say {
   min-height: 1.45em;
@@ -1962,7 +2215,7 @@ body.embed .replay-controls {
   border: 2px solid var(--ink);
   border-radius: 4px;
   background: var(--paper);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.05em;
   pointer-events: none;
@@ -1976,34 +2229,45 @@ body.embed .replay-controls {
 /* ---------- a tall screen (a phone held upright) ---------- */
 
 @media (max-aspect-ratio: 20/21) {
+  :root {
+    /* the foot of the header, with 4 px under it (its height from the HUD) */
+    --below-rail: calc(var(--safe-top) + 14px + var(--rail-h, 64px));
+  }
+  /* the header takes the width the minimap leaves it (layout.js: the minimap is
+     min(78px, 19vw) wide, 14 px off the right edge), 8 px short of it */
+  .hud-rail {
+    max-width: calc(
+      100vw - var(--safe-left) - var(--safe-right) - 34px - min(78px, 19vw)
+    );
+  }
   .tray {
-    top: calc(var(--safe-top) + 86px);
+    top: calc(var(--below-rail) + 8px);
     left: calc(var(--safe-left) + 12px);
     right: auto;
   }
   .center {
-    top: calc(var(--safe-top) + 128px);
+    top: calc(var(--below-rail) + 50px);
   }
-  /* the status pill goes under the rail and the menu */
+  /* the status pill goes under the header */
   .status {
-    top: calc(var(--safe-top) + 78px);
+    top: var(--below-rail);
     font-size: 19px;
   }
   .net {
-    top: calc(var(--safe-top) + 108px);
+    top: calc(var(--below-rail) + 30px);
   }
   .shout-bar {
-    top: calc(var(--safe-top) + 120px);
+    top: calc(var(--below-rail) + 42px);
   }
   .replaying .cam-bar {
-    top: calc(var(--safe-top) + 120px);
+    top: calc(var(--below-rail) + 42px);
   }
   .shouts {
-    top: calc(var(--safe-top) + 174px);
+    top: calc(var(--below-rail) + 96px);
   }
   .adv {
     bottom: auto;
-    top: calc(var(--safe-top) + 72px);
+    top: var(--below-rail);
     left: auto;
     right: calc(var(--safe-right) + 100px);
     transform: none;
@@ -2151,4 +2415,26 @@ body.embed .replay-controls {
     bottom: calc(var(--safe-bottom) + 42vh);
     width: max-content;
   }
+}
+
+/* ---------- the pitch link's welcome (src/ui/welcome.js) ---------- */
+.brand-chip {
+  display: inline-block;
+  margin: 0 0 10px;
+  padding: 4px 10px;
+  border-radius: var(--radius-control);
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 20px;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+}
+.card p.brand-chip {
+  margin: 0 0 10px;
+}
+.card p.welcome-kubb {
+  margin: 8px 0 0;
+  font-size: 17px;
 }

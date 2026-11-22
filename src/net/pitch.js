@@ -42,6 +42,7 @@ import {
   playingSide,
 } from "./seats.js";
 import { Lobby } from "../ui/lobby.js";
+import { welcomeCard, firstVisit } from "../ui/welcome.js";
 import { WatchCard } from "../ui/watching.js";
 import { WatchView } from "../ui/watch-view.js";
 import { prefs } from "../game/prefs.js";
@@ -300,7 +301,11 @@ export class Pitch {
       if (this.ready) this.joinFailed(err);
     });
 
-    this.lobby.show();
+    // a device that has never played sees the welcome first, on a pitch someone else
+    // made (onReady takes it away for the host of a new pitch)
+    this.welcoming = !this.observe && firstVisit(prefs);
+    if (this.welcoming) this.showWelcome();
+    else this.lobby.show();
     this.renderLobby();
     room.ready.then(
       () => this.onReady(),
@@ -342,6 +347,8 @@ export class Pitch {
       if (this.observe && players.length === 0) return this.nothingToWatch();
     }
     this.ready = true;
+    // the host who made this pitch goes straight to the lobby
+    if (this.welcoming && room.isHost() && room.v === 0) this.endWelcome();
     // the host's own options go in on a new pitch, and OPEN from the web game's page
     // (/p/<code>?open=1) makes it an open game
     if (!this.observe && room.isHost() && room.v === 0) {
@@ -417,6 +424,58 @@ export class Pitch {
       ],
       test: "no-game",
     });
+  }
+
+  // ---------- the welcome (src/ui/welcome.js) ----------
+
+  showWelcome() {
+    if (!this.welcome)
+      this.welcome = welcomeCard({
+        names: this.game.names,
+        name: this.game.playerName,
+        setName: (t) => this.setName(t),
+        host: null,
+        join: () => this.endWelcome(),
+        watch: () => this.justWatch(),
+        howto: this.howto
+          ? () => {
+              this.welcomeClose?.();
+              this.howto(() => this.welcoming && this.showWelcome());
+            }
+          : null,
+      });
+    this.welcomeHost();
+    this.welcomeClose = this.cards.show(this.welcome.el, this.game, {
+      onClose: () => {
+        this.welcomeClose = null;
+      },
+    });
+  }
+
+  // The welcome's "<host> invited you": the host's name as the lobby shows it, once
+  // the pitch says who the host is (and it is not this browser).
+  welcomeHost() {
+    const r = this.room;
+    const host = r?.host && r.host !== r.you ? this.lobbyNameOf(r.host) : null;
+    this.welcome?.setHost(host);
+  }
+
+  // JOIN THE GAME: the lobby, where a side is picked.
+  endWelcome() {
+    if (!this.welcoming) return;
+    this.welcoming = false;
+    this.welcomeClose?.();
+    if (this.mode === "lobby") {
+      this.lobby.show();
+      this.renderLobby();
+    }
+  }
+
+  // JUST WATCH: the same link as an observer (docs/OBSERVER.md).
+  justWatch() {
+    const u = new URL(location.href);
+    u.searchParams.set("observe", "1");
+    location.href = u.toString();
   }
 
   // JOIN THIS PITCH (an observer): the same link without ?observe=1, the lobby.
@@ -552,6 +611,7 @@ export class Pitch {
       home: this.home,
       replay: () => this.watch(r),
       embed: () => this.showEmbed(),
+      link: this.link,
       reel: this.reelFor(r),
       first: true,
       // the kept replay passed names.check whole (replayIssue above)
@@ -593,6 +653,7 @@ export class Pitch {
   nameChanged(v) {
     const name = v;
     this.lobby?.setName(name);
+    this.welcome?.setName(name);
     if (name === this.name) return;
     this.name = name;
     this.room?.setMe({ name });
@@ -808,6 +869,7 @@ export class Pitch {
   renderLobby() {
     if (!this.lobby || this.mode !== "lobby") return;
     const r = this.room;
+    if (this.welcoming) this.welcomeHost();
     this.lobby.update({
       you: r.you,
       host: r.host,
@@ -1684,6 +1746,7 @@ export class Pitch {
       replay: data ? () => this.watch(data) : null,
       // a finished match on another site (src/embed/embed.js): with its replay only
       embed: data ? () => this.showEmbed() : null,
+      link: this.link,
       // a highlight reel of it (docs/REEL.md): with its replay only
       reel: data ? this.reelFor(m) : null,
       first: arrived,
@@ -1775,6 +1838,7 @@ export class Pitch {
       menu: this.menu,
       close: () => this.endReplay(),
       embed: () => this.showEmbed(),
+      link: this.link,
       reel: this.reelFor(data),
       engine,
     });
@@ -1833,6 +1897,11 @@ export class Pitch {
   // the api's kept replay afresh (src/net/reel.js). The page's own word that a reel is done is
   // given only to the match this browser found finished on arriving: the page was
   // written for that one, never for a match played after it loaded.
+  // The pitch's address, as its share card and reel card give it.
+  get link() {
+    return `${EMBED_ORIGIN}/p/${this.code}`;
+  }
+
   reelFor(m) {
     if (!this.apiUrl || !m) return null;
     if (this.reel && this.reel.match?.n === m.n) return this.reel;

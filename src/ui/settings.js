@@ -10,13 +10,16 @@ import { h, button } from "./dom.js";
 import { prefs } from "../game/prefs.js";
 import { loadName, saveName } from "../game/player-name.js";
 import { nameRow } from "./name-row.js";
+import { segBar } from "./seg.js";
 
-// The solo card's and the lobby's one "You" row: the device's name in the name row
-// (src/ui/name-row.js), so it is picked where it is shown; a pick is the device's
-// name everywhere (setName). There is no level here: from engine 0.13 a person
-// throws on one meter (src/game/throw-level.js). `key` names the row for tests
-// (`<key>-you`, its name row `<key>-name`).
-export function youRow(key, { names, name, setName = null }) {
+// The solo card's, the lobby's and the welcome card's one name row: the device's name
+// and SHUFFLE on one line (src/ui/name-row.js; the 1.0 design: word steppers are in
+// Settings only), so it is picked where it is shown; a pick is the device's name
+// everywhere (setName). There is no level here: from engine 0.13 a person throws on
+// one meter (src/game/throw-level.js). `key` names the row for tests (`<key>-you`, its
+// name row `<key>-name`). `caption`: a label over the name ("You are" in the lobby,
+// "You will be" on the welcome card); the solo card shows the name alone.
+export function youRow(key, { names, name, setName = null, caption = null }) {
   const row = nameRow({
     names,
     kind: "player",
@@ -26,9 +29,9 @@ export function youRow(key, { names, name, setName = null }) {
     onChange: (t) => setName?.(t),
   });
   const el = h(
-    "div.opt.you",
+    `div.you${caption ? ".boxed" : ""}`,
     { "data-test": `${key}-you` },
-    h("span.opt-label", "You"),
+    caption ? h("span.opt-label.you-caption", caption) : null,
     row.el,
   );
   return {
@@ -65,52 +68,75 @@ export function deviceRows(dev, render) {
     text: dev.name,
     label: "Your name",
     key: "settings-name",
+    steppers: true,
     onChange: (t) => dev.setName(t),
   });
-  return [
+  const row = (test, label, control, note = null, noteTest = null) =>
     h(
       "div.opt",
+      { "data-test": test },
+      h("span.opt-label", label),
+      control,
+      note ? h("p.opt-note", { "data-test": noteTest }, note) : null,
+    );
+  return [
+    h(
+      "div.opt.opt-name",
       { "data-test": "settings-name-row" },
       h("span.opt-label", "Your name"),
       name.el,
     ),
-    h(
-      "div.opt",
-      { "data-test": "menu-meter" },
-      h("span.opt-label", "Meter"),
-      seg(METERS, dev.meter, (v) => {
-        dev.setMeter(v);
-        render();
-      }),
-      dev.meterNote
-        ? h("p.opt-note", { "data-test": "menu-meter-note" }, dev.meterNote)
-        : null,
-    ),
-    h(
-      "div.opt",
-      { "data-test": "menu-side" },
-      h("span.opt-label", "Meter side"),
-      seg(SIDES, dev.meterSide, (v) => {
-        dev.setMeterSide(v);
-        render();
-      }),
-      dev.sideNote
-        ? h("p.opt-note", { "data-test": "menu-side-note" }, dev.sideNote)
-        : null,
-    ),
+    h("hr.rule"),
     // the sound as a choice that shows which it is (it was one button, SOUND: ON,
     // that read as its own state)
     dev.setMuted
-      ? h(
-          "div.opt",
-          { "data-test": "mute" },
-          h("span.opt-label", "Sound"),
-          seg(SOUND, dev.muted ? "off" : "on", (v) => {
-            dev.setMuted(v === "off");
-            render();
-          }),
+      ? row(
+          "mute",
+          "Sound",
+          seg(
+            SOUND,
+            dev.muted ? "off" : "on",
+            (v) => {
+              dev.setMuted(v === "off");
+              render();
+            },
+            "sound",
+            "Sound",
+          ),
         )
       : null,
+    row(
+      "menu-meter",
+      "Meter",
+      seg(
+        METERS,
+        dev.meter,
+        (v) => {
+          dev.setMeter(v);
+          render();
+        },
+        "meter",
+        "Meter",
+      ),
+      dev.meterNote,
+      "menu-meter-note",
+    ),
+    row(
+      "menu-side",
+      "Meter side",
+      seg(
+        SIDES,
+        dev.meterSide,
+        (v) => {
+          dev.setMeterSide(v);
+          render();
+        },
+        "meter-side",
+        "Meter side",
+      ),
+      dev.sideNote,
+      "menu-side-note",
+    ),
   ].filter(Boolean);
 }
 
@@ -144,11 +170,30 @@ export function prefsDevice(store = prefs, names) {
 
 // /settings/: the device's settings as a card of their own, reached from the web
 // game's page, with DONE back to it. The engine is loaded for the names only.
-export function openSettingsPage(root, { home, names }) {
+export function openSettingsPage(root, { home, names, release = null }) {
   const dev = prefsDevice(prefs, names);
-  const body = h("div.card.menu.settings", { "data-test": "settings" });
+  const body = settingsCard(dev, { done: home, release });
+  root.append(h("div.scrim", body.el));
+  const esc = (e) => {
+    if (e.key === "Escape") home();
+  };
+  window.addEventListener("keydown", esc);
+  return body.el;
+}
+
+// The Settings card (the 1.0 design: "Settings closes with DONE at the bottom
+// right"): its title, "Kept on this device.", the device's rows, and a foot with the
+// release label at the left and DONE, the one go button, at the right. MENU opens it
+// over the match (src/ui/menu.js) and /settings/ shows it alone. done: DONE (and
+// Escape, which the opener listens for). release: { text } or null.
+export function settingsCard(dev, { done, release = null }) {
+  const el = h("div.card.menu.settings", {
+    "data-test": "settings",
+    role: "dialog",
+    "aria-label": "Settings",
+  });
   const render = () => {
-    body.replaceChildren(
+    el.replaceChildren(
       h("h2.display", "Settings"),
       h(
         "p.opt-note",
@@ -156,8 +201,15 @@ export function openSettingsPage(root, { home, names }) {
       ),
       ...deviceRows(dev, render),
       h(
-        "div.menu-list",
-        button("DONE", home, "go", {
+        "div.card-foot",
+        release?.text
+          ? h(
+              "span.menu-version",
+              { "data-test": "settings-version" },
+              release.text,
+            )
+          : h("span"),
+        button("DONE", done, "go", {
           "data-default": true,
           "data-test": "settings-done",
         }),
@@ -165,26 +217,14 @@ export function openSettingsPage(root, { home, names }) {
     );
   };
   render();
-  root.append(h("div.scrim", body));
-  return body;
+  requestAnimationFrame(() =>
+    el.querySelector("[data-default]")?.focus({ preventScroll: true }),
+  );
+  return { el, render };
 }
 
-export function seg(choices, value, onPick, key = null) {
-  return h(
-    "div.seg",
-    key ? { role: "radiogroup", "data-key": key } : { role: "radiogroup" },
-    choices.map(([v, label]) =>
-      h(
-        "button.seg-btn",
-        {
-          type: "button",
-          role: "radio",
-          "aria-checked": String(v === value),
-          "data-value": v,
-          onclick: () => onPick(v),
-        },
-        label,
-      ),
-    ),
-  );
+// A row's segmented bar (src/ui/seg.js). key: the row's data-key (the Scene row's
+// swatches; the keyboard's focus kept across a redraw).
+export function seg(choices, value, onPick, key = null, label = null) {
+  return segBar({ choices, value, onPick, key, label }).el;
 }

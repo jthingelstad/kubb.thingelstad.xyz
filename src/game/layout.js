@@ -257,9 +257,11 @@ export function headerPlates(L, header = null) {
       : header === "watch"
         ? t.railCountsW
         : Math.max(L.W * t.railMaxW, t.railCountsW);
+  // MENU is in the header's plate since the 1.0 design: the right corner holds
+  // SKIP alone, or the tray
   const reach = t.trayW[header]
     ? t.trayRight + t.trayW[header]
-    : t.plateEdge + Math.max(t.menuW, t.skipW);
+    : t.plateEdge + t.skipW;
   const top = s.top + 10;
   return {
     rail: {
