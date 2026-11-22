@@ -10,7 +10,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
-import { serve, VIEWPORTS } from "./browser.mjs";
+import { serve, VIEWPORTS, played } from "./browser.mjs";
 import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { makePitchCode } from "../../src/net/pitch-client.js";
 
@@ -53,6 +53,7 @@ after(async () => {
 
 async function join(code, name) {
   const ctx = await env.browser.newContext(VIEWPORTS.desktop);
+  await played(ctx);
   await ctx.addInitScript((n) => {
     localStorage.setItem("kubb:name", JSON.stringify(n));
     localStorage.setItem("kubb:howtoSeen", "true");

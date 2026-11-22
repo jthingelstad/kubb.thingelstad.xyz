@@ -110,7 +110,16 @@ export function createApi({
       limits,
     );
     let recorded = null;
-    if (p.topic !== "keep") {
+    if (p.topic === "open") {
+      // not a match: nothing for the games bucket, only the link's preview (48 hours)
+      recorded = (await store.putOpen(p.pitch, {
+        made: p.made,
+        host: p.body.host,
+        exp: expiry(limits.pitchTtl),
+      }))
+        ? "kept"
+        : "had";
+    } else if (p.topic !== "keep") {
       if (!recordPush)
         throw new ApiError("unavailable", "Pushes are not recorded here.");
       recorded = await recordPush({ key: pushKey(p), raw });

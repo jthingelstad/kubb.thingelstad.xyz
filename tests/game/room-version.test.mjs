@@ -5,7 +5,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
-import { serve, VIEWPORTS } from "./browser.mjs";
+import { serve, VIEWPORTS, played } from "./browser.mjs";
 import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { makePitchCode } from "../../src/net/pitch-client.js";
 
@@ -25,6 +25,7 @@ after(async () => {
 
 async function join(code, kind = "desktop") {
   const context = await env.browser.newContext(VIEWPORTS[kind]);
+  await played(context);
   const page = await context.newPage();
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));

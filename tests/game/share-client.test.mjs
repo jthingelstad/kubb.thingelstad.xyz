@@ -61,12 +61,11 @@ browserTest(
         null,
         { timeout: 30000, polling: 100 },
       );
-      await page.waitForSelector("[data-test=winner-reel]");
-      assert.equal(
-        await page.textContent("[data-test=winner-reel]"),
-        "MAKE A HIGHLIGHT REEL",
-      );
-      await page.click("[data-test=winner-reel]");
+      // the winner card's one SHARE (the 1.0 design) opens the share card, which
+      // makes the match's link and its reel
+      await page.waitForSelector("[data-test=winner-share]");
+      assert.equal(await page.textContent("[data-test=winner-share]"), "SHARE");
+      await page.click("[data-test=winner-share]");
       await page.waitForSelector("[data-test=share-card]");
       // nothing has gone yet; the name row starts with the name the match was played
       // under (the device's generated name), and no text field is offered
@@ -80,14 +79,15 @@ browserTest(
         0,
       );
       assert.ok(await page.isEnabled("[data-test=share-send]"));
-      // SHUFFLE, then the second word's picker: the reel's name is a generated one
-      await page.click("[data-test=share-name-shuffle]");
-      const w = await page.$eval("[data-test=share-name-word-1]", (el) =>
-        [...el.options].map((o) => o.value).find((v) => v !== el.value),
+      // SHUFFLE: the reel's name is a generated one (the name and SHUFFLE alone: no
+      // picker, no KEEP)
+      assert.equal(
+        await page.locator("[data-test=share-card] select").count(),
+        0,
       );
-      await page.selectOption("[data-test=share-name-word-1]", w);
+      await page.click("[data-test=share-name-shuffle]");
       const chosen = await page.textContent("[data-test=share-name-text]");
-      assert.equal(chosen.split(" ")[1], w);
+      assert.notEqual(chosen, played);
       assert.ok(await page.isEnabled("[data-test=share-send]"));
       assert.match(
         await page.textContent("[data-test=share-card]"),
@@ -113,10 +113,8 @@ browserTest(
         await page.getAttribute("[data-test=reel-card]", "data-reel"),
         "asking",
       );
-      assert.equal(
-        await page.textContent("[data-test=winner-reel]"),
-        "MAKING YOUR REEL",
-      );
+      // the reel card says how it goes; the winner card keeps its one SHARE
+      assert.equal(await page.textContent("[data-test=winner-share]"), "SHARE");
       assert.equal(asked.length, 1);
       assert.equal(asked[0].room, code);
       // the shared pitch is sealed, and its replay keeps the name picked on the card

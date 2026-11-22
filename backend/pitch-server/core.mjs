@@ -586,10 +586,12 @@ function onJoin(cx, conn, c, msg) {
   m.conn = conn;
   m.since = now;
   c.member = id;
+  let opened = false;
   if (st.fresh) {
     st.fresh = false;
     st.made = now;
     cx.dirty.doc = true;
+    opened = true;
   }
   if (id === st.host) st.hostAway = null;
   succeed(cx);
@@ -597,6 +599,15 @@ function onJoin(cx, conn, c, msg) {
   cx.dirty.pitch = true;
 
   cx.out.push({ kind: "attach", conn, member: id, role });
+  // A pitch just made says so, with the name of the player who made it (the host),
+  // so its link's preview is that pitch's from the first moment ("CHEERFUL CEDAR IS
+  // WAITING FOR PLAYERS"; backend/pages). The name is the checked one (checkedMe):
+  // a generated player name, or none.
+  if (opened)
+    queuePush(cx, "open", "open", {
+      pitch: st.code,
+      host: typeof me.name === "string" ? me.name : null,
+    });
   for (const gone of frames)
     send(cx, joinedConns(st, { except: conn }), {
       t: "left",

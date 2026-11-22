@@ -68,6 +68,14 @@ export function readPush(text, idempotencyKey, limits = LIMITS) {
     bad("The idempotency-key header must be <pitch>:<made>:<k>.");
   if (!isObject(body) || body.pitch !== pitch)
     bad("`body` must be the push for this pitch.");
+  // the pitch was made: its host's name, for the link's preview before any match
+  if (topic === "open") {
+    if (k !== "open") bad("An open's key is open.");
+    const host = body.host ?? null;
+    if (host !== null && (typeof host !== "string" || host.length > 40))
+      bad("`body.host` must be a name or null.");
+    return { pitch, made, k, topic, body: { pitch, host } };
+  }
   if (!int(body.n, 1)) bad("`body.n` must be the match number.");
   if (topic === "start") {
     if (k !== `start:${body.n}`) bad("A start's key is start:<n>.");
@@ -98,7 +106,7 @@ export function readPush(text, idempotencyKey, limits = LIMITS) {
       bad("`log` must be a list of { a, h, ts }.");
     return { pitch, made, k, topic, body: { ...body, meta: body.meta ?? {} } };
   }
-  bad("`topic` must be start, act or keep.");
+  bad("`topic` must be start, act, keep or open.");
 }
 
 function checkSnap(snap, limits) {

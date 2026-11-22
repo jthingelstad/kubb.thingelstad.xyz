@@ -17,6 +17,10 @@
 //                         the last finished match whose two halves are both in, copied
 //                         from its half item by whichever push brought the second: so a rematch's
 //                         first half never hides the last match's replay. A year.
+//   pitch#<code>  open    { made, host, exp }
+//                         the pitch was made, by `host` (a generated player name, or
+//                         null): the link's preview before any match ("CHEERFUL CEDAR IS
+//                         WAITING FOR PLAYERS"). The latest `made` wins. 48 hours.
 //   pitch#<code>  reel    { v, tag, job, state, at, tries, tall?, wide?, edit?, seconds?,
 //                           done?, why?, exp }   the replay's highlight reel
 //   reels#<day>   count   { n, exp }    highlight reels started that UTC day
@@ -224,6 +228,26 @@ export function dynamoStore({ client, table, now = Date.now }) {
   }
 
   return {
+    // the pitch was made (an `open` push): kept unless an item for a later `made` is
+    // there; true when written
+    async putOpen(code, { made, host, exp }) {
+      try {
+        await client.send(
+          new PutCommand({
+            TableName: table,
+            Item: { pk: `pitch#${code}`, sk: "open", made, host, exp },
+            ConditionExpression:
+              "attribute_not_exists(pk) OR #made < :made OR #exp < :now",
+            ExpressionAttributeNames: { "#made": "made", "#exp": "exp" },
+            ExpressionAttributeValues: { ":made": made, ":now": seconds() },
+          }),
+        );
+        return true;
+      } catch (error) {
+        if (lost(error)) return false;
+        throw error;
+      }
+    },
     async getState(code) {
       const item = await get(`pitch#${code}`, "state");
       if (!item) return null;

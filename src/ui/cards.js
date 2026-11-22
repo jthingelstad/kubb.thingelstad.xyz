@@ -600,9 +600,9 @@ export function openShareCard(
     fn();
   };
   const body = h(
-    "div.card.sheet.share-card",
+    "div.card.sheet.share-choices",
     {
-      "data-test": "share-card",
+      "data-test": "share-choices",
       role: "dialog",
       "aria-label": "Share this match",
     },
@@ -626,7 +626,7 @@ export function openShareCard(
       "div.card-foot",
       button("BACK", close, "quiet", {
         "data-default": true,
-        "data-test": "share-card-back",
+        "data-test": "share-choices-back",
       }),
     ),
   );

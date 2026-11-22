@@ -8,7 +8,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
-import { serve, open, waitPhase, VIEWPORTS } from "./browser.mjs";
+import { serve, open, waitPhase, VIEWPORTS, played } from "./browser.mjs";
 import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { makePitchCode } from "../../src/net/pitch-client.js";
 
@@ -102,6 +102,7 @@ browserTest(
 
 async function join(code, name, level) {
   const ctx = await env.browser.newContext(VIEWPORTS.desktop);
+  await played(ctx);
   await ctx.addInitScript(
     (l) => localStorage.setItem("kubb:level", JSON.stringify(l)),
     level,
