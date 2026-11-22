@@ -63,6 +63,15 @@ import { openSheet } from "../ui/sheet.js";
 import { sceneId } from "../render/scenes.js";
 import { apartNames, playerDefault, teamDefault } from "../game/names.js";
 
+// The line under the status pill when the member whose turn it is has gone (awayLine).
+const ACTS = { throw: "THROW", raise: "RAISE", punish: "PLACE" };
+export const AWAY_WORDS = {
+  away: (name) => `${name} IS AWAY.`,
+  waiting: "WAITING FOR THEM TO COME BACK.",
+  you: (kind) => `YOU ${ACTS[kind] ?? "PLAY"} FOR THEM.`,
+  other: (name, kind) => `${name} ${ACTS[kind] ?? "PLAY"}S FOR THEM.`,
+};
+
 export const tune = {
   tickMs: 200, // the controller's clock: drain, seats, the open listing
   aimMs: 1000 / aimTune.hz, // the aim's clock while it is this browser's throw
@@ -1717,6 +1726,7 @@ export class Pitch {
 
   onNeed(need) {
     setTimeout(() => this.drain(), 0);
+    this.renderNet();
     if (this.mode !== "match" || need.kind !== "over") return;
     // (the last action may be ours and on its way: the card does not wait for it, as
     // play never waits for `ok`; a refusal brings the pitch's own end back)
@@ -1962,6 +1972,30 @@ export class Pitch {
     this.catchUp(true);
   }
 
+  // The words for the others when the member whose turn it is has gone (QA,
+  // 2026-11-22: a dropped player's turn just waited, with nobody told). The engine's
+  // seats say who may act (pitch/seats.lua actorsFor): a throw goes to its owner, else
+  // the first connected teammate, else the host; a raise or punishment kubb to any
+  // connected member of the side, else the host. So the line says who throws now, or
+  // that everyone waits (the host is away too: the pitch hands the host on after 15 s).
+  // Empty when nobody is away, and for the one who is.
+  awayLine(need = this.game?.need) {
+    if (this.mode !== "match" || !need || need.kind === "over") return "";
+    if (need.cpu) return "";
+    const ctx = this.ctx();
+    const here = (id) => ctx.connected.includes(id);
+    const up = (s) => s.toUpperCase();
+    const owner = need.kind === "throw" ? need.setup?.thrower?.key : null;
+    const actor = shownActor(need, ctx);
+    if (!actor || actor === "cpu") return "";
+    const gone = owner && !here(owner) ? owner : !here(actor) ? actor : null;
+    if (!gone || gone === this.you) return "";
+    const away = AWAY_WORDS.away(up(this.nameOf(gone)));
+    if (!here(actor)) return `${away} ${AWAY_WORDS.waiting}`;
+    if (actor === this.you) return `${away} ${AWAY_WORDS.you(need.kind)}`;
+    return `${away} ${AWAY_WORDS.other(up(this.nameOf(actor)), need.kind)}`;
+  }
+
   // Who acts, for the HUD and the engine's cards.
   who(need) {
     if (this.mode !== "match" || !need || need.kind === "over") return null;
@@ -2007,6 +2041,8 @@ export class Pitch {
   }
 
   onMembers() {
+    // someone whose turn it is has gone, or come back (awayLine)
+    this.renderNet();
     if (this.room.host !== this.openHost) {
       this.openHost = this.room.host;
       this.openKey = null;
@@ -2183,7 +2219,9 @@ export class Pitch {
     let text = "";
     if (this.mode === "match") {
       if (s === "reconnecting" || s === "connecting") text = "RECONNECTING";
-      else if (Date.now() < this.watchNoteUntil)
+      else if ((text = this.awayLine())) {
+        // someone whose turn it is is away (awayLine)
+      } else if (Date.now() < this.watchNoteUntil)
         text = this.observe
           ? "YOU ARE WATCHING THIS MATCH."
           : "THE MATCH IS UNDER WAY: YOU ARE WATCHING. PICK A SIDE FOR THE NEXT ONE.";
