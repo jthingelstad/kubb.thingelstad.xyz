@@ -23,6 +23,11 @@ import {
   LEVELS,
   sideOf,
   setAccess,
+  addComputer,
+  setComputerLevel,
+  moveComputer,
+  removeComputer,
+  isSeat,
   openListing,
   replayOf,
   isReplay,
@@ -42,7 +47,7 @@ import {
   shownActor,
   playingSide,
 } from "./seats.js";
-import { Lobby } from "../ui/lobby.js";
+import { Lobby, SEAT_SAYS, LEVEL_WORD } from "../ui/lobby.js";
 import { welcomeCard, firstVisit } from "../ui/welcome.js";
 import { WatchCard } from "../ui/watching.js";
 import { WatchView } from "../ui/watch-view.js";
@@ -275,6 +280,11 @@ export class Pitch {
             name: (t) => this.setName(t),
             teamName: (side, t) => this.setTeamName(side, t),
             team: (side) => this.pickTeam(side),
+            addComputer: (side) => this.addSeat(side),
+            seatLevel: (id, level) => this.seatLevel(id, level),
+            moveSeat: (id, side, index, how) =>
+              this.moveSeat(id, side, index, how),
+            removeSeat: (id) => this.removeSeat(id),
             option: (k, v) => this.setOption(k, v),
             access: (open) => this.setAccess(open),
             start: () => this.start(),
@@ -682,6 +692,88 @@ export class Pitch {
     this.renderLobby();
   }
 
+  // ---------- computer seats (engine 0.17; docs/MULTIPLAYER.md "Computer players") ----------
+  // The host's: a seat added, re-levelled, moved or removed is a document write like a
+  // team change, through the engine's reducers; each says what it did once to a screen
+  // reader (docs/SYSTEM.md "Computer seats").
+
+  async addSeat(side, level = "club") {
+    if (!this.room?.isHost() || this.mode !== "lobby") return;
+    // the seat's name: a generated player name no one on the pitch has (engine
+    // 0.17.0's addComputer keeps it unlike the other seats' only), from the host's own
+    // draw; the engine rolls one from the seed should this find none
+    const seed = Math.floor(Math.random() * 2 ** 31);
+    let id = null;
+    const r = await this.write((d) => {
+      const before = new Set(Object.keys(lobbyOf(d).computers ?? {}));
+      const out = addComputer(d, side, level, {
+        seed,
+        name: this.freshSeatName(d),
+      });
+      id = out
+        ? (Object.keys(out.computers ?? {}).find((k) => !before.has(k)) ?? null)
+        : null;
+      return out;
+    });
+    if (!r) {
+      if (lobbyOf(this.room.doc).teams[side]?.length >= 6)
+        this.lobby.say(`Team ${side} is full.`);
+      return;
+    }
+    this.renderLobby();
+    if (id) this.lobby.announce(SEAT_SAYS.add(this.seatName(id), side, level));
+  }
+
+  freshSeatName(doc) {
+    const taken = new Set(
+      [
+        ...this.room.members.map((m) => this.shownNames().plain.get(m.id)),
+        ...Object.values(lobbyOf(doc).computers ?? {}).map((c) => c.name),
+        this.name,
+      ].filter(Boolean),
+    );
+    for (let i = 0; i < 20; i++) {
+      const t = this.names.roll("player").text;
+      if (!taken.has(t)) return t;
+    }
+    return undefined;
+  }
+
+  async seatLevel(id, level) {
+    if (!this.room?.isHost() || this.mode !== "lobby") return;
+    const r = await this.write((d) => setComputerLevel(d, id, level));
+    this.renderLobby();
+    if (r) this.lobby.announce(SEAT_SAYS.level(this.seatName(id), level));
+  }
+
+  async moveSeat(id, side, index, how) {
+    if (!this.room?.isHost() || this.mode !== "lobby") return;
+    const r = await this.write((d) => moveComputer(d, id, side, index));
+    this.renderLobby();
+    if (!r) return;
+    const name = this.seatName(id);
+    this.lobby.announce(
+      how === "across" ? SEAT_SAYS.across(name, side) : SEAT_SAYS[how]?.(name),
+    );
+  }
+
+  async removeSeat(id) {
+    if (!this.room?.isHost() || this.mode !== "lobby") return;
+    const name = this.seatName(id);
+    const r = await this.write((d) => removeComputer(d, id));
+    this.renderLobby();
+    if (r) this.lobby.announce(SEAT_SAYS.remove(name));
+  }
+
+  // A seat's name as the lobby shows it: the document's when the engine passes it (a
+  // generated player name, names.check's `computers.<id>.name`), else "Computer".
+  seatName(id) {
+    const n = this.room?.doc?.computers?.[id]?.name;
+    return typeof n === "string" && this.docNames().has(`computers.${id}.name`)
+      ? n
+      : "Computer";
+  }
+
   setOption(k, v) {
     if (!this.room.isHost()) return;
     prefs.set("pitchOptions", {
@@ -852,7 +944,10 @@ export class Pitch {
     const l = lobbyOf(r.doc);
     const ids = new Set(r.members.map((m) => m.id));
     for (const side of ["A", "B"]) {
-      const several = l.teams[side].filter((id) => ids.has(id)).length > 1;
+      // people and computer seats together (a team of three computers plays under a
+      // team name too)
+      const several =
+        l.teams[side].filter((id) => ids.has(id) || isSeat(id)).length > 1;
       const has = r.doc?.teamNames?.[side];
       if (several && !this.names.valid("team", has).ok) {
         // one write at a time, and a few tries at most should writes fail
@@ -897,6 +992,7 @@ export class Pitch {
       status: r.status,
       nameOf: (id) => this.lobbyNameOf(id),
       teamName: (side) => this.teamNameOf(side),
+      seatName: (id) => this.seatName(id),
       // the next match's engine: its options are the rows (the computer's level on 0.9)
       engine: this.roomEngine().engine,
     });
@@ -1114,6 +1210,13 @@ export class Pitch {
     // the room moved while the engine loaded: from the top
     if (room.doc !== doc) return tries < 3 ? this.start(tries + 1) : undefined;
     const ok = startCheck(lu.players, speakAs(room.members, mm), room.you, mm);
+    if (!ok.ok && ok.why) {
+      // the lineup itself (engine 0.17): no person plays, a team over six, a seat's
+      // level; the engine's own sentence
+      this.lobby.say(ok.text);
+      this.note("start-refused", ok.why);
+      return;
+    }
     if (!ok.ok) {
       const who = [...ok.differ, ...ok.unknown].map((id) => this.nameOf(id));
       this.lobby.say(
@@ -1996,7 +2099,17 @@ export class Pitch {
     if (this.mode !== "match" || !need || need.kind === "over") return null;
     const ctx = this.ctx();
     const actor = shownActor(need, ctx);
-    if (actor === "cpu") return { text: "COMPUTER THROWS", mine: false };
+    if (actor === "cpu") {
+      // a computer player in a team (engine 0.17): its name and level
+      const th = need.setup?.thrower;
+      if (th?.cpu)
+        return {
+          text: `${(th.key && this.nameOf(th.key)) || th.name || "COMPUTER"} THROWS · COMPUTER · ${LEVEL_WORD[th.level] ?? th.level ?? ""}`.toUpperCase(),
+          mine: false,
+          cpu: true,
+        };
+      return { text: "COMPUTER THROWS", mine: false };
+    }
     const mine = !this.refused && mayAct(need, ctx, this.you);
     const up = (s) => s.toUpperCase();
     if (need.kind === "throw") {

@@ -8,8 +8,10 @@
 import { h, button, clear } from "./dom.js";
 import {
   MATCH_OPTIONS,
+  SEAT_LEVELS,
   TEAM_MAX,
   engineConstants,
+  isSeat,
   lobbyOf,
   optionLabel,
   optionRows,
@@ -27,6 +29,47 @@ import { ROW_ORDER } from "./cards.js";
 // is "Computer")
 const ROW_LABEL = { computer: "Computer level" };
 const TEAM_LABEL = { A: "Team A", B: "Team B" };
+
+// ---------- computer seats (engine 0.17; docs/SYSTEM.md "Computer seats") ----------
+
+// A level as shown: the engine's words (its Computer row's labels).
+export const LEVEL_WORD = {
+  kid: "Kid",
+  beginner: "Beginner",
+  club: "Club",
+  pro: "Pro",
+};
+// The Computer row beside seats: the level of the computer on an empty side, shown
+// while a side has nobody and no seat; with no empty side and a seat on the pitch, a
+// Kid match switch (Kid is the match's, never a seat's); else not shown.
+export const COMPUTER_ROW = {
+  empty: "An empty side plays as",
+  kid: "Kid match",
+};
+export const KID_SWITCH = [
+  ["off", "Off"],
+  ["on", "On"],
+];
+export const KID_NOTE = "Kid match: every computer plays as Kid.";
+// What the host's changes say, once, to a screen reader.
+export const SEAT_SAYS = {
+  add: (name, side, level) =>
+    `${name} joins ${TEAM_LABEL[side]} at ${LEVEL_WORD[level] ?? level}.`,
+  level: (name, level) => `${name} now plays at ${LEVEL_WORD[level] ?? level}.`,
+  up: (name) => `${name} moves up.`,
+  down: (name) => `${name} moves down.`,
+  across: (name, side) => `${name} moves to ${TEAM_LABEL[side]}.`,
+  remove: (name) => `${name} is off the team.`,
+};
+
+// A seat read as one thing: "Bold Birch, computer, Pro, 2 of 3 in Team A".
+export function seatSpoken(name, level, place, of, side) {
+  return `${name}, computer, ${LEVEL_WORD[level] ?? level}, ${place} of ${of} in ${TEAM_LABEL[side]}`;
+}
+// Everyone else's row: "Bold Birch · computer · Pro".
+export function seatLine(name, level) {
+  return `${name} · computer · ${LEVEL_WORD[level] ?? level}`;
+}
 // the engine's rows the lobby leaves out: the set, which the scene decides
 export const HIDDEN_ROWS = new Set(["set"]);
 export const ACCESS = [
@@ -66,6 +109,24 @@ export class Lobby {
       const join = button(`JOIN ${side}`, () => hooks.team(side), "small", {
         "data-test": `join-${side}`,
       });
+      // the host's: a computer player last in this team's order (docs/SYSTEM.md
+      // "Computer seats")
+      const add = button(
+        "ADD COMPUTER",
+        () => hooks.addComputer?.(side),
+        "small",
+        {
+          "data-test": `add-computer-${side}`,
+          "data-focus": `add-${side}`,
+          "aria-label": `Add a computer player to ${TEAM_LABEL[side]}`,
+          hidden: true,
+        },
+      );
+      const kidNote = h(
+        "p.team-empty.team-kid",
+        { "data-test": `team-${side}-kid`, hidden: true },
+        KID_NOTE,
+      );
       const empty = h("p.team-empty");
       // a side of several plays under a team name, the host's to pick (a side of one
       // plays under its player's name)
@@ -77,19 +138,31 @@ export class Lobby {
         list,
         count,
         join,
+        add,
+        kidNote,
         empty,
         teamName,
         row: null,
+        listKey: null,
         el: h(
           `section.team.team-${side.toLowerCase()}`,
           h("h3.team-head", TEAM_LABEL[side], count),
           teamName,
           list,
+          kidNote,
           empty,
           join,
+          add,
         ),
       };
     }
+    this.teamsEl = h("div.teams", this.teams.A.el, this.teams.B.el);
+    // the host's seat changes, said once (docs/SYSTEM.md "Computer seats")
+    this.said = h("p.visually-hidden", {
+      role: "status",
+      "aria-live": "polite",
+      "data-test": "lobby-said",
+    });
     this.watchList = h("p.watchers", { "data-test": "watchers" });
     this.sitOut = button("WATCH INSTEAD", () => hooks.team(null), "quiet", {
       "data-test": "sit-out",
@@ -130,7 +203,8 @@ export class Lobby {
       h("p.kicker", `PITCH ${code}  `, this.status),
       h("h2.display", "Pick a side"),
       this.you.el,
-      h("div.teams", this.teams.A.el, this.teams.B.el),
+      this.teamsEl,
+      this.said,
       h("div.watch-row", this.watchList, this.sitOut),
       h("div.share-row", this.shareBtn, this.linkText, this.replayBtn),
       this.optionsBox,
@@ -183,6 +257,16 @@ export class Lobby {
   say(text) {
     this.note.textContent = text || "";
     this.note.hidden = !text;
+    // a refusal is read where it is (START's row stays at the foot while the card
+    // scrolls): brought into view
+    if (text && this.closeFn)
+      this.note.scrollIntoView?.({ block: "nearest", behavior: "auto" });
+  }
+
+  // A seat change the host made, said once to a screen reader.
+  announce(text) {
+    this.said.textContent = "";
+    if (text) requestAnimationFrame(() => (this.said.textContent = text));
   }
 
   // Why the next match cannot start, or null when it can. While it cannot, START is off.
@@ -226,9 +310,9 @@ export class Lobby {
     else if (t.text.textContent !== name) t.text.textContent = name;
   }
 
-  // st: { you, host, members, doc, status, nameOf(id), teamName(side), engine },
-  // engine the major.minor the next match runs on (null when none is carried by all:
-  // then the newest's options are shown)
+  // st: { you, host, members, doc, status, nameOf(id), teamName(side), seatName(id),
+  // engine }, engine the major.minor the next match runs on (null when none is
+  // carried by all: then the newest's options are shown)
   update(st) {
     const l = lobbyOf(st.doc);
     const byId = new Map(st.members.map((m) => [m.id, m]));
@@ -238,31 +322,105 @@ export class Lobby {
       : l.teams.B.includes(st.you)
         ? "B"
         : null;
+    // a Kid pitch: every computer plays as Kid, whatever its seat says (the seat keeps
+    // its own level for when Kid is switched off)
+    const kid = optionsOf(st.doc).computer === "kid";
+    const comps = l.computers ?? {};
+    // who is on each side, in throwing order: the members on the pitch and the seats
+    const shown = {};
+    for (const side of ["A", "B"])
+      shown[side] = l.teams[side].filter((id) =>
+        isSeat(id) ? !!comps[id] : byId.has(id),
+      );
+    const anySeat = ["A", "B"].some((s) => shown[s].some((id) => isSeat(id)));
+    this.teamsEl.classList.toggle("has-seats", anySeat);
+    const open = st.status === "open";
+    // where the keyboard is, to put it back after a list is drawn again
+    const active = document.activeElement;
+    const focus = this.teamsEl.contains(active)
+      ? {
+          key: active.dataset?.focus ?? null,
+          add: active.closest(".team")?.querySelector("[data-focus^='add-']")
+            ?.dataset.focus,
+        }
+      : null;
 
     for (const side of ["A", "B"]) {
       const t = this.teams[side];
-      const ids = l.teams[side].filter((id) => byId.has(id));
-      t.count.textContent = ` ${ids.length} of ${TEAM_MAX}`;
-      clear(t.list);
-      for (const id of ids) t.list.append(memberRow(byId.get(id), st));
+      const ids = shown[side];
       const other = side === "A" ? "B" : "A";
-      const otherHas = l.teams[other].some((id) => byId.has(id));
+      const full = ids.length >= TEAM_MAX;
+      const otherFull = shown[other].length >= TEAM_MAX;
+      t.count.textContent = ` ${ids.length} of ${TEAM_MAX}`;
+      // the list is drawn again only when what it shows changed, and the keyboard
+      // stays where it was (a seat's controls)
+      const rows = ids.map((id, i) => {
+        if (!isSeat(id)) {
+          const m = byId.get(id);
+          return {
+            id,
+            name: st.nameOf(id),
+            connected: !!m.connected,
+            host: id === st.host,
+            you: id === st.you,
+          };
+        }
+        const level = comps[id].level;
+        return {
+          id,
+          seat: true,
+          name: st.seatName?.(id) ?? "Computer",
+          level,
+          shownLevel: kid ? "kid" : level,
+          first: i === 0,
+          last: i === ids.length - 1,
+          // the doc's places of the rows either side, for a move up or down
+          up: i > 0 ? l.teams[side].indexOf(ids[i - 1]) : null,
+          down: i < ids.length - 1 ? l.teams[side].indexOf(ids[i + 1]) : null,
+          place: i + 1,
+          of: ids.length,
+        };
+      });
+      const listKey = JSON.stringify([rows, isHost, open, otherFull, kid]);
+      if (listKey !== t.listKey) {
+        t.listKey = listKey;
+        clear(t.list);
+        for (const r of rows)
+          t.list.append(
+            r.seat
+              ? seatRow(r, {
+                  side,
+                  other,
+                  host: isHost && open,
+                  otherFull,
+                  hooks: this.hooks,
+                })
+              : memberRow(byId.get(r.id), st),
+          );
+      }
       t.empty.textContent = ids.length
         ? ""
-        : otherHas
+        : shown[other].length
           ? "The computer plays this side."
           : "Nobody yet.";
       t.empty.hidden = !t.empty.textContent;
+      t.kidNote.hidden = !(kid && ids.some((id) => isSeat(id)));
       t.join.hidden = mySide === side;
-      t.join.disabled = ids.length >= TEAM_MAX;
-      t.join.textContent =
-        ids.length >= TEAM_MAX ? `${TEAM_LABEL[side]} IS FULL` : `JOIN ${side}`;
+      t.join.disabled = full;
+      t.join.textContent = full
+        ? `${TEAM_LABEL[side]} IS FULL`
+        : `JOIN ${side}`;
+      t.add.hidden = !isHost;
+      t.add.disabled = full || !open;
       this.teamNameShow(side, {
         several: ids.length > 1,
         isHost,
         name: st.teamName?.(side) ?? TEAM_LABEL[side],
       });
     }
+    if (focus?.key && !this.teamsEl.contains(document.activeElement))
+      refocus(this.teamsEl, focus);
+    const emptySide = ["A", "B"].some((s) => !shown[s].length);
 
     const watching = st.members.filter(
       (m) => !l.teams.A.includes(m.id) && !l.teams.B.includes(m.id),
@@ -290,7 +448,16 @@ export class Lobby {
     const loaded = !st.engine || !!roomEngine(st.engine);
     const mm = st.engine && loaded ? st.engine : undefined;
     const options = optionsOf(st.doc);
-    const key = JSON.stringify([isHost, options, l.open, mm ?? null, loaded]);
+    // the Computer row's form: the empty side's level, the Kid match switch, or none
+    const computerRow = emptySide ? "empty" : anySeat ? "kid" : null;
+    const key = JSON.stringify([
+      isHost,
+      options,
+      l.open,
+      mm ?? null,
+      loaded,
+      computerRow,
+    ]);
     if (key !== this.optKey) {
       this.optKey = key;
       clear(this.optionsBox);
@@ -372,6 +539,10 @@ export class Lobby {
             (ROW_ORDER.indexOf(b[0]) + 1 || 99),
         );
       for (const [k, label, choices] of ordered) {
+        if (k === "computer") {
+          this.computerRow(computerRow, choices, options, isHost);
+          continue;
+        }
         this.optionsBox.append(
           h(
             "div.opt",
@@ -396,10 +567,9 @@ export class Lobby {
       this.showScene();
     }
 
-    const players = ["A", "B"].reduce(
-      (n, s) => n + l.teams[s].filter((id) => byId.has(id)).length,
-      0,
-    );
+    // anyone on a team, a seat too: START with no person is the engine's to refuse,
+    // in its own words (startCheck's `text`)
+    const players = shown.A.length + shown.B.length;
     this.startBtn.hidden = !isHost;
     this.startBtn.disabled = players === 0 || st.status !== "open";
     this.waiting.hidden = isHost;
@@ -424,6 +594,154 @@ export class Lobby {
   setName(v) {
     this.you.setName(v);
   }
+
+  // The Computer row beside seats (docs/SYSTEM.md "Computer seats"): "An empty side
+  // plays as" while a side has nobody and no seat; "Kid match" Off/On with no empty
+  // side and a seat on the pitch; nothing when no computer plays.
+  computerRow(form, choices, options, isHost) {
+    if (!form) return;
+    const value = options.computer;
+    let bar;
+    if (form === "empty")
+      bar = isHost
+        ? seg(
+            choices,
+            value,
+            (v) => this.hooks.option("computer", v),
+            "computer",
+            COMPUTER_ROW.empty,
+          ).el
+        : h(
+            "span.opt-value",
+            choices.find(([v]) => v === value)?.[1] ??
+              optionLabel("computer", value),
+          );
+    else
+      bar = isHost
+        ? seg(
+            KID_SWITCH,
+            value === "kid" ? "on" : "off",
+            (v) => this.hooks.option("computer", v === "on" ? "kid" : "club"),
+            "computer-kid",
+            COMPUTER_ROW.kid,
+          ).el
+        : h("span.opt-value", value === "kid" ? "On" : "Off");
+    this.optionsBox.append(
+      h(
+        "div.opt",
+        { "data-test": "lobby-opt-computer", "data-form": form },
+        h("span.opt-label", COMPUTER_ROW[form]),
+        bar,
+      ),
+    );
+  }
+}
+
+// A computer seat's row (docs/SYSTEM.md "Computer seats"). The host's: the name and
+// " · computer", its level as a segmented bar (Kid in a Kid pitch, as a word), up and
+// down in the team's order, across to the other team, and REMOVE. Everyone else's: one
+// line, "Bold Birch · computer · Pro". Either way one group to a screen reader.
+// r: the row (Lobby.update); o: { side, other, host, otherFull, hooks }.
+function seatRow(r, { side, other, host, otherFull, hooks }) {
+  const spoken = seatSpoken(r.name, r.shownLevel, r.place, r.of, side);
+  const base = {
+    role: "group",
+    "aria-label": spoken,
+    "data-seat": r.id,
+    "data-level": r.shownLevel,
+  };
+  if (!host)
+    return h(
+      "li.member.seat",
+      base,
+      h("span.member-name", r.name),
+      h("span.seat-what", ` · computer · ${LEVEL_WORD[r.shownLevel]}`),
+    );
+  const k = (what) => `${r.id}:${what}`;
+  const level =
+    r.shownLevel === "kid"
+      ? h("span.seat-kid", { "data-test": "seat-kid" }, LEVEL_WORD.kid)
+      : segBar({
+          choices: SEAT_LEVELS.map((v) => [v, LEVEL_WORD[v] ?? v]),
+          value: r.level,
+          onPick: (v) => hooks.seatLevel?.(r.id, v),
+          key: k("level"),
+          label: `${r.name}'s level`,
+        }).el;
+  for (const b of level.querySelectorAll("button"))
+    b.dataset.focus = k("level");
+  const small = (label, fn, focus, aria, off, test) =>
+    button(label, fn, "small", {
+      "data-focus": k(focus),
+      "data-test": test,
+      "aria-label": aria,
+      disabled: off,
+    });
+  return h(
+    "li.seat.seat-host",
+    base,
+    h(
+      "div.seat-head",
+      h("span.member-name", r.name),
+      h("span.seat-what", " · computer"),
+    ),
+    level,
+    h(
+      "div.seat-moves",
+      small(
+        "↑",
+        () => hooks.moveSeat?.(r.id, side, r.up, "up"),
+        "up",
+        `Move ${r.name} up`,
+        r.first,
+        "seat-up",
+      ),
+      small(
+        "↓",
+        () => hooks.moveSeat?.(r.id, side, r.down, "down"),
+        "down",
+        `Move ${r.name} down`,
+        r.last,
+        "seat-down",
+      ),
+      small(
+        `TO ${other}`,
+        () => hooks.moveSeat?.(r.id, other, null, "across"),
+        "across",
+        `Move ${r.name} to ${TEAM_LABEL[other]}`,
+        otherFull,
+        "seat-across",
+      ),
+      button("REMOVE", () => hooks.removeSeat?.(r.id), "quiet", {
+        "data-focus": k("remove"),
+        "data-test": "seat-remove",
+        "aria-label": `Remove ${r.name}`,
+      }),
+    ),
+  );
+}
+
+// After the teams are drawn again: the keyboard back on the control it was on (by its
+// data-focus; a level bar's chosen part), wherever its seat now is, else the next one
+// along in that seat's row that is on, else (the seat removed) its team's ADD
+// COMPUTER. focus: { key, add }.
+function refocus(root, { key, add }) {
+  const all = [...root.querySelectorAll("[data-focus]")];
+  const at = all.filter((el) => el.dataset.focus === key && !el.disabled);
+  const pick =
+    at.find((el) => el.getAttribute("aria-checked") === "true") ?? at[0];
+  if (pick) return pick.focus({ preventScroll: true });
+  const seat = key.split(":").slice(0, 2).join(":");
+  const after = ["level", "up", "down", "across", "remove"];
+  const from = after.indexOf(key.split(":")[2]);
+  const row = all.filter(
+    (el) => el.dataset.focus.startsWith(seat + ":") && !el.disabled,
+  );
+  const next =
+    row.find((el) => after.indexOf(el.dataset.focus.split(":")[2]) > from) ??
+    row[0];
+  if (next) return next.focus({ preventScroll: true });
+  root.querySelector(`[data-focus="${add}"]`)?.focus({ preventScroll: true });
 }
 
 function memberRow(m, st) {

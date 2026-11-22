@@ -1255,6 +1255,13 @@ body.game {
   font-size: 18px;
   line-height: 1.35;
 }
+/* a turn that opens with a computer player (engine 0.17): who, and at what level */
+.card .handoff-cpu {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 700;
+}
 .card.handoff.short .row {
   margin-top: 12px;
 }
@@ -1822,6 +1829,7 @@ body.game {
 
 .lobby {
   width: min(640px, 100%);
+  container: lobby / inline-size;
 }
 .lobby-status {
   color: #b3123f;
@@ -1919,6 +1927,69 @@ body.game {
   margin: 0;
   color: var(--muted);
   font-size: 14px;
+}
+/* ---------- computer seats (engine 0.17; docs/SYSTEM.md "Computer seats") ---------- */
+/* with a seat on the pitch, on a card under 540 px inside the teams stand one over
+   the other, so a seat's row has the card's width */
+@container lobby (max-width: 539px) {
+  .teams.has-seats {
+    grid-template-columns: 1fr;
+  }
+}
+.seat-what {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+.seat-host {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 4px 0;
+  padding-top: 6px;
+  border-top: 2px solid var(--ink);
+}
+.roster > .seat-host:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.seat-head {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  font-weight: 700;
+}
+.seat-host .seg {
+  max-width: 100%;
+}
+.seat-moves {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.seat-moves .btn.small {
+  margin: 0;
+  min-width: 44px;
+  padding-inline: 10px;
+}
+.seat-moves .btn.quiet {
+  margin: 0 0 0 auto;
+  font-size: 17px;
+}
+.seat-kid {
+  padding: 2px 8px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.team .btn + .btn {
+  margin-top: 0;
 }
 .team .btn {
   margin-top: auto;

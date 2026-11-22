@@ -112,3 +112,12 @@ export function handoffTitle(name, mine) {
   if (n === "Their") return "Their turn";
   return `${n}${/s$/i.test(n) ? "’" : "’s"} turn`;
 }
+
+// A turn that opens with a computer player (engine 0.17, the hand-off card's
+// `throwerCpu`, `throwerLevel`): "Bold Birch throws first · computer · Pro", or null.
+const LEVEL = { kid: "Kid", beginner: "Beginner", club: "Club", pro: "Pro" };
+export function handoffCpu(card) {
+  if (!card?.throwerCpu || !card.thrower) return null;
+  const level = LEVEL[card.throwerLevel] ?? card.throwerLevel;
+  return `${card.thrower} throws first · computer${level ? ` · ${level}` : ""}`;
+}
