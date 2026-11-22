@@ -143,8 +143,8 @@ items 5 to 10 and 13). `src/game/layout.js` (`layoutFor`, `trayAt`, `headerBox`,
   Inter 900 **18 px**, radius 6, with a 14 px arrow in its own colour: down for SHORT and
   LOW, up for LONG and HIGH, left and right for PULLED LEFT and PULLED RIGHT, a wavy line for
   SHAKY, a clock hand for SLOW; the on-target words as small chips after it (14 px). Upright
-  the flag and chips stand left of the minimap; wide right of the header's end, centred on
-  the screen where that leaves room. A screen reader hears it once, the off word first
+  the flag and chips stand left of the minimap; wide right of the header's end and short
+  of a meter at the right edge, centred on the screen where that leaves room. A screen reader hears it once, the off word first
   (`verdictSpeech`).
 - **SKIP**: a plain button of normal size (20 px, 44/48 tall): wide at the top right corner
   (moved in beside a linear meter that reaches the header row); upright the bottom corner
@@ -162,7 +162,8 @@ items 5 to 10 and 13). `src/game/layout.js` (`layoutFor`, `trayAt`, `headerBox`,
 - **The coach** (`src/game/coach.js`, `hud.js` `showCoach`): one inverted ink chip
   (radius 6, Inter 800 15 px capitals) 8 px over the prompt, the SLOW lead on its own line
   inside it; centred over the clock's prompt (moved over, not squeezed, by an open plate
-  beside it); beside a wide screen's linear meter it hangs 8 px under the tab, as before.
+  beside it; on a wide screen kept to the clock's own column, 8 px either side); beside a
+  wide screen's linear meter it hangs 8 px under the tab, as before.
 
 ## Words
 

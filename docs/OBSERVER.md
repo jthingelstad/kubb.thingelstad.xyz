@@ -46,12 +46,11 @@ An observer:
   only observers are left on a pitch it has no host until a player comes back;
 - has no SHOUT and sends no aim: the server takes no cast from an observer. It still
   hears every cast, thinned to about 10 a second except each release's frame;
-- sees the hand-off card with the teams' names, not the engine's "YOUR BASE 5 · THEIRS 4"
-  (`baseText`, which speaks to the team the card goes to): "NORTH BASE 4", "SOUTH BASE
-  5", the far team first as the card's map draws it, "they throw 6 batons", and WATCH,
-  closing by itself. The same for every browser with no side (a member who watches
-  instead, watching the computer); players' cards are as before
-  (`src/ui/handoff-words.js`);
+- sees the hand-off card (the 1.0 design's short card: a title, one line, one go
+  button) with the team's name, never "Your turn": "North’s turn", the line of what
+  they face, and WATCH, closing by itself. The same for every browser with no side (a
+  member who watches instead, watching the computer); a player's own turn is "Your
+  turn" (`src/ui/handoff-words.js`);
 - between matches sees its own card instead of the lobby: who is on each team, who is
   watching, WATCH THE LAST MATCH when there is one, JOIN THIS PITCH (the same link
   without `?observe=1`, the lobby) and HOME. No name box, no team buttons, no options, no

@@ -629,6 +629,12 @@ export class Hud {
       if (align === "right") lo = Math.max(lo, mid + layoutTune.planClear);
       else hi = Math.min(hi, mid - layoutTune.planClear);
     }
+    // a wide screen's clock: the line keeps to the clock's own column, so the
+    // verdicts beside it (game.js placeRoom) never meet it
+    if (!linear && !L.tall) {
+      lo = Math.max(lo, d.x - 8);
+      hi = Math.min(hi, d.x + d.width + 8);
+    }
     const band = under != null ? [under, under + 76] : [bottom - 76, bottom];
     for (const el of this.plans.children) {
       const r = el.getBoundingClientRect();

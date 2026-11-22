@@ -305,8 +305,10 @@ Seat and actor wrappers cache by context, need and member: repeated render-loop 
 never cross the room bridge. Name cleanup and open-listing reads are cached too.
 
 Whose turn it is shows by name: the status pill says YOUR THROW (marigold), MIGHTY MAPLE THROWS,
-COMPUTER THROWS, YOUR RAISE, TEAM B PLACES A KUBB and so on, and the hand-off card leads
-with the same line. A card for someone else's turn has a WATCH button and closes itself.
+COMPUTER THROWS, YOUR RAISE, TEAM B PLACES A KUBB and so on, and the hand-off card says
+"Your turn" or the name's ("Mighty Maple’s turn"; the 1.0 design's short card with one
+line, docs/CLIENT.md "Match flow"). A card for someone else's turn has a WATCH button and
+closes itself.
 A throw taken for an absent teammate says YOUR THROW FOR <NAME>.
 
 ## Being there
@@ -331,7 +333,7 @@ A throw taken for an absent teammate says YOUR THROW FOR <NAME>.
   1.5 s older than the throw.
 - **The hand-off while watching**: a card for someone else's turn is a banner at the
   top of the pitch, not a modal: no dimming, the thrower's dial drawn under it, closing
-  itself after 2.5 s. It says the same as the card did (whose turn, the bases, WATCH).
+  itself after 2.5 s. It says the same as the card does (whose turn, the one line, WATCH).
 - **Pace** (`src/game/pacing.js`, one tune): the pitch rests 0.8 s after a throw lands
   (`restAfterThrow`) and an automatic raise waits 0.7 s per kubb (`autoRaiseWait`). These
   are the values from before the pitch server, and online play keeps them (the owner,
@@ -458,7 +460,5 @@ keep these the same, or the two disagree on screen:
 
 - A team picks its next thrower only as the engine's order names them; the engine's
   `thrower` action (choosing among `need.candidates`) has no control yet.
-- The engine's hand-off card is written from the thrower's side ("YOUR BASE 5, THEIRS
-  5"); a browser watching the other team's turn reads the bases from the thrower's view.
 - A long match is played through only in part by the tests; a whole match between two
   browsers, and the host leaving mid-match, are not run automatically.
