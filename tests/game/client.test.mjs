@@ -1527,7 +1527,7 @@ browserTest(
       );
       await page.reload();
       await page
-        .getByRole("heading", { name: "Start on the dial or the grass" })
+        .getByRole("heading", { name: "Start on the clock or the grass" })
         .waitFor();
       await page.locator("[data-test=howto-close]").tap();
       const { cx, cy, r } = await dialGeometry(page);
