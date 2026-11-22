@@ -1205,6 +1205,23 @@ and the card's states are a pure reducer in `src/net/share.js` (`shareStart`,
   view for any kept match (`Pitch.nothingToWatch`), with JOIN THIS PITCH when the match
   is not sealed (docs/OBSERVER.md).
 
+## A match against the computer is kept
+
+Since QA, 2026-11-22 (the iPhone app keeps its own the same way, its docs/MATCH.md): a
+match against the computer is kept on the device after every action
+(`src/game/solo-save.js`, the `soloMatch` pref): its start, every action and the hash
+after it, the snapshot after the last, the turn and the scene. Reopening `/p/<code>?solo=1`,
+PLAY NOW, or reloading with one in progress shows "Your match is waiting" ("A match
+against the computer is kept on this device (Park, turn 4). Carry on where you left
+off, or start a new one.") with NEW MATCH and RESUME (go). RESUME adopts the snapshot
+through the engine's strict door (`Game.resumeMatch`, `restoreChecked`), checks it ends
+on the kept hash, and takes the trail from the match's own start, so the match is still
+recorded once, whole, when it ends; a save that is refused, on another engine
+major.minor or not whole is dropped and the card is the options card. NEW MATCH clears
+it. A finished match is cleared when it ends and never offered. One match a device;
+watching the computer and practice keep nothing. Storage that is blocked or full skips
+the save and play goes on.
+
 ## Score sheet
 
 MENU, SCORE SHEET during a match (solo, watch or a shared pitch; not practice), or SCORE

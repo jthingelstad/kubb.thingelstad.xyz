@@ -739,7 +739,30 @@ export class Game {
     t.hashes.push(this.engine.hash().hash);
     t.before = t.now;
     t.now = snap;
+    this.onTracked?.();
     return snap;
+  }
+
+  // A kept match against the computer, back (src/game/solo-save.js): its snapshot through
+  // the engine's strict door (adopt), and its trail from the match's own start, so the
+  // record it sends when it ends is the whole match. Throws when the snapshot is refused
+  // or does not end on the kept hash; the caller drops the save then.
+  resumeMatch(save) {
+    this.adopt(save.snap);
+    if (this.engine.hash().hash !== save.hashes.at(-1) && save.hashes.length)
+      throw new Error("the kept match does not end on its own hash");
+    this.trail = {
+      kind: "match",
+      start: save.start,
+      actions: [...save.actions],
+      hashes: [...save.hashes],
+      before: null,
+      now: save.snap,
+    };
+    this.shownCards.clear();
+    this.result = null;
+    resetAutoRaise(this.autoRaise);
+    this.enter(this.engine.view());
   }
 
   mayAct(need = this.need) {
