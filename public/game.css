@@ -130,15 +130,7 @@ body.game {
 .btn.plain:active {
   transform: none;
 }
-/* (the plan's plates, ARC, TILT, STAND and SIDE VIEW, keep their size: the aim
-   layout is the next stage's) */
-@media (pointer: coarse) {
-  .btn:not(.plan),
-  .seg-btn,
-  .name-step-btn {
-    min-height: 48px;
-  }
-}
+
 .btn.plan {
   font-size: 15px;
   padding: 4px 9px;
@@ -2452,4 +2444,16 @@ body.embed .replay-controls {
 .card p.welcome-kubb {
   margin: 8px 0 0;
   font-size: 17px;
+}
+
+/* ---------- a touchscreen: every control 48 px to a finger (the 1.0 design's
+   touch size; never under 44). Last, over each control's own height. The plan's
+   plates, ARC, TILT, STAND and SIDE VIEW, keep their size: the aim layout is the
+   next stage's. ---------- */
+@media (pointer: coarse) {
+  .btn:not(.plan),
+  .seg-btn,
+  .name-step-btn {
+    min-height: 48px;
+  }
 }
