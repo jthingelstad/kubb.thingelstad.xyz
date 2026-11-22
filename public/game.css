@@ -1919,11 +1919,16 @@ body.game {
 }
 .name-row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   min-width: 0;
 }
+/* the name and SHUFFLE on one line where the card has the room; on a window too
+   narrow for both (320 px) SHUFFLE goes under the name rather than past the card's
+   edge, taking the steppers with it */
 .name-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 6px 10px;
