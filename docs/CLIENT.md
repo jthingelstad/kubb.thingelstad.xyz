@@ -14,7 +14,7 @@ the engine's.
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/practice/`        | The open practice pitch: BATONS or KUBBS (the drill), surface and reset.                                                                                                                                                                                                                            |
 | `/settings/`        | The device's settings alone (your name in its name row, meter, meter side, sound): the same rows as MENU's, from Settings on the web game's page, with DONE back to it. The engine is loaded for the names only.                                                                                    |
-| `/p/<code>?solo=1`  | A match against the computer. The options card first (You: your name in its name row; Computer level, surface, opening, raising, wind, kubb set, scene; remembered), then START.                                                                                                                    |
+| `/p/<code>?solo=1`  | A match against the computer. The options card first (your name and SHUFFLE; Scene as three picture tiles; Computer level, opening, raising, wind, surface; remembered), then START.                                                                                                                |
 | `/p/<code>?watch=1` | The computer against itself, match after match: no options card, the solo card's saved options, North against South. The winner card stays up 10 s (NEXT MATCH, STOP, HOME), then the next match starts by itself, the other team first. Seen in the wide view by default ("The wide view", below). |
 | `/p/<code>`         | A shared pitch: the lobby (your name, Team A or B or watching, a side of several's team name, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md.                                                                                                      |
 | `/e/<code>`         | The embed: a kept replay alone, for a frame on another site ("The embed", below).                                                                                                                                                                                                                   |
@@ -24,8 +24,8 @@ list): in step at once, mid-match or not, it never acts or hosts and has its own
 between matches. docs/OBSERVER.md.
 
 A failure to start shows a plain error card with RELOAD and HOME. HOME, on every card, is
-`/web/`, which answers 301 to the landing page's `#play` since the 1.0 design (`/` is the
-landing page and the web game's page in one). PLAY NOW there opens `/p/<code>?solo=1&play=1`:
+the landing page's `/#play` (`/` is the landing page and the web game's page in one since
+the 1.0 design; `/web/` answers 301 there for links from before). PLAY NOW there opens `/p/<code>?solo=1&play=1`:
 with no kept match options (`soloKept`) the match starts at once on `FIRST_MATCH` (Park, a
 Beginner computer, 2-4-6, by hand, no wind) and those options are kept; otherwise the
 options card, as `?solo=1`. The HOW TO THROW overlay
@@ -44,7 +44,9 @@ options card, as `?solo=1`. The HOW TO THROW overlay
 | `src/game/auto-raise.js`                      | Pure: automatic raising for the turn (AUTO ALL) or the match (REST OF GAME on the raise panel).                                                                                  |
 | `src/game/player-name.js`                     | Pure: the device's name (the `name` pref), a generated one: rolled on the first run, a typed name from before replaced on load ("Names").                                        |
 | `src/game/names.js`                           | The engine's `names.*` door: roll, step, choices, the single-name check (`passes`, `shown`), the lobby's "II" (`apartNames`) ("Names").                                          |
-| `src/ui/name-row.js`                          | The name row: the name, SHUFFLE, a picker and KEEP per word, `NAME_FIT` ("Names").                                                                                               |
+| `src/ui/name-row.js`                          | The name row: the name and SHUFFLE; in Settings a stepper per word; `NAME_FIT` ("Names").                                                                                        |
+| `src/ui/seg.js`                               | The segmented bar: every two to four way choice, one Tab stop with the arrow keys inside ("The 1.0 system", below).                                                              |
+| `src/ui/welcome.js`                           | The pitch link's welcome for a device new to the game (docs/MULTIPLAYER.md "The welcome").                                                                                       |
 | `src/game/raise-touch.js`                     | Pure: raising by touch, where the drawn kubb is, which end a tap or drag means, its tilt.                                                                                        |
 | `src/game/sound.js`                           | `Sound`: the knocks and the king's chord through Web Audio; unlock on the first pointer down; mute remembered.                                                                   |
 | `src/game/nudge.js`, `src/render/nudge.js`    | The throw's nudge: when it shows and the ghost's throw (pure), and its drawing over the meter ("The nudge", below).                                                              |
@@ -688,13 +690,32 @@ throws he took for perfect had been judged long.
   the half a punishment kubb goes in (`stillFit` above). END 1 and END 2 join the row
   when the keyboard reaches them. On a shared pitch the bar shows only for the player
   who acts; the others see the status pill and no panel, as before.
-- **The winner**: REMATCH (back to the options; on a shared pitch the host's only, back to
-  the lobby with the same teams), SCORE SHEET and HOME.
-- **The menu**: the device's settings first ("Settings", below: Your name, Meter, Meter
-  side, Sound), then View
-  when watching, and on the practice pitch that pitch's own options, Surface and Scene.
-  Each row shows its value as a choice. Then how to throw, score sheet (a match), resign,
-  send feedback, rules, home; Escape closes it. A match's options are never in it.
+- **The raise and punishment panel** keeps two slots in every state (the 1.0 design's one
+  rule for it; nothing else about it changed): the automatic choices, plain, at the left
+  (AUTO, AUTO ALL, REST OF GAME; BY HAND and REST OF GAME while it raises itself), and the
+  one confirming action at the right (PLACE IT, go; raising by hand, END 1 and END 2, out
+  of sight until focused). `slots` in `src/ui/cards.js`.
+- **The winner** (the 1.0 design): REMATCH as the one go button across the card (back to
+  the options; on a shared pitch the host's only, back to the lobby with the same teams;
+  WATCH REPLAY leads instead for a browser that arrived after the end), then WATCH REPLAY
+  and SCORE SHEET plain side by side, one SHARE, and HOME quiet at the foot. SHARE on a
+  match against the computer is the share card (src/ui/share.js), which makes the link and
+  the reel; on a finished pitch it opens "Share this match" over the winner card
+  (`openShareCard`): the pitch's link with COPY LINK, MAKE A HIGHLIGHT REEL (its words follow
+  the reel) and EMBED, BACK quiet. Watching the computer: NEXT MATCH, SCORE SHEET, STOP and
+  HOME.
+- **The menu** (the 1.0 design), from MENU, a word inside the header's plate: a two by two
+  grid of plain buttons, SETTINGS, SCORE SHEET (a match), HOW TO THROW and FEEDBACK (with
+  an api address); Raising (By hand, Automatic) in a match that raises by hand, for the
+  side this browser plays: Automatic is the raise panel's REST OF GAME, By hand its BY
+  HAND (`Game.setRaise`; `Game.matchRaising` says the match's option); View when
+  watching, and on the practice pitch that pitch's own Surface and Scene (the practice
+  menu was not drawn: its rows stay under the grid); BACK TO THE MATCH as the one go
+  button (BACK TO THE PITCH in practice), RESIGN and HOME quiet, and the release label at
+  its foot. SETTINGS opens the device's settings as their own card in the menu's place
+  (`settingsCard`), DONE at its bottom right (or Escape) back to the menu; Escape closes
+  the menu. RULES left the menu with the design (the rules are on the site). A match's
+  options are never in it.
 - **Settings** (the owner's settings sheet, 2026-11-20: each setting lives where its
   scope says). Device settings are kept on the device and never asked per match: your
   name (prefs `name`, `src/game/player-name.js`; a generated name, "Names" below), the meter
@@ -729,10 +750,47 @@ throws he took for perfect had been judged long.
   in it), and on a pitch the host's row, shown while the next match's engine takes a
   scene (0.9 on). The pitch behind the card or lobby shows the pick (`Game.showScene`);
   a match draws its view's `scene` through the `Stage`. `?scene=` sets it off a pitch.
-- **The rail** counts in words ("5 BASE KUBBS", "2 FIELD KUBBS", "AT THE KING", practice
-  kubbs "TARGET 2.3 M"; `railCount` in `hud.js`) where the engine's rail says the
-  Playdate's "BASE 5". Practice's tray is a joined pair, BATONS | KUBBS, the one in use
-  pressed, then RESET.
+- **The header** (the 1.0 design; `hud.js`, `headerLine`, `headerName`): one plate at the
+  top left. Over the name, in the label's capitals, "Turn 4 · baton 2 of 6" ("kubb 1 of 3"
+  throwing kubbs in), with what the thrower aims at when it is not the base kubbs ("· 2
+  field kubbs", "· at the king"); practice: "Batons · 5 base kubbs", "Kubbs · target 2.3
+  m". The name in sentence case (the engine's rail says it in capitals; the header takes
+  the team's and the thrower's names from the need). Then the kubbs standing in each half
+  as two numbers on the team colours, A marigold and B violet (the need's `standing`,
+  field and base kubbs together: the engine gives no base-only count), with the spoken
+  label "Kubbs standing: Mighty Maple 5, Computer 5", and MENU as a word inside the plate
+  (`hud.menuSlot`). Under a card that dims the pitch it is not shown. A tall screen gives
+  it the width the minimap leaves; what stood under it there stands under its height
+  (`--rail-h`). The counts in words (`railCount`) are the engine's Playdate "BASE 5" made
+  plain. Practice's tray is a joined pair, BATONS | KUBBS, the one in use pressed, then
+  RESET, at the top right.
+
+## The 1.0 system
+
+The Throwing Wood 1.0 design (the owner's review of 2026-11-21) on the game's own
+screens; docs/SYSTEM.md has its numbers and words in one place for the iPhone, which
+matches them.
+
+- **Tokens** (`public/style.css` and `public/game.css`; the canvas's `INK` in
+  `src/render/palette.js`): ink `#16130f` (the canvas's `#17140f` went), paper, baton,
+  wood for title bands only, muted for helper text, marigold the one go colour; a 3 px
+  ink line, radius 6 on controls and 8 on cards, shadow 3 on controls and 5 on cards;
+  chips 2 px with no shadow. A scene's skin keeps its own go colour (`--accent`) at 7:1.
+- **Type**: Londrina Solid Black for titles (sentence case), buttons, prompts and flags
+  (capitals), never a body sentence; Inter for the rest; row labels Inter bold 14
+  capitals at 0.06em; nothing under 14 px in `#ui`.
+- **Three buttons** (`button(label, fn, kind)` in `src/ui/dom.js`): go (`"go"`,
+  marigold, last in its row), plain (`""`, paper) and quiet (`"quiet"`, underlined
+  display capitals with the full 44 px target) for leaving: HOME, RESIGN, NOT NOW, JUST
+  WATCH, WATCH INSTEAD, CLOSE.
+- **The segmented bar** (`segBar` in `src/ui/seg.js`): every two to four way choice, one
+  joined bar, the chosen part ink with paper type, the others white; a radio group that
+  is one Tab stop, the arrow keys (and Home, End) moving the choice inside it; its focus
+  ring round the whole bar and the part ringed inside.
+- **Focus and touch**: a 3 px ink ring 2 px off every control; Escape closes an open card
+  (the menu, Settings back to the menu, the share, sheet, reel, embed and report cards, the
+  how-to); every control 44 px tall, 48 on a touchscreen, the steppers and quiet links
+  included (the plan's plates keep their size until the aim layout's stage).
 
 ## Names
 
@@ -749,30 +807,32 @@ and sent as its text.
   never shown. A once-generated name that lost a word for safety keeps the word still in
   its list (`names.roll` with both words as locks). `saveName` keeps only a generated
   name. The solo card's old `solo.name` is dropped unread.
-- **The name row** (`nameRow` in `src/ui/name-row.js`), built once and used in Settings
-  (MENU, `/settings/`), the solo card's and the lobby's You row, the lobby's team names
-  (the host's) and the share card. Top: the name as it reads and SHUFFLE. Under it, one
-  picker per word, a native `<select>` of `names.choices` for that slot with the other
-  words as they are, and beside each KEEP, a toggle button (`aria-pressed`; KEPT when on).
-  SHUFFLE is `names.roll` with the kept words in `keep`; a team's SHUFFLE may change its
-  shape (`adj`, `wood`, `the`) unless a word is kept. A team's "The" is text, not a slot.
-  The row is a labelled group (`role="group"`, `aria-label` "Your name"); each picker is
-  named "Your name, first word" and so on, each lock "Keep Mighty when shuffling"; a
-  change is announced through an `aria-live` line ("Your name: Mighty Maple"); focus stays
-  on the control that changed. Every control is a native button or select, so the
-  keyboard and a screen reader reach each, in order: SHUFFLE, then each word's picker and
-  KEEP. `data-test`: `<key>`, `<key>-text`, `<key>-shuffle`, `<key>-word-<slot>`,
-  `<key>-lock-<slot>` (keys `settings-name`, `solo-name`, `lobby-name`, `team-A-name`,
-  `share-name`).
+- **The name row** (`nameRow` in `src/ui/name-row.js`; the 1.0 design: "KEEP goes from
+  the name row; the row is the name and SHUFFLE, word steppers only in Settings"), built
+  once and used in Settings (MENU's SETTINGS, `/settings/`), the solo card, the lobby's
+  "You are", the lobby's team names (the host's), the welcome card's "You will be" and
+  the share card. One line: the name as it reads (the display face at 24 px) and
+  SHUFFLE, which is `names.roll` with nothing kept (a whole new name; a team's may
+  change its shape, `adj`, `wood`, `the`). In Settings only (`steppers`), under it one
+  stepper per word, a line each: previous, the word, next (`names.step`, the Playdate's
+  crank as a control; stepping one word keeps the others). There is no picker and no
+  KEEP. A team's "The" is text, not a slot. The row is a labelled group (`role="group"`,
+  `aria-label` "Your name"); each stepper a group "First word" with "Previous first
+  word" and "Next first word"; a change is announced through an `aria-live` line ("Your
+  name: Mighty Maple"); focus stays on the control that changed. Every control is a
+  native button, so the keyboard and a screen reader reach each, in order: SHUFFLE, then
+  each word's previous and next. `data-test`: `<key>`, `<key>-text`, `<key>-shuffle`,
+  `<key>-prev-<slot>`, `<key>-word-<slot>`, `<key>-next-<slot>` (keys `settings-name`,
+  `solo-name`, `lobby-name`, `welcome-name`, `team-A-name`, `share-name`).
 - **Fit.** The longest name in characters is not the widest, so every name from
   `names.all` (4,133 player and 6,530 team names in 0.13.3) is measured in the game's own
-  fonts by `tests/game/names-fit-client.test.mjs`: the row's text (800 17px Inter) within
-  `NAME_FIT.text` (200 px; the widest is "Redwood Hammocks", 177 px), which `.name-text`
-  keeps as its least width; each word in a picker (700 15px Inter, the widest
-  "Lawnmowers", 98 px) within `NAME_FIT.word` with its padding; the lobby's team title;
-  and the HUD rail, whose name now breaks between words, so each word must fit the
-  narrowest rail (a phone held upright: 141 px; the widest, "CLOUDBERRIES", is 113 px in
-  Londrina Solid at 20 px). The row spans the card's width under its label, so it has
+  fonts by `tests/game/names-fit-client.test.mjs`: the row's text (Londrina Solid 24 px)
+  within `NAME_FIT.text` (200 px; the widest is "Sumac Lawnmowers", 189 px), which
+  `.name-text` keeps as its least width; each word in a stepper (700 15px Inter, the
+  widest "Lawnmowers", 98 px) within `NAME_FIT.word` (120 px) with its padding; the
+  lobby's team title; and the header, whose name breaks between words, so each word must
+  fit the narrowest header's name beside the two numbers and MENU (a phone held upright:
+  104 px; the widest, "Lawnmowers", is 102 px in Londrina Solid at 20 px). The row spans the card's width under its label, so it has
   that room on a 390 px phone.
 - **A team of several** plays under a team name the host picks in the lobby. When a side
   first has two players the host rolls one (`Pitch.rollTeamNames`) and writes it into
@@ -962,7 +1022,7 @@ new code (docs/REEL.md "Sharing a match against the computer", docs/ROOMS.md sec
 and the card's states are a pure reducer in `src/net/share.js` (`shareStart`,
 `shareStep`, `shareView`), tested in `tests/net/share-client.test.mjs`.
 
-- **Where.** MAKE A HIGHLIGHT REEL on the winner card of a solo match (`startSolo` in
+- **Where.** SHARE on the winner card of a solo match (MAKE A HIGHLIGHT REEL until the 1.0 design) (`startSolo` in
   `src/main.js`), when the page has an api address and the match is one of side A
   against the computer on B with its whole trail (`shareable`). Not when watching the
   computer against itself (docs/REEL.md "What a player sees": nobody played), not in
@@ -1049,7 +1109,7 @@ member id. Practice is not recorded. It goes as `POST /api/game`. A build withou
 
 ## Reports
 
-MENU, SEND FEEDBACK (shown in every mode whenever the build has an api address) closes
+MENU, FEEDBACK (SEND FEEDBACK until the 1.0 design; shown in every mode whenever the build has an api address) closes
 the menu and opens the "Send feedback" card. It starts with a choice, two real radio
 inputs drawn as the site's segmented buttons in a fieldset with a hidden legend (arrow
 keys move between them): "A throw looked wrong" and "Something else". The first is chosen
@@ -1200,16 +1260,24 @@ The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.m
 - `tests/game/settings-client.test.mjs` (Playwright): `/settings/` from the web game's
   page replaces a device's typed name with a generated one and shows no text field, has
   no match option and no level of your own, keeps the device's older level, and what it
-  sets is what the game reads; the first run rolls a name, SHUFFLE keeps a kept word,
-  the keyboard reaches every control of the row in order and a pick is announced; MENU
-  has the device's rows in practice and in a match, the practice pitch's Surface and
-  Scene only in practice, and no Raising; the solo card's You row is the name row, its
-  pick is the match's name, and a pick in MENU is the next card's; the lobby's You row is
-  the name row and the room hears a pick.
+  sets is what the game reads; the first run rolls a name, SHUFFLE rolls a whole new one
+  with no KEEP or picker, a stepper steps its word and keeps the other, the keyboard
+  reaches every control of the row in order and a pick is announced; a segmented bar is
+  one Tab stop with the arrow keys, Home and End inside, the chosen part ink with paper
+  type and the ring 3 px of ink 2 px off; MENU's grid, Settings with the device's rows and
+  DONE back to the menu, the practice pitch's Surface and Scene only in practice, Raising
+  in a match by hand; the solo card's name row is the match's name, and a pick in MENU's
+  Settings is the next card's; the lobby's "You are" row and the room hears a pick.
   `tests/game/player-name.test.mjs` is the first run, the typed name replaced, saveName,
-  SHUFFLE with locks, the display check, the "II" rule and `prefsDevice`.
+  the display check, the "II" rule and `prefsDevice`.
+- `tests/game/design-client.test.mjs` (Playwright): Play the computer's order (the name
+  row, Scene, Computer level, Opening, Raising, Wind, Surface; no Kubbs, and a kept set
+  plays Classic), HOME quiet at the left and START go at the right; the header's words,
+  numbers, colours and spoken label, MENU in its plate, and hidden under a dimming card;
+  the winner card's buttons; and on each card nothing under 14 px, every control 44 px
+  tall (48 on a touchscreen) and one go.
 - `tests/game/names-fit-client.test.mjs` (Playwright): every name from `names.all`,
-  measured in the game's fonts, fits the name row, its pickers, the lobby and the rail.
+  measured in the game's fonts, fits the name row, its steppers, the lobby and the header.
 - `tests/game/names-client.test.mjs` (Playwright, the local pitch server): a page that
   sends a typed name is "Player 1" to everyone and still plays; two members with one
   name are "Mighty Maple" and "Mighty Maple II"; the host's team name for a side of

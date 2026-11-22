@@ -66,8 +66,8 @@ and the web game's page with it: PLAY NOW in the hero, then under `#play` Play t
 computer, Start a pitch (with Who can join), Practice, Watch the computer, Settings and
 the open games, Throw by feel, iPhone and Playdate, and the newsletter block. It is still a
 reading page, never the game or its lobby (a site check holds it to that). `/web/`, the
-web game's page until then, answers 301 to `/#play` (`infra/viewer-request.js`), so every
-in-game HOME, which still names `/web/`, lands there. PLAY NOW (`playNow` in
+web game's page until then, answers 301 to `/#play` (`infra/viewer-request.js`), and every
+in-game HOME names `/#play` itself. PLAY NOW (`playNow` in
 `src/site/landing.mjs`, also on `/engine/`) opens `/p/<code>?solo=1&play=1`: a device with
 no kept match options starts at once on Park, a Beginner computer, 2-4-6, raising by
 hand and no wind (`FIRST_MATCH`, `soloKept` in `src/ui/cards.js`; `startSolo` in
@@ -150,7 +150,7 @@ address or home path in `dist/`, no account id in Markdown).
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `0.12.0 (0.13.4)`, at the foot of
+the full version of the newest engine the site carries, `0.13.0 (0.13.4)`, at the foot of
 every reading page and of MENU, with "Also plays ..." under it in MENU only while older
 engines are carried (none today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
@@ -238,12 +238,14 @@ the details.
   `names.*` door, `src/game/names.js`): the first run rolls one from the browser's own
   randomness; a kept name that is not a generated one (a typed name from before) is
   replaced on load and never shown.
-- **The name row** (`src/ui/name-row.js`), built once: the name, SHUFFLE, a picker per
-  word (a native select of `names.choices`) and KEEP per word, which SHUFFLE respects.
-  It is in Settings (MENU and `/settings/`, which now loads the engine for it), the solo
-  card's and the lobby's You row, the lobby's team names (the host's) and the share card.
-  Every name and word is measured in the game's fonts against `NAME_FIT`
-  (`tests/game/names-fit-client.test.mjs`).
+- **The name row** (`src/ui/name-row.js`), built once: the name and SHUFFLE on one line
+  (SHUFFLE rolls a whole new name); in Settings only (MENU's SETTINGS and `/settings/`,
+  which loads the engine for it) a stepper per word under it, previous, the word, next
+  (`names.step`). No KEEP and no picker (the 1.0 design, the owner, 2026-11-21: "KEEP
+  goes from the name row; the row is the name and SHUFFLE, word steppers only in
+  Settings"). It is on the solo card, the lobby's "You are", the lobby's team names (the
+  host's), the pitch link's welcome and the share card. Every name and word is measured
+  in the game's fonts against `NAME_FIT` (`tests/game/names-fit-client.test.mjs`).
 - **A team of several** plays under a team name the host rolls and picks in the lobby
   (the document's top-level `teamNames`, `setTeamName` in `src/net/lobby.js`); a side of
   one plays under its player's name. Two members with one name are told apart in the
@@ -379,6 +381,15 @@ JOIN and WATCH (Observer mode). The host's
 browser tells the pitch server what to list (`docs/MULTIPLAYER.md`), and the page reads
 the list from the pitch server's `GET /open` (`backend/pitch-server/PROTOCOL.md`).
 
+## The welcome
+
+A device that has never played opening someone else's pitch link sees one card before the
+lobby (the 1.0 design): who invited them, the landing page's two sentences on kubb, their
+generated name with SHUFFLE, JOIN THE GAME, and the quiet JUST WATCH (the link as an
+observer) and HOW TO THROW. The host who made the pitch, and a device with a throw of its
+own kept (`throwsMade`), go straight to the lobby. `src/ui/welcome.js` (its words in
+`WELCOME_WORDS`), docs/MULTIPLAYER.md "The welcome".
+
 ## Replays
 
 A finished pitch can be watched again (Jamie, 2026-11-16: "When a game is finished playing
@@ -433,15 +444,22 @@ not shown because watching one means joining the room.
 ## Share previews
 
 A pitch's link shows that pitch (Jamie, 2026-11-16: "can we get the share preview image to
-reflect the game that it is linked to?"). The pitch pages function writes the title
+reflect the game that it is linked to?"), from the moment it is made (the 1.0 design): the
+pitch server pushes `open` with the maker's checked name when the pitch is made
+(`backend/pitch-server/PROTOCOL.md` "Pushes"), the api keeps it as the pitch's `open`
+item (`backend/api/API.md`), and a pitch with no match yet is "Cheerful Cedar is waiting
+for players" with that name on its card. The plates are round (8 px at 1200 wide) and the
+state line says TAP TO WATCH where there is a match to watch ("IN PLAY · TURN 7 · TAP TO
+WATCH"). The api must take `open` before a pitch server that sends it is deployed. The
+pitch pages function writes the title
 ("Mighty Maple vs Lucky Larch · Kubb: Throwing Wood"), a description of its state
 ("Waiting for players. Join the pitch.", "In play: turn 7", "Final: Lucky Larch won, 1 to
 0, in 9 turns. Watch the replay.") and `/og/<code>.png?v=<version>` into `/p/<code>` and `/e/<code>`. The image
 (1200×630, `pitchCardImage` in `src/site/art.mjs`, drawn with resvg) has the team names,
 the state and the pitch from above with its pieces where they stand. Team names come from
 the match, each checked as the pitch server checks it (a team name the game did not make
-is left off: the side is "Team A" or "Team B"); a waiting pitch has none yet, so it is "A
-pitch waiting for players". No names of players, member ids, open-game listing or games
+is left off: the side is "Team A" or "Team B"); a waiting pitch has none yet, so it is its
+maker's name, checked the same way, or "A pitch waiting for players" without one. No names of players, member ids, open-game listing or games
 bucket. Anything that fails gives the
 static title, description and share image, never an error page.
 
@@ -585,9 +603,11 @@ kubbs we have three options today including an auto, we should also add an "auto
 fact I could see players wanting to shift to auto raise kubbs for the rest of the game.").
 The raise panel has END 1, END 2, AUTO (this kubb) and AUTO ALL (the rest of this turn's);
 REST OF GAME on the panel makes every raise automatic for the rest of the match, and BY
-HAND takes it back (raising is a match option, so the part-way choice is on the raise
-panel, not in MENU). It is the player's own choice on a match that raises
+HAND takes it back; MENU's Raising row (By hand, Automatic; the 1.0 design put it in the
+menu) is the same choice. It is the player's own choice on a match that raises
 by hand, kept only for that match: `src/game/auto-raise.js`, docs/CLIENT.md "Match flow".
+The panel keeps two slots in every state (the 1.0 design): the automatic choices plain at
+the left, the one confirming action (PLACE IT) go at the right.
 
 By hand, the player touches the kubb itself (Jamie, 2026-11-19: "similar to on the
 Playdate where you can use the crank to raise the kubbs, on touch, you should be able to
@@ -624,12 +644,16 @@ labels are plain words.
 - Practice's tray is BATONS | KUBBS, the one in use pressed (it was one button naming the
   other mode). The rail counts in words ("5 BASE KUBBS", "TARGET 2.3 M"), not the
   engine's Playdate "BASE 5" (`railCount` in `src/game/hud.js`).
-- MENU's rows say what they set and show their value: Your name (the name row), Meter,
-  Meter side, Sound (On/Off, once a SOUND: ON button), View (watching), Surface and Scene
-  (practice).
+- MENU (a word in the header's plate since the 1.0 design) is a two by two grid,
+  SETTINGS, SCORE SHEET, HOW TO THROW and FEEDBACK, then Raising (a match by hand), View
+  (watching), Surface and Scene (practice), BACK TO THE MATCH, RESIGN and HOME. Its rows
+  and Settings' say what they set and show their value as a segmented bar: Your name (the
+  name row), Sound (On/Off, once a SOUND: ON button), Meter, Meter side. docs/CLIENT.md
+  "Match flow" and "The 1.0 system".
 - **Settings by scope** (the owner's settings sheet, 2026-11-20). Device settings (your
-  name, meter, meter side, sound) are one set of rows (`src/ui/settings.js`)
-  at the top of MENU in every mode and on `/settings/`, linked from the web game's page;
+  name, meter, meter side, sound) are one set of rows (`src/ui/settings.js`), the Settings
+  card, from MENU's SETTINGS in every mode and on `/settings/`, linked from the web game's
+  page, closing with DONE at the bottom right;
   never asked per match. Game settings (Computer level, surface, opening, raising, wind,
   kubb set, scene, who can join) are on the solo card, the practice MENU (surface,
   scene) and the lobby only. Turn and throw settings (stand, spin; arc, tilt) are on the
@@ -653,7 +677,13 @@ labels are plain words.
 - **Scenes** (Jamie, 2026-11-20: "i absolutely adore the two new scenes! lets make it
   real"). A scene is a look only: Day, Night and Neon, a match option, Scene, from engine
   0.9 (the engine keeps the id in `settings.scene` and `view.scene` and never reads it).
-  The solo card has the row (watching the computer takes the card's), MENU has it on the
+  The names a player sees are one table, `SCENE_NAMES` in `src/render/scenes.js`: the 1.0
+  design shows them as Park, Camping and Techno, and whether that is 1.0 or later is the
+  owner's to decide, so they stay Day, Night and Neon until then. The solo card has them
+  as three picture tiles drawn by the game (`Game.sceneThumb`) and decides the kubb set
+  by them (no Kubbs row since the 1.0 design: the night and the neon play their own
+  sets, the day Classic; the lobby leaves the row out too); watching the computer takes
+  the card's; MENU has it on the
   practice pitch, and the host sets it in the lobby of a pitch whose next match runs on
   0.9 or newer (every engine the site carries). The pitch behind the card
   or lobby shows the pick. Every surface draws a match through one `Stage`
