@@ -9,6 +9,26 @@
 // means a throw that does not count.
 export const KID_CODES = ["kingUp", "placed", "helicopterCounts"];
 
+// A thrown kubb's rulings (the engine's core/match: an inkast's throw, its rethrows,
+// what was out twice, a kubb landing on another, a rescue): the engine's flag is
+// empty for every kubb thrown in (session/throw.lua, drilling), so the ruling's own
+// short words are the flag: OUT FOR NOW, IN FOR NOW, IN, ALL IN, OUT: THROW AGAIN,
+// OUT TWICE: PUNISHMENT (or the Kid match's OUT TWICE: PLACED), 2 PUNISHMENT KUBBS, ON A
+// KUBB: LOWERED, RESCUE, and an own-half hit's. QA, 2026-11-22: a kubb thrown out
+// said nothing at all.
+export const KUBB_CODES = [
+  "outForNow",
+  "inForNow",
+  "in",
+  "rethrow",
+  "punish",
+  "placed",
+  "lowered",
+  "rescue",
+  "ownHalf",
+  "ownHalfOut",
+];
+
 export function rulingCodes(result) {
   const r = result?.ruling;
   if (!r) return [];
@@ -24,5 +44,7 @@ export function flagFor(result) {
     return short;
   if (codes.includes("helicopterCounts"))
     return result.flag === "HELICOPTER" ? short || null : result.flag;
+  if (result.flag == null && short && codes.some((c) => KUBB_CODES.includes(c)))
+    return short;
   return result.flag ?? null;
 }
