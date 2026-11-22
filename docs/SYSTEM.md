@@ -241,6 +241,47 @@ On a phone on its side the panel's bar (80 px) stays under both numbers and the
 punishment half's near baseline (`tests/game/layout.test.mjs`). The punishment view is
 unchanged: it already shows the whole half the kubb may go in.
 
+## Watching a raise
+
+Since web 0.17.0 (the owner, 2026-11-22: "When you hit auto to raise kubbs you should
+watch the computer raise them."), every raise the player does not make by hand is shown
+on the raise view (above), each kubb tipped up onto the end it stands on with the same
+tip the hand's drag draws, one after another (`src/game/lift.js`, the Game's `lift`
+phase):
+
+- **Which raises.** AUTO, AUTO ALL, REST OF GAME and MENU's Raising: Automatic (each a
+  `raise` action the page applies, then watches); any `raise` another browser sends (a
+  shared pitch's other player or the computer's seat there, by hand or not) and a
+  replay's; and the kubbs the engine raises itself between a turn's last kubb thrown in
+  and its first baton (a match started with Raising: Automatic, the computer's own
+  raises against you, watching the computer). Those last have no action: the page
+  compares the pieces at the end of the last kubb's throw with the next throw's (a kubb
+  that lay and now stands within a metre of where it lay), turned into the raiser's
+  frame. A punishment kubb placed elsewhere is not tipped; it stands at the end. A raise
+  made by hand is not shown again.
+- **The pace** (`lift.js` `tune`, `liftPace`; `pacing.js` `autoRaiseWait`): the first
+  kubb of a turn's automatic raise lies **0.4 s** on the raise view, then each kubb takes
+  a beat of **0.5 s** (its tip **70%** of the beat, eased, then it stands; a kubb a
+  crowded raise moved slides to its spot in half the rest), shorter when there are many
+  so the whole raise is **4 s** at most (beat = min(0.5, 3.6 / kubbs), never under
+  0.18). The engine's own raises play the same way, 0.4 s first. Before web 0.17.0 each
+  automatic raise stood the kubb at once after 0.7 s.
+- **Skipping.** A tap anywhere or any key (not Tab or Shift) ends it at once, and the
+  rest of that turn's automatic raises stand with no wait and no tip.
+- **Never holding the match.** The action is applied, and sent, before its clip plays:
+  the engine's actions and their order are what they were. Actions that arrive during a
+  clip wait behind it as they do behind a throw's playback, and each waiting action
+  makes the clip run 2 times faster more (1 + 2 x waiting), so a shared pitch's other
+  browsers never fall behind. A hidden tab shows none (its steps are quiet), and the
+  watching pace (zen) adds its own pause after.
+- **Reduced motion**: no tip: each kubb lies for half its beat, then stands where the
+  engine put it, still one at a time.
+- **The engine** (0.15.1) puts `setup.settled` on the throw need for "raised and
+  punishment kubbs placed before this throw", but core/match keeps it on the match, not
+  the setup, so it is never filled: the page reads the pieces instead. An engine that
+  filled it, and named each kubb raised with the end it chose, would let a client
+  show the engine's own raises without comparing pieces.
+
 ## Scenes, the Kid line, rings and the spin (engine 0.14 and 0.15)
 
 docs/SCENES.md has the looks; these are the numbers a second client matches.
