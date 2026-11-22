@@ -81,7 +81,9 @@ export async function assertLocalBuild(root) {
 // (build/test-dist-<pid>, removed on close), so another file's rebuild never
 // changes the files under a running test.
 // page: a stand-in for the pages function (tools/preview.mjs).
-export async function serve({ build = true, page = null } = {}) {
+// args: Chromium's own flags (a test with several pages that each draw and throw passes
+// the ones that keep a page behind the others drawing frames).
+export async function serve({ build = true, page = null, args = [] } = {}) {
   let root = "dist";
   if (build) {
     root = `build/test-dist-${process.pid}`;
@@ -94,7 +96,7 @@ export async function serve({ build = true, page = null } = {}) {
   await assertLocalBuild(root);
   const server = await startPreview({ port: 0, root, page });
   const base = `http://127.0.0.1:${server.address().port}`;
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(args.length ? { args } : {});
   return {
     base,
     browser,

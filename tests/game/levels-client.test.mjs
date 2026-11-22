@@ -149,9 +149,11 @@ browserTest(
         null,
         { timeout: 20000, polling: 50 },
       );
+      // the level of the computer on the empty side (web 0.21.0: beside computer
+      // seats, docs/SYSTEM.md "Computer seats")
       assert.equal(
         await guest.textContent("[data-test=lobby-opt-computer] .opt-label"),
-        "Computer level",
+        "An empty side plays as",
       );
       await host.waitForFunction(
         () => window.__kubb.pitch.room.doc?.settings?.computer === "pro",
