@@ -12,7 +12,8 @@
 // match's record was still on its way had its save cleared, or marked over).
 //
 // One kept match a device, the newest wins: a match claims the slot when it starts or is
-// resumed (claim), and after that writes only while the slot is still its own or empty.
+// resumed (claim), and after that writes only while the slot is still its own, its own
+// tab's or empty (a save names the tab that wrote it, `tab`, a random id a page load).
 // A match in another tab that finds the slot taken stops being kept and is told once
 // (main.js startSolo). A match being played holds a lock on its id (match-lock.js), so
 // another tab never offers it for RESUME, nor sends its record, while it is live there.
@@ -71,13 +72,20 @@ export function saveOf(game, engine) {
   };
 }
 
-// Write `save` unless the slot holds another match and this is not a claim. Returns
-// whether it was written.
-export function keepSave(save, { claim = false } = {}, store = prefs) {
+// Write `save` (as tab `tab`'s) unless the slot holds another tab's other match and this
+// is not a claim. A tab's own earlier match it may always replace. Returns whether it
+// was written.
+export function keepSave(
+  save,
+  { claim = false, tab = null } = {},
+  store = prefs,
+) {
   if (!save) return false;
   const cur = store.get(SAVE_KEY, null);
-  if (!claim && cur?.id && cur.id !== save.id) return false;
-  store.set(SAVE_KEY, save);
+  const mine =
+    !cur?.id || cur.id === save.id || (tab != null && cur.tab === tab);
+  if (!claim && !mine) return false;
+  store.set(SAVE_KEY, tab != null ? { ...save, tab } : save);
   return true;
 }
 
