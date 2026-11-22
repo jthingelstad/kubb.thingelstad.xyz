@@ -665,6 +665,18 @@ for (const [kind, prefs, name] of [
           );
         const L2 = await page.evaluate(() => window.__kubb.game.L);
         assert.deepEqual(L2.minimap, map, "the minimap does not move");
+        // held, its caption keeps clear too (a QA note, 2026-11-22: on an upright
+        // phone with the clock the ARC caption lay across the minimap)
+        if (k !== "stand") {
+          const release = await dragSlider(page, k, [0.5, 0.6], {
+            touch: kind !== "desktop",
+            keep: true,
+          });
+          const c = await caption(page);
+          assert.equal(c.shown, true, `${k}'s caption shows`);
+          clear(c.box, `${k}'s caption`);
+          await release();
+        }
         await page.keyboard.press("Escape");
       }
       assert.deepEqual(page.errors, []);

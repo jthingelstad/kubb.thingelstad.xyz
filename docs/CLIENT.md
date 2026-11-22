@@ -521,7 +521,11 @@ The held slider's caption stands over the tray, growing from the screen's edge t
 is at toward the middle, at least 330 px wide where there is room (never onto a tall
 canvas's linear meter, and lifted above a wide canvas's prompt tab where its span reaches
 it); where an open plate has taken the room over the tray it stands beside that plate's
-top on its inner side. The iPhone's caption strip beside SHOUT has no web counterpart. On
+top on its inner side. It never lies across the minimap (web 1.0.0, a QA note: on an
+upright phone with the clock the ARC caption did): where the two share a band it stops 8
+px short of the minimap and wraps, and beside a plate, where that would leave it under
+its 160 px floor (a phone on its side), it starts under the minimap instead (`hud.js`
+`showCaption`, `clearOfMap`; "the plan keeps clear" holds it in every layout). The iPhone's caption strip beside SHOUT has no web counterpart. On
 a short screen only the newest shout shows.
 
 **The nudge** (2026-11-19). Jamie: "A couple of users have had a lot of confusion on how

@@ -158,6 +158,21 @@ export function headerName(railName, need = null) {
     .replace(/(^|[\s:])([a-z])/g, (m, a, b) => a + b.toUpperCase());
 }
 
+// The width a caption over the tray keeps so it stops short of the minimap,
+// where the two share a band (y0 to y1, the caption's): from x0 toward the
+// middle (fromLeft) or back from x0 toward it (the right edge).
+function clearOfMap(m, fromLeft, x0, w, y0, y1) {
+  if (!m || y1 <= m.y || y0 >= m.y + m.height) return w;
+  const gap = 8;
+  return fromLeft
+    ? x0 < m.x
+      ? Math.min(w, m.x - gap - x0)
+      : w
+    : x0 > m.x + m.width
+      ? Math.min(w, x0 - (m.x + m.width) - gap)
+      : w;
+}
+
 // The meter tab's distance spoken ("8 M", "1.5 M" from metresWords in game.js):
 // "8 metres", "1.5 metres", "1 metre".
 export function spokenMetres(words) {
@@ -538,8 +553,11 @@ export class Hud {
   // the room over the tray (under its ceiling: the header, the minimap) it
   // stands beside the open plate's top on its inner side instead. Never onto
   // the meter: a tall canvas's linear meter bounds it, and beside it over the
-  // prompt tab it is lifted above the tab. Measured only when the caption
-  // appears, a plate opens or closes, or the layout changes.
+  // prompt tab it is lifted above the tab. Never onto the minimap either (a QA
+  // note, 2026-11-22: an upright phone's clock had the ARC caption across it):
+  // where the two share a band it stops short of the minimap and wraps, and
+  // beside a plate, where that leaves too little to read, starts under it. Measured only when the caption appears, a plate opens or closes, or the
+  // layout changes.
   showCaption(cap, plan = null) {
     const key = cap ? cap.key : "";
     if (this.cache.get("capKey") !== key) {
@@ -597,6 +615,7 @@ export class Hud {
         if (a < tab.x + tab.width + 8 && a + w > tab.x - 8)
           top = Math.min(top, tab.y - 4);
       }
+      w = clearOfMap(L.minimap, fromLeft, x0, w, top - 8 - capH, top - 8);
       s.top = "";
       s.bottom = `${L.H - top + 8}px`;
     } else {
@@ -605,8 +624,13 @@ export class Hud {
       const o = open ? open.getBoundingClientRect() : r;
       x0 = fromLeft ? o.right + t.gap : o.left - t.gap;
       w = Math.min(330, reach(x0));
+      let y = Math.max(t.ceiling, o.top);
+      const narrow = clearOfMap(L.minimap, fromLeft, x0, w, y, y + capH);
+      // too narrow to read beside the minimap: under it instead
+      if (narrow < 160) y = L.minimap.y + L.minimap.height + t.gap;
+      else w = narrow;
       s.bottom = "";
-      s.top = `${Math.max(t.ceiling, o.top)}px`;
+      s.top = `${y}px`;
     }
     w = Math.max(160, w);
     this.caption.classList.remove("split");
