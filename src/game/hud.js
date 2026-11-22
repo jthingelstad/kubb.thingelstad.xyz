@@ -400,6 +400,8 @@ export class Hud {
             ? "WATCH"
             : "",
     );
+    // the verdict stands under the pill while the pill shows (game.css)
+    this.center.classList.toggle("status-on", !this.status.hidden);
     const cls = who ? (who.mine ? "mine" : "theirs") : "";
     if (this.cache.get("statusCls") !== cls) {
       this.cache.set("statusCls", cls);

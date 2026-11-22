@@ -27,8 +27,16 @@ import { minimapGeometry, tune as mapTune } from "../render/minimap.js";
 export const tune = {
   tallFrom: 1.05, // H / W above this is a tall canvas
   tallZoom: 1.3, // of the width-fit scale
-  anchorY: 112, // frame y that the target half sits round
-  anchorAt: 0.33, // ... placed this far down a tall canvas
+  // The far baseline (frame y `anchorY`: the aim camera's own, Game.farFrameY, else
+  // 96, a throw from the baseline's) is placed `anchorAt` of the way down a tall
+  // canvas: 0.41 since web 0.17.0 (the owner, 2026-11-22: "I wonder if our camera view
+  // should be a touch lower so the kubbs we are aiming at are a little lower on the
+  // screen"). Before, frame y 112 stood at 0.33, which put the far baseline at 30% of
+  // the height from the baseline and 41% from a Kid match's line; now it is 41% from
+  // anywhere, and the band under the header holds the minimap and the verdict
+  // (verdictBox).
+  anchorY: 96,
+  anchorAt: 0.41,
   stillAt: 0.42, // a tall canvas's raise and punishment scenes
   // a short wide canvas (a phone on its side): the raise and punishment panel
   // is a bar along the bottom (public/game.css, max-height 460px), at most
@@ -105,6 +113,12 @@ export const tune = {
   // the header (headerBox): railTop under the safe top; on a wide canvas
   // headerW of its width, railMinW to headerMaxW; the minimap mapGap under it
   railTop: 10,
+  // the verdict's box (verdictBox): px off what it keeps clear of, and the most it
+  // grows to upright (the flag and two rows of chips) and on a wide canvas
+  verdictGap: 8,
+  verdictTall: 132,
+  verdictTallWide: 104,
+  verdictAdv: 34, // px the box moves down under the line's chip, upright
   headerW: 0.4,
   headerMaxW: 400,
   mapGap: 8,
@@ -145,12 +159,15 @@ export function isTall(W, H) {
 
 // The world's mapping { k, ox, oy } for a W x H canvas, the frame's x
 // centred on centerX (a tall canvas pans; elsewhere null: the renderer's rule).
-export function worldFit(W, H, centerX = 200) {
+// anchorY: the far baseline's frame y in the aim camera (Game.farFrameY), else the
+// usual one.
+export function worldFit(W, H, centerX = 200, anchorY = null) {
   if (!isTall(W, H)) return null;
   const k = (W / 400) * tune.tallZoom;
   const half = W / k / 2; // frame px either side of the centre
   const cx = Math.max(half, Math.min(400 - half, centerX));
-  return { k, ox: W / 2 - cx * k, oy: H * tune.anchorAt - tune.anchorY * k };
+  const ay = Number.isFinite(anchorY) ? anchorY : tune.anchorY;
+  return { k, ox: W / 2 - cx * k, oy: H * tune.anchorAt - ay * k };
 }
 
 // The mapping for the raise and punishment scenes on a tall canvas: the
@@ -173,6 +190,47 @@ export function stillFit(W, H, zoom = 1, { lowest = null, bottom = 0 } = {}) {
   const over = oy + k * lowest - (H - bottom - tune.stillBar - tune.stillClear);
   if (over <= 0) return null;
   return { k, ox: (W - 400 * k) / 2, oy: oy - over };
+}
+
+// The last throw's verdict (the flag and its chips, game.css .center): where it
+// stands so it is never over the place the next throw is aimed at, the tray, the
+// minimap or the meter (the owner, 2026-11-22, of a verdict over the target on a short
+// Safari window: "the display stays on the screen for a while keeping the player from
+// being able to aim at times"). { x, y, width }: the box's top left and width, CSS px;
+// it is as tall as its chips wrap to (verdictTall at most, upright).
+// - Upright: the band under the header (from the minimap's top), from the left
+//   margin to verdictGap short of the minimap; a tray column that starts within
+//   verdictTall of the band's top keeps it verdictGap off the column's inner edge.
+//   The thrower's view is fitted so the far baseline is below the band (anchorAt).
+// - Wide: the header's own row, from verdictGap past the header's end to the right
+//   margin, or verdictGap short of a meter at the right edge that reaches the row;
+//   centred on the screen where that leaves it room. Everything aimed at is below it.
+// null where there is no layout or no minimap (the wide view: the CSS default).
+export function verdictBox(L, { adv = false } = {}) {
+  if (!L?.minimap || !L.header) return null;
+  const t = tune;
+  const s = L.safe;
+  if (L.tall) {
+    // under the Kid or advantage line's chip when it shows (game.css .adv, hud.js)
+    const y = L.minimap.y + (adv ? t.verdictAdv : 0);
+    let left = s.left + t.plateEdge;
+    let right = L.minimap.x - t.verdictGap;
+    const tr = L.tray;
+    if (tr && tr.y < y + t.verdictTall) {
+      if (tr.edge === "left") left = Math.max(left, tr.x + tr.width + t.verdictGap);
+      else right = Math.min(right, tr.x - t.verdictGap);
+    }
+    return { x: left, y, width: Math.max(0, right - left) };
+  }
+  const y = L.header.y;
+  const a = L.header.x + L.header.width + t.verdictGap;
+  let b = L.W - s.right - t.plateEdge;
+  const d = L.dial;
+  if (L.meterSide === "right" && d && d.y < y + t.verdictTallWide)
+    b = Math.min(b, d.x - t.verdictGap);
+  const half = L.W / 2 - a;
+  const width = half >= 160 && a + 2 * half <= b ? 2 * half : b - a;
+  return { x: a, y, width: Math.max(0, width) };
 }
 
 // The frame x the view should centre on to keep frame x `fx` in sight with

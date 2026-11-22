@@ -153,10 +153,46 @@ items 5 to 10 and 13). `src/game/layout.js` (`layoutFor`, `trayAt`, `headerBox`,
 - **The verdict** (`hud.js` `verdictChips`, `VERDICT_ICON`): the off word first, inverted,
   Inter 900 **18 px**, radius 6, with a 14 px arrow in its own colour: down for SHORT and
   LOW, up for LONG and HIGH, left and right for PULLED LEFT and PULLED RIGHT, a wavy line for
-  SHAKY, a clock hand for SLOW; the on-target words as small chips after it (14 px). Upright
-  the flag and chips stand left of the minimap; wide right of the header's end and short
-  of a meter at the right edge, centred on the screen where that leaves room. A screen reader hears it once, the off word first
-  (`verdictSpeech`).
+  SHAKY, a clock hand for SLOW; the on-target words as small chips after it (14 px). A
+  screen reader hears it once, the off word first (`verdictSpeech`). Since web 0.17.0 (the
+  owner, 2026-11-22: "the display stays on the screen for a while keeping the player from
+  being able to aim at times"):
+  - **It never stops an aim.** It takes no touches (`#ui .hud` has `pointer-events:
+none`: a press where it is drawn aims as if it were not there), and the first aim
+    input takes it away at once (`Game.aimInput`): a press anywhere on the pitch, the
+    target ring or the meter, a tray plate opened, a slider or STAND moved, an aim key.
+    Untouched it stays **3.5 s** from the throw coming to rest (`game.js`
+    `tune.flagFor`, 6 s before), about 2.7 s of the next aim after the pitch's 0.8 s
+    rest. (Before, a stroke on the meter cut it to 0.3 s and nothing else did.)
+  - **Where it stands** (`layout.js` `verdictBox`, `game.css` `.center-placed .center`):
+    upright, the band under the header from the minimap's top (header foot + 8), from
+    12 px inside the safe left to **8 px** short of the minimap, as tall as its chips
+    wrap to (132 px at most: the flag and two rows); a tray column whose top is within
+    132 px of the band's top keeps it 8 px off the column's inner edge (a short Safari
+    window with its banner, 402 x 665, lifts the tray to 222 px, so the box starts at
+    106); the Kid or advantage line's chip under the header moves it **34 px** down, and
+    a shared pitch's status pill **50**. On a wide screen, the header's own row (its top
+    with the header's, 10 px under the safe top), from 8 px past the header's end to 12
+    px inside the safe right, or 8 px short of a meter at the right edge that reaches
+    the row (104 px); centred on the screen where that leaves it 160 px either side of
+    the middle; **44 px** lower under the status pill. Everything aimed at is below it:
+    upright the thrower's view is fitted with the far baseline at 41% of the height
+    ("The thrower's view upright", below), a wide screen's aim view has the far
+    baseline at about 40%.
+  - Measured with the four-chip verdict (1 DOWN, POWER ON, ARC ON, STEADY, STRAIGHT):
+    402 x 665 with the clock, box 106 to 306 across, 100 to 211 down, the target ring
+    from 264; 390 x 844, 12 to 296, 100 to 211, the ring from 338; 844 x 390, 358 to
+    832, 10 to 90, the ring from 147; 1280 x 800, 420 to 860, 10 to 107, the ring from 305. In a Kid match (the chip showing) upright: 134 to 245, the ring from 262.
+- **The thrower's view upright** (`layout.js` `worldFit`, `tune.anchorY`, `anchorAt`):
+  the picture is 1.3 times the width-fit scale, panned after the target, and placed so
+  the far baseline stands at **41%** of the canvas's height whoever throws from where:
+  its frame y is read from each throw's aim camera (`Game.farFrameY`, `farFrameOf`, held
+  to 40 to 180 frame px; 96 for a throw from the baseline). Before web 0.17.0 frame y 112
+  stood at 33%, so the far baseline was at 30% (41% from a Kid match's line, the thrower
+  2 m forward). What it costs below: the near half under the clock shows a little less
+  of the pitch (the centre line goes from about 60% to 71% of a 665 px window); nothing
+  is aimed there. On its side and on a desktop the renderer's own fit stands (the far
+  baseline is already at about 40%).
 - **SKIP**: a plain button of normal size (20 px, 44/48 tall): wide at the top right corner
   (moved in beside a linear meter that reaches the header row); upright the bottom corner
   away from the meter (the right beside the clock, the left beside a linear meter at the
@@ -175,6 +211,35 @@ items 5 to 10 and 13). `src/game/layout.js` (`layoutFor`, `trayAt`, `headerBox`,
   inside it; centred over the clock's prompt (moved over, not squeezed, by an open plate
   beside it; on a wide screen kept to the clock's own column, 8 px either side); beside a
   wide screen's linear meter it hangs 8 px under the tab, as before.
+
+## The raise view
+
+The raise screen's camera (`src/game/scenes.js` `raiseCamera`, `tune`) looks across the
+lying kubb from the defender's side. Since web 0.17.0 it stands twice as far off (the
+owner, 2026-11-22: "When raising kubbs the camera view is too close. We need to see
+about twice as much to know how to raise them."): **2.3 m** back from the kubb across
+its length and **2.1 m** up (1.15 and 1.05 before), looking at a point **0.24 m** toward
+the camera from the kubb (0.12), the same lens (focal 520 on the 400 x 240 frame). The
+angle down is the same, so twice the ground shows in every direction round the kubb: its
+neighbours, the lines near it and often the king. A tall canvas still zooms the frame
+1.8 times across (`game.js` `tune.raiseZoom`), its middle at 42% of the height; a wide
+one takes the renderer's fit. The kubb is drawn half as big as before:
+
+| window                  | kubb drawn (long x across) | touch target with the 24 px slop |
+| ----------------------- | -------------------------- | -------------------------------- |
+| 390 x 844 (upright)     | 45 x 29 px                 | 93 x 77 px                       |
+| 402 x 665 (upright)     | 46 x 30 px                 | 94 x 78 px                       |
+| 844 x 390 (on its side) | 42 x 27 px                 | 90 x 75 px                       |
+| 1280 x 800              | 82 x 53 px                 | 130 x 101 px                     |
+
+The target is the drawn kubb plus **24 px** all round (`raise-touch.js` `tune.margin`),
+never under 44 px across; the drag that tips it all the way is 1.1 times its drawn
+length, never under 90 px. The end numbers (17 px circles) stand **4 px** past their
+footprint's outer edge on the screen (`tune.labelR0`, `labelGap`), so however small the
+kubb is drawn they never sit on the footprint; a tap within 40 px of one takes that end.
+On a phone on its side the panel's bar (80 px) stays under both numbers and the
+punishment half's near baseline (`tests/game/layout.test.mjs`). The punishment view is
+unchanged: it already shows the whole half the kubb may go in.
 
 ## Scenes, the Kid line, rings and the spin (engine 0.14 and 0.15)
 

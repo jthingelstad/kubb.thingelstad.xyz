@@ -272,10 +272,16 @@ body.game {
   text-align: center;
 }
 .center-placed .center {
+  top: var(--center-t);
   left: var(--center-l);
   width: var(--center-w);
   max-width: none;
   transform: none;
+}
+/* under the status pill when it shows (a shared pitch's YOUR THROW, the
+   header row's centre on a wide screen, under the header upright) */
+.center-placed .center.status-on {
+  top: calc(var(--center-t) + 44px);
 }
 .flag {
   padding: 4px 18px 6px;
@@ -2412,6 +2418,12 @@ body.embed .replay-controls {
   }
   .center {
     top: calc(var(--below-rail) + 50px);
+  }
+  .center-placed .center {
+    top: var(--center-t);
+  }
+  .center-placed .center.status-on {
+    top: calc(var(--center-t) + 50px);
   }
   /* the status pill goes under the header */
   .status {
