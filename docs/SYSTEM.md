@@ -100,6 +100,68 @@ system" says how it works.
 - **Lobby**: "You are" over the name and SHUFFLE in a baton box; WATCH INSTEAD quiet;
   HOME quiet at the left, START go at the right.
 
+## Computer seats (engine 0.17)
+
+The owner, 2026-11-22: "In online play we should be able to add computer players to the
+match, with a specified level. I may have three friends and we want to play a team of
+three computers (two at club and one at pro). Or we want to play 2 v 2 where Tyler and I
+each have a pro computer player as a partner." A team holds people and computer players
+together, six at most, each computer at its own level (the engine's docs/PITCH.md
+"Computer seats"). The lobby's parts (`src/ui/lobby.js` `seatRow`, `game.css` `.seat`):
+
+- **ADD COMPUTER** (plain, small, 17 px) under JOIN in each team's panel, the host's only:
+  a seat last in that team's throwing order at **Club**, its name rolled from the host's
+  own draw (`pitch.addComputer`). Off when the team holds six, people and seats together;
+  the count in the team's head is of both (`3 of 6`).
+- **A seat's row, the host's**, in its place in the team's list (members and seats in
+  throwing order), three lines inside the team's panel, 6 px apart, a 2 px ink rule over
+  it: the name (Inter 700 16, as a member's) and ` · computer` (Inter 700 14, muted); the
+  level as a segmented bar, **Beginner | Club | Pro** (`seg.js`, the row's parts at the
+  bar's minimum, 52 px each with 12 px a side); then **↑** and **↓** (plain small buttons,
+  44 by 44, 48 on a touchscreen: up and down the team's order, off at the ends), **TO B**
+  or **TO A** (plain small: last in the other team's order, off while it holds six) and
+  **REMOVE** (quiet, at the right). No drag: the lobby has none.
+- **Everyone else's row**: one line, `Bold Birch · computer · Pro`.
+- **Spoken**: the row is one group, `Bold Birch, computer, Pro, 2 of 3 in Team A` (its
+  place among the team's players); its controls `Bold Birch's level`, `Move Bold Birch
+up`, `Move Bold Birch down`, `Move Bold Birch to Team B`, `Remove Bold Birch`; ADD
+  COMPUTER `Add a computer player to Team A`. Each change the host makes is said once,
+  in the lobby's own status line for a screen reader: `Bold Birch joins Team A at Club.`,
+  `Bold Birch now plays at Pro.`, `Bold Birch moves up.`, `Bold Birch moves down.`,
+  `Bold Birch moves to Team B.`, `Bold Birch is off the team.` The keyboard stays on the
+  control it pressed when the list is drawn again (on the next one along when it is off).
+- **A name** shows only where `names.check({ document, members })` passes the seat's
+  `computers.<id>.name`, else `Computer`.
+- **A Kid pitch** (the Computer setting Kid): every seat reads **Kid** in place of its
+  level (the host's bar is replaced by the word; the seat keeps its own level, which
+  comes back when Kid is switched off), and the team's panel says `Kid match: every
+computer plays as Kid.` (Inter 14, muted).
+- **The teams**: side by side as before; with any seat on the pitch on a card under
+  **600 px** wide, one over the other, so a seat's row has the card's width (a 390 px
+  phone: 330 px inside the panel). Two teams of six on a phone upright scroll inside the
+  card; START's row stays at the foot.
+- **The Computer row** (the level of the computer on an empty side): `An empty side plays
+as` with Kid, Beginner, Club, Pro, shown only while a side has nobody and no seat. With
+  no empty side and a computer seat on the pitch it is `Kid match` with **Off | On** (On
+  is the Computer setting Kid; Off sets it back to Club); with no empty side and no seat
+  it is not shown (no computer plays).
+- **START**'s refusals are `startCheck`'s own sentences (`why` `person`, `size`,
+  `level`), in the lobby's note where the engine's version refusals go: a pitch of
+  computers only is refused with the engine's `text`.
+
+In the match (`src/net/pitch.js` `who`, `src/game/hud.js`, `src/ui/cards.js`):
+
+- **The header's line** ends `· computer · Pro` while a computer player throws (`Turn 4
+· baton 2 of 6 · computer · Pro`, in the line's capitals), from `need.setup.thrower.cpu`
+  and `.level`.
+- **The status pill**: `BOLD BIRCH THROWS · COMPUTER · PRO` (a side the computer plays
+  whole still says `COMPUTER THROWS`).
+- **The hand-off** (and the watched turn's banner): a second line under the card's one
+  line, `Bold Birch throws first · computer · Pro` (Inter 16, muted), when the engine's
+  `card.handoff.throwerCpu` says the turn opens with a computer player.
+- A computer player's throw has no controls for anyone: it is the host's browser's
+  (`control.cpu`), drawn for everyone else as the action arrives.
+
 ## Play screens (stage 3)
 
 The aim, the meter, the verdict, the hand-off and the computer's turn (the build list's
@@ -427,7 +489,8 @@ docs/SCENES.md has the looks; these are the numbers a second client matches.
 | share card     | Share this match, COPY LINK, Copied the link., Could not copy. The link is shown to copy., MAKE A HIGHLIGHT REEL, EMBED, BACK                                                                                                                                                                                                                                                |
 | name row       | SHUFFLE; stepper labels Previous first word, Next first word, First word (and second, third)                                                                                                                                                                                                                                                                                 |
 | welcome        | `WELCOME_WORDS` in `src/ui/welcome.js`                                                                                                                                                                                                                                                                                                                                       |
-| lobby          | You are, WATCH INSTEAD, HOME, START                                                                                                                                                                                                                                                                                                                                          |
+| lobby          | You are, WATCH INSTEAD, HOME, START; ADD COMPUTER, `Bold Birch · computer · Pro`, Beginner, Club, Pro, Kid, ↑, ↓, TO A, TO B, REMOVE; `Kid match: every computer plays as Kid.`; Computer row `An empty side plays as`, `Kid match` (Off, On)                                                                                                                                |
+| computer seat  | header line `· computer · Pro`; pill `BOLD BIRCH THROWS · COMPUTER · PRO`; hand-off `Bold Birch throws first · computer · Pro`                                                                                                                                                                                                                                               |
 | tray           | ARC 22°, DRIVE 3°, DRIVE −5°, TILT 7R, TILT 0, SPIN 1.3L, STAND; spoken Arc, 22 degrees; Arc, 5 degrees down, drive; Tilt, 7 degrees right; Tilt, none; Stand, middle, on the line; the group Throw set-up; DRIVE under ARC's knee                                                                                                                                           |
 | meter          | the distance tab `8 M`; WATCH on the thrower's team colour                                                                                                                                                                                                                                                                                                                   |
 | verdict        | SHORT, LONG, LOW, HIGH, SLOW, SHAKY, PULLED LEFT, PULLED RIGHT (off, with arrows); POWER ON, ARC ON, STEADY, STRAIGHT; spoken `Short. Miss. Arc on, steady, straight. 50 cm away.` (the rest text last, when shown)                                                                                                                                                          |
