@@ -10,7 +10,7 @@ import { prefs } from "../game/prefs.js";
 export const STEPS = [
   {
     swipe: [
-      "Start on the dial or the grass",
+      "Start on the clock or the grass",
       "Close this guide to play. Touch the wooden knob or the grass in the lower half of the screen, then pull straight down.",
     ],
     linear: [
@@ -18,17 +18,17 @@ export const STEPS = [
       "Press on the wooden knob in the middle of the meter, or anywhere in the lower part of the screen, and keep holding. The knob follows your finger or mouse down and up, so you can watch the meter while you stroke.",
     ],
     touch: [
-      "Grab the dial",
-      "Press on the big dial, or just outside its rim, and keep holding. The arm follows your finger round its centre, so a finger outside the ring leaves the marks in view.",
+      "Grab the clock",
+      "Press on the clock, or just outside its rim, and keep holding. The arm follows your finger round its centre, so a finger outside the ring leaves the marks in view.",
     ],
-    title: "Grab the dial",
-    text: "Press on the big dial and keep holding. The arm follows your finger or mouse round its centre.",
+    title: "Grab the clock",
+    text: "Press on the clock and keep holding. The arm follows your mouse round its centre.",
     arm: (t) => -10 * Math.min(1, t * 2),
   },
   {
     swipe: [
       "Pull down to wind back",
-      "Pull straight down until the dial’s arm reaches the stripes. A deeper pull gives you more power.",
+      "Pull straight down until the clock’s arm reaches the stripes. A deeper pull gives you more power.",
     ],
     linear: [
       "Draw back",
@@ -159,10 +159,13 @@ export function showHowto(root, game = null, onDone = null) {
     t0 = performance.now();
     count.textContent = `${i + 1} OF ${STEPS.length}`;
     const step = STEPS[i];
+    // the words by input: a touchscreen gets the finger's words however it is held
+    // (a phone on its side has no finger track drawn, but a finger outside the
+    // ring still turns the arm), a mouse the mouse's
     const words = linear
       ? step.linear
       : (game?.touchPrompts && step.swipe) ||
-        (game?.L?.track && step.touch) ||
+        ((game?.L?.track || game?.coarse) && step.touch) ||
         null;
     title.textContent = words ? words[0] : step.title;
     text.textContent = words ? words[1] : step.text;

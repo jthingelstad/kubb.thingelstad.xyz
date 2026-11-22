@@ -2454,3 +2454,19 @@ browserTest("practice's KUBBS is named by its word", async () => {
   );
   await page.context().close();
 });
+
+// QA, 2026-11-22: on a phone held on its side the guide's first step spoke of "your
+// finger or mouse" (the words followed the finger track, which a wide screen has
+// none of); a touchscreen gets the finger's words however it is held.
+browserTest(
+  "HOW TO THROW speaks to a finger on a phone on its side",
+  async () => {
+    const page = await open(env, "/practice/", "landscape");
+    await page.waitForSelector("[data-test=howto]");
+    const text = await page.textContent("[data-test=howto]");
+    assert.doesNotMatch(text, /mouse/i);
+    assert.match(text, /Grab the clock/);
+    assert.match(text, /finger/);
+    await page.context().close();
+  },
+);
