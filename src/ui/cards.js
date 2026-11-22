@@ -131,8 +131,8 @@ export class Cards {
       watched
         ? { modal: false, banner: true }
         : card.kind === "pass"
-          ? {}
-          : { foot: true },
+          ? { onClose: () => nextControl(this.root) }
+          : { foot: true, onClose: () => nextControl(this.root) },
     );
     if (watched) setTimeout(done, tune.watchCardMs);
   }
@@ -778,5 +778,41 @@ function slots(autos, confirm) {
     "div.row.panel-slots",
     h("div.panel-auto", autos.filter(Boolean)),
     h("div.panel-confirm", confirm.filter(Boolean)),
+  );
+}
+
+// After a hand-off (or the settle or pass card) closes, the keyboard goes to what it
+// needs next instead of being left on the page: the raise or punishment panel's first
+// choice (END 1 shows itself when focused), else the meter's stand-in, which says how
+// to throw. Only when the focus was on the card (it is now on nothing): a press on the
+// pitch or a pointer elsewhere keeps its own. Two frames: the panel is built by the
+// game's next frame.
+export function nextControl(root, doc = globalThis.document) {
+  if (!doc) return;
+  const lost = () => {
+    const a = doc.activeElement;
+    return !a || a === doc.body || !a.isConnected;
+  };
+  if (!lost()) return;
+  const shown = (el) =>
+    !!el &&
+    !el.disabled &&
+    el.getClientRects().length > 0 &&
+    getComputedStyle(el).visibility !== "hidden";
+  const pick = () => {
+    if (!lost()) return true;
+    const panel = [
+      ...(root ?? doc).querySelectorAll(".panel-host .panel button"),
+    ].find((b) => !b.disabled);
+    const target =
+      panel ?? [...doc.querySelectorAll("[data-test=meter-proxy]")].find(shown);
+    if (!target) return false;
+    target.focus({ preventScroll: true });
+    return true;
+  };
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      if (!pick()) setTimeout(pick, 300);
+    }),
   );
 }
