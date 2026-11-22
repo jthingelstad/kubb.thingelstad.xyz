@@ -38,7 +38,9 @@ const here = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REPOSITORY = "jthingelstad/kubb-engine";
 
 // What is taken from the tag: [path in the engine, path in the engine folder].
-const ENGINE_DIRS = ["core", "room", "session", "tune"];
+// The shared pitch is pitch/ from 0.13 and room/ before it; a tag has one or the
+// other, and only what the tag has is taken.
+const ENGINE_DIRS = ["core", "pitch", "room", "session", "tune"];
 const EXTRA = [
   ["engine.json", "engine.json"],
   ["LICENSE", "LICENSE"],
