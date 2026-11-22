@@ -1321,6 +1321,10 @@ export class Game {
     while (this.queue.length && this.phase !== "play") {
       this.applyRemote(this.queue.shift());
     }
+    // a practice press made while the throw played (whilePlaying)
+    const after = this.afterPlay;
+    this.afterPlay = null;
+    if (after && this.phase === "aim") after();
   }
 
   // The engine's own raises between the throw just played and the next, as clips: none
@@ -1498,19 +1502,34 @@ export class Game {
 
   // op: what fn does, for the trail ({ type: "reset" }, { type: "drill", on },
   // { type: "surface", surface }).
-  practiceDo(fn, op = null) {
-    if (this.mode !== "practice" || this.phase !== "aim") return;
+  // done: called once the change is made (the practice tray marks its buttons).
+  practiceDo(fn, op = null, done = null) {
+    if (this.mode !== "practice") return;
+    if (this.whilePlaying(() => this.practiceDo(fn, op, done))) return;
+    if (this.phase !== "aim") return;
     const v = fn();
     if (op && this.trail?.kind === "practice") this.trail.ops.push(op);
     this.result = null;
     this.enter(v && v.need ? v : this.engine.view());
+    done?.();
+  }
+
+  // A practice press (BATONS, KUBBS, RESET, a scene or surface) while a throw plays:
+  // the throw is skipped to its end and the press made then, never dropped unseen.
+  whilePlaying(fn) {
+    if (this.phase !== "play" || !this.play) return false;
+    this.afterPlay = fn;
+    this.skip();
+    return true;
   }
 
   // The practice pitch in another scene (MENU's Scene). The engine keeps a scene
   // from the start and has no setter for a look, so the practice starts again in
   // it, on the same surface, throwing what it threw.
   practiceScene(scene) {
-    if (this.mode !== "practice" || this.phase !== "aim") return;
+    if (this.mode !== "practice") return;
+    if (this.whilePlaying(() => this.practiceScene(scene))) return;
+    if (this.phase !== "aim") return;
     this.newPractice({
       surface: this.viewData?.surface ?? this.trail?.opts?.surface,
       scene,

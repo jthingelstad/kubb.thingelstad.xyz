@@ -351,10 +351,11 @@ function startPractice(game, cards, asked) {
   // word as the pressed button.
   const pick = (kubbs) => {
     if (!!game.need?.drill !== kubbs)
-      game.practiceDo(() => game.engine.setDrill(kubbs), {
-        type: "drill",
-        on: kubbs,
-      });
+      game.practiceDo(
+        () => game.engine.setDrill(kubbs),
+        { type: "drill", on: kubbs },
+        mark,
+      );
     mark();
   };
   const batons = button("BATONS", () => pick(false), "small", {
@@ -378,7 +379,7 @@ function startPractice(game, cards, asked) {
     button(
       "RESET",
       () => {
-        game.practiceDo(() => game.engine.reset(), { type: "reset" });
+        game.practiceDo(() => game.engine.reset(), { type: "reset" }, mark);
         mark();
       },
       "small",

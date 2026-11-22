@@ -2376,3 +2376,42 @@ browserTest(
     }
   },
 );
+
+// QA, 2026-11-22: BATONS, KUBBS and RESET pressed while a practice throw was still
+// playing did nothing at all (practiceDo took presses only while aiming), and the
+// buttons gave no sign. The throw is now skipped to its end and the press made.
+browserTest(
+  "practice: KUBBS and RESET pressed while a throw plays are made",
+  async () => {
+    const page = await open(env, "/practice/?nohowto=1");
+    await waitPhase(page, "aim", 10000);
+    await throwOnce(page);
+    await waitPhase(page, "play", 5000);
+    await page.click("[data-test=drill]");
+    await page.waitForFunction(
+      () =>
+        window.__kubb.game.need?.drill === true &&
+        window.__kubb.game.phase === "aim",
+      null,
+      { timeout: 10000 },
+    );
+    assert.equal(
+      await page.getAttribute("[data-test=drill]", "aria-pressed"),
+      "true",
+    );
+    await page.click("[data-test=batons]");
+    await page.waitForFunction(() => window.__kubb.game.need?.drill === false);
+    await throwOnce(page);
+    await waitPhase(page, "play", 5000);
+    await page.click("[data-test=reset]");
+    await page.waitForFunction(
+      () =>
+        window.__kubb.game.phase === "aim" &&
+        window.__kubb.game.trail?.ops?.some((o) => o.type === "reset"),
+      null,
+      { timeout: 10000 },
+    );
+    assert.deepEqual(page.errors, []);
+    await page.context().close();
+  },
+);
