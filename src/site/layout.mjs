@@ -12,6 +12,7 @@ import {
   TINYLYTICS_SCRIPT,
   TINYLYTICS_SITE,
   NEWSLETTER_URL,
+  SUPPORT_TEXT,
   ref,
 } from "./site.mjs";
 
@@ -77,12 +78,16 @@ export const NAV = [
   { href: "/playdate/", label: "Playdate" },
   { href: "/rules/", label: "How to play" },
 ];
-export const FOOT_NAV = [
+// Support only once its words are set (SUPPORT_TEXT, src/site/site.mjs): before
+// that /ios/ has no #support to point at.
+export const footNav = (support = SUPPORT_TEXT) => [
   { href: "/rules/", label: "Rules" },
   { href: "/engine/", label: "The engine" },
   { href: "/love/", label: "Kubb sites we love" },
   { href: NEWSLETTER_URL, label: "Newsletter", external: true },
-  { href: "/ios/#support", page: "/ios/", label: "Support" },
+  ...(support
+    ? [{ href: "/ios/#support", page: "/ios/", label: "Support" }]
+    : []),
   { href: "/privacy/", label: "Privacy" },
 ];
 // an entry is the current page only when it opens the page itself, not a section
@@ -90,15 +95,17 @@ const current = (href, path) => (href === path ? ' aria-current="page"' : "");
 
 // release: the release label ("0.2.0 (0.8.1)": the app's version and the newest engine's,
 // src/site/release.js), small at the foot; none in a build without one.
-export function footer(release = null, path = "") {
+export function footer(release = null, path = "", support = SUPPORT_TEXT) {
   return `<footer class="foot">
   <div class="frame">
-    <nav class="foot__nav" aria-label="Throwing Wood"><ul>${FOOT_NAV.map(
-      ({ href, label, external }) =>
-        `<li><a href="${href}"${external ? ' rel="noopener"' : current(href, path)}>${esc(label)}</a></li>`,
-    ).join(
-      "",
-    )}</ul>${release ? `<p class="foot__release" data-release>Version ${esc(release)}</p>` : ""}</nav>
+    <nav class="foot__nav" aria-label="Throwing Wood"><ul>${footNav(support)
+      .map(
+        ({ href, label, external }) =>
+          `<li><a href="${href}"${external ? ' rel="noopener"' : current(href, path)}>${esc(label)}</a></li>`,
+      )
+      .join(
+        "",
+      )}</ul>${release ? `<p class="foot__release" data-release>Version ${esc(release)}</p>` : ""}</nav>
     <p>Made by
       <a class="h-card" href="${OWNER.url}" rel="me author"><img class="u-photo" src="${OWNER.avatar}" alt="" width="28" height="28"><span class="p-name">${esc(OWNER.name)}</span><data class="u-url" value="${OWNER.url}"></data><data class="p-note" value="${esc(OWNER.note)}"></data></a>.
       Throw wood in your browser, on iPhone and iPad, or on <a href="/playdate/">Playdate</a>. Jamie’s other projects are on <a href="${ref("https://thingelstad.xyz/", "footer")}">Things I’ve built</a>.

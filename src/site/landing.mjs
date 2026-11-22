@@ -22,6 +22,7 @@ import {
   IOS_REPO,
   PLAYDATE_REPO,
   SITE_TITLE,
+  SUPPORT_TEXT,
   TESTFLIGHT_URL,
   WEB_REPO,
 } from "./site.mjs";
@@ -236,20 +237,21 @@ export function iosJoin(url = TESTFLIGHT_URL, appStore = APP_STORE_URL) {
 }
 
 // The two sections the App Store listing's links point at (the 1.0 build list,
-// "The iPhone page for the store"): /ios/#support and /ios/#privacy. Support has
-// no words yet: what it says and the support address are the owner's to decide,
-// so it carries a marked placeholder (SUPPORT_PLACEHOLDER) until then. Privacy is
-// the privacy page's own words, and a link to it.
-export const SUPPORT_PLACEHOLDER =
-  "[Support: the words and the support address are still to be decided.]";
-const storeSections =
-  () => `<section class="band band--baton" aria-label="Support and privacy">
-  <div class="frame help">
+// "The iPhone page for the store"): /ios/#support and /ios/#privacy. Support is
+// there only once its words are set (SUPPORT_TEXT in src/site/site.mjs, the
+// owner's to give; empty today, so the page has no Support section and the footer
+// no Support link). Privacy is the privacy page's own words, and a link to it.
+export function storeSections(support = SUPPORT_TEXT) {
+  const help = support
+    ? `
     <div class="help__one" id="support">
       <h2 class="display">Support</h2>
-      <p class="placeholder" data-placeholder="support">${esc(SUPPORT_PLACEHOLDER)}</p>
+      <p data-test="support">${esc(support)}</p>
       <p><a class="more" href="/rules/">How to play and how to throw</a></p>
-    </div>
+    </div>`
+    : "";
+  return `<section class="band band--baton" aria-label="${support ? "Support and privacy" : "Privacy"}">
+  <div class="frame help">${help}
     <div class="help__one" id="privacy">
       <h2 class="display">Privacy</h2>
       <p>There are no accounts and no ads, and nothing is ever sold. The privacy page says what the game keeps, on the web and in the app.</p>
@@ -257,6 +259,7 @@ const storeSections =
     </div>
   </div>
 </section>`;
+}
 
 function ios({ tinylytics, config = {} }) {
   const body = `<section class="hero">

@@ -25,6 +25,7 @@ import {
   NEWSLETTER_URL,
   PITCH_URL,
   APP_STORE_URL,
+  SUPPORT_TEXT,
   TESTFLIGHT_URL,
   ref,
 } from "../../src/site/site.mjs";
@@ -38,17 +39,17 @@ import { PITCH_CODE } from "../../backend/pitch-server/core.mjs";
 import { PITCH_CODE as API_CODE } from "../../backend/api/checks.mjs";
 import { releaseOf } from "../../tools/build.mjs";
 import { carriedEngines } from "../../tools/lua-bundle.mjs";
-import { FOOT_NAV, NAV, footer } from "../../src/site/layout.mjs";
+import { NAV, footNav, footer } from "../../src/site/layout.mjs";
 import {
   LOVE,
   GOLDEN_COUNT,
   PLAYDATE_BUILD,
   PLAY_NOW,
-  SUPPORT_PLACEHOLDER,
   iosJoin,
   playNow,
   playdateBuildVersion,
   storeLink,
+  storeSections,
 } from "../../src/site/landing.mjs";
 import { PAGES } from "../../src/site/pages.mjs";
 
@@ -577,29 +578,45 @@ test("the landing site: / is the game and its web game, each nav entry a page", 
     ],
   );
   // the footer: Rules, The engine, Kubb sites we love, Newsletter (Buttondown's
-  // own page), Support, Privacy, then the version; the current page marked
+  // own page), Support once its words are set, Privacy, then the version; the
+  // current page marked
+  const labels = (support) => footNav(support).map((n) => n.label);
+  assert.deepEqual(labels("Some words."), [
+    "Rules",
+    "The engine",
+    "Kubb sites we love",
+    "Newsletter",
+    "Support",
+    "Privacy",
+  ]);
   assert.deepEqual(
-    FOOT_NAV.map((n) => n.label),
-    [
-      "Rules",
-      "The engine",
-      "Kubb sites we love",
-      "Newsletter",
-      "Support",
-      "Privacy",
-    ],
+    labels(""),
+    labels("Some words.").filter((l) => l !== "Support"),
   );
+  // today: no support words, so no Support link to a section that is not there
+  assert.equal(SUPPORT_TEXT, "");
   const foot = footer("0.8.0 (0.9.0)", "/love/");
-  for (const { href } of FOOT_NAV) assert.ok(foot.includes(`href="${href}"`));
+  assert.ok(!foot.includes("#support"));
+  for (const { href } of footNav()) assert.ok(foot.includes(`href="${href}"`));
   assert.match(foot, /href="\/love\/" aria-current="page"/);
   assert.ok(
     foot.includes(`<a href="${NEWSLETTER_URL}" rel="noopener">Newsletter</a>`),
   );
-  assert.ok(foot.includes('<a href="/ios/#support">Support</a>'));
+  assert.ok(
+    footer(null, "", "Some words.").includes(
+      '<a href="/ios/#support">Support</a>',
+    ),
+  );
   assert.ok(
     foot.indexOf("Privacy</a>") < foot.indexOf("data-release>Version"),
     "the version ends the row",
   );
+  // no page links #support while there is none
+  for (const p of PAGES)
+    assert.ok(
+      !p.render({ config: {}, assets: { main: "/m.js" } }).includes("#support"),
+      p.path,
+    );
 });
 
 test("/: the one landing page, PLAY NOW its one go button, the web game under #play", () => {
@@ -682,15 +699,22 @@ test("the store badge is one switch: APP_STORE_URL in place of the TestFlight wo
   );
 });
 
-test("/ios/: the support and privacy sections the store listing points at", () => {
+test("/ios/: the privacy section the store listing points at, and support once its words are set", () => {
   const html = PAGES.find((p) => p.path === "/ios/").render({ config: {} });
-  for (const id of ["support", "privacy"])
-    assert.equal(html.split(`id="${id}"`).length - 1, 1, `#${id}`);
-  const support = html.slice(html.indexOf('id="support"'));
-  assert.ok(support.includes('data-placeholder="support"'));
-  assert.ok(support.includes(SUPPORT_PLACEHOLDER));
+  // today: #privacy, and no Support section, placeholder or dashed box
+  assert.equal(html.split('id="privacy"').length - 1, 1, "#privacy");
+  assert.ok(!html.includes('id="support"'), "no #support yet");
+  assert.doesNotMatch(html, /placeholder|\[Support/);
   const privacy = html.slice(html.indexOf('id="privacy"'));
   assert.ok(privacy.includes('href="/privacy/"'));
+  assert.equal(storeSections(), storeSections(""));
+  // set: one #support with the words, escaped, before #privacy
+  const set = storeSections("Write to us <here>.");
+  assert.equal(set.split('id="support"').length - 1, 1);
+  assert.ok(
+    set.includes('<p data-test="support">Write to us &lt;here&gt;.</p>'),
+  );
+  assert.ok(set.indexOf('id="support"') < set.indexOf('id="privacy"'));
   // still TestFlight until the app is live
   assert.ok(html.includes("In beta on TestFlight"));
   assert.ok(html.includes('data-test="testflight"'));

@@ -1000,11 +1000,3 @@ main > section.intro + section {
   align-items: center;
   gap: 1rem 1.25rem;
 }
-/* words the owner has still to give: shown as a marked box, never as copy */
-.placeholder {
-  padding: 0.5rem 0.8rem;
-  border: 2px dashed var(--ink);
-  border-radius: var(--radius-control);
-  background: #fff;
-  font-weight: 600;
-}
