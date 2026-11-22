@@ -50,9 +50,18 @@ system" says how it works.
 - **Name row** (`src/ui/name-row.js`): the name and SHUFFLE on one line, the name at least
   `NAME_FIT.text` 200 px wide; Settings only: one stepper a line, chevron buttons 48 px
   wide, the word box at least `NAME_FIT.word` 120 px, ink with paper type.
-- **Scene tiles** (`src/ui/cards.js` `sceneTiles`): three in a row, 8 px apart, each the
-  pitch drawn by the game at 96 by 56 (2x), its name under it in Inter 700 14 capitals;
-  chosen: the name ink with paper type and the tile's 3 px shadow.
+- **Scene tiles** (`src/ui/scene-tiles.js` `sceneTiles`; seven since engine 0.14): they
+  wrap, centred. On a screen under 600 px wide **three a row**, 6 px apart, the row
+  reaching 6 px into the card's padding on each side (a tile is a third of the card's
+  inner width plus 12 px, less 12 px: 107 px wide on a 390 px phone, its name 101 px inside the line), the seventh
+  centred on a row of its own; from 600 px **four a row**, 8 px apart (four and three).
+  Each is the game's own postcard of the pitch in that scene (a low camera from behind
+  the near baseline, eye 0.6, -5.2, 1.5 m, looking at 0, 9, 0.9 m, focal length 330 in the
+  400 by 240 frame) at 96 by 56 (2x), scaled to the tile's width, on the scene's own
+  ground and set; its name under it in Inter 700 14 capitals (no letter spacing; -0.01em
+  on a phone, so TOURNAMENT fits), two lines where it needs them (BLACK & WHITE). At
+  least 48 px tall. Chosen: the name ink with paper type and the tile's 3 px shadow. The
+  solo card, the lobby (the host's) and practice's MENU.
 - **Header** (`src/game/hud.js`, `public/game.css` `.hud-rail`): one plate 10 px under the
   safe top and 12 px in from the left; padding 5 px (12 px at the left); a grid of the line
   across the top, then the name, the two numbers (chips at least 32 px wide, 6 px apart,
@@ -66,9 +75,11 @@ system" says how it works.
 
 ## Screens
 
-- **Play the computer**: the name row, a rule, Scene (three tiles), Computer level,
-  Opening, Raising, Wind, Surface (until a scene decides the ground). No Kubbs row: the
-  set is the scene's (the day Classic). HOME quiet at the left, START go at the right.
+- **Play the computer**: the name row, a rule, Scene (seven tiles), then the engine's rows
+  for the scene (`pitch.optionRows`) in this order: Surface (Black & White only: Grass,
+  Sand, Snow), Computer level (Kid, Beginner, Club, Pro), Opening, Raising, Wind. No
+  Kubbs row: the set is the scene's. HOME quiet at the left, START go at the right. The
+  lobby's options are the same rows, the Scene as the host's tiles.
 - **Menu**: SETTINGS, SCORE SHEET, HOW TO THROW, FEEDBACK as a two by two grid of plain
   buttons, 12 px apart; Raising (a match by hand); BACK TO THE MATCH go across the card
   (BACK TO THE PITCH in practice); RESIGN quiet at the left, HOME quiet at the right; the
@@ -165,24 +176,56 @@ items 5 to 10 and 13). `src/game/layout.js` (`layoutFor`, `trayAt`, `headerBox`,
   beside it; on a wide screen kept to the clock's own column, 8 px either side); beside a
   wide screen's linear meter it hangs 8 px under the tab, as before.
 
+## Scenes, the Kid line, rings and the spin (engine 0.14 and 0.15)
+
+docs/SCENES.md has the looks; these are the numbers a second client matches.
+
+- **Black & White's tokens** (`MONO_SKIN` in `src/render/mono.js`): ink `#000000`, paper,
+  field, baton, wood and the plates `#ffffff`; the go button black with white type
+  (`--accent`, `--on-accent`); Team A white (circles on the minimap) and Team B black
+  (squares); the meter's bands black, told apart by their shapes alone (the power band
+  striped, the release band solid, the overpowered zone cross-hatched). The dim under a
+  card is a 50% checker of black 2 px squares, never a grey. On the pitch every grey is
+  an 8 by 8 dither pattern drawn at half a frame px a bit: grass the Playdate's tufts,
+  sand a stipple, snow a sparkle; Team A's band a checker, Team B's black.
+- **The Kid line** (`src/render/world.js`): dots 5 cm long, 9 cm apart, across the pitch
+  at `kidY` in the line colour (drawn once, as the advantage line, where the two meet);
+  a cone at each end 2.85 m from the middle, 30 cm tall, orange `#ff7a1f` with a white
+  band and the ink line (Black & White: white with black). On the minimap ten dots and
+  two small cones off the sidelines (`HUD.kidCone`).
+- **Rings** (`src/render/impacts.js`, Techno): from 6 cm to 0.22 m + 0.17 m per m/s of
+  the strike's `speed`, at most 0.95 m, over 0.75 s of the throw's clock, easing out and
+  fading; a 1.4 CSS px core and two glows (7 px at 16%, 3.5 px at 30%) in the piece's
+  side's light (A `#ffc94a`, B `#cf8bff`, the king `#ff5c9d`, a baton `#8fefff`); not
+  drawn nearer the camera than 2.2 m. Reduced motion: held at 45% of the last radius,
+  fading. **Puffs** (Beach, Minnesota): strikes from 1.4 m/s, 0.55 s, three inked discs of
+  4.5 cm (times the strike's weight), never over 11 CSS px a disc.
+- **The spin** (`spinAmount` in `src/render/scenes.js`): a piece's turn since the frame
+  shown before, split into its twist about the long axis and its swing; drawn as a spin
+  from a 30 degree twist a frame (fully at 50; a baton's twist never) or a 60 degree swing
+  (fully at 100): four solid in-between poses under its own pose, which fades to 45% at
+  full spin (not in Black & White).
+
 ## Words
 
-| Where          | Words                                                                                                                                                                                                                                                                                                                    |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| header line    | `Turn 4 · baton 2 of 6`, `· 2 field kubbs`, `· at the king`; practice `Batons · 5 base kubbs`, `Kubbs · target 2.3 m` (shown in capitals)                                                                                                                                                                                |
-| header numbers | spoken `Kubbs standing: Mighty Maple 5, Computer 5` (field and base kubbs in each half)                                                                                                                                                                                                                                  |
-| scene names    | `SCENE_NAMES` in `src/render/scenes.js`: Park, Camping, Techno (ids `day`, `night`, `neon` unchanged)                                                                                                                                                                                                                    |
-| menu           | SETTINGS, SCORE SHEET, HOW TO THROW, FEEDBACK, Raising (By hand, Automatic), BACK TO THE MATCH, BACK TO THE PITCH, RESIGN, HOME                                                                                                                                                                                          |
-| settings       | Settings, DONE                                                                                                                                                                                                                                                                                                           |
-| winner         | REMATCH, WATCH REPLAY, SCORE SHEET, SHARE, HOME                                                                                                                                                                                                                                                                          |
-| share card     | Share this match, COPY LINK, Copied the link., Could not copy. The link is shown to copy., MAKE A HIGHLIGHT REEL, EMBED, BACK                                                                                                                                                                                            |
-| name row       | SHUFFLE; stepper labels Previous first word, Next first word, First word (and second, third)                                                                                                                                                                                                                             |
-| welcome        | `WELCOME_WORDS` in `src/ui/welcome.js`                                                                                                                                                                                                                                                                                   |
-| lobby          | You are, WATCH INSTEAD, HOME, START                                                                                                                                                                                                                                                                                      |
-| tray           | ARC 22°, TILT 7R, TILT 0, SPIN 1.3L, STAND; spoken Arc, 22 degrees; Tilt, 7 degrees right; Tilt, none; Stand, middle, on the line; the group Throw set-up                                                                                                                                                                |
-| meter          | the distance tab `8 M`; WATCH on the thrower's team colour                                                                                                                                                                                                                                                               |
-| verdict        | SHORT, LONG, LOW, HIGH, SLOW, SHAKY, PULLED LEFT, PULLED RIGHT (off, with arrows); POWER ON, ARC ON, STEADY, STRAIGHT; spoken `Short. Miss. Arc on, steady, straight.`                                                                                                                                                   |
-| hand-off       | Your turn, `Lucky Larch’s turn`; `HANDOFF_LINES` in `src/ui/handoff-words.js`: `Six batons. Two field kubbs to clear first.`, `Six batons. Aim for the base kubbs.`, `Six batons. Go for the king.`, `Throw three kubbs into the other half.`, `Stand your kubbs up.`, `Place one punishment kubb.`; THROW, READY, WATCH |
-| coach          | PULL BACK TO THE STRIPES, NO RUSH GOING BACK, NOW FLICK FAST AND STOP ON THE SOLID MARK, led by SLOW FLICK. FLICK FASTER.                                                                                                                                                                                                |
-| stand-ins      | prompt `Wind back, 8 metres`; meter `Clock meter. Draw back to the stripes, then flick and let go on the solid mark.` (or `Linear meter`, `shown for watching only.`); minimap `Map of the pitch: Mighty Maple 5 kubbs standing, Computer 4. The target is 8 metres out.`                                                |
-| link preview   | `<host> is waiting for players · Kubb: Throwing Wood`; card `CHEERFUL CEDAR` over `IS WAITING FOR PLAYERS`; `IN PLAY · TURN 7 · TAP TO WATCH`; `<WINNER> WON · 9 TURNS · TAP TO WATCH` (with a replay)                                                                                                                   |
+| Where          | Words                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| header line    | `Turn 4 · baton 2 of 6`, `· 2 field kubbs`, `· at the king`; practice `Batons · 5 base kubbs`, `Kubbs · target 2.3 m` (shown in capitals)                                                                                                                                                                                                                                    |
+| header numbers | spoken `Kubbs standing: Mighty Maple 5, Computer 5` (field and base kubbs in each half)                                                                                                                                                                                                                                                                                      |
+| scene names    | the engine's (its Scene row and `scenes()`; `SCENE_NAMES` in `src/render/scenes.js` holds the same): Park, Beach, Camping, Techno, Minnesota, Tournament, Black & White (ids `day`, `beach`, `night`, `neon`, `minnesota`, `tournament`, `bw`)                                                                                                                               |
+| computer level | Kid, Beginner, Club, Pro (the engine's values; the row's label "Computer level")                                                                                                                                                                                                                                                                                             |
+| Kid match      | hand-off kicker `Kid match · throw from the cones`, the king shot `Kid match · the king from your line`, a raise `Kid match` (`KID_LINES`); flags KING BACK UP, OUT TWICE: PLACED, and a counted helicopter's own `1 DOWN` or `MISS`; STAND `MIDDLE, ON THE KID LINE`, `Stand anywhere from behind your line up to the Kid line.`; the rail `KID LINE  2.0 M` (the engine's) |
+| menu           | SETTINGS, SCORE SHEET, HOW TO THROW, FEEDBACK, Raising (By hand, Automatic), BACK TO THE MATCH, BACK TO THE PITCH, RESIGN, HOME                                                                                                                                                                                                                                              |
+| settings       | Settings, DONE                                                                                                                                                                                                                                                                                                                                                               |
+| winner         | REMATCH, WATCH REPLAY, SCORE SHEET, SHARE, HOME                                                                                                                                                                                                                                                                                                                              |
+| share card     | Share this match, COPY LINK, Copied the link., Could not copy. The link is shown to copy., MAKE A HIGHLIGHT REEL, EMBED, BACK                                                                                                                                                                                                                                                |
+| name row       | SHUFFLE; stepper labels Previous first word, Next first word, First word (and second, third)                                                                                                                                                                                                                                                                                 |
+| welcome        | `WELCOME_WORDS` in `src/ui/welcome.js`                                                                                                                                                                                                                                                                                                                                       |
+| lobby          | You are, WATCH INSTEAD, HOME, START                                                                                                                                                                                                                                                                                                                                          |
+| tray           | ARC 22°, TILT 7R, TILT 0, SPIN 1.3L, STAND; spoken Arc, 22 degrees; Tilt, 7 degrees right; Tilt, none; Stand, middle, on the line; the group Throw set-up                                                                                                                                                                                                                    |
+| meter          | the distance tab `8 M`; WATCH on the thrower's team colour                                                                                                                                                                                                                                                                                                                   |
+| verdict        | SHORT, LONG, LOW, HIGH, SLOW, SHAKY, PULLED LEFT, PULLED RIGHT (off, with arrows); POWER ON, ARC ON, STEADY, STRAIGHT; spoken `Short. Miss. Arc on, steady, straight. 50 cm away.` (the rest text last, when shown)                                                                                                                                                          |
+| hand-off       | Your turn, `Lucky Larch’s turn`; `HANDOFF_LINES` in `src/ui/handoff-words.js`: `Six batons. Two field kubbs to clear first.`, `Six batons. Aim for the base kubbs.`, `Six batons. Go for the king.`, `Throw three kubbs into the other half.`, `Stand your kubbs up.`, `Place one punishment kubb.`; THROW, READY, WATCH                                                     |
+| coach          | PULL BACK TO THE STRIPES, NO RUSH GOING BACK, NOW FLICK FAST AND STOP ON THE SOLID MARK, led by SLOW FLICK. FLICK FASTER.                                                                                                                                                                                                                                                    |
+| stand-ins      | prompt `Wind back, 8 metres`; meter `Clock meter. Draw back to the stripes, then flick and let go on the solid mark.` (or `Linear meter`, `shown for watching only.`); minimap `Map of the pitch: Mighty Maple 5 kubbs standing, Computer 4. The target is 8 metres out.`                                                                                                    |
+| link preview   | `<host> is waiting for players · Kubb: Throwing Wood`; card `CHEERFUL CEDAR` over `IS WAITING FOR PLAYERS`; `IN PLAY · TURN 7 · TAP TO WATCH`; `<WINNER> WON · 9 TURNS · TAP TO WATCH` (with a replay)                                                                                                                                                                       |

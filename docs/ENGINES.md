@@ -12,8 +12,11 @@ should only support engines that we decide are worth supporting not just ones th
 published so that we can push players to the new engines." And: "We are still in dev
 mode. Fine to push breaking changes."
 
-- **Today the site carries one engine: 0.13 (0.13.4).** 0.9 (0.9.0), 0.8 (0.8.2) and 0.7
-  (0.7.4) were carried beside it until 2026-11-21 and were dropped then.
+- **Today the site carries one engine: 0.15 (0.15.0).** It replaced 0.13 (0.13.4) with
+  `--drop` on 2026-11-22 (the web never carried 0.14: 0.14 and 0.15 each share no match
+  with the minor before, and web and iPhone move together); a kept match of 0.13 can no
+  longer be replayed. 0.9 (0.9.0), 0.8 (0.8.2) and 0.7 (0.7.4) were carried until
+  2026-11-21 and were dropped then.
 - The supported set is written in one place: `vendor/engine.json`, its top-level `tag`
   (the newest) and `older` (by major.minor; empty today). The build, the registry and
   the reels' `REEL_ENGINES` read it; there is no other list. This page says why.
@@ -23,7 +26,7 @@ mode. Fine to push breaking changes."
   `--drop`. The default answer is `--drop`.
 - One engine per major.minor. A patch replaces its minor's engine.
 
-The version label a player sees names the newest: `0.11.0 (0.13.4)`, with "Also plays
+The version label a player sees names the newest: `0.15.0 (0.15.0)`, with "Also plays
 ..." under it in MENU only while an older engine is carried (none today; docs/CLIENT.md
 "Version and freshness"). A match names its own engine, never the app's version.
 

@@ -184,7 +184,6 @@ export class Stage {
   }
   use(id) {
     const want = SWITCHED.has(id) ? id : "day";
-    this.spins = null;
     if (want === this.id) return false;
     this.useLook(lookOf(want, { reduced: this.reduced }));
     return true;

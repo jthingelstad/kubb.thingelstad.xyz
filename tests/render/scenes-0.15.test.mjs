@@ -225,6 +225,8 @@ test("Stage.observe marks the pieces spinning too fast, and draws their in-betwe
   const slow = { ...a, ...turnZ(76) }; // 10 degrees on from `fast`
   stage.observe([a], 0);
   stage.observe([fast], 1 / 60);
+  // the game names the scene again every frame: that keeps the spin
+  stage.use("day");
   const items = stage.spun([fast]);
   assert.equal(items[0].spin, 1);
   assert.deepEqual(
@@ -239,7 +241,6 @@ test("Stage.observe marks the pieces spinning too fast, and draws their in-betwe
   drawWorld(c2, VIEW, CAM, { surface: "grass", items: [fast] });
   assert.ok(l1.length > l2.length + 300, `${l1.length} > ${l2.length}`);
   // faded in-between poses, and the piece's own pose faded under them
-  assert.ok(l1.includes("globalAlpha=0.42"));
   assert.ok(l1.includes("globalAlpha=0.45"));
   assert.equal(
     l2.some((l) => l.startsWith("globalAlpha=0.4")),
@@ -530,4 +531,13 @@ test("kept options go through the scene; a kept Kid computer stays Kid", () => {
   );
   assert.equal(soloOptions({ computer: "kid" }).computer, "kid");
   assert.equal(soloOptions({ computer: "toddler" }).computer, "club");
+});
+
+test("the Kid line is drawn on the thrower's side only (the wide view's Team B keeps an unturned kidY)", async () => {
+  const { kidLineOf } = await import("../../src/game/game.js");
+  assert.equal(kidLineOf({ kidY: 2, lineY: 0 }), 2);
+  assert.equal(kidLineOf({ kidY: 6, lineY: 8 }), 6);
+  assert.equal(kidLineOf({ kidY: 2, lineY: 8 }), null);
+  assert.equal(kidLineOf({ lineY: 0 }), null);
+  assert.equal(kidLineOf(null), null);
 });

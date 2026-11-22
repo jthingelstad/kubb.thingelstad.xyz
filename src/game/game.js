@@ -110,6 +110,16 @@ import {
   step as stepAutoRaise,
 } from "./auto-raise.js";
 
+// The Kid line to draw from an aim view (engine 0.15's `kidY`), or null. It is on the
+// thrower's side of the middle, within 4 m of their line (`lineY`); engine 0.15's wide
+// view turns `lineY` for Team B but not `kidY` (session/wide.lua), so there a kidY on
+// the far side is not drawn rather than drawn on the wrong end (JS never turns it).
+export function kidLineOf(aim) {
+  const k = aim?.kidY;
+  if (k == null) return null;
+  return Math.abs(k - (aim.lineY ?? 0)) <= 4 ? k : null;
+}
+
 export const tune = {
   // a scene tile's postcard camera (sceneThumb): lookAt's eye, target, focal length
   thumbCam: [[0.6, -5.2, 1.5], [0, 9, 0.9], 330],
@@ -1687,7 +1697,7 @@ export class Game {
       items: this.items,
       advantageY: aim.advY ?? null,
       // the Kid line (a Kid match, engine 0.15): dots and two cones
-      kidY: aim.kidY ?? null,
+      kidY: kidLineOf(aim),
       marker: marker ? { x: marker.x, y: marker.y, r: marker.r } : null,
       arc,
       thrower: aim.thrower
@@ -1783,7 +1793,7 @@ export class Game {
       aim: aim?.marker ? { x: aim.marker.x, y: aim.marker.y } : null,
       marker: aim?.marker?.shown !== false ? aim?.marker : null,
       advantageY: aim?.advY ?? v.minimap?.advY ?? null,
-      kidY: aim?.kidY ?? v.minimap?.kidY ?? null,
+      kidY: aim ? kidLineOf(aim) : (v.minimap?.kidY ?? null),
       wind: aim?.wind || v.minimap?.wind || null,
       surface: v.surface,
       ...extra,
@@ -1801,7 +1811,7 @@ export class Game {
       set: v.set,
       items: s.items,
       advantageY: this.out?.aim?.advY ?? null,
-      kidY: this.out?.aim?.kidY ?? null,
+      kidY: kidLineOf(this.out?.aim),
     });
     this.css();
     const wide = !!this.wide;
@@ -1811,7 +1821,7 @@ export class Game {
       this.drawMap(null, s.items, {
         baton: proj ? { x: proj.x, y: proj.y } : null,
         advantageY: this.out?.aim?.advY ?? null,
-        kidY: this.out?.aim?.kidY ?? null,
+        kidY: kidLineOf(this.out?.aim),
         wind: this.out?.aim?.wind || null,
       });
       if (s.dial) this.drawMeter({ ...s.dial, prompt: null });

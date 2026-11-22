@@ -1306,8 +1306,20 @@ body.game {
   width: 100%;
   margin-top: 6px;
 }
+/* on a phone the row reaches 6 px into the card's padding and the tiles stand 6 px
+   apart, so TOURNAMENT fits a third of it in capitals at 14 px */
 .tiles > .tile {
-  flex: 0 0 calc((100% - 16px) / 3);
+  flex: 0 0 calc((100% - 12px) / 3);
+}
+@media (max-width: 599px) {
+  .tiles {
+    gap: 6px;
+    width: calc(100% + 12px);
+    margin-inline: -6px;
+  }
+  .tiles .tile-name {
+    letter-spacing: -0.01em;
+  }
 }
 @media (min-width: 600px) {
   .tiles > .tile {
