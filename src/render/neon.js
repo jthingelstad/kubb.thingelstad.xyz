@@ -22,6 +22,8 @@
 import { NEON } from "./palette.js";
 import { drawGlow } from "./glow.js";
 import { Stardust } from "./stardust.js";
+import { Impacts } from "./impacts.js";
+import { horizon } from "./scenery.js";
 
 export const tune = {
   near: 0.15, // m, in front of the camera
@@ -48,6 +50,7 @@ export const tune = {
   hazeUp: 0.1,
   hazeDown: 0.16,
   hazeAlpha: 0.4,
+  sheenDown: 0.22, // the grid floor's sheen under the horizon, a share of the height
   // the pitch's lines: bloom bands [m wide, alpha, min CSS px], then the core
   lineBands: [
     [0.18, 0.07, 7],
@@ -218,15 +221,36 @@ function withAlpha(hex, a) {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 }
 
+// The grid floor (Techno's `grid` surface): the floor's own near-black below the
+// horizon, a sheen where it meets the haze (a glossy floor catches the far light),
+// then the grid fainter than the outdoor surfaces' (gridAlpha).
+function drawGlossy(ctx, cam, B, G) {
+  const hz = horizon(cam);
+  const y = hz ? hz.y : B.top - 2;
+  if (y > B.bottom) return;
+  const top = Math.max(B.top - 2, y);
+  ctx.fillStyle = G.floor;
+  ctx.fillRect(B.left - 2, top, B.right - B.left + 4, B.bottom - top + 2);
+  if (!hz) return;
+  const H = B.bottom - B.top;
+  const g = ctx.createLinearGradient(0, y, 0, y + H * tune.sheenDown);
+  g.addColorStop(0, G.sheen);
+  g.addColorStop(1, G.floor);
+  ctx.fillStyle = g;
+  ctx.fillRect(B.left - 2, y, B.right - B.left + 4, H * tune.sheenDown);
+}
+
 function drawFloor(ctx, cam, kx, B, G) {
+  if (G.floor) drawGlossy(ctx, cam, B, G);
   drawHaze(ctx, cam, B, G);
   const g = gridOf(G.gridEvery);
+  const a = G.gridAlpha ?? 1;
   ctx.save();
   ctx.lineCap = "butt";
   gridPieces(cam, g.minor, buckets, true);
-  strokeBuckets(ctx, G.grid, tune.minorAlpha, tune.minorPx / kx);
+  strokeBuckets(ctx, G.grid, tune.minorAlpha * a, tune.minorPx / kx);
   gridPieces(cam, g.major, buckets, false);
-  strokeBuckets(ctx, G.grid, 1, tune.majorPx / kx);
+  strokeBuckets(ctx, G.grid, a, tune.majorPx / kx);
   ctx.restore();
 }
 
@@ -479,6 +503,18 @@ export function sparkConfig(reduced = false) {
 export class NeonFx {
   constructor({ reduced = false } = {}) {
     this.dust = new Stardust(sparkConfig(reduced));
+    // a ring on the floor wherever a piece strikes it (the owner: "when something
+    // hits the floor it should give a visual ring on impact"), in its side's light
+    this.rings = new Impacts({
+      style: "ring",
+      reduced,
+      colors: {
+        A: NEON.team.A.lit,
+        B: NEON.team.B.lit,
+        king: NEON.king.lit,
+        baton: NEON.baton.core,
+      },
+    });
     this.reduced = reduced;
     const N = tune.ribbonN;
     this.pts = new Float64Array(N * 7); // e1, e2, t
@@ -488,14 +524,17 @@ export class NeonFx {
   }
   clear() {
     this.dust.clear();
+    this.rings.clear();
     this.n = 0;
   }
   watch(rec) {
     this.dust.watch(rec);
+    this.rings.watch(rec);
     this.n = 0;
   }
   observe(items, t) {
     this.dust.observe(items, t);
+    this.rings.observe(items, t);
     this.now = t;
     if (this.reduced) return;
     const d = this.dust;
@@ -532,7 +571,12 @@ export class NeonFx {
   }
   tick(dt) {
     this.dust.tick(dt);
+    this.rings.tick(dt);
     if (dt > 0) this.now += dt;
+  }
+  // on the floor, under the pieces: the rings
+  drawFloor(ctx, cam, kx) {
+    this.rings.draw(ctx, cam, kx);
   }
   draw(ctx, cam, kx) {
     if (this.n > 1) this.ribbon(ctx, cam, kx);
@@ -684,7 +728,10 @@ export function makeNeon({ reduced = false } = {}) {
     rough: drawFloor,
     lightGround: null,
     lines: drawLines,
-    beforePieces: drawHalos,
+    beforePieces: (ctx, cam, kx, shown, projs, set, scene) => {
+      scene?.fx?.drawFloor?.(ctx, cam, kx);
+      drawHalos(ctx, cam, kx, shown);
+    },
     baton: drawBaton,
     afterPieces: (ctx, cam, kx, B, scene) => scene.fx?.draw(ctx, cam, kx),
   };

@@ -46,6 +46,23 @@ export const HANDOFF_LINES = {
   punish: (n) => `Place ${many(n, "punishment kubb", "punishment kubbs")}.`,
 };
 
+// A Kid match (engine 0.15, its docs/notes/kid-mode.md): the card's kicker over the
+// title, from the need's `kid`. Every kubb and every baton at a kubb is thrown from
+// the Kid line, which the pitch marks with a cone at each end; the king shot is from
+// the baseline. Nothing here speaks of a punishment or a loss: a Kid match has none.
+export const KID_LINES = {
+  cones: "Kid match · throw from the cones",
+  king: "Kid match · the king from your line",
+  plain: "Kid match",
+};
+
+// The kicker for a need, or null in a match that is not a Kid match.
+export function handoffKid(need) {
+  if (!need?.kid) return null;
+  if (need.kind !== "throw" || !need.setup) return KID_LINES.plain;
+  return need.setup.kingShot ? KID_LINES.king : KID_LINES.cones;
+}
+
 // Field kubbs standing in the other half, from the hand-off card's pieces (the
 // engine's core/cards.lua handoff: the receiving team's view frame, its own
 // baseline at y 0, so the other half is past the centre line at 4 m).

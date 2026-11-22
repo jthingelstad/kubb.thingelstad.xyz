@@ -65,30 +65,47 @@ browserTest(
         await page.textContent("[data-test=solo-opt-scene] .opt-label"),
         "Scene",
       );
-      // three picture tiles (the 1.0 design), named from SCENE_NAMES, each the
-      // game's own drawing of the pitch in that scene
+      // seven picture tiles (engine 0.14's catalogue), named by the engine's rows
+      // (pitch.optionRows), each the game's own drawing of the pitch in that scene
       assert.deepEqual(
         await page.$$eval("[data-test=solo-opt-scene] .tile-name", (bs) =>
           bs.map((b) => b.textContent),
         ),
-        ["Park", "Camping", "Techno"],
+        [
+          "Park",
+          "Beach",
+          "Camping",
+          "Techno",
+          "Minnesota",
+          "Tournament",
+          "Black & White",
+        ],
       );
       await page.waitForFunction(() =>
         [
           ...document.querySelectorAll("[data-test=solo-opt-scene] canvas"),
         ].every((c) => c.width === 192),
       );
+      // seven different pictures, none blank: each canvas's pixels summed
       const painted = await page.$$eval(
         "[data-test=solo-opt-scene] canvas",
         (cs) =>
           cs.map((c) => {
-            const d = c.getContext("2d").getImageData(96, 80, 1, 1).data;
-            return `${d[0]},${d[1]},${d[2]},${d[3]}`;
+            const d = c
+              .getContext("2d")
+              .getImageData(0, 0, c.width, c.height).data;
+            let h = 0,
+              alpha = 0;
+            for (let i = 0; i < d.length; i += 4) {
+              h = (h * 31 + d[i] + d[i + 1] * 7 + d[i + 2] * 13) >>> 0;
+              alpha += d[i + 3];
+            }
+            return `${h}:${alpha > 0}`;
           }),
       );
-      assert.equal(new Set(painted).size, 3, `three pictures: ${painted}`);
+      assert.equal(new Set(painted).size, 7, `seven pictures: ${painted}`);
       assert.ok(
-        painted.every((p) => !p.endsWith(",0")),
+        painted.every((p) => p.endsWith(":true")),
         "drawn, not blank",
       );
       assert.equal(await checked(page, "solo-opt-scene"), "neon");
@@ -200,9 +217,11 @@ browserTest(
       await page.click("[data-test=menu]");
       await page.waitForSelector("[data-test=menu-scene]");
       const menuScene = () =>
-        page.textContent("[data-test=menu-scene] [aria-checked=true]");
+        page.textContent(
+          "[data-test=menu-scene] [aria-checked=true] .tile-name",
+        );
       assert.equal(await menuScene(), "Techno");
-      await page.click("[data-test=menu-scene] .seg-btn:has-text('Camping')");
+      await page.click("[data-test=menu-scene] [data-value=night]");
       assert.equal(await menuScene(), "Camping");
       await page.keyboard.press("Escape");
       assert.deepEqual(await drawn(page), {

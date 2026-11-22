@@ -71,6 +71,18 @@ function rules({ tinylytics, config = {} }) {
   ${cards}
   </ol>
 </section>
+<section class="frame prose" aria-labelledby="kid">
+  <h2 class="display" id="kid">A Kid match</h2>
+  <p>Pick Kid as the computer and the whole match is gentler, for both sides. It is made for children to have fun with kubb.</p>
+  <ul>
+    <li>Each side has three base kubbs, not five.</li>
+    <li>Throw your kubbs and batons from the Kid line, two metres in front of your own line. A cone marks each end. The king shot is still from your own line.</li>
+    <li>Knock the king down too early and he is stood back up. Nobody loses for it, and the turn goes on.</li>
+    <li>A kubb thrown out twice is stood up for you. There are no punishment kubbs.</li>
+    <li>A baton that spins flat still counts.</li>
+    <li>The meter is wider, so more throws go where you aim.</li>
+  </ul>
+</section>
 <section class="frame prose" aria-labelledby="throw">
   <h2 class="display" id="throw">Throwing on the web</h2>
   ${GAME_READY ? "" : `<p class="notice">The game is still being built; this is how its throw is designed to work.</p>`}

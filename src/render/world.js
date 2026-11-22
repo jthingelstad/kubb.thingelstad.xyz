@@ -29,6 +29,12 @@ import {
   groundOf,
   setOf,
 } from "./palette.js";
+import { standAt, cone } from "./scenery.js";
+
+// The teams' paint on the pieces: the day's, kept here, since a scene's skin may
+// change the controls' team colours (Black & White's) and a picture of another scene
+// (a scene tile) is drawn while it is on.
+const PIECE_TEAM = { A: { ...TEAM.A }, B: { ...TEAM.B } };
 
 // ---------- numbers ----------
 
@@ -47,6 +53,9 @@ export const tune = {
   dash: 0.24, // m, the centerline: 6 on 4 off
   dashGap: 0.16,
   advDash: 0.1, // m, the advantage line: 2 on 2 off
+  kidDot: 0.05, // m, the Kid line: short dots
+  kidGap: 0.09,
+  kidConeX: 2.85, // m from the middle: the Kid line's cones, just off each sideline
   stakeMinPx: 3, // frame px, the thinnest a stake is drawn
   roughFar: 200, // m, how far the ground goes along the view
   // detail by size: a piece's length on screen in CSS px
@@ -73,6 +82,10 @@ export const tune = {
   markWidth: 2.5,
   arcDash: [7, 6],
   arcStopShort: 0.45, // m: the arc in the air ends this far (along the ground) before it lands
+  // a piece spinning faster than the frames can show (drawSpin)
+  spinGhosts: 4, // in-between poses drawn
+  spinGhostAlpha: 0.42, // each, at full blur
+  spinSharpFade: 0.55, // the piece's own pose fades this much at full blur
 };
 
 // Sizes (DESIGN 4.1; core/body.lua): half extents along local x, y, z.
@@ -469,7 +482,8 @@ function drawGround(ctx, cam, B, scene, G, kx, lk = null) {
       ctx.lineTo(x0, Math.max(B.bottom + 4, y0 + 4));
       ctx.closePath();
       ctx.fill();
-      // haze at the horizon: a soft band where the ground meets the sky
+      // haze at the horizon: a soft band where the ground meets the sky (none
+      // where the rough is a pattern, Black & White's)
       const mx = (x0 + x1) / 2,
         my = (y0 + y1) / 2;
       const nl = Math.hypot(kk, 1);
@@ -482,16 +496,18 @@ function drawGround(ctx, cam, B, scene, G, kx, lk = null) {
         mx + gx * band,
         my + gy * band,
       );
-      grd.addColorStop(0, G.haze);
-      grd.addColorStop(1, G.rough);
-      ctx.fillStyle = grd;
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.lineTo(x1, y1);
-      ctx.lineTo(x1 + gx * band, y1 + gy * band);
-      ctx.lineTo(x0 + gx * band, y0 + gy * band);
-      ctx.closePath();
-      ctx.fill();
+      if (typeof G.rough === "string") {
+        grd.addColorStop(0, G.haze);
+        grd.addColorStop(1, G.rough);
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.lineTo(x1 + gx * band, y1 + gy * band);
+        ctx.lineTo(x0 + gx * band, y0 + gy * band);
+        ctx.closePath();
+        ctx.fill();
+      }
       filled = true;
     }
   }
@@ -503,9 +519,11 @@ function drawGround(ctx, cam, B, scene, G, kx, lk = null) {
       [-400, -400, 400, 400],
       G.rough,
     );
+  // a scene's ground beyond the rough (the beach's sea), before the rough's texture
+  if (lk?.beyond) lk.beyond(ctx, cam, kx, B, G, scene);
 
   // the rough's texture: tufts on grass, grains on sand, sparkle on snow
-  const pts = roughPoints(scene.surface || "grass");
+  const pts = G.noSpeck ? [] : roughPoints(scene.surface || "grass");
   ctx.strokeStyle = G.speck;
   ctx.fillStyle = G.speck;
   ctx.lineCap = "round";
@@ -560,6 +578,9 @@ function drawGround(ctx, cam, B, scene, G, kx, lk = null) {
   const segs = lineSegments(scene);
   if (lk?.lines) lk.lines(ctx, cam, kx, segs, G, paintLines);
   else paintLines(ctx, cam, segs, G.line);
+  // what stands round the pitch (trees, umbrellas, the neighbouring pitches), on the
+  // ground and before every mark and piece
+  if (lk?.scenery) lk.scenery(ctx, cam, kx, B, G, scene);
 }
 
 // The field lines as segments on the ground: the sidelines, the baselines,
@@ -578,6 +599,10 @@ export function lineSegments(scene) {
   dashed(4, tune.dash, tune.dashGap);
   if (scene.advantageY != null)
     dashed(scene.advantageY, tune.advDash, tune.advDash);
+  // the Kid line (a Kid match, engine 0.15): short dots, told apart from the
+  // advantage line's dashes, with a cone at each end (drawKidCones)
+  if (scene.kidY != null && scene.kidY !== scene.advantageY)
+    dashed(scene.kidY, tune.kidDot, tune.kidGap);
   return segs;
 }
 
@@ -1113,11 +1138,11 @@ function drawBox(ctx, cam, kx, s, P, set, paint = DAY_PAINT, lt = DAYLIGHT) {
           ow * 0.5,
         );
       }
-      if (item.team && TEAM[item.team]) {
+      if (item.team && PIECE_TEAM[item.team]) {
         const T = lit?.band ? { fill: lit.band, deep: lit.bandDeep } : null;
         ctx.fillStyle = dark
-          ? (T || TEAM[item.team]).deep
-          : (T || TEAM[item.team]).fill;
+          ? (T || PIECE_TEAM[item.team]).deep
+          : (T || PIECE_TEAM[item.team]).fill;
         bandPath(ctx, S, F, tune.teamFrom, tune.teamTo);
         ctx.fill();
       }
@@ -1422,7 +1447,9 @@ function drawKing(ctx, cam, kx, s, P, set, paint = DAY_PAINT, lt = DAYLIGHT) {
 // A baton: a cylinder 0.30 long and 0.044 across, plain pale wood, the end
 // that faces the camera showing its end grain. Batons are always plain and
 // the same in every kubb set, with no bands (Jamie, 2026-11-20).
-function drawBaton(ctx, cam, kx, s) {
+function drawBaton(ctx, cam, kx, s, paint = DAY_PAINT) {
+  const WOOD = paint.wood,
+    INK = paint.ink;
   const it = s.item;
   const a = s.axes[2];
   const hl = 0.15,
@@ -1496,7 +1523,7 @@ function drawBaton(ctx, cam, kx, s) {
   const m = project(cam, it.x, it.y, it.z);
   const sideSign =
     q && m && (q[0] - m[0]) * px + (q[1] - m[1]) * py > 0 ? 1 : -1;
-  ctx.fillStyle = "rgba(22, 19, 15, 0.32)";
+  ctx.fillStyle = paint.batonShade ?? "rgba(22, 19, 15, 0.32)";
   ctx.beginPath();
   ctx.moveTo(
     p1[0] + px * sideSign * r1 * 0.25,
@@ -1578,6 +1605,109 @@ function softShadows(ctx, k, lt) {
   return true;
 }
 
+// The Kid line's two cones, just off the sidelines (a Kid match).
+const DAY_CONE = { cone: "#ff7a1f", band: "#ffffff", ink: INK };
+function drawKidCones(ctx, cam, kx, B, y, c = DAY_CONE) {
+  for (const x of [-tune.kidConeX, tune.kidConeX]) {
+    const at = standAt(cam, x, y, B, 0, 1);
+    if (at) cone(ctx, at, kx, c);
+  }
+}
+
+// The pieces mirrored in the floor (z turned over), under everything that stands,
+// at `alpha` (a glossy floor's reflections: the Techno grid).
+function mirror(s) {
+  const W = Float64Array.from(s.W);
+  for (let k = 0; k < 8; k++) W[3 * k + 2] = -W[3 * k + 2];
+  const flip = (a) => [a[0], a[1], -a[2]];
+  return {
+    item: { ...s.item, z: -s.item.z, mirrored: true },
+    h: s.h,
+    axes: s.axes.map(flip),
+    c: [s.c[0], s.c[1], -s.c[2]],
+    W,
+  };
+}
+function drawReflections(ctx, cam, kx, B, shown, drawPiece, alpha) {
+  const m = [],
+    P = [],
+    boxes = [];
+  for (const s of shown) {
+    if (s.item.kind === "stake") continue;
+    const r = mirror(s);
+    const p = projectSolid(cam, r);
+    if (!p) continue;
+    m.push(r);
+    P.push(p);
+    boxes.push(p.box);
+  }
+  if (!m.length) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  for (const i of depthOrder(m, cam, boxes)) drawPiece(m[i], P[i]);
+  ctx.restore();
+}
+// The spin's in-between poses: from where the piece was the frame before (item.from)
+// to where it is, `tune.spinGhosts` of them, each faded by u.
+function slerp(a, b, t) {
+  let [aw, ax, ay, az] = a;
+  let [bw, bx, by, bz] = b;
+  let d = aw * bw + ax * bx + ay * by + az * bz;
+  if (d < 0) {
+    bw = -bw;
+    bx = -bx;
+    by = -by;
+    bz = -bz;
+    d = -d;
+  }
+  if (d > 0.9995) {
+    const w = aw + (bw - aw) * t,
+      x = ax + (bx - ax) * t,
+      y = ay + (by - ay) * t,
+      z = az + (bz - az) * t;
+    const l = Math.hypot(w, x, y, z) || 1;
+    return [w / l, x / l, y / l, z / l];
+  }
+  const th = Math.acos(d),
+    sn = Math.sin(th);
+  const ka = Math.sin((1 - t) * th) / sn,
+    kb = Math.sin(t * th) / sn;
+  return [
+    aw * ka + bw * kb,
+    ax * ka + bx * kb,
+    ay * ka + by * kb,
+    az * ka + bz * kb,
+  ];
+}
+function drawSpin(ctx, cam, kx, s, u, drawPiece, opaque) {
+  const it = s.item,
+    f = it.from;
+  const q1 = [f.qw ?? 1, f.qx ?? 0, f.qy ?? 0, f.qz ?? 0];
+  const q2 = [it.qw ?? 1, it.qx ?? 0, it.qy ?? 0, it.qz ?? 0];
+  const n = tune.spinGhosts;
+  for (let j = 1; j <= n; j++) {
+    const t = j / (n + 1);
+    const q = slerp(q1, q2, t);
+    const g = {
+      ...it,
+      x: f.x + (it.x - f.x) * t,
+      y: f.y + (it.y - f.y) * t,
+      z: f.z + (it.z - f.z) * t,
+      qw: q[0],
+      qx: q[1],
+      qy: q[2],
+      qz: q[3],
+      spin: 0,
+    };
+    const gs = solid(g, cam);
+    const P = projectSolid(cam, gs);
+    if (!P) continue;
+    ctx.globalAlpha = opaque ? 1 : tune.spinGhostAlpha * u;
+    drawPiece(gs, P);
+  }
+  ctx.globalAlpha = 1;
+}
+
 // scene.look: a scene (src/render/scenes.js) other than the day, whose data
 // and hooks change the sky, the ground's light, the lines, the pieces' paint
 // and what is drawn over them; none (or the day) draws the day exactly.
@@ -1609,6 +1739,7 @@ export function drawWorld(ctx, view, camera, scene) {
   if (scene.arc) drawArcTrack(ctx, cam, k, scene.arc);
   if (scene.thrower) drawThrower(ctx, cam, k, scene.thrower);
   if (scene.marker) drawMarker(ctx, cam, k, scene.marker);
+  if (scene.kidY != null) drawKidCones(ctx, cam, k, B, scene.kidY, lk?.cone);
 
   // every shadow, one fill, over the marks (the Playdate casts none for
   // the stakes)
@@ -1645,26 +1776,32 @@ export function drawWorld(ctx, view, camera, scene) {
     projs.push(P);
     boxes.push([b[0] - 2, b[1] - 2, b[2] + 2, b[3] + 2]);
   }
-  if (lk?.beforePieces) lk.beforePieces(ctx, cam, k, shown, projs, set);
-  const order = depthOrder(shown, cam, boxes);
-  const drawBat = lk?.baton || drawBaton;
-  for (const i of order) {
-    const s = shown[i];
+  const drawBat =
+    lk?.baton || ((c, cm, kk, s) => drawBaton(c, cm, kk, s, paint));
+  const drawPiece = (s, P) => {
     const kind = s.item.kind;
     if (kind === "baton") drawBat(ctx, cam, k, s);
-    else if (kind === "king")
-      drawKing(ctx, cam, k, s, projs[i], set, paint, lt);
-    else
-      drawBox(
-        ctx,
-        cam,
-        k,
-        s,
-        projs[i],
-        kind === "kubb" ? set : null,
-        paint,
-        lt,
-      );
+    else if (kind === "king") drawKing(ctx, cam, k, s, P, set, paint, lt);
+    else drawBox(ctx, cam, k, s, P, kind === "kubb" ? set : null, paint, lt);
+  };
+  // a glossy floor (the Techno grid) mirrors what stands on it, faintly
+  const reflect = lk ? (G.reflect ?? lk.reflect ?? 0) : 0;
+  if (reflect > 0) drawReflections(ctx, cam, k, B, shown, drawPiece, reflect);
+  if (lk?.beforePieces) lk.beforePieces(ctx, cam, k, shown, projs, set, scene);
+  const order = depthOrder(shown, cam, boxes);
+  for (const i of order) {
+    const s = shown[i];
+    const u = s.item.spin > 0 && s.item.from ? Math.min(1, s.item.spin) : 0;
+    if (u > 0) {
+      // a piece turning faster than a frame can show (a kubb at full spin turns
+      // about 66 degrees a frame at 60 fps, and a square kubb looks the same every
+      // quarter turn, so the plain drawing seems to stand or turn back): its
+      // in-between poses, faded in by how fast it turns (Stage.observe sets spin)
+      drawSpin(ctx, cam, k, s, u, drawPiece, lk?.spinOpaque);
+      ctx.globalAlpha = lk?.spinOpaque ? 1 : 1 - tune.spinSharpFade * u;
+      drawPiece(s, projs[i]);
+      ctx.globalAlpha = 1;
+    } else drawPiece(s, projs[i]);
   }
   if (lk?.afterPieces) lk.afterPieces(ctx, cam, k, B, scene);
 

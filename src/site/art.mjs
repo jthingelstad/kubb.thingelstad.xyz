@@ -155,7 +155,7 @@ ${king(84, 146, 136)}
 // teams by their names (each checked: backend/pages/pitch.mjs), the state line, and the pitch from above with its
 // pieces as they stand, or as they fell (backend/pages/pitch.mjs piecesOf).
 //
-//   pitchCardImage({ teams: { A, B } | null, host, line, pieces })
+//   pitchCardImage({ teams: { A, B } | null, host, line, pieces, scene })
 //
 // teams null (a pitch waiting for players) shows its host's name, the player who made
 // it ("CHEERFUL CEDAR" over "IS WAITING FOR PLAYERS": the 1.0 design), or "A PITCH"
@@ -185,7 +185,21 @@ const fit = (text, width, most, least) =>
 // The pitch from above, the length across the image: Team A's baseline on the
 // left (world y = 0), Team B's on the right (y = 8), the sidelines (x = -2.5, 2.5)
 // top and bottom. Pieces are drawn larger than life so they read at a glance.
-function pitchFromAbove(left, top, scale, pieces) {
+// The pitch's ground on a share card by the match's scene (engine 0.14; the game's
+// scenes, src/render/scenes.js): its grass, sand, snow or floor and its lines. An id
+// not here is the day's.
+export const CARD_GROUNDS = {
+  day: { ground: C.grass, stripe: C.grassDark, line: C.line },
+  beach: { ground: "#ecd59f", stripe: "#c9a96b", line: "#ffffff" },
+  night: { ground: "#284a3b", stripe: "#10241b", line: "#e6f8ff" },
+  neon: { ground: "#02060c", stripe: "#0d3a4c", line: "#5ff0ff" },
+  minnesota: { ground: "#eef3f8", stripe: "#b4c6da", line: "#3f78bd" },
+  tournament: { ground: C.grass, stripe: C.grassDark, line: C.line },
+  bw: { ground: "#ffffff", stripe: "#ffffff", line: "#000000" },
+};
+
+function pitchFromAbove(left, top, scale, pieces, scene = "day") {
+  const G = CARD_GROUNDS[scene] || CARD_GROUNDS.day;
   const px = (y) => left + (y + 0.8) * scale;
   const py = (x) => top + (x + 3.1) * scale;
   const out = [];
@@ -193,19 +207,19 @@ function pitchFromAbove(left, top, scale, pieces) {
   const h = 6.2 * scale;
   out.push(
     `<rect x="${r(left + 8)}" y="${r(top + 8)}" width="${r(w)}" height="${r(h)}" rx="${RADIUS}" fill="${C.ink}"/>`,
-    `<rect x="${r(left)}" y="${r(top)}" width="${r(w)}" height="${r(h)}" rx="${RADIUS}" fill="${C.grass}" stroke="${C.ink}" stroke-width="5"/>`,
+    `<rect x="${r(left)}" y="${r(top)}" width="${r(w)}" height="${r(h)}" rx="${RADIUS}" fill="${G.ground}" stroke="${C.ink}" stroke-width="5"/>`,
   );
   // mown stripes, one per metre
   for (let y = 0; y < 8; y += 2)
     out.push(
-      `<rect x="${r(px(y))}" y="${r(py(-2.5))}" width="${r(scale)}" height="${r(5 * scale)}" fill="${C.grassDark}" opacity="0.35"/>`,
+      `<rect x="${r(px(y))}" y="${r(py(-2.5))}" width="${r(scale)}" height="${r(5 * scale)}" fill="${G.stripe}" opacity="0.35"/>`,
     );
   // the team ends, then the lines: baselines, sidelines, centre line
   out.push(
     `<rect x="${r(px(-0.8) + 2.5)}" y="${r(py(-2.5))}" width="${r(0.8 * scale - 2.5)}" height="${r(5 * scale)}" fill="${TEAM_FILL.A}"/>`,
     `<rect x="${r(px(8))}" y="${r(py(-2.5))}" width="${r(0.8 * scale - 2.5)}" height="${r(5 * scale)}" fill="${TEAM_FILL.B}"/>`,
-    `<rect x="${r(px(0))}" y="${r(py(-2.5))}" width="${r(8 * scale)}" height="${r(5 * scale)}" fill="none" stroke="${C.line}" stroke-width="4"/>`,
-    `<line x1="${r(px(4))}" y1="${r(py(-2.5))}" x2="${r(px(4))}" y2="${r(py(2.5))}" stroke="${C.line}" stroke-width="3" stroke-dasharray="10 8"/>`,
+    `<rect x="${r(px(0))}" y="${r(py(-2.5))}" width="${r(8 * scale)}" height="${r(5 * scale)}" fill="none" stroke="${G.line}" stroke-width="4"/>`,
+    `<line x1="${r(px(4))}" y1="${r(py(-2.5))}" x2="${r(px(4))}" y2="${r(py(2.5))}" stroke="${G.line}" stroke-width="3" stroke-dasharray="10 8"/>`,
   );
   const shadow = 5;
   const box = (cx, cy, len, wid, deg, fill) =>
@@ -246,6 +260,7 @@ export function pitchCardImage({
   host = null,
   line = "",
   pieces = [],
+  scene = "day",
 } = {}) {
   const W = 1200;
   const H = 630;
@@ -289,6 +304,6 @@ export function pitchCardImage({
 <g font-family="Londrina Solid" font-weight="900" text-anchor="start">
 ${parts.join("\n")}
 </g>
-${pitchFromAbove(W - 9.6 * scale - 44, (H - 6.2 * scale) / 2 - 4, scale, pieces)}
+${pitchFromAbove(W - 9.6 * scale - 44, (H - 6.2 * scale) / 2 - 4, scale, pieces, scene)}
 </svg>`;
 }

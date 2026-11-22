@@ -363,13 +363,19 @@ browserTest(
         1,
       );
       await practice.click("[data-test=menu]");
-      for (const t of [
-        "menu-settings",
-        "menu-howto",
-        "menu-surface",
-        "menu-scene",
-      ])
+      for (const t of ["menu-settings", "menu-howto", "menu-scene"])
         assert.ok(await has(practice, t), `practice MENU has ${t}`);
+      // a Surface row only where the scene leaves one (engine 0.14): Black & White
+      assert.equal(await has(practice, "menu-surface"), false);
+      await practice.click("[data-test=menu-scene] [data-value=bw]");
+      await practice.waitForSelector("[data-test=menu-surface]");
+      assert.deepEqual(
+        await practice.$$eval("[data-test=menu-surface] [data-value]", (bs) =>
+          bs.map((b) => b.dataset.value),
+        ),
+        ["grass", "sand", "snow"],
+      );
+      await practice.click("[data-test=menu-scene] [data-value=day]");
       // practice has no match: no score sheet, no Raising, no RESIGN
       for (const t of [
         "menu-sheet",

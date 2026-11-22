@@ -302,6 +302,8 @@ export async function renderReel({
 
   // the engine, played to each moment in turn
   const { engine, view } = await openReplay(replay, { sources });
+  // the scenes' rings and puffs where pieces strike the ground (src/render/impacts.js)
+  engine.setImpacts?.(true);
   const scene = { surface: view.surface, set: view.set };
   // the match in its own scene, as the game draws it (src/render/scenes.js);
   // glows are sprites on this canvas, the stars and halos of the night

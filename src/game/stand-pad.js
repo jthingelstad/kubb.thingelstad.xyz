@@ -38,7 +38,9 @@ export function standSpan(aim) {
   const hw = aim?.halfWidth ?? 2.5;
   const lineY = aim?.lineY ?? 0;
   const fwd = Math.max(lineY, aim?.forwardY ?? lineY);
-  const limit = aim?.projectile === "kubb" ? lineY : fwd;
+  // a kubb's forward limit is the baseline in a standard match; in a Kid match
+  // (engine 0.15) kubbs are thrown from the Kid line too, and forwardY says so
+  const limit = aim?.projectile === "kubb" && aim?.kidY == null ? lineY : fwd;
   return {
     x0: -hw,
     x1: hw,
@@ -76,10 +78,13 @@ export function standText(thrower, aim) {
     Math.abs(x) < tune.still
       ? "MIDDLE"
       : `${metres(x)} ${x < 0 ? "LEFT" : "RIGHT"}`;
+  const kid = aim?.kidY != null ? aim.kidY - (aim?.lineY ?? 0) : null;
   const along =
     Math.abs(y) < tune.still
       ? "ON THE LINE"
-      : `${metres(y)} ${y < 0 ? "BACK" : "UP"}`;
+      : kid != null && Math.abs(y - kid) < tune.still
+        ? "ON THE KID LINE"
+        : `${metres(y)} ${y < 0 ? "BACK" : "UP"}`;
   return `${across}, ${along}`;
 }
 
@@ -87,8 +92,11 @@ export function standText(thrower, aim) {
 // thrower is.
 export function standCaption(thrower, aim) {
   const span = standSpan(aim);
-  const how =
-    span.limit > span.lineY + tune.still
+  const kidLine =
+    aim?.kidY != null && Math.abs(span.limit - aim.kidY) < tune.still;
+  const how = kidLine
+    ? "Stand anywhere from behind your line up to the Kid line."
+    : span.limit > span.lineY + tune.still
       ? "Stand on your line, behind it, or up to the advantage line."
       : "Stand on your line or behind it.";
   return { key: "stand", text: `${standText(thrower, aim)}. ${how}` };

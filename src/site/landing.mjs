@@ -155,7 +155,7 @@ function landing({ tinylytics, config = {} }) {
     <ul class="ways__list">
       <li class="way card">
         <h3 class="way__title">Against the computer</h3>
-        <p>Play a full match against the computer.</p>
+        <p>Play a full match against the computer, from Kid to Pro, in one of seven scenes: a park, a beach, a campsite at night, a neon floor, a Minnesota winter, a tournament, or the Playdate’s black and white.</p>
         <p class="way__go"><a class="button" href="/p/?solo=1" data-pitch="?solo=1">Play the computer</a></p>
       </li>
       <li class="way card">

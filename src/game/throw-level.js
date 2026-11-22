@@ -24,9 +24,14 @@
 // when it has none yet.
 
 export const LEVEL_CHOICES = ["beginner", "club", "pro"];
+// The computer's levels: Kid first since engine 0.15 (a Kid match: the engine's
+// docs/notes/kid-mode.md), then the three. Kid is the computer's only, never a
+// person's own level.
+export const COMPUTER_CHOICES = ["kid", ...LEVEL_CHOICES];
 export const FALLBACK = "club";
 
 const known = (v) => LEVEL_CHOICES.includes(v);
+const knownComputer = (v) => COMPUTER_CHOICES.includes(v);
 
 // The device's level, moved from the older values when needed and stored.
 // prefs: { get(key, fallback), set(key, value) } (src/game/prefs.js).
@@ -39,11 +44,12 @@ export function loadThrowLevel(prefs) {
   return v;
 }
 
-// The solo card's saved options with `computer`, moved from its older `level`
-// (which then goes: the card no longer sets the player's level).
+// The solo card's saved options with `computer` (a kept "kid" stays Kid), moved from
+// its older `level` (which then goes: the card no longer sets the player's level).
 export function soloOptions(saved) {
   const o = { ...(saved || {}) };
-  if (!known(o.computer)) o.computer = known(o.level) ? o.level : FALLBACK;
+  if (!knownComputer(o.computer))
+    o.computer = known(o.level) ? o.level : FALLBACK;
   delete o.level;
   return o;
 }
