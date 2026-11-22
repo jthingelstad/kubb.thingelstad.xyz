@@ -106,28 +106,28 @@ test("the engine's golden corpus, every hash, under this wasmoon", async () => {
   const played = [];
   for (const { dir, version } of carried)
     played.push([version, await playGolden(dir)]);
-  // 0.16.0's corpus: 19 matches, 724 actions. The site carries the newest engine
-  // alone (docs/ENGINES.md): 0.15 was dropped with the move to 0.16.
-  assert.deepEqual(played, [[manifest.version, 724]]);
+  // 0.18.0's corpus: 21 matches, 854 actions. The site carries the newest engine
+  // alone (docs/ENGINES.md): 0.16 was dropped with the move to 0.18 (the web never carried 0.17).
+  assert.deepEqual(played, [[manifest.version, 854]]);
 });
 
 test("with two engines carried, each plays its own corpus", async (t) => {
   // stand-ins of the newest, numbered from it on: a corpus is never newer than its engine
-  const repo = makeEngineRepo(["0.16.0", "0.17.0"]);
+  const repo = makeEngineRepo(["0.18.0", "0.19.0"]);
   const root = makeVendorRoot();
   t.after(() => {
     repo.clean();
     root.clean();
   });
-  sync({ root: root.dir, repo: repo.dir, tag: "v0.16.0" });
-  sync({ root: root.dir, repo: repo.dir, tag: "v0.17.0", keep: true });
+  sync({ root: root.dir, repo: repo.dir, tag: "v0.18.0" });
+  sync({ root: root.dir, repo: repo.dir, tag: "v0.19.0", keep: true });
   const carried = carriedEngines(path.join(root.dir, "vendor"));
   assert.deepEqual(
     carried.map((e) => e.version),
-    ["0.17.0", "0.16.0"],
+    ["0.19.0", "0.18.0"],
   );
   // both trees are copies of the newest's (tests/engine/engine-fixture.mjs)
-  for (const { dir } of carried) assert.equal(await playGolden(dir), 724);
+  for (const { dir } of carried) assert.equal(await playGolden(dir), 854);
 });
 
 test("wasmoon is exactly 1.16.0, the engine's reference platform", () => {
