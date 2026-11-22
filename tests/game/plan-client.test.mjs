@@ -147,6 +147,13 @@ browserTest(
       await nextFrame(page);
       const t2 = (await state(page)).plan.tilt;
       assert.ok(Math.abs(t2 - (tilt + 1)) < 1e-6, `${tilt} -> ${t2}`);
+      // Home and End: the range's ends, as a slider's keys are (QA, 2026-11-22)
+      await page.keyboard.press("Home");
+      await nextFrame(page);
+      assert.equal((await state(page)).plan.tilt, -20);
+      await page.keyboard.press("End");
+      await nextFrame(page);
+      assert.equal((await state(page)).plan.tilt, 20);
       assert.deepEqual(page.errors, []);
     } finally {
       await page.context().close();

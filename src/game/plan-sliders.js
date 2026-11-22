@@ -171,7 +171,7 @@ export function leanOf(plan) {
 // "down", "move" or "up" and f the place on the track (0..1, bottom to top
 // or left to right), or "cancel" when the hold ends without a release;
 // onKey(what, step, fine) for the arrow keys (fine: an arrow, a tick where the
-// engine has ticks; PageUp and PageDown a step).
+// engine has ticks; PageUp and PageDown a step; Home and End the range's ends).
 export class PlanSlider {
   constructor(what, { onSlide, onKey }) {
     this.what = what;
@@ -286,6 +286,15 @@ export class PlanSlider {
     this.el.addEventListener("keydown", (e) => {
       const up = this.vertical ? "ArrowUp" : "ArrowRight";
       const down = this.vertical ? "ArrowDown" : "ArrowLeft";
+      // Home and End: the ends of its range, as a slider's keys are
+      if (e.code === "Home" || e.code === "End") {
+        e.preventDefault();
+        e.stopPropagation();
+        const f = e.code === "Home" ? 0 : 1;
+        if (this.onSlide(this.what, f, "down") !== false)
+          this.onSlide(this.what, f, "up");
+        return;
+      }
       let step = 0;
       if (e.code === up || e.code === "PageUp") step = 1;
       else if (e.code === down || e.code === "PageDown") step = -1;
