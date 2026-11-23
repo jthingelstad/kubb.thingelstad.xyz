@@ -129,30 +129,45 @@ test("frontOf and engineOf: the program and the engine's major.minor", () => {
   assert.equal(engineOf(1), null);
 });
 
+// A start as the web sends it (src/net/pitch.js): the setup is the engine's match
+// options, `players` each side as seated (a computer player marked `cpu`, with its
+// level), `cpu` a side nobody is on.
 const SETUP = {
   scene: "night",
   opening: "2-4-6",
   raising: "hand",
   wind: "none",
+  // the match's own computer level: there even when no computer takes it
+  computer: "club",
   teams: {
     A: {
       name: "Mighty Maple",
-      players: [{ name: "Bold Birch" }, { name: "Calm Cedar", level: "pro" }],
+      players: [
+        { name: "Bold Birch", key: "m-1", level: "club" },
+        { name: "Calm Cedar", key: "cpu:1", level: "pro", cpu: true },
+      ],
     },
-    B: { name: "Lucky Larch", players: [{ name: "Lucky Larch" }] },
+    B: {
+      name: "Lucky Larch",
+      players: [{ name: "Lucky Larch", key: "m-2", level: "club" }],
+    },
   },
+};
+const PLAYERS = {
+  A: [
+    { id: "m-1", name: "Bold Birch" },
+    { id: "cpu:1", name: "Calm Cedar", cpu: true, level: "pro" },
+  ],
+  B: [{ id: "m-2", name: "Lucky Larch" }],
 };
 
 test("startFacts: a match's start, with its people and computers counted and no name", () => {
   const facts = startFacts(
-    {
-      v: 1,
-      setup: SETUP,
-      engine: "1.0.0",
-      players: { A: ["m-1"], B: ["m-2"] },
-    },
+    { v: 1, setup: SETUP, engine: "1.0.0", players: PLAYERS, cpu: null },
     2,
   );
+  // two people and one computer player: the computer is not a person, and its level
+  // is its own, not the match's (which no computer here takes)
   assert.deepEqual(facts, {
     engine: "1.0",
     scene: "night",
@@ -165,7 +180,7 @@ test("startFacts: a match's start, with its people and computers counted and no 
     rematch: true,
   });
   const line = JSON.stringify(productLine("match-start", facts));
-  for (const word of ["Maple", "Birch", "Cedar", "Larch", "m-1", "m-2"])
+  for (const word of ["Maple", "Birch", "Cedar", "Larch", "m-1", "m-2", "cpu:"])
     assert.ok(!line.includes(word), word);
   // a start with nothing readable in it is still a line, with what could be read
   assert.deepEqual(productLine("match-start", startFacts(null, null)), {
@@ -175,13 +190,62 @@ test("startFacts: a match's start, with its people and computers counted and no 
     people: 0,
     computers: 0,
   });
-  // computers at two levels: no one level to name
-  const mixed = structuredClone(SETUP);
-  mixed.teams.B.players = [{ name: "Lucky Larch", level: "club" }];
-  assert.equal(
-    startFacts({ setup: mixed, players: { A: ["m-1"], B: [] } }, 1).level,
-    null,
+});
+
+test("startFacts: the level is the computers that play, wherever they sit", () => {
+  const level = (meta) => {
+    const f = startFacts({ setup: SETUP, players: PLAYERS, ...meta }, 1);
+    return [f.people, f.computers, f.level];
+  };
+  // people only: no computer, so no level, whatever the match's own says
+  assert.deepEqual(
+    level({ players: { A: [{ id: "m-1" }], B: [{ id: "m-2" }] } }),
+    [2, 0, null],
   );
+  // one person against the side nobody is on: the match's computer plays it
+  const alone = { players: { A: [{ id: "m-1" }], B: [] }, cpu: "B" };
+  assert.deepEqual(level(alone), [1, 1, "club"]);
+  assert.deepEqual(level({ ...alone, setup: { ...SETUP, computer: "pro" } }), [
+    1,
+    1,
+    "pro",
+  ]);
+  // a match that names no level plays at the engine's default
+  assert.deepEqual(
+    level({ ...alone, setup: { ...SETUP, computer: undefined } }),
+    [1, 1, "club"],
+  );
+  // computer players seated before a person, at two levels
+  const two = {
+    A: [
+      { id: "cpu:2", cpu: true, level: "beginner" },
+      { id: "m-1" },
+      { id: "cpu:1", cpu: true, level: "pro" },
+    ],
+    B: [{ id: "m-2" }],
+  };
+  assert.deepEqual(level({ players: two }), [2, 2, "mixed"]);
+  // a computer player and the computer's own side, both at Pro
+  assert.deepEqual(
+    level({
+      players: { A: PLAYERS.A, B: [] },
+      cpu: "B",
+      setup: { ...SETUP, computer: "pro" },
+    }),
+    [1, 2, "pro"],
+  );
+  // and at Pro and Club
+  assert.deepEqual(level({ players: { A: PLAYERS.A, B: [] }, cpu: "B" }), [
+    1,
+    2,
+    "mixed",
+  ]);
+  // the Kid computer is the match's: every computer in it is Kid
+  assert.deepEqual(level({ setup: { ...SETUP, computer: "kid" } }), [
+    2,
+    1,
+    "kid",
+  ]);
 });
 
 test("overFacts and gameFacts: how long, how it ended, who won as player or computer", () => {
