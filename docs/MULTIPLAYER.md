@@ -46,7 +46,7 @@ screen; JOIN THE GAME then only closes the card.
 Arriving on the link joins the pitch (`config.pitchUrl`, `/ws?pitch=<code>`) under this
 browser's member id (`kubb.member` in localStorage) as a `player` with
 `me = { name, level, engine, engines }`. `engine` is the
-vendored engine's major.minor (`"0.3"`), read from `room.constants`. The lobby card shows:
+vendored engine's major.minor (`"1.0"`), read from `pitch.constants`. The lobby card shows:
 
 - **You are**: your name, this device's generated name (`kubb:name`), and SHUFFLE on one
   line (the name row, docs/CLIENT.md "Names"): a pick here or in MENU's Settings is kept
@@ -60,7 +60,7 @@ vendored engine's major.minor (`"0.3"`), read from `room.constants`. The lobby c
   (the name and SHUFFLE). JOIN A, JOIN B, or WATCH INSTEAD (quiet) to sit out; the
   host's ADD COMPUTER under each. An empty side (nobody and no computer seat) says "The
   computer plays this side." when the other has someone.
-- **Watching**: everyone in the room on neither team.
+- **Watching**: everyone on the pitch on neither team.
 - **SHARE THE LINK**: `navigator.share` where there is one, else the clipboard.
 - **Who can join**: Invite only ("Only people with the link can join.", the default) or
   Open ("Listed under Open games on the web game’s page: anyone can join."; that list is on the landing page, `/#play`, since the 1.0 design). The host picks;
@@ -135,20 +135,22 @@ docs/SYSTEM.md "Computer seats".
 One shared lobby document per pitch, written with compare-and-set (`set {v, doc}`: the
 server takes it only at the version this browser read; `PitchClient.update(fn)` runs `fn`
 again on the newer document when another write landed first). Only the reducers in
-kubb-engine's `room/lobby.lua` write it, through `src/net/lobby.js`:
+kubb-engine's `pitch/lobby.lua` write it, through `src/net/lobby.js`:
 
 ```js
 {
   v: 1,
-  teams:    { A: [memberId, ...], B: [...] },  // throwing order, 0 to 6 each
+  teams:    { A: [memberId | seatId, ...], B: [...] },  // throwing order, 0 to 6 each
+  computers: { seatId: { level, name } },      // engine 0.17: only while a seat exists
+  teamNames: { A, B },                         // the host's team names (setTeamName)
   options:  { surface, opening, raising, wind, set },
-  settings: { level, scene },                  // engine 0.9: the computer's level, the scene
+  settings: { computer, scene },               // engine 0.9: the computer's level, the scene
   open:     false | true,                      // listed under Open games
   started:  false | true,
   n:        0,                                 // matches started on this pitch
   match:    null | {                           // the header only
     n,                                         // this match's number
-    players: { A: [{ id, name }], B: [...] },  // frozen at START
+    players: { A: [{ id, name, cpu?, level? }], B: [...] },  // frozen at START
     cpu:     "A" | "B" | null,                 // the computer's side
     host,                                      // who started it
     engine,                                    // the match's engine, major.minor ("0.9")
@@ -196,8 +198,8 @@ each name checked ("Names" below); a side of several plays under the document's
 `teamNames` (rolled now if missing), a side of one under its player's name; an empty
 side is the computer. The host's browser makes the match (`engine.newMatch` with
 a random seed, each player's `key` = their member id) on the room's engine
-(`docs/ENGINES.md` "Playing together": that engine's `room.startCheck` and
-`room.startMatch` receive the current members as `room.speakAs` gives them), then sends
+(`docs/ENGINES.md` "Playing together": that engine's `pitch.startCheck` and
+`pitch.startMatch` receive the current members as `pitch.speakAs` gives them), then sends
 one `start { v, doc, n, h, snap, meta }`: the document with `started: true`, `n + 1` and
 the header, and beside it the snapshot, its hash and `meta`. The server takes it only at
 `v` (a write that crossed it means another try from the top, at most three). Team A
@@ -234,8 +236,8 @@ never changed.
 
 ## Engines
 
-Room reducers, seat decisions and sync decisions are kubb-engine's `room.*`
-calls over the same JSON bridge as the session (`kubbCall`). The engine's `docs/ROOM.md`
+Room reducers, seat decisions and sync decisions are kubb-engine's `pitch.*`
+calls over the same JSON bridge as the session (`kubbCall`). The engine's `docs/PITCH.md`
 is their API; its 8,851 recorded vector steps cover the rules. There is no second
 JavaScript implementation. `useRoomEngine` reads the newest engine's constants once
 during boot; tools that use these wrappers initialize it too. A page can carry older
@@ -252,7 +254,7 @@ checks the host and seated players. When they share no engine the lobby says who
 what to do and START is off. A running match must also name its engine, and is played
 only on it. Equal major.minor versions can play across patch releases.
 
-Before taking control of a running match, every member calls `room.mayPlay`, including
+Before taking control of a running match, every member calls `pitch.mayPlay`, including
 watchers who could become host and run the computer. A refusal gives no team or CPU
 control and hides the player's resignation action. The house-style card says:
 
@@ -333,7 +335,7 @@ did is lost or doubled:
 
 ## Who acts
 
-`room.*` seat calls through `src/net/seats.js`, from the match's players, the computer's
+`pitch.*` seat calls through `src/net/seats.js`, from the match's players, the computer's
 side, the room's host and who is connected now (`ctx.connected` is an array of ids):
 
 - **A throw** is for the member whose player the engine names (`need.setup.thrower.key`).
@@ -396,9 +398,10 @@ clears when they are back; RECONNECTING, a browser's own drop, comes first.
   top of the pitch, not a modal: no dimming, the thrower's dial drawn under it, closing
   itself after 2.5 s. It says the same as the card does (whose turn, the one line, WATCH).
 - **Pace** (`src/game/pacing.js`, one tune): the pitch rests 0.8 s after a throw lands
-  (`restAfterThrow`) and an automatic raise waits 0.7 s per kubb (`autoRaiseWait`). These
-  are the values from before the pitch server, and online play keeps them (the owner,
-  2026-11-21).
+  (`restAfterThrow`) and an automatic raise's first kubb lies 0.4 s (`autoRaiseWait`),
+  then each is watched for half a second, 4 s at most (`src/game/lift.js` `liftPace`;
+  0.7 s a kubb before web 0.17.0, when raises were not watched). The rest is the value
+  from before the pitch server, and online play keeps it (the owner, 2026-11-21).
 - **Shouts**: SHOUT opens NICE!, OOH!, TOK!, UNLUCKY; each is a cast `{ t: "shout", w }`
   with `all: true`, so the observer feed's thinning never drops it (at most one each
   0.7 s from a browser) and shows for 2.6 s under the rail as the
@@ -466,7 +469,8 @@ keep these the same, or the two disagree on screen:
   the watcher's offset (smallest `arrival - ts` over 40), 100 ms behind, the straight
   lines and the arm's short way, never across `seq` or a sender, a throw held at most
   250 ms for its aim.
-- Pace: 0.8 s rest after a throw, 0.7 s per automatic raise, until the owner decides.
+- Pace: 0.8 s rest after a throw; an automatic raise's first kubb 0.4 s, then half a
+  second a kubb, 4 s at most.
 
 ## Tests
 

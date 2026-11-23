@@ -46,6 +46,7 @@ Plain variables (`env` in `cloudflare.config.ts`, `vars` in `wrangler.jsonc`;
 | `PUSH_URL`               | the AWS receiver; unset, nothing is pushed and the outbox waits                    |
 | `COMMIT_ORDER`           | `relay-first` (the core's default) or `write-first`                                |
 | `DEV_WRITE_FIRST_PREFIX` | dev only: codes starting with it run write first, to compare the two on one deploy |
+| `PUSH_DEV`               | dev only: `1` marks every push `dev: true` ("The AWS receiver", below)             |
 | `UNKNOWN_PITCH`          | `open` (default) or `refuse`                                                       |
 | `OBSERVERS_MAX`          | the cap on observers a pitch (the core's default is 20)                            |
 
@@ -133,8 +134,8 @@ Roll back by deploying the previous commit.
 
 ## Operate
 
-- Logs: observability is off in dev. `npx wrangler tail throwingwood-pitches-dev` shows
-  live logs if needed.
+- Logs: observability is off on both Workers. `npx wrangler tail throwingwood-pitches-dev`
+  shows live logs if needed.
 - A stuck pitch: read `/dev/pitch`, then wipe it if it must go.
 - The outbox: `outbox` and `retrying` in `/dev/pitch`. A pitch with pending pushes is
   never idle-wiped, so with no receiver every played pitch stays.
