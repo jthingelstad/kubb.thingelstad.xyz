@@ -36,6 +36,7 @@ import {
   reelPaths,
   tagEngine,
 } from "./tag.mjs";
+import { logLine } from "../log.mjs";
 import { carriedLookup } from "./carried.mjs";
 import { REEL_EMPTY } from "./highlights.mjs";
 
@@ -64,14 +65,22 @@ export async function runReel({
   engines, // REEL_ENGINES, parsed: ["0.7"]
   tmp = os.tmpdir(),
   now = Date.now,
-  log = (entry) => console.log(JSON.stringify(entry)),
+  log = logLine,
 }) {
   const { room, v, tag } = input ?? {};
   const lookup = carriedLookup({ carried, engine, sources });
   // the engine the tag names, when this renderer carries it
   const own = REEL_TAG.test(tag ?? "") ? lookup(tagEngine(tag)) : null;
   const say = (step, extra = {}) =>
-    log({ reel: room, v, tag, engine: own?.engine ?? null, step, ...extra });
+    log({
+      event: "reel",
+      reel: room,
+      v,
+      tag,
+      engine: own?.engine ?? null,
+      step,
+      ...extra,
+    });
   if (
     typeof room !== "string" ||
     !ROOM_CODE.test(room) ||

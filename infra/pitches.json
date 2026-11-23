@@ -236,7 +236,7 @@
         },
         "LoggingConfig": {
           "LogGroup": { "Ref": "ApiLogGroup" },
-          "LogFormat": "Text"
+          "LogFormat": "JSON"
         },
         "Environment": {
           "Variables": {

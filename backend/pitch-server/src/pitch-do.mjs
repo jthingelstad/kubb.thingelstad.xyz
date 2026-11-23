@@ -26,6 +26,7 @@
 // and the lobby call are held until the change they report is durable.
 import { DurableObject } from "cloudflare:workers";
 import { PITCH_CODE, rebuildPitch, step } from "../core.mjs";
+import { say, short } from "./log.mjs";
 import { PUSH, pushRequest, retryDelay } from "./push.mjs";
 
 // Five small records as JSON (pitch, doc, members, match, head), the current match's
@@ -167,6 +168,7 @@ export class PitchDO extends DurableObject {
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({ conn, member: null, role: null, code });
     this.sockets.set(conn, server);
+    say(this.env, "join", { pitch: code, sockets: this.sockets.size });
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -198,6 +200,10 @@ export class PitchDO extends DurableObject {
     const at = ws.deserializeAttachment();
     if (!at?.conn) return;
     this.sockets.delete(at.conn);
+    say(this.env, "leave", {
+      pitch: this.code ?? at.code ?? null,
+      sockets: this.sockets.size,
+    });
     if (this.state) this.handle({ type: "close", conn: at.conn });
   }
 
@@ -375,6 +381,14 @@ export class PitchDO extends DurableObject {
     // A push from an earlier life of this code (wiped since) confirms nothing now.
     if (!this.state || e.made !== this.made) return;
     if (status >= 200 && status < 300) {
+      const failed = this.retry.get(e.k)?.tries ?? 0;
+      if (failed > 0)
+        say(this.env, "push-recovered", {
+          pitch: this.code,
+          k: e.k,
+          topic: e.topic,
+          tries: failed,
+        });
       this.retry.delete(e.k);
       this.handle({ type: "pushed", k: e.k });
       this.syncAlarm();
@@ -393,8 +407,16 @@ export class PitchDO extends DurableObject {
       due,
       e.k,
     );
+    // the first failure and every tenth after it: a receiver that is down is one line a
+    // push, not one a try
     if (tries === 1 || tries % 10 === 0)
-      console.warn(`push ${e.k} failed (${status}), try ${tries}`);
+      say(this.env, "push-failed", {
+        pitch: this.code,
+        k: e.k,
+        topic: e.topic,
+        status, // 0: no answer in time
+        tries,
+      });
     this.syncAlarm();
   }
 
@@ -412,7 +434,9 @@ export class PitchDO extends DurableObject {
       at === null
         ? this.ctx.storage.deleteAlarm()
         : this.ctx.storage.setAlarm(at);
-    p?.catch?.((err) => console.error("alarm", err?.message));
+    p?.catch?.((err) =>
+      say(this.env, "alarm-failed", { pitch: this.code, message: short(err) }),
+    );
   }
 
   listing(e) {
@@ -424,13 +448,19 @@ export class PitchDO extends DurableObject {
         at: this.clock(),
         seq: this.listSeq++,
       })
-      .catch((err) => console.warn("listing", err?.message));
+      .catch((err) =>
+        say(this.env, "listing-failed", {
+          pitch: e.pitch,
+          message: short(err),
+        }),
+      );
     this.ctx.waitUntil?.(p);
   }
 
   // The pitch is new again: every row and the alarm go. The tables are made again once
   // deleteAll is done; events wait for it.
   wipe() {
+    say(this.env, "wipe", { pitch: this.code });
     this.retry.clear();
     this.made = null;
     this.coreAlarm = null;

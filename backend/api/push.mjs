@@ -48,7 +48,7 @@ const isHash = (h) =>
   (typeof h === "number" && Number.isFinite(h));
 
 // The envelope, checked against its own key and the idempotency-key header. Returns
-// { pitch, made, k, topic, body } with `body` checked for its topic. Throws a
+// { pitch, made, k, topic, dev, sent, body } with `body` checked for its topic. Throws a
 // bad-message ApiError: a signed push this function cannot read is a bug in one of the
 // two, and the pitch keeps retrying it until a fixed receiver takes it.
 export function readPush(text, idempotencyKey, limits = LIMITS) {
@@ -60,6 +60,8 @@ export function readPush(text, idempotencyKey, limits = LIMITS) {
   }
   if (!isObject(env) || env.v !== 1) bad("A push is { v: 1, ... }.");
   const { pitch, made, k, topic, body } = env;
+  // when the pitch sent this attempt: only for the log's delay figures
+  const sent = int(env.sent, 1) ? env.sent : null;
   // the dev Worker marks everything it pushes (`dev: true`): kept apart, never as play
   // (API.md "Dev pushes"); a production push has no such field
   if (env.dev !== undefined && env.dev !== true)
@@ -79,7 +81,7 @@ export function readPush(text, idempotencyKey, limits = LIMITS) {
     const host = body.host ?? null;
     if (host !== null && (typeof host !== "string" || host.length > 40))
       bad("`body.host` must be a name or null.");
-    return { pitch, made, k, topic, dev, body: { pitch, host } };
+    return { pitch, made, k, topic, dev, sent, body: { pitch, host } };
   }
   if (!int(body.n, 1)) bad("`body.n` must be the match number.");
   if (topic === "start") {
@@ -94,6 +96,7 @@ export function readPush(text, idempotencyKey, limits = LIMITS) {
       k,
       topic,
       dev,
+      sent,
       body: { ...body, meta: body.meta ?? {} },
     };
   }
@@ -104,7 +107,7 @@ export function readPush(text, idempotencyKey, limits = LIMITS) {
     if (!isObject(body.a)) bad("`body.a` must be the action.");
     if (!isHash(body.h)) bad("`body.h` must be the hash after the action.");
     checkSnap(body.snap, limits);
-    return { pitch, made, k, topic, dev, body };
+    return { pitch, made, k, topic, dev, sent, body };
   }
   if (topic === "keep") {
     if (k !== `keep:${body.n}`) bad("A keep's key is keep:<n>.");
@@ -122,6 +125,7 @@ export function readPush(text, idempotencyKey, limits = LIMITS) {
       k,
       topic,
       dev,
+      sent,
       body: { ...body, meta: body.meta ?? {} },
     };
   }

@@ -19,6 +19,7 @@ import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { S3Client } from "@aws-sdk/client-s3";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
+import { logLine } from "../log.mjs";
 import { reelStore, s3Uploader } from "./aws.mjs";
 import { carriedLookup } from "./carried.mjs";
 import { checkShare } from "./check.mjs";
@@ -81,23 +82,22 @@ export async function checkHandler(
     engine,
     engines,
   });
-  console.log(
-    JSON.stringify({
-      check: out.ok ? "ok" : out.why,
-      step: out.ok ? null : out.step,
-      // the engine it was checked on, or null when it was none this function carries
-      engine:
-        carriedLookup({ carried, engine, sources })(
-          majorMinor(event.check?.engine),
-        )?.engine ?? null,
-      played:
-        typeof event.check?.engine === "string"
-          ? event.check.engine.slice(0, 64)
-          : null,
-      actions: Array.isArray(event.check?.log) ? event.check.log.length : null,
-      ms: Date.now() - t0,
-    }),
-  );
+  logLine({
+    event: "check",
+    check: out.ok ? "ok" : out.why,
+    step: out.ok ? null : out.step,
+    // the engine it was checked on, or null when it was none this function carries
+    engine:
+      carriedLookup({ carried, engine, sources })(
+        majorMinor(event.check?.engine),
+      )?.engine ?? null,
+    played:
+      typeof event.check?.engine === "string"
+        ? event.check.engine.slice(0, 64)
+        : null,
+    actions: Array.isArray(event.check?.log) ? event.check.log.length : null,
+    ms: Date.now() - t0,
+  });
   return out;
 }
 

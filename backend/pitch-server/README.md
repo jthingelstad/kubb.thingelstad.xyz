@@ -48,6 +48,7 @@ Plain variables (`env` in `cloudflare.config.ts`, `vars` in `wrangler.jsonc`;
 | `DEV_WRITE_FIRST_PREFIX` | dev only: codes starting with it run write first, to compare the two on one deploy |
 | `PUSH_DEV`               | dev only: `1` marks every push `dev: true` ("The AWS receiver", below)             |
 | `UNKNOWN_PITCH`          | `open` (default) or `refuse`                                                       |
+| `LOG`                    | `1` on both deployed Workers: the everyday log lines are written ("Operate")       |
 | `OBSERVERS_MAX`          | the cap on observers a pitch (the core's default is 20)                            |
 
 Secrets (`cf deploy --secrets-file .dev.vars`; `.dev.vars` is gitignored and is also
@@ -134,8 +135,29 @@ Roll back by deploying the previous commit.
 
 ## Operate
 
-- Logs: observability is off on both Workers. `npx wrangler tail throwingwood-pitches-dev`
-  shows live logs if needed.
+- Logs: Workers Logs is on for both Workers (`observability` in `cloudflare.config.ts`),
+  with the automatic line for every request turned off (`invocationLogs: false`): that
+  would be a line a socket message, each with a pitch link's code in its URL. What is
+  kept is what the code writes (`src/log.mjs`), one object a line, so every field can be
+  filtered on in the dashboard's Workers Logs (Query Builder: `event = "push-failed"`):
+
+  | `event`          | When                                                   | Fields                                                  |
+  | ---------------- | ------------------------------------------------------ | ------------------------------------------------------- |
+  | `join`, `leave`  | a socket opened or closed on a pitch                   | `pitch`, `sockets` (on it now)                          |
+  | `refused`        | the Worker refused a connection (426, 400, 403)        | `status`, `why` (`upgrade`, `code`, `origin`)           |
+  | `wipe`           | a pitch was wiped (idle 48 hours, or the dev op)       | `pitch`                                                 |
+  | `push-failed`    | AWS did not take a push: the first try and every tenth | `pitch`, `k`, `topic`, `status` (0: no answer), `tries` |
+  | `push-recovered` | a push got through after failing                       | `pitch`, `k`, `topic`, `tries`                          |
+  | `listing-failed` | the open games list did not take a report              | `pitch`, `message`                                      |
+  | `alarm-failed`   | the alarm could not be set or cleared                  | `pitch`, `message`                                      |
+
+  The three failures are always written; the rest only where `LOG` is `1` (both deployed
+  Workers; not `wrangler dev` or the tests). Nothing is written on the relay path, and no
+  line has a name, a member id or a frame. `npx wrangler tail throwingwood-pitches` shows
+  them live. Cloudflare keeps them 3 days on the free plan, 7 on the paid one; they are
+  not in AWS. What AWS sees of the pitch server is its pushes: how late each came and
+  each one refused (`backend/api/API.md` "Logs").
+
 - A stuck pitch: read `/dev/pitch`, then wipe it if it must go.
 - The outbox: `outbox` and `retrying` in `/dev/pitch`. A pitch with pending pushes is
   never idle-wiped, so with no receiver every played pitch stays.

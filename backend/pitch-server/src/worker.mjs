@@ -8,6 +8,7 @@
 //   GET|POST /dev/pitch?pitch=   dev only: a pitch's stats, or ?op=wipe (needs DEV_KEY)
 import { PITCH_CODE } from "../core.mjs";
 import { corsHeaders, parseOrigins, sameKey, socketOriginOk } from "./http.mjs";
+import { say } from "./log.mjs";
 
 export { PitchDO } from "./pitch-do.mjs";
 export { LobbyDO } from "./lobby-do.mjs";
@@ -55,11 +56,17 @@ function admit(request, url, env) {
 }
 
 async function socket(request, url, env, origin, allowed) {
+  // A refusal is logged by its reason alone: never the code or the origin that was sent.
+  const refuse = (status, why, body) => {
+    say(env, "refused", { status, why });
+    return text(body, status);
+  };
   if ((request.headers.get("Upgrade") ?? "").toLowerCase() !== "websocket")
-    return text("expected a websocket", 426);
+    return refuse(426, "upgrade", "expected a websocket");
   const code = url.searchParams.get("pitch") ?? "";
-  if (!PITCH_CODE.test(code)) return text("not a pitch code", 400);
-  if (!socketOriginOk(origin, allowed)) return text("origin not allowed", 403);
+  if (!PITCH_CODE.test(code)) return refuse(400, "code", "not a pitch code");
+  if (!socketOriginOk(origin, allowed))
+    return refuse(403, "origin", "origin not allowed");
   const refused = admit(request, url, env);
   if (refused) return refused;
   return env.PITCH.get(env.PITCH.idFromName(code)).fetch(request);

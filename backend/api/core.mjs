@@ -32,6 +32,11 @@
 //
 // handle({ method, path, query, headers, body }) -> { status, headers, body }
 // `body` is the raw request body as a Buffer; headers are lower case.
+//
+// What it logs is API.md "Logs": a `request` line for every request (its route, status,
+// time and, refused, the refusal's code), a `push` line for every push taken, an `error`
+// line where something failed, and the `product` lines of product.mjs, which never say
+// who.
 
 import {
   ApiError,
@@ -55,6 +60,15 @@ import {
   signatureValid,
   statePush,
 } from "./push.mjs";
+import {
+  engineOf,
+  frontOf,
+  gameFacts,
+  overFacts,
+  productLine,
+  startFacts,
+} from "./product.mjs";
+import { logLine } from "../log.mjs";
 import { REEL_TRIES, majorMinor, reelJob, reelTag } from "../reels/tag.mjs";
 
 // The renderer could not take a share's check in time: answered `why: "busy"`.
@@ -84,9 +98,45 @@ export function createApi({
   limits = LIMITS,
   now = Date.now,
   random = Math.random,
-  log = (entry) => console.log(JSON.stringify(entry)),
+  log = logLine,
 }) {
   const expiry = (s) => Math.floor(now() / 1000) + s;
+  // a product line: only what product.mjs lets through
+  const did = (action, fields) => {
+    const line = productLine(action, fields);
+    if (line) log(line);
+  };
+  const failed = (where, error) =>
+    log({
+      event: "error",
+      error: where,
+      name: error?.name,
+      message: error?.message,
+    });
+  // how late a push is, in ms: `lag` since the pitch sent this attempt, `wait` from the
+  // moment it describes to that attempt (its time in the pitch's outbox, retries and all)
+  const pushLine = (p, fields) => {
+    const t = now();
+    // when the thing itself happened: a match's end, a pitch's making, else the push's ts
+    const at =
+      p.topic === "keep" ? p.body.at : p.topic === "open" ? p.made : p.body.ts;
+    return {
+      event: "push",
+      push: p.k,
+      topic: p.topic,
+      pitch: p.pitch,
+      made: p.made,
+      ...(Number.isSafeInteger(p.sent)
+        ? {
+            lag: Math.max(0, t - p.sent),
+            ...(Number.isSafeInteger(at)
+              ? { wait: Math.max(0, p.sent - at) }
+              : {}),
+          }
+        : {}),
+      ...fields,
+    };
+  };
 
   // ---------- pushes ----------
 
@@ -119,7 +169,7 @@ export function createApi({
           throw new ApiError("unavailable", "Pushes are not recorded here.");
         recorded = await recordPush({ key: pushKey(p), raw });
       } else recorded = "skipped";
-      log({ push: p.k, pitch: p.pitch, made: p.made, dev: true, recorded });
+      log(pushLine(p, { dev: true, recorded }));
       return json(200, {
         ok: true,
         ...(recorded === "had" ? { duplicate: true } : {}),
@@ -134,11 +184,15 @@ export function createApi({
       }))
         ? "kept"
         : "had";
+      if (recorded === "kept") did("pitch-open");
     } else if (p.topic !== "keep") {
       if (!recordPush)
         throw new ApiError("unavailable", "Pushes are not recorded here.");
       recorded = await recordPush({ key: pushKey(p), raw });
       await foldState(p);
+      // counted once, the first time the start is kept, whatever is retried after
+      if (p.topic === "start" && recorded === "kept")
+        did("match-start", startFacts(p.body.meta, p.body.n));
       if (p.topic === "act" && p.body.over === true)
         await store.putFinal(p.pitch, {
           made: p.made,
@@ -150,7 +204,7 @@ export function createApi({
       const kept = keptReplay(p.body, limits);
       if (kept.why) {
         // never keepable: taken, so the pitch stops sending it
-        log({ push: p.k, pitch: p.pitch, kept: false, why: kept.why });
+        log(pushLine(p, { kept: false, why: kept.why }));
         return json(200, { ok: true, kept: false, why: kept.why });
       }
       recorded = (await store.putKept(p.pitch, {
@@ -165,8 +219,9 @@ export function createApi({
       }))
         ? "kept"
         : "had";
+      if (recorded === "kept") did("match-over", overFacts(p.body));
     }
-    log({ push: p.k, pitch: p.pitch, made: p.made, recorded });
+    log(pushLine(p, { recorded }));
     return json(200, {
       ok: true,
       ...(recorded === "had" ? { duplicate: true } : {}),
@@ -198,9 +253,15 @@ export function createApi({
     try {
       await keepReport({ t: now(), report: asciiJson(r) });
     } catch (error) {
-      log({ error: "report", name: error?.name, message: error?.message });
+      failed("report", error);
       throw new ApiError("failed", "The report could not be kept.");
     }
+    did("report", {
+      kind: r.kind,
+      mode: r.mode,
+      front: frontOf(r.client),
+      engine: engineOf(r.engine),
+    });
     return json(200, { ok: true });
   }
 
@@ -211,9 +272,10 @@ export function createApi({
     try {
       await recordGame({ t: now(), game: asciiJson(g) });
     } catch (error) {
-      log({ error: "game", name: error?.name, message: error?.message });
+      failed("game", error);
       throw new ApiError("failed", "The match could not be kept.");
     }
+    did("game", gameFacts(g));
     return json(200, { ok: true });
   }
 
@@ -231,8 +293,9 @@ export function createApi({
     try {
       item = await store.getReplay(code);
     } catch (error) {
-      log({ error: "replay", name: error?.name, message: error?.message });
+      failed("replay", error);
     }
+    did("replay", { outcome: item ? "found" : "none" });
     const head = asciiJson({
       pitch: code,
       v: item?.v ?? 0,
@@ -271,14 +334,21 @@ export function createApi({
     const meant = msg.v;
     if (meant !== undefined && (!Number.isSafeInteger(meant) || meant < 1))
       throw new ApiError("bad-message", "`v` must be a kept replay version.");
-    const answer = (fields) => json(200, { pitch: code, ...fields });
+    // `started` only for the request that began a render: the dashboards count those
+    const answer = (fields, started = false) => {
+      did("reel", {
+        outcome: started ? "started" : (fields.reel?.state ?? "none"),
+        why: fields.why ?? fields.reel?.why,
+      });
+      return json(200, { pitch: code, ...fields });
+    };
     if (!startReel) return answer({ v: 0, reel: null, why: "unavailable" });
     let kept, item;
     try {
       kept = await store.getReplay(code);
       item = kept ? await store.getReel(code) : null;
     } catch (error) {
-      log({ error: "reel read", name: error?.name, message: error?.message });
+      failed("reel read", error);
       throw new ApiError("failed", "The reel could not be read.");
     }
     if (!kept) return answer({ v: 0, reel: null, why: "replay" });
@@ -337,7 +407,7 @@ export function createApi({
         if (!counted) await store.dropReel(code, job, undo);
       }
     } catch (error) {
-      log({ error: "reel write", name: error?.name, message: error?.message });
+      failed("reel write", error);
       if (won && !counted)
         await store.dropReel(code, job, undo).catch(() => {});
       throw new ApiError("failed", "The reel could not be asked for.");
@@ -352,11 +422,14 @@ export function createApi({
     try {
       await startReel({ room: code, v: kept.v, tag });
     } catch (error) {
-      log({ error: "reel start", name: error?.name, message: error?.message });
+      failed("reel start", error);
       await store.dropReel(code, job, undo).catch(() => {});
       throw new ApiError("failed", "The reel could not be started.");
     }
-    return answer({ v: kept.v, reel: { state: "rendering", tag, at: t } });
+    return answer(
+      { v: kept.v, reel: { state: "rendering", tag, at: t } },
+      true,
+    );
   }
 
   // ---------- sharing a match against the computer ----------
@@ -371,8 +444,19 @@ export function createApi({
   }
 
   async function share(req, msg) {
-    const answer = (code, why) =>
-      json(200, { code, v: code ? 1 : 0, ...(why ? { why } : {}) });
+    const tags = {
+      front: frontOf(msg?.g?.client),
+      engine: engineOf(msg?.g?.engine),
+    };
+    // `again`: a match shared before, answered with the code it already has
+    const answer = (code, why, again = false) => {
+      did("share", {
+        ...tags,
+        outcome: code ? (again ? "again" : "shared") : "refused",
+        why,
+      });
+      return json(200, { code, v: code ? 1 : 0, ...(why ? { why } : {}) });
+    };
     const checked = checkShareMessage(msg, req.body.length, limits);
     if (checked.why) return answer(null, checked.why);
     const { g } = checked;
@@ -384,10 +468,11 @@ export function createApi({
     let stale = null;
     try {
       const had = await store.getShare(hash);
-      if (had && (await complete(had.code))) return answer(had.code);
+      if (had && (await complete(had.code)))
+        return answer(had.code, undefined, true);
       stale = had?.code ?? null;
     } catch (error) {
-      log({ error: "share read", name: error?.name, message: error?.message });
+      failed("share read", error);
       throw new ApiError("failed", "The share could not be read.");
     }
     const t = now();
@@ -400,7 +485,7 @@ export function createApi({
         expiry(limits.reelCountTtl),
       );
     } catch (error) {
-      log({ error: "share count", name: error?.name, message: error?.message });
+      failed("share count", error);
       throw new ApiError("failed", "The share could not be counted.");
     }
     if (!counted) return answer(null, "busy");
@@ -411,7 +496,7 @@ export function createApi({
     } catch (error) {
       if (error instanceof ShareBusy || error?.name === "ShareBusy")
         return answer(null, "busy");
-      log({ error: "share check", name: error?.name, message: error?.message });
+      failed("share check", error);
       throw new ApiError("failed", "The match could not be checked.");
     }
     if (!out?.ok) {
@@ -469,7 +554,7 @@ export function createApi({
         { stale },
       );
     } catch (error) {
-      log({ error: "share write", name: error?.name, message: error?.message });
+      failed("share write", error);
       throw new ApiError("failed", "The share could not be kept.");
     }
     if (!kept) {
@@ -481,7 +566,7 @@ export function createApi({
         won = null;
       }
       if (!won) throw new ApiError("failed", "The share could not be kept.");
-      return answer(won.code);
+      return answer(won.code, undefined, true);
     }
     return answer(code);
   }
@@ -496,7 +581,27 @@ export function createApi({
     return { "access-control-allow-origin": origin, vary: "origin" };
   }
 
+  // Every request leaves one `request` line: which call, how it was answered, how long
+  // it took and, refused, the refusal's code. Never the path of a call that is not one
+  // of ours, a query, a header or a body.
   async function handle(req) {
+    const t0 = now();
+    const seen = { route: "other", code: null };
+    const res = await respond(req, seen);
+    log({
+      event: "request",
+      route: seen.route,
+      method: ["GET", "POST", "OPTIONS"].includes(req.method)
+        ? req.method
+        : "other",
+      status: res.status,
+      ms: Math.max(0, now() - t0),
+      ...(seen.code ? { code: seen.code } : {}),
+    });
+    return res;
+  }
+
+  async function respond(req, seen) {
     let extra = {};
     try {
       const path = String(req.path || "/")
@@ -504,6 +609,7 @@ export function createApi({
         .replace(/\/$/, "");
       const want = ROUTES[path];
       if (!want) throw new ApiError("not-found", "There is nothing here.");
+      seen.route = path.slice(1);
       if (path !== "/push") extra = cors(req);
       if (req.method === "OPTIONS" && path !== "/push")
         return {
@@ -537,12 +643,13 @@ export function createApi({
       };
       return withHeaders(await route[path](req, msg), extra);
     } catch (error) {
+      seen.code = error instanceof ApiError ? error.code : "failed";
       if (error instanceof ApiError)
         return withHeaders(
           json(error.status, { error: error.code, message: error.message }),
           error.code === "forbidden" ? {} : extra,
         );
-      log({ error: "unhandled", name: error?.name, message: error?.message });
+      failed("unhandled", error);
       return withHeaders(
         json(500, { error: "failed", message: "Something went wrong." }),
         extra,

@@ -24,14 +24,14 @@ const PUSH_URL =
 const WORKERS = {
   dev: {
     name: "throwingwood-pitches-dev",
-    version: "dev-7",
+    version: "dev-8",
     origins:
       "https://throwingwood.com,https://app.throwingwood.com,http://localhost,http://127.0.0.1",
     dev: true,
   },
   production: {
     name: "throwingwood-pitches",
-    version: "4",
+    version: "5",
     origins: "https://throwingwood.com,https://app.throwingwood.com",
     dev: false,
   },
@@ -51,8 +51,15 @@ export default defineConfig(({ mode }) => {
       entrypoint: "src/worker.mjs",
       workersDev: true,
       previewUrls: false,
+      // Workers Logs: the lines the code writes itself (src/log.mjs), and not the
+      // automatic line for every request, which would be one per socket message and
+      // would carry each pitch link's code in its URL (README.md "Operate").
       observability: {
-        enabled: false,
+        enabled: true,
+        logs: {
+          enabled: true,
+          invocationLogs: false,
+        },
       },
       exports: {
         PitchDO: exports.durableObject({ storage: "sqlite" }),
@@ -62,6 +69,8 @@ export default defineConfig(({ mode }) => {
         VERSION: bindings.text(w.version),
         ALLOWED_ORIGINS: bindings.text(w.origins),
         PUSH_URL: bindings.text(PUSH_URL),
+        // the lines that are not failures are written too (src/log.mjs)
+        LOG: bindings.text("1"),
         // Pitch codes starting with this play write-first, to measure both orders on
         // one deploy. Dev only. And every push the dev Worker makes is marked dev, so the
         // receiver keeps it under games/dev/ and never as real play (backend/api/API.md
