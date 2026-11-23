@@ -1,4 +1,4 @@
-// The pages function's code (backend/pages, docs/HOSTING.md "Pitch pages"):
+// The pages function's code (backend/pages, docs/ROOMS.md "11. Pitch pages"):
 // backend/pages/main.mjs bundled by esbuild to one ESM file, index.js, with the AWS
 // SDK inside it, and beside it package.json (type: module), resvg's WebAssembly
 // and the display face. Zipped the same way every time, and named by a hash of

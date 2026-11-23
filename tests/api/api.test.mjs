@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { test } from "node:test";
-import { gunzipSync, gzipSync } from "node:zlib";
+import { gunzipSync } from "node:zlib";
 import { GetCommand } from "@aws-sdk/lib-dynamodb";
 import { LIMITS, asciiJson, originAllowed } from "../../backend/api/checks.mjs";
 import { ShareBusy, createApi } from "../../backend/api/core.mjs";

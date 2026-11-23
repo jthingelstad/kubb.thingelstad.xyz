@@ -586,7 +586,6 @@ export const soloKept = (saved) =>
 // level" as the iPhone app and the lobby say it (the engine's label is "Computer").
 export const ROW_ORDER = ["surface", "computer", "opening", "raising", "wind"];
 export const ROW_LABEL = { computer: "Computer level" };
-export const SOLO_ROWS = ["scene", ...ROW_ORDER];
 
 // SHARE on the winner card of a finished pitch (the 1.0 design: "one SHARE button
 // that opens link, reel and embed"): the pitch's link with COPY LINK, MAKE A

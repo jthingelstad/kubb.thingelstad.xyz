@@ -173,40 +173,6 @@ async function inStep(pages, ms = 20000) {
   throw new Error(`not in step: ${JSON.stringify(last)}`);
 }
 
-// The reports the api kept, oldest first (backend/api/records.mjs memoryRecords).
-const reportsKept = () =>
-  [...rooms.api.records.kept]
-    .filter(([k]) => k.startsWith("reports/"))
-    .map(([, text]) => JSON.parse(text).report);
-
-// Let whoever throws first throw once; both pages end on the same hash. Returns the
-// match as the pitch server holds it: its meta (the engine it plays) and its actions
-// (each with the client tag it came with).
-async function oneThrowInStep(host, guest, code) {
-  // whoever throws first (the match's opening decides)
-  let first = null;
-  for (let i = 0; i < 300 && !first; i++) {
-    for (const p of [host, guest])
-      if (
-        await p.evaluate(
-          () =>
-            window.__kubb.game.need?.kind === "throw" &&
-            window.__kubb.game.mayAct(),
-        )
-      )
-        first = p;
-    if (!first) await host.waitForTimeout(100);
-  }
-  assert.ok(first, "someone throws");
-  await myThrow(first);
-  await throwOnce(first);
-  const st = await inStep([host, guest]);
-  assert.ok(st[0].docSeq >= 1);
-  const m = rooms.pitch(code).match;
-  assert.ok(m.acts.length >= 1, "the pitch committed the throw");
-  return m;
-}
-
 // The iPhone app on engine 0.9, carrying 0.8 and 0.7 beside it (throwingwood-ios
 // scripts/vendor-engine.sh: TAG v0.9.0, OLDER v0.8.2 v0.7.4).
 const IPHONE_09 = { engine: "0.9+engines", engines: ["0.9", "0.8", "0.7"] };

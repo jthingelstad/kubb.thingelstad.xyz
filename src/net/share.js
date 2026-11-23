@@ -31,8 +31,6 @@ export const SHARE_LIMITS = Object.freeze({
   waitMs: 45000, // the server plays the match before answering: up to 20 s, and 30 s after the last part
 });
 
-export const SHARE_URL = "https://throwingwood.com/p/";
-
 // The share card's words, the same on the web and the iPhone (docs/REEL.md "The words",
 // "The share card", is the contract).
 export const SHARE_WORDS = Object.freeze({

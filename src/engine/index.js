@@ -71,7 +71,7 @@ export class Engine {
       throw new EngineError("session/api did not load");
     const engine = new Engine(lua, call);
     // docs/SESSION.md "Starting" (vendor/engine): before the first new or restore.
-    // `tune: null` gives none: the Tournament's neighbours (src/engine/neighbours.js)
+    // `tune: null` gives none: the Tournament's neighbours (src/engine/neighbours-host.js)
     // run in an engine of their own that needs no tune and no client label.
     if (tune) engine.call("useTune", { name: tune });
     // `location` is the game file's Location line; without one the engine writes its own
