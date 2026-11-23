@@ -41,7 +41,7 @@ export const PRODUCT_FIELDS = Object.freeze({
     sides, // seats a side, people and computers together: "2v2"
     people: count(12),
     computers: count(12),
-    level: word, // the computer's, when one level plays
+    level: word, // the computers' level; "mixed" when they play at several
     rematch: flag,
   },
   // a match on a pitch ended and its replay was kept (its `keep` push, the first time)
@@ -119,40 +119,57 @@ export function engineOf(version) {
 
 const seats = (team) =>
   Array.isArray(team?.players) ? Math.min(team.players.length, 6) : 0;
-const here = (list) => (Array.isArray(list) ? list.length : 0);
+const listed = (list) => (Array.isArray(list) ? list.slice(0, 6) : []);
+const isCpu = (p) => p?.cpu === true;
 
-// The one level the computers of a match play at, or null when there is none or several.
-function levelOf(setup, people) {
-  if (typeof setup?.computer === "string") return setup.computer;
-  const levels = new Set();
-  for (const side of ["A", "B"]) {
-    const players = setup?.teams?.[side]?.players;
-    if (!Array.isArray(players)) continue;
-    // a side's people come first; its computer seats are the rest
-    for (const p of players.slice(here(people?.[side])))
-      if (typeof p?.level === "string") levels.add(p.level);
-  }
-  return levels.size === 1 ? [...levels][0] : null;
+// The level a match's computer plays at when the match names none (the engine's own
+// default, autothrow.tune.level: a start that says nothing means Club).
+const DEFAULT_LEVEL = "club";
+
+// The level the computers of a match play at: the one they share, "mixed" when they
+// differ, null when no computer plays. `match` is the match's own computer level
+// (`computer` in its options), `seatLevels` one entry for each computer player in a
+// team (its own level, or nothing for the match's), `side` whether a whole side is
+// the computer's. The Kid computer is the match's: with it every computer is Kid.
+function levelOf(match, seatLevels, side) {
+  const base = typeof match === "string" ? match : DEFAULT_LEVEL;
+  const levels = new Set(
+    seatLevels.map((l) =>
+      base === "kid" ? "kid" : typeof l === "string" ? l : base,
+    ),
+  );
+  if (side) levels.add(base);
+  if (levels.size === 0) return null;
+  return levels.size === 1 ? [...levels][0] : "mixed";
 }
 
 // From a pitch's start: the match's `meta` as the host sent it and its number.
+// `meta.players` lists each side as it is seated, people and computer players
+// together in any order, a computer player marked `cpu: true` with its level;
+// `meta.cpu` names a side nobody is on, which the match's computer plays. The
+// match's own `computer` level is in the setup either way, so it is read only for
+// the computers that take it.
 export function startFacts(meta, n) {
   const setup = isObject(meta?.setup) ? meta.setup : {};
   const a = seats(setup.teams?.A);
   const b = seats(setup.teams?.B);
-  const people = Math.min(
-    here(meta?.players?.A) + here(meta?.players?.B),
-    a + b,
-  );
+  const seated = [...listed(meta?.players?.A), ...listed(meta?.players?.B)];
+  const cpuSeats = seated.filter(isCpu);
+  const side = meta?.cpu === "A" || meta?.cpu === "B" ? meta.cpu : null;
   return {
     engine: engineOf(meta?.engine),
     scene: setup.scene,
     opening: setup.opening,
     raising: setup.raising,
     sides: `${a}v${b}`,
-    people,
-    computers: a + b - people,
-    level: levelOf(setup, meta?.players),
+    people: seated.length - cpuSeats.length,
+    // a side that is the computer's is one computer, whatever its setup lists
+    computers: cpuSeats.length + (side ? 1 : 0),
+    level: levelOf(
+      setup.computer,
+      cpuSeats.map((p) => p.level),
+      side !== null,
+    ),
     rematch: Number.isSafeInteger(n) ? n > 1 : null,
   };
 }
@@ -177,7 +194,15 @@ export function gameFacts(g) {
     front: frontOf(g?.client),
     engine: engineOf(g?.engine),
     scene: options.scene,
-    level: levelOf(options, { A: g?.mode === "solo" ? [1] : [], B: [] }),
+    // a match on one device always has a side that is the computer's
+    level: levelOf(
+      options.computer,
+      ["A", "B"]
+        .flatMap((s) => listed(options.teams?.[s]?.players))
+        .filter(isCpu)
+        .map((p) => p.level),
+      true,
+    ),
     outcome: over ? "finished" : "left",
     how: over ? g.end.how : null,
     // a solo match's person is side A

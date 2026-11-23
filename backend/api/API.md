@@ -449,7 +449,10 @@ list. Adding a field is a decision made there.
 | `replay`      | a kept replay was asked for                       | `outcome` (`found`, `none`)                                                                                                    |
 
 `engine` is a major.minor, `front` the program that sent it (`web`, `ios`, `other`,
-`unknown`). A push sent again counts nothing twice, and the dev Worker's pushes count as
+`unknown`). `people` are the people seated and `computers` the computers playing: each
+computer player in a team, and one more when a whole side is the computer's. `level` is
+the level those computers play at (`mixed` when they play at several, absent when no
+computer plays; a match that names none plays at `club`). A push sent again counts nothing twice, and the dev Worker's pushes count as
 no play at all. What these lines cannot count: practice (never sent), a match against the
 computer on the iPhone unless it is shared, and page views (Tinylytics has those).
 
