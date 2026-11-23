@@ -23,7 +23,7 @@ export const decide = (local, doc, w, mine = false) =>
 
 // Which program made a record or a report: `client` in a one-browser match and a
 // report, `c` in a rider; and the engine that played it, `engine` and `e`
-// (docs/ROOMS.md sections 2.6 and 7).
+// (backend/api/API.md "report" and "game"; the rider is the engine's docs/PITCH.md).
 export const CLIENT = "web";
 
 // The label the engine writes into every game file ("Scored by"): "web 0.1.0".

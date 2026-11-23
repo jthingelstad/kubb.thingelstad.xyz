@@ -23,10 +23,10 @@
 //       (engine.json), the manifest, LICENSE and the golden corpus against the pin,
 //       the bundle against the manifest's, and nothing else under vendor/engines/
 //
-// Each engine folder holds the engine's core/, room/, session/, tune/, version.lua,
-// engine.json and LICENSE, and its golden corpus (tests/golden/drive.lua and
-// hashes.json) as golden/. Tags are read from the engine checkout's git objects,
-// never its working tree.
+// Each engine folder holds the engine's core/, pitch/ (room/ before engine 0.13),
+// session/, tune/, version.lua, engine.json and LICENSE, and its golden corpus
+// (tests/golden/drive.lua and hashes.json) as golden/. Tags are read from the engine
+// checkout's git objects, never its working tree.
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";

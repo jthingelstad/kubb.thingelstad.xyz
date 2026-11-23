@@ -1,6 +1,6 @@
 // The pitch's shared document (docs/MULTIPLAYER.md): the lobby and, once the
 // host starts, the match. The reducers are the engine's (vendor/engine/pitch/lobby.lua,
-// its docs/ROOM.md "The document"), the same the iPhone app calls; these are thin
+// its docs/PITCH.md "The document"), the same the iPhone app calls; these are thin
 // wrappers over `pitch.<name>` (src/net/room-engine.js). Each reducer returns the whole
 // new document, or undefined to change nothing (the room client then writes nothing),
 // as room.update(fn) expects.
@@ -9,7 +9,7 @@
 //     v: 1,
 //     teams:   { A: [memberId, ...], B: [...] },   in throwing order, 0 to 6 each
 //     options: { surface, opening, raising, wind, set },
-//     open:    false | true,     true lists the pitch under OPEN GAMES (docs/ROOMS.md 9)
+//     open:    false | true,     true lists the pitch under Open games (docs/MULTIPLAYER.md)
 //     started: false | true,
 //     n:       0,                                  matches started on this pitch
 //     match:   null | { n, seq, snap, hash, players, cpu, host, engine, setup, h0,
@@ -29,7 +29,7 @@ import {
 // Admission requires a named, matching major.minor. Patches can play together.
 export const LENIENT_ENGINES = false;
 
-// The newest engine's constants (room.constants), read once by useRoomEngine: the
+// The newest engine's constants (pitch.constants), read once by useRoomEngine: the
 // engine the page plays on. engineConstants(mm) is any carried engine's.
 export let DOC_VERSION;
 export let TEAM_MAX;
@@ -44,11 +44,11 @@ export let LEVELS;
 export let SEAT_LEVELS = ["beginner", "club", "pro"];
 export let LOG_BUDGET;
 export let REPLAY_VERSION;
-// The newest engine's major.minor ("0.3"): what a member sends as me.engine and what
+// The newest engine's major.minor ("1.0"): what a member sends as me.engine and what
 // START stamps as match.engine.
 export let ENGINE;
 
-// Each engine's room.constants, by major.minor, read once apiece.
+// Each engine's pitch.constants, by major.minor, read once apiece.
 const constants = new Map();
 export function engineConstants(mm = roomEngineMinor()) {
   let k = constants.get(mm);

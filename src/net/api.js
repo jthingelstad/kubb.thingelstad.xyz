@@ -9,8 +9,9 @@
 //
 // Resolves the answer's JSON. Rejects an ApiError whose code is the function's `error`
 // (bad-message, bad-pitch, forbidden, not-found, method, too-big, failed, unavailable),
-// too-many for a 429 without one (the web ACL's rate rule), or timeout, closed (no
-// answer at all), unavailable (no base here).
+// too-many for a 429 without one (Lambda's throttle, when the function's 10 concurrent
+// runs are all in use), or timeout, closed (no answer at all), unavailable (no base
+// here).
 
 const BACKSLASH = String.fromCharCode(92);
 

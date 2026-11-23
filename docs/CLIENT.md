@@ -1560,8 +1560,11 @@ The version policy (`LENIENT_ENGINES` is false) and version refusal cards are in
 - `window.__kubb` (engine, game, sound, cards, menu, config, and on a shared pitch `pitch`)
   exists only with `?test=1` or on 127.0.0.1 or localhost. There too, `?pitchserver=ws://...`
   points a pitch at another pitch server and `?api=http://...` the page at another api.
-- Screenshots at 1280 x 768, 390 x 844 and 844 x 390 go to `build/client-shots/`
-  (gitignored); `KUBB_MP_SHOTS=build/mp-shots` makes the multiplayer test take the lobby's.
+- No test saves screenshots unless asked: `KUBB_MP_SHOTS=<dir>` makes the multiplayer
+  test save the lobby's, `KUBB_NUDGE_SHOTS=<dir>` the nudge's and `KUBB_SEAT_SHOTS=<dir>`
+  the computer seats' (a folder under `build/`, which is gitignored, is the place).
+  `node tools/render-shots.mjs` writes the renderer gallery's pictures, at 1280 x 768
+  and 390 x 844, to `build/render-shots/`.
 
 ## Not done yet
 
