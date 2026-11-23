@@ -90,9 +90,10 @@ and `ApiRole`.
 
 Asking for a reel starts a render and writes to the table and bucket, so the first live
 reel is a real one, on a real finished pitch, when Jamie wants it. Watch it with
-`aws logs tail /aws/lambda/kubb-xyz-site-reels --since 15m`: one JSON line per step
-(`render`, then `done`, or `error` and `failed`, with the pitch's code, version, tag and
-engine), never a name. Its `REPORT` line gives the
+`aws logs tail /aws/lambda/kubb-xyz-site-reels --since 15m`: one record per step, its
+`message` `{ "event": "reel", "step": ... }` (`render`, then `done`, or `error` and
+`failed`, with the pitch's code, version, tag and engine), never a name
+(`backend/api/API.md` "Logs"). Its `platform.report` record gives the
 real duration and memory, which are guesses until then.
 
 ## Roll back
@@ -155,13 +156,13 @@ A share writes a sealed room, its document, its replay and a `share#` key that l
 year, so the first live share is a real match, shared from a device when Jamie wants
 it. Then, still reading only:
 
-- `aws logs tail /aws/lambda/kubb-xyz-site-reels --since 15m`: one JSON line per check,
-  `{"check":"ok", "step":null, "engine", "played", "actions", "ms"}` (or the `why` and
-  the `step` that failed), never a name. `ms` is the real check time on Lambda, which
+- `aws logs tail /aws/lambda/kubb-xyz-site-reels --since 15m`: one record per check, its
+  `message` `{"event":"check", "check":"ok", "step":null, "engine", "played", "actions",
+"ms"}` (or the `why` and the `step` that failed), never a name. `ms` is the real check time on Lambda, which
   the tables in `docs/ROOMS.md` 13.4 only estimate.
-- `aws logs tail /aws/lambda/kubb-xyz-rooms-rooms --since 15m`: no `share ... failed`
-  lines; the `REPORT` line of the share's invocation gives its duration (the check's
-  plus one write transaction).
+- `aws logs tail /aws/lambda/throwing-wood-api --since 15m`: no `"event":"error"`
+  record naming a share step; the share's `request` record gives its `ms` (the check's
+  plus one write transaction) and its `product` record its outcome.
 - `aws dynamodb get-item --table-name <rooms table> --key
 '{"pk":{"S":"shares#<yyyy-mm-dd>"},"sk":{"S":"count"}}'`: the day's checks.
 - `https://throwingwood.com/p/<code>` shows the finished match and "Watch the replay".

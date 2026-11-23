@@ -1024,7 +1024,10 @@
         "Timeout": 300,
         "ReservedConcurrentExecutions": 2,
         "Role": { "Fn::GetAtt": ["ReelsRole", "Arn"] },
-        "LoggingConfig": { "LogGroup": { "Ref": "ReelsLogs" } },
+        "LoggingConfig": {
+          "LogGroup": { "Ref": "ReelsLogs" },
+          "LogFormat": "JSON"
+        },
         "Environment": {
           "Variables": {
             "TABLE": { "Ref": "PitchTable" },

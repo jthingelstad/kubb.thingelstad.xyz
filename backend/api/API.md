@@ -406,6 +406,63 @@ The pitches stack's private games bucket (`throwing-wood-pitches-games-<account>
 pushes above, `games/browser/` and `reports/` as the rooms function wrote them. Nothing
 in it is ever served.
 
+## Logs
+
+The function's log group is `/aws/lambda/throwing-wood-api` (30 days), in Lambda's JSON
+format: each line the code writes is one record, `{ timestamp, level, requestId,
+message }`, with the line itself as the object `message`, so a query reads its fields as
+`message.event`, `message.route` and so on. Lambda's own lines are records too (the
+`platform.report` one has the duration and memory). The lines are written by `logLine`
+(`backend/log.mjs`). Four kinds, told apart by `event`:
+
+| `event`   | When                                   | Fields                                                                                                                                   |
+| --------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `request` | every call, once, as it is answered    | `route` (the call's name, or `other`: a path that is no call is never written), `method`, `status`, `ms`, and `code` when it was refused |
+| `push`    | every push that was signed and read    | `push` (its key), `topic`, `pitch`, `made`, `lag`, `wait`, `recorded` (`kept`, `had`, `skipped`), `dev` when it is the dev Worker's      |
+| `product` | a thing a player did that we count     | `action` and that action's few fields: below                                                                                             |
+| `error`   | something of ours failed (level ERROR) | `error` (where), `name`, `message`                                                                                                       |
+
+A push's `lag` is the milliseconds from the pitch server's send to this function (the
+network, and a cold start), and `wait` from the thing itself (the action's `ts`, the
+match's end, the pitch's making) to that send: near nothing when the first try got
+through, and as long as the retries took when it did not. A refused push (`bad-signature`,
+`bad-push`, `unavailable`) is its `request` line's `code`. Together they are what AWS can
+see of the pitch server, which keeps its own log at Cloudflare
+(`backend/pitch-server/README.md` "Operate").
+
+**A product line never says who.** It has no pitch code, name, member id, typed text or
+address: only what happened and a few plain facts about it. The whole list is
+`PRODUCT_FIELDS` in `backend/api/product.mjs`; `productLine` drops any field that is not
+on it and any value that is not the plain kind its field takes (a generated name has a
+capital and a space, so it is never a value), and `tests/api/product.test.mjs` pins the
+list. Adding a field is a decision made there.
+
+| `action`      | When                                              | Fields                                                                                                                         |
+| ------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `pitch-open`  | a pitch was made (its `open`, the first time)     | none                                                                                                                           |
+| `match-start` | a match started on a pitch (its `start`, once)    | `engine`, `scene`, `opening`, `raising`, `sides` ("2v1"), `people`, `computers`, `level`, `rematch`                            |
+| `match-over`  | a pitch's match ended and was kept (`keep`, once) | `engine`, `actions`, `minutes`                                                                                                 |
+| `game`        | a match on one device was kept (`game`)           | `mode`, `front`, `engine`, `scene`, `level`, `outcome` (`finished`, `left`), `how`, `winner` (`player`, `computer`), `actions` |
+| `report`      | a report was kept                                 | `kind`, `mode`, `front`, `engine`                                                                                              |
+| `share`       | a match against the computer was shared, or not   | `front`, `engine`, `outcome` (`shared`, `again`, `refused`), `why`                                                             |
+| `reel`        | a highlight reel was asked for                    | `outcome` (`started`, `rendering`, `done`, `failed`, `none`), `why`                                                            |
+| `replay`      | a kept replay was asked for                       | `outcome` (`found`, `none`)                                                                                                    |
+
+`engine` is a major.minor, `front` the program that sent it (`web`, `ios`, `other`,
+`unknown`). A push sent again counts nothing twice, and the dev Worker's pushes count as
+no play at all. What these lines cannot count: practice (never sent), a match against the
+computer on the iPhone unless it is shared, and page views (Tinylytics has those).
+
+The reel function (the site stack's `ReelsLogs` group, 30 days, the same format) writes
+`{ event: "reel", reel, v, tag, engine, step, ... }` for each step of a render (`render`,
+then `done`, or `error` and `failed` with `why`) and `{ event: "check", check, step,
+engine, played, actions, ms }` for each share it checks, never a name; the renderer's own
+timing lines are plain text in `message`. The pitch pages function is not changed.
+
+The owner's Grafana has two dashboards built on these lines and the site's access log,
+"Throwing Wood" (health) and "Throwing Wood product" (use). A dashboard reads a field by
+its name here, so renaming one is a change to both.
+
 ## Limits that are not here
 
 The old rooms function held 3 reports, renders and shares a connection. There is no

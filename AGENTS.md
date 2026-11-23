@@ -583,6 +583,20 @@ sends the same `reel` and `share` messages.
 - `npm run dev` renders no reels: the api stand-in answers `reel` as unavailable (a test
   can pass its own `startReel` to `startPitchServer`). Shares are checked locally.
 
+## Logs
+
+The owner, 2026-11-22: "make sure that proper logging is on so that we have good
+visibility." The api and reel functions log in Lambda's JSON format through `logLine`
+(`backend/log.mjs`): one `request` line a call with its refusal's code, one `push` line a
+push with how late it came, `error` lines, and the `product` lines the use dashboard
+counts, which never say who (`PRODUCT_FIELDS` in `backend/api/product.mjs`, pinned by
+`tests/api/product.test.mjs`; no pitch code, name, member id or typed text, and a new
+field is a decision made there). The fields are a contract with the owner's two Grafana
+dashboards, "Throwing Wood" and "Throwing Wood product": `backend/api/API.md` "Logs".
+The pitch server logs at Cloudflare (Workers Logs, the per-request line off; its own
+lines in `backend/pitch-server/src/log.mjs`, `backend/pitch-server/README.md`
+"Operate"), and nothing on the relay path.
+
 ## Score sheet
 
 MENU, SCORE SHEET (any match, not practice) and SCORE SHEET on the winner card show the

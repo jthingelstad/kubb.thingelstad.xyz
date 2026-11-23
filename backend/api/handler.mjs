@@ -20,6 +20,7 @@ import { LIMITS, parseOrigins } from "./checks.mjs";
 import { ShareBusy, createApi } from "./core.mjs";
 import { dynamoStore } from "./dynamo-store.mjs";
 import { s3Games, s3Pushes, s3Reports } from "./records.mjs";
+import { logLine } from "../log.mjs";
 import { parseEngines } from "../reels/tag.mjs";
 
 // The push secret, read when first needed and again at most every `refreshMs` when
@@ -33,7 +34,7 @@ export function cachedSecret({ read, now = Date.now, refreshMs = 5 * 60_000 }) {
     try {
       value = (await read()) || null;
     } catch (error) {
-      console.error("push secret read failed", error?.name);
+      logLine({ event: "error", error: "push secret", name: error?.name });
     }
     return value;
   };

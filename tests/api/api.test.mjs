@@ -1324,3 +1324,149 @@ test("readPush: the envelope against its own key and the header", () => {
   assert.equal(p.body.seq, 3);
   assert.throws(() => readPush(env.raw.toString(), "x"), /idempotency-key/);
 });
+
+// ---------- the log (backend/api/API.md "Logs") ----------
+
+const of = (logs, event) => logs.filter((l) => l.event === event);
+const products = (logs) =>
+  of(logs, "product").map(({ event, ...rest }) => rest);
+
+test("the log: one request line a call, with the refusal's code and no more", async () => {
+  const h = harness();
+  await h.call("GET", "/replay", { query: `pitch=${CODE}` });
+  await h.call("GET", "/api/replay", { query: "pitch=NOT-A-CODE" });
+  await h.call("GET", "/nowhere/abcdefgh23");
+  await h.call("DELETE", "/report");
+  await h.call("OPTIONS", "/report", { headers: { origin: ORIGIN } });
+  const bad = start();
+  await h.push(bad, { ...bad.headers, "x-pitch-signature": "0".repeat(64) });
+  assert.deepEqual(
+    of(h.logs, "request").map(({ ms, ...rest }) => rest),
+    [
+      { event: "request", route: "replay", method: "GET", status: 200 },
+      {
+        event: "request",
+        route: "replay",
+        method: "GET",
+        status: 400,
+        code: "bad-pitch",
+      },
+      // an unknown path is "other": what was asked for is never written
+      {
+        event: "request",
+        route: "other",
+        method: "GET",
+        status: 404,
+        code: "not-found",
+      },
+      {
+        event: "request",
+        route: "report",
+        method: "other",
+        status: 405,
+        code: "method",
+      },
+      { event: "request", route: "report", method: "OPTIONS", status: 204 },
+      {
+        event: "request",
+        route: "push",
+        method: "POST",
+        status: 401,
+        code: "bad-signature",
+      },
+    ],
+  );
+  for (const l of of(h.logs, "request"))
+    assert.ok(Number.isSafeInteger(l.ms) && l.ms >= 0);
+  // a refused push is no push line and no product line
+  assert.equal(of(h.logs, "push").length, 0);
+  assert.equal(of(h.logs, "product").length, 1, "the replay asked for");
+});
+
+test("the log: a push line says how late it came; a match is counted once, never by name", async () => {
+  const h = harness();
+  const { start: s, acts, keep: k } = matchPushes();
+  const open = envelope("open", { host: "Mighty Maple" });
+  h.tick(250);
+  await h.push(open);
+  await h.push(open);
+  await h.push(s);
+  await h.push(s);
+  for (const a of acts) await h.push(a);
+  await h.push(k);
+  await h.push(k);
+  const pushes = of(h.logs, "push");
+  assert.equal(pushes.length, 6 + acts.length);
+  assert.deepEqual(pushes[0], {
+    event: "push",
+    push: "open",
+    topic: "open",
+    pitch: CODE,
+    made: MADE,
+    lag: 250, // from the pitch server's send to here
+    wait: 60_000, // from the thing itself (here the pitch's making) to that send
+    recorded: "kept",
+  });
+  assert.equal(pushes[1].recorded, "had", "sent again");
+  assert.deepEqual(
+    products(h.logs).map((p) => p.action),
+    ["pitch-open", "match-start", "match-over"],
+    "a push sent again counts nothing twice",
+  );
+  const [, began, over] = products(h.logs);
+  assert.equal(began.engine, MINOR);
+  assert.equal(began.rematch, false);
+  assert.match(began.sides, /^[1-6]v[1-6]$/);
+  assert.deepEqual(over, {
+    action: "match-over",
+    engine: MINOR,
+    actions: REPLAY.log.length,
+    minutes: 0,
+  });
+  // the product lines name no team, player, member or pitch
+  const text = JSON.stringify(of(h.logs, "product"));
+  const names = [
+    CODE,
+    ...Object.values(REPLAY.setup.teams).flatMap((t) => [
+      t.name,
+      ...t.players.map((p) => p.name),
+    ]),
+    ...Object.values(REPLAY.players).flat(),
+  ].filter((n) => typeof n === "string" && n.length > 2);
+  assert.ok(names.length >= 3);
+  for (const n of names) assert.ok(!text.includes(n), n);
+  // no line of any kind carries what a player typed or a snapshot
+  assert.ok(!JSON.stringify(h.logs).includes("snap"));
+});
+
+test("the log: a dev push is marked and counts as no play; reports and games are counted", async () => {
+  const h = harness();
+  await h.push(start(1, { dev: true }));
+  assert.deepEqual(products(h.logs), []);
+  assert.equal(of(h.logs, "push")[0].dev, true);
+  await h.post("/report", {
+    r: { mode: "solo", kind: "feedback", text: "Fun!", client: "ios" },
+  });
+  await h.post("/game", {
+    g: {
+      mode: "solo",
+      start: IN_PLAY,
+      actions: [{ type: "throw" }],
+      hashes: [1],
+      client: "web",
+      engine: ENGINE,
+    },
+  });
+  await h.post("/reel", { pitch: CODE });
+  const got = products(h.logs);
+  assert.deepEqual(
+    got.map((p) => p.action),
+    ["report", "game", "reel"],
+  );
+  assert.equal(got[0].kind, "feedback");
+  assert.equal(got[0].mode, "solo");
+  assert.equal(got[1].front, "web");
+  assert.equal(got[1].outcome, "left");
+  assert.equal(got[2].outcome, "none");
+  assert.ok(!JSON.stringify(h.logs).includes("Fun!"));
+});
