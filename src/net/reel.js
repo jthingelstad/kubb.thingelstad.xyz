@@ -54,9 +54,11 @@ export const REEL_WORDS = Object.freeze({
 export const reelFileName = (code, format) =>
   `throwing-wood-${code}-${format}.mp4`;
 
-// A reel's files as the reel function writes them (backend/reels/tag.mjs reelPaths).
+// A reel's files as the reel function writes them (backend/reels/tag.mjs reelPaths). The
+// version is the kept replay's, the epoch ms its match ended: 13 digits, as the pages
+// function's own pattern takes (backend/pages/pitch.mjs REEL_WIDE).
 const REEL_PATH =
-  /^\/reels\/([2-9a-hjkmnp-z]{8,24})\/([0-9]{1,9})-r[0-9]{1,4}-[0-9]{1,4}\.[0-9]{1,4}\/(tall|wide)\.mp4$/;
+  /^\/reels\/([2-9a-hjkmnp-z]{8,24})\/([0-9]{1,13})-r[0-9]{1,4}-[0-9]{1,4}\.[0-9]{1,4}\/(tall|wide)\.mp4$/;
 
 // A site path of this pitch's reel: { v, format } or null.
 export function reelPath(path, code) {

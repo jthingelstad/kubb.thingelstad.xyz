@@ -21,6 +21,8 @@ import { reelPaths } from "../../backend/reels/tag.mjs";
 import { startPitchServer } from "../../tools/pitch-dev.mjs";
 
 const CODE = "abcdefgh23";
+// When a live match ended, in ms: its kept replay's version since the pitch server.
+const ENDED = 1764000000000;
 const MATCH = { n: 2, hash: "h2" };
 const KEPT = { kept: 14, n: 2, hash: "h2" };
 const DONE = {
@@ -52,6 +54,10 @@ test("reel: the file names and paths are the design's", () => {
   assert.deepEqual(reelPath(p.tall, CODE), { v: 14, format: "tall" });
   assert.equal(reelPath(p.tall, "zzzzzzzz22"), null);
   assert.equal(reelPath("/reels/../x/wide.mp4", CODE), null);
+  // a kept replay's version is the time its match ended, in ms: 13 digits
+  const live = reelPaths(CODE, ENDED, "r1-1.0");
+  assert.deepEqual(reelPath(live.wide, CODE), { v: ENDED, format: "wide" });
+  assert.equal(reelPath(live.wide.replace(ENDED, `${ENDED}0`), CODE), null);
 });
 
 test("reel: on load the page knows only what its og:video says", () => {
@@ -74,6 +80,12 @@ test("reel: on load the page knows only what its og:video says", () => {
   assert.equal(reelFromPage(`${origin}${p.tall}`, CODE, [origin]), null);
   assert.equal(reelFromPage(undefined, CODE, [origin]), null);
   assert.equal(reelFromPage("", CODE, [origin]), null);
+  // a live pitch's reel, as the pages function writes its og:video: the version is a
+  // time in ms, and the page must know it, or a finished reel reads MAKE, not WATCH
+  const live = reelPaths(CODE, ENDED, "r1-1.0");
+  const known = reelFromPage(`${origin}${live.wide}`, CODE, [origin]);
+  assert.deepEqual(known, { v: ENDED, wide: live.wide, tall: live.tall });
+  assert.equal(reelView(reelStart(known)).label, REEL_WORDS.watch);
 });
 
 test("reel: MAKE, the kept replay checked, then rendering until done", () => {
