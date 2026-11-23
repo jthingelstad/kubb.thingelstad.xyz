@@ -24,7 +24,7 @@ while (($#)); do
   case "$1" in
     -crf)
       args+=(-b:v 11M -maxrate 12M -bufsize 12M -level:v 4.0 -g 30
-             -vf "scale=out_color_matrix=bt709:out_range=tv"
+             -vf "scale=out_color_matrix=bt709:out_range=tv,setparams=colorspace=bt709:color_primaries=bt709:color_trc=bt709:range=tv"
              -colorspace bt709 -color_primaries bt709 -color_trc bt709 -color_range tv)
       shift 2 ;;
     -preset)
