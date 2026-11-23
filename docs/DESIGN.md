@@ -1,7 +1,7 @@
 # Kubb: Throwing Wood on the web: design
 
-The Playdate game (`playdate-kubb`, private) brought to the browser at
-https://kubb.thingelstad.xyz, with one thing the Playdate cannot do: friends on one
+The Playdate game (`playdate-kubb`) brought to the browser at
+https://kubb.thingelstad.xyz (https://throwingwood.com since 2026-11-17), with one thing the Playdate cannot do: friends on one
 pitch, each in their own browser. Written 2026-11-15, before any code. Decisions marked
 (Jamie) were Jamie's on 2026-11-15; the rest are the builder's.
 
@@ -13,8 +13,8 @@ This document only says what is different on the web.
 
 - **A pitch is a link** (Jamie). START A PITCH on the landing page (`/#play`; the web
   game's page was `/web/` from 2026-11-20 until the 1.0 design folded it into `/`) starts a pitch at a random link
-  (`/p/<code>`). Whoever opens the link arrives on the same pitch, in a lobby, types a
-  name and picks Team A or Team B, up to six a side (Jamie). The host starts the match.
+  (`/p/<code>`). Whoever opens the link arrives on the same pitch, in a lobby, under a
+  generated name, and picks Team A or Team B, up to six a side (Jamie). The host starts the match.
   An empty side is played by the computer.
 - **Three ways to play** (Jamie): the multiplayer match on a link, a solo match against
   the computer (a pitch with the computer on the other side: the same code path), and an
@@ -35,7 +35,7 @@ The game is kubb-engine (`jthingelstad/kubb-engine`, the sibling checkout
 vX.Y.Z` reads the tag from the engine's git objects; `npm run vendor:check` holds every
 file and the bundle to the engine's `engine.json`; `vendor/engine.json` pins the tag and
 commit). Never edit it. Older minors the site still plays back sit beside it in
-`vendor/engines/<major.minor>/` (`docs/ENGINES.md`). It is pure Lua 5.4 and runs in the browser in WebAssembly
+`vendor/engines/<major.minor>/` (none today; `docs/ENGINES.md`). It is pure Lua 5.4 and runs in the browser in WebAssembly
 (wasmoon 1.16.0, MIT: the reference Lua 5.4 VM compiled to wasm, pinned exactly: it is
 the engine's reference platform). Measured 2026-11-15 under Node: whole physics matches,
 about 5 ms a throw.
@@ -53,7 +53,8 @@ A change to how the game plays is made in kubb-engine, released as a tag and ven
 
 ```
 vendor/engine/   kubb-engine at a tag (never edited): core/, session/ (match + throw
-                 scene logic without a screen, JSON in and out), tune/, golden/
+                 scene logic without a screen, JSON in and out), pitch/ (the lobby,
+                 seat and sync rules), tune/, golden/
 src/engine/      loads wasmoon and the engine's bundle; a small typed JS API over the
                  session
 src/render/      canvas renderer: the pitch and pieces through the core's camera, in color
@@ -185,7 +186,9 @@ straight. On the web the **dial is the control**:
   to 6 slowly and nothing is thrown) and the sky ball are the core's, not a copy.
 - A mouse is faster and steadier than a crank, so the swing's speed and shake tunables
   get web values, fitted by play; the throw levels (Beginner, Club, Pro) stay the
-  Playdate's and set how wide the targets are.
+  Playdate's and set how wide the targets are. Since engine 0.13 a level is the
+  computer's only: every person throws on one meter (docs/CLIENT.md "One level: the
+  computer's").
 - **Aiming is direct**: drag the target circle on the pitch (or arrow keys); drag the
   thrower along the line (or A/D and W/S); the plan is the tray (the 1.0 design: ARC,
   TILT or SPIN and STAND as three plates at the edge away from the meter, each opened by a
@@ -204,7 +207,8 @@ shows the arm. The default throw and mouse input remain the circular dial.
 
 Woodcut in color. Black ink outlines and hard black shadows stay; the 1-bit checker grey
 becomes color: a green pitch with a darker rough (sand and snow each their own ground),
-pale wood pieces with a darker face away from the light, white 2 px (scaled) lines, the
+pale wood pieces with a darker face away from the light, thin white lines (1.2 cm on the
+ground, `render/world.js` `tune.lineWidth`), the
 king's crown, painted kubb sets in their real colors. Type is Londrina Solid Black
 (display) and Inter (labels), from the shared tokens. No italics on sans-serif type.
 Bursts (TOK!, KLAK KLAK!, KING!) and the recorded knocks carry over.
@@ -215,11 +219,13 @@ Bursts (TOK!, KLAK KLAK!, KING!) and the recorded knocks carry over.
   records in the site's own stack (the `throwingwood.com` zone since 2026-11-17; the old
   kubb.thingelstad.xyz in the `thingelstad.xyz` zone redirects there), like
   `playdate.thingelstad.xyz`. Access logs IP-free, kept 731 days.
-- Rooms: one API Gateway WebSocket API, one Lambda, one DynamoDB table (on demand, TTL).
-  Throttled and capped (members a room, message size, document size) so it stays a hobby
-  backend. No accounts, no personal data beyond the name a player types for the match.
+- Live play: the pitch server on Cloudflare Durable Objects (`docs/PITCH-SERVER.md`) and
+  the HTTPS api on AWS (`backend/api/`); the first rooms server (one API Gateway
+  WebSocket API, one Lambda, one DynamoDB table) was retired on 2026-11-21.
+  Throttled and capped (members a pitch, message size, document size) so it stays a hobby
+  backend. No accounts, no personal data beyond the generated name a player plays under.
   Every match is recorded to a private bucket, names included, to test the game against
-  real play (`docs/ROOMS.md` section 7).
+  real play (`backend/api/API.md` "Records").
 - Merging to `main` deploys. Tinylytics on the production hostname only.
 
 ## 8. Not in the first version

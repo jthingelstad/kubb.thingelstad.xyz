@@ -12,10 +12,10 @@ the engine's.
 
 | Page                | What it is                                                                                                                                                                                                                                                                                          |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/practice/`        | The open practice pitch: BATONS or KUBBS (the drill), surface and reset.                                                                                                                                                                                                                            |
+| `/practice/`        | The open practice pitch: BATONS or KUBBS (the drill), reset, and its scene in MENU.                                                                                                                                                                                                                 |
 | `/settings/`        | The device's settings alone (your name in its name row, meter, meter side, sound): the same rows as MENU's, from Settings on the web game's page, with DONE back to it. The engine is loaded for the names only.                                                                                    |
 | `/p/<code>?solo=1`  | A match against the computer. The options card first (your name and SHUFFLE; Scene as seven picture tiles; the engine's rows for it: Surface for Black & White only, Computer level with Kid first, opening, raising, wind; remembered), then START.                                                |
-| `/p/<code>?watch=1` | The computer against itself, match after match: no options card, the solo card's saved options, North against South. The winner card stays up 10 s (NEXT MATCH, STOP, HOME), then the next match starts by itself, the other team first. Seen in the wide view by default ("The wide view", below). |
+| `/p/<code>?watch=1` | The computer against itself, match after match: no options card, the solo card's saved options, North against South. The winner card stays up 20 s (NEXT MATCH, STOP, HOME), then the next match starts by itself, the other team first. Seen in the wide view by default ("The wide view", below). |
 | `/p/<code>`         | A shared pitch: the lobby (your name, Team A or B or watching, a side of several's team name, the host's match options, START), then the match with everyone on the link. docs/MULTIPLAYER.md.                                                                                                      |
 | `/e/<code>`         | The embed: a kept replay alone, for a frame on another site ("The embed", below).                                                                                                                                                                                                                   |
 
@@ -63,14 +63,14 @@ options card, as `?solo=1`. The HOW TO THROW overlay
 | `src/game/rulings.js`                                                                        | The flag after a throw, with a Kid match's rulings in their own words.                                                                                                                                                                                       |
 | `src/game/free-camera.js`                                                                    | `FreeCamera`: the mouse, fingers, wheel and keys that move the free camera (docs/OBSERVER.md).                                                                                                                                                               |
 | `src/net/pitch.js`                                                                           | `Pitch`: the shared pitch's controller: joins the pitch, runs the lobby, drives the Game through the seam, aim casts, shouts.                                                                                                                                |
-| `src/net/lobby.js`, `seats.js`, `sync.js`                                                    | Thin wrappers over kubb-engine's `room.*` rules; cached seat/actor reads keep these calls out of the render loop (docs/MULTIPLAYER.md).                                                                                                                      |
+| `src/net/lobby.js`, `seats.js`, `sync.js`                                                    | Thin wrappers over kubb-engine's `pitch.*` rules; cached seat/actor reads keep these calls out of the render loop (docs/MULTIPLAYER.md).                                                                                                                     |
 | `src/net/pitch-client.js`, `src/net/aim.js`                                                  | The pitch server's client (`backend/pitch-server/PROTOCOL.md`) and the aim on the wire (docs/MULTIPLAYER.md).                                                                                                                                                |
 | `src/net/api.js`                                                                             | `apiCall`: the HTTPS api (`backend/api/API.md`) that replays, reels, shares, reports and records go through.                                                                                                                                                 |
 | `src/game/stand-pad.js`                                                                      | STAND: where the thrower stands, the plate's map to the ground and back and its words (pure), and `StandPad`, its DOM and pointer ("Standing", below).                                                                                                       |
 | `src/ui/settings.js`                                                                         | The device's settings rows (Your name, Meter, Meter side, Sound), shared by MENU and the `/settings/` page ("Settings", below).                                                                                                                              |
-| `src/ui/menu.js`                                                                             | `Menu`: the device's rows (`src/ui/settings.js`), View when watching, Scene (and Surface where the scene leaves one) in practice, then how to throw, resign, feedback, rules, home.                                                                          |
+| `src/ui/menu.js`                                                                             | `Menu`: the grid (SETTINGS, which opens the device's rows from `src/ui/settings.js`, SCORE SHEET, HOW TO THROW, FEEDBACK), Raising, View when watching, Scene (and Surface where the scene leaves one) in practice, then back, resign, home ("Match flow").  |
 | `src/ui/scene-tiles.js`                                                                      | The Scene as picture tiles (the solo card, the lobby, practice's MENU), from the engine's Scene row.                                                                                                                                                         |
-| `src/ui/report.js`, `src/net/report.js`                                                      | The report card, and what a report carries and how it is sent (below, and docs/ROOMS.md section 8).                                                                                                                                                          |
+| `src/ui/report.js`, `src/net/report.js`                                                      | The report card, and what a report carries and how it is sent (below, and `backend/api/API.md`).                                                                                                                                                             |
 | `src/ui/sheet.js`                                                                            | The score sheet card (below).                                                                                                                                                                                                                                |
 | `src/net/record.js`                                                                          | What a solo or watch match's record carries and how it is sent (`POST /api/game`).                                                                                                                                                                           |
 | `src/replay/player.js`, `src/replay/fetch.js`                                                | The replay player (`ReplayPlayer`, `startReplay`) and `fetchReplay`, a pitch's kept replay by its code (below).                                                                                                                                              |
@@ -78,7 +78,7 @@ options card, as `?solo=1`. The HOW TO THROW overlay
 | `src/ui/howto.js`                                                                            | The HOW TO THROW overlay.                                                                                                                                                                                                                                    |
 | `src/ui/dom.js`                                                                              | `h()` and `button()`.                                                                                                                                                                                                                                        |
 | `public/game.css`                                                                            | The game pages' styles, linked by `src/site/pages.mjs` after the site's.                                                                                                                                                                                     |
-| `tests/game/`                                                                                | `layout.test.mjs` (pure), `client.test.mjs` and `multiplayer.test.mjs` (Playwright); `browser.mjs` is their helper.                                                                                                                                          |
+| `tests/game/`                                                                                | Among them `layout.test.mjs` (pure), `client.test.mjs` and `multiplayer.test.mjs` (Playwright); `browser.mjs` is their helper.                                                                                                                               |
 
 ## The multiplayer seam
 
@@ -216,7 +216,7 @@ step, unit, scope }` for `arc`, `tilt` and `spin`), and the slider takes any val
   one at every tick, a full one at every `step`), and the value is free between them. The
   header reads whole degrees and a spin to a tenth (`TILT 7R`, `SPIN 1.3L`). An arrow key
   moves a tick from where it is; PageUp and PageDown, R/F and Q/E move a step.
-- **On 0.8 and 0.7** (a match played or replayed on its own engine) there is no
+- **On 0.8 and 0.7** (no longer carried since 2026-11-21; a match played or replayed on its own engine) there is no
   `aim.controls`: TILT and SPIN settle on the engine's steps, 5 degrees and 1, through
   `stepSide(target - current)`, the knob easing onto the nearest when let go, as before.
 - **Spin is kept for the turn** (engine 0.9): the spin a kubb was thrown with is where the
@@ -750,7 +750,8 @@ header's row on a wide screen, clear of the target, the tray, the minimap and th
   choice, one after another, each watched (below). REST OF GAME, on the panel by hand and beside
   BY HAND while AUTO ALL runs, does that for every kubb for the rest of the match (it was
   also MENU's Raising row until the settings restructure: raising is a match option, so
-  the part-way choice is on the raise controls, not in the device's settings). While it is
+  the part-way choice is on the raise controls, not in the device's settings; the 1.0
+  design put it back in MENU as Raising, By hand or Automatic). While it is
   automatic the panel only says so, with BY HAND to take it back. It is this player's
   choice, never sent or recorded apart from the raises themselves, never for the other
   team, held while a card or the menu is open, and given back to the player if the
@@ -820,7 +821,7 @@ header's row on a wide screen, clear of the target, the tray, the minimap and th
   scope says). Device settings are kept on the device and never asked per match: your
   name (prefs `name`, `src/game/player-name.js`; a generated name, "Names" below), the meter
   (`meter`), its side (`meterSide`) and the sound (`muted`). They are one set of rows,
-  `deviceRows` in `src/ui/settings.js`, shown at the top of MENU in every mode and as the
+  `deviceRows` in `src/ui/settings.js`, shown by MENU's SETTINGS in every mode and as the
   `/settings/` page, linked as Settings on the web game's page (`prefsDevice` reads and
   writes the same prefs there; the page loads the engine for the name row only). Game settings (Computer level,
   surface, opening, raising, wind, kubb set, scene, and online who can join) live on the
@@ -1105,8 +1106,8 @@ kept replay (`GET /api/replay`) and shows "No match here" when there is none.
 
 ## Highlight reels
 
-A finished pitch's highlight reel, made on the server (docs/REEL.md, docs/ROOMS.md
-section 12). The card is `Reel` in `src/ui/reel.js`; what it shows and asks is a pure
+A finished pitch's highlight reel, made on the server (docs/REEL.md, `backend/api/API.md`
+`reel`). The card is `Reel` in `src/ui/reel.js`; what it shows and asks is a pure
 reducer in `src/net/reel.js` (`reelStart`, `reelStep`, `reelView`), so every answer is
 tested without a browser.
 
@@ -1171,8 +1172,8 @@ tested without a browser.
 
 A match against the computer has no pitch, so its reel needs the match shared first:
 sent once, checked by the server playing it again, and kept as a sealed pitch under a
-new code (docs/REEL.md "Sharing a match against the computer", docs/ROOMS.md section
-13). The button and card are `Share` in `src/ui/share.js`; the name rules, the message
+new code (docs/REEL.md "Sharing a match against the computer", `backend/api/API.md`
+`share`). The button and card are `Share` in `src/ui/share.js`; the name rules, the message
 and the card's states are a pure reducer in `src/net/share.js` (`shareStart`,
 `shareStep`, `shareView`), tested in `tests/net/share-client.test.mjs`.
 
@@ -1326,7 +1327,7 @@ min }`, the start's shape; session.lua `applyThrow` and `resign`) and subtracts 
 ## Recording
 
 Every solo and watch match is recorded when it ends (a winner or a resignation), the way
-a shared pitch's versions are (docs/ROOMS.md section 7): `recordMatch` in
+a shared pitch's are (`backend/api/API.md` "Records"): `recordMatch` in
 `src/net/record.js` sends one `game` message with the mode, the build, the options, the
 match's first snapshot, every action and the engine's hash after each, how it ended and
 the game file. Once a match (`game.trail.recorded`), including from a hidden tab while
@@ -1427,16 +1428,16 @@ played through the same action path.
 
 ## Version and freshness
 
-Two versions: the web game's own (`version` in `package.json`, 0.2.0) and the version of
+Two versions: the web game's own (`version` in `package.json`, 1.0.0) and the version of
 each kubb-engine it vendors (`vendor/engine/engine.json`, and `vendor/engines/<mm>/` for
-the older ones it still plays; read in Lua as `engineVersion`).
+the older ones it still plays, none today; read in Lua as `engineVersion`).
 The game file's "Scored by" is "Throwing Wood web <web version>" (`setClient`); records,
 reports and the `with` rider carry the engine's version as `engine` / `e`.
 Room joins also announce `me.engine` (the room's engine, marked `+engines`) and
 `me.engines` (all the page carries), START checks the members and writes `match.engine`
 on the room's engine, and `room.mayPlay` gates team and CPU control of a running match
 (`docs/ENGINES.md` "Playing together").
-The temporary lenient policy and version refusal cards are in docs/MULTIPLAYER.md "Engines".
+The version policy (`LENIENT_ENGINES` is false) and version refusal cards are in docs/MULTIPLAYER.md "Engines".
 
 - **The label** (`src/site/release.js`): every app shows its own version with the Kubb
   Engine's beside it, `<app version> (<engine version>)` (Jamie, 2026-11-20). On the web

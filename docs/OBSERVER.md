@@ -13,8 +13,8 @@ change; on the pitch server an observer is a member with `role: "observer"`
 
 - **An observer** opens `/p/<code>?observe=1`: WATCH on a row of the open games list
   (`public/js/open-games.js`), beside JOIN. It joins the pitch as an observer, so the lobby's
-  "Watching" line names it (the name this browser last typed, else "Someone"), and the
-  open games count ("2 of 12 on the pitch") counts it, as it counts anyone on the pitch.
+  "Watching" line names it (this browser's generated name, else "Someone"); the open
+  games count ("2 of 12 on the pitch") counts connected players only, never it.
 - **A watcher** is any member with no side in the match: an observer, someone who chose
   WATCH INSTEAD, someone who arrived mid-match, or a browser whose engine may not play
   the match.
@@ -103,7 +103,7 @@ On while a watcher sees the wide view and no card is over the pitch.
   - Not in the embed: the embed sits in another site's page, where a wheel must scroll
     that page.
   - Not stored: each watch starts at the first view.
-- **Scenes.** Park, Camping and Techno (the day, the night and the neon) draw from any view: the scenes take whatever camera
+- **Scenes.** Every scene (docs/SCENES.md) draws from any view: the scenes take whatever camera
   the pitch is drawn through (`src/render/scenes.js`).
 - **A phone held upright.** A watcher gets the wide view down to a smallest base kubb of
   2 CSS px (`tune.observeMinPx`; it was 6, and still is for `tune.wideMinPx`), so an
@@ -123,5 +123,5 @@ On while a watcher sees the wide view and no card is over the pitch.
 - Same view: start at the engine's wide camera untouched; orbit with the limits above;
   lens unchanged; RESET VIEW eases 0.45 s, or at once with Reduce Motion. The gestures
   map one to one: one finger turns, two fingers pinch, twist and slide.
-- Same honesty: the observer shows in the lobby's Watching line and in the open games
-  count. Nothing new goes in a record, a replay or a reel.
+- Same honesty: the observer shows in the lobby's Watching line (the open games count
+  is players only). Nothing new goes in a record, a replay or a reel.
