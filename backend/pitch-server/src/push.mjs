@@ -1,8 +1,9 @@
-// Pushes from a pitch to the AWS receiver (build step 3, not built yet): the request's
+// Pushes from a pitch to the AWS receiver (the api function, backend/api/): the request's
 // shape, its signature and the retry schedule. Pure apart from WebCrypto, which both
 // workerd and Node have, so the node tests and the receiver can share the contract.
 //
-// The contract (README.md "The AWS receiver" says it in full):
+// The contract (PROTOCOL.md "On the wire to AWS" says it in full; the receiver's side is
+// backend/api/API.md "Pushes"):
 //
 //   POST <PUSH_URL>
 //   content-type: application/json

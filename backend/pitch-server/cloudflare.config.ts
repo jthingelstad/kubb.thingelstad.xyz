@@ -4,7 +4,8 @@ import { bindings, defineConfig, exports } from "cf/config";
 // `wrangler dev` and the tests read wrangler.jsonc: keep the two alike (but wrangler.jsonc
 // has no PUSH_URL, so a local server never pushes to AWS).
 //
-// One file, two Workers, picked by `cf deploy --mode` (README.md "Deploy"):
+// One file, two Workers, picked by `cf deploy --mode` (README.md "Deploy with nobody
+// there" and "Deploy by hand, from 1Password"):
 //
 // - no mode: the DEV Worker, `throwingwood-pitches-dev`, with the dev-only settings
 //   (localhost origins, the write-first prefix) and a `DEV_KEY` from `.dev.vars`;
