@@ -7,14 +7,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { chromium } from "playwright";
-import {
-  serve,
-  sweep,
-  swing,
-  waitPhase,
-  VIEWPORTS,
-  played,
-} from "./browser.mjs";
+import { serve, sweep, swing, VIEWPORTS, played } from "./browser.mjs";
 import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { makePitchCode } from "../../src/net/pitch-client.js";
 

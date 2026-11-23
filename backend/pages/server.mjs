@@ -1,4 +1,4 @@
-// The pages function's HTTP handler (docs/HOSTING.md "Pitch pages"): CloudFront
+// The pages function's HTTP handler (docs/ROOMS.md "11. Pitch pages"): CloudFront
 // sends /p/<code>, /e/<code> and /og/<code>.png here, rewritten by the viewer
 // request function (infra/viewer-request.js) to the static file each one is,
 // with the code as ?pitch=. Read only: one or two reads of the room store.

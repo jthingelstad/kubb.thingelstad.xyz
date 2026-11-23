@@ -16,9 +16,6 @@
 // None of it goes on the room wire, the rider or a kept match, replay or share: web and
 // iPhone players are alike there (docs/CLIENT.md "Version and freshness").
 
-export const shortSha = (sha) =>
-  typeof sha === "string" && sha ? sha.slice(0, 7) : "dev";
-
 export function releaseText({ version, engine }) {
   return `${version} (${engine || "dev"})`;
 }

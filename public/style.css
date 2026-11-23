@@ -31,7 +31,6 @@
   --wood: #ecd09a;
   --wood-dark: #c79a58;
   --grass: #4f9a3b;
-  --grass-dark: #3d7f2c;
   --baton: #fbf6ea;
   --marigold: #f2b705;
   --muted: #5b4a2c;
@@ -292,11 +291,6 @@ h2.display {
   align-items: flex-start;
   gap: 1.1rem;
   margin-top: 1.6rem;
-}
-.actions__more {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.9rem 1.1rem;
 }
 .hero__scene {
   display: block;
@@ -595,13 +589,6 @@ figure {
 .band--baton {
   background: var(--baton);
 }
-.band--grass {
-  background: var(--grass);
-  color: var(--baton);
-}
-.band--grass a:not(.button) {
-  color: var(--baton);
-}
 .band--wood {
   background: var(--wood);
 }
@@ -656,9 +643,6 @@ figure {
   .split {
     grid-template-columns: 1fr 1.15fr;
     gap: 3rem;
-  }
-  .split--flip > :first-child {
-    order: 2;
   }
 }
 

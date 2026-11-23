@@ -27,10 +27,6 @@ const text = (body, status = 200, headers = {}) =>
 const OPEN_CACHE_MS = 5000;
 let openCache = { at: 0, body: null };
 
-export function resetOpenCache() {
-  openCache = { at: 0, body: null };
-}
-
 async function openGames(request, env, origin, allowed) {
   const cors = corsHeaders(origin, allowed);
   if (request.method === "OPTIONS")

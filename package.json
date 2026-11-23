@@ -37,7 +37,6 @@
     "wasmoon": "1.16.0"
   },
   "devDependencies": {
-    "@aws-sdk/client-apigatewaymanagementapi": "3.1152.0",
     "@aws-sdk/client-cloudformation": "3.1152.0",
     "@aws-sdk/client-cloudfront": "3.1152.0",
     "@aws-sdk/client-dynamodb": "3.1152.0",

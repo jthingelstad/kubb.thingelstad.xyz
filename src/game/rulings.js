@@ -9,7 +9,6 @@
 // own), and a helicopter counts (`helicopterCounts`): its flag is what it knocked down
 // ("1 DOWN", "MISS"), never "HELICOPTER", which in the standard game means a throw that
 // does not count.
-export const KID_CODES = ["kingUp", "placed", "helicopterCounts"];
 
 // A thrown kubb's rulings (the engine's core/match: an inkast's throw, its rethrows,
 // what was out twice, a kubb landing on another, a rescue): the engine's flag is

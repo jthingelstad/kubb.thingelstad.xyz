@@ -4,7 +4,7 @@
 // reel of that replay is drawn in it. A scene id the engine does not list is Park (since
 // engine 0.14 it is not kept); the physics never reads it, so the match is the same throw
 // for throw. The renderer's own fallback for a listed scene it does not draw is
-// tests/game/scenes.test.mjs's.
+// tests/game/scenes-client.test.mjs's.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import fs from "node:fs";

@@ -1466,11 +1466,6 @@ body.game {
   background: var(--ink);
   color: var(--paper);
 }
-.scene-note {
-  margin: 6px 0 0;
-  font-size: 14px;
-  color: var(--muted);
-}
 
 /* a card's foot: what is quiet at the left, the go button at the right */
 .card-foot {
@@ -1520,11 +1515,6 @@ body.game {
   margin-top: 8px;
 }
 
-.menu .menu-list {
-  display: grid;
-  gap: 10px;
-  margin-top: 14px;
-}
 /* the release label at the menu's foot, "0.2.0 (0.8.1)", and the older engines the
    page also plays under it (src/site/release.js) */
 .menu-version {

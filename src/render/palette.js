@@ -121,7 +121,6 @@ export const SETS = {
     emblemPaint: "#d9961a",
   },
 };
-export const SET_NAMES = ["classic", "usa", "sweden", "minnesota", "wisconsin"];
 
 // The king's collar, ring and diamond (the classic king's dark details).
 export const KING_MARK = "#2a2118";
