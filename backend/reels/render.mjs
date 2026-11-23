@@ -37,6 +37,11 @@ export const FPS = 30;
 export const FORMATS = {
   tall: { W: 1080, H: 1920, cy: 0.5 },
   wide: { W: 1920, H: 1080, cy: 0.44 },
+  // The App Store's App Preview sizes, portrait: the tall reel's cameras and layout
+  // (`as`) in another shape. Only the command line asks for them
+  // (tools/reel/render.mjs); the reel function makes tall and wide.
+  iphone: { W: 886, H: 1920, cy: 0.5, as: "tall" },
+  ipad: { W: 1200, H: 1600, cy: 0.42, as: "tall" },
 };
 
 // The files the reel needs beside the code: the display face, the label face and the
@@ -117,7 +122,9 @@ export function planFrames(edit) {
   const frames = [];
   const push = (f) => frames.push(f);
   const n = (s) => Math.max(1, Math.round(s * FPS));
-  for (let j = 0, N = n(edit.title); j < N; j++)
+  // a card of no length (a cut without it, highlights.mjs `cut`) has no frame
+  const card = (s) => (s > 0 ? n(s) : 0);
+  for (let j = 0, N = card(edit.title); j < N; j++)
     push({ card: "title", u: j / N, local: j / FPS });
   edit.moments.forEach((m, mi) => {
     // the camera of each shot, and the run of shots one camera films without a cut
@@ -159,7 +166,7 @@ export function planFrames(edit) {
       }
     });
   });
-  for (let j = 0, N = n(edit.endCard); j < N; j++)
+  for (let j = 0, N = card(edit.endCard); j < N; j++)
     push({ card: "end", u: j / N, local: j / FPS });
   return frames;
 }
@@ -261,6 +268,7 @@ export async function renderReel({
   peek = 0, // every nth frame as a PNG and no video (looking at cameras)
   capture = null, // (format, { camera, items, scene }) per frame, drawing nothing (bench.mjs)
   scene: sceneId = null, // draw in this scene instead of the match's own (tools)
+  cut = {}, // the reel's lengths in place of the tune's (highlights.mjs; tools)
 }) {
   if (!sources) throw new Error("renderReel needs the engine's Lua sources");
   loadFonts(assets);
@@ -268,7 +276,7 @@ export async function renderReel({
   const t0 = performance.now();
   const scan = await scanReplay(replay, { sources });
   const teams = shownTeams(scan.teams || scan.end?.teams);
-  const edit = pickHighlights(scan);
+  const edit = pickHighlights(scan, cut);
   // nothing to show: no encoder is started on nothing
   if (!edit.moments?.length) throw new NoHighlights();
   const address = `throwingwood.com/p/${code}`;
@@ -279,13 +287,14 @@ export async function renderReel({
 
   // the outputs
   const F = formats.map((f) => {
-    const { W, H, cy } = FORMATS[f];
+    const { W, H, cy, as = f } = FORMATS[f];
     const k = W / 400;
     const frame = { w: 400, h: H / k, cy };
     const canvas = createCanvas(W, H);
     const tmp = path.join(out, `.${f}.video.mp4`);
     return {
       f,
+      as, // the format whose cameras and layout this one takes
       W,
       H,
       k,
@@ -293,7 +302,7 @@ export async function renderReel({
       canvas,
       ctx: canvas.getContext("2d"),
       view: { width: W, height: H, dpr: 1, fit: { k, ox: 0, oy: 0 } },
-      L: O.layoutFor(f, W, H),
+      L: O.layoutFor(as, W, H),
       tmp,
       enc: peek || capture ? null : encoder(ffmpeg, tmp, W, H),
       stills: [],
@@ -400,16 +409,17 @@ export async function renderReel({
     for (const o of F) {
       const { ctx, view: v, frame, L } = o;
       let camera;
-      if (fr.card) camera = C.overview(o.f, frame);
+      if (fr.card) camera = C.overview(o.as, frame);
       else {
         const baton = items.find((it) => it.id === pid) || null;
-        if (fr.cam === "arc") camera = C.arc(fact, o.f, frame, baton);
-        else if (fr.cam === "impact") camera = C.impact(fact, o.f, frame, fr.u);
+        if (fr.cam === "arc") camera = C.arc(fact, o.as, frame, baton);
+        else if (fr.cam === "impact")
+          camera = C.impact(fact, o.as, frame, fr.u);
         else if (fr.cam === "king") {
           const kp = startItems.find((it) => it.kind === "king");
           camera = C.king(
             fact,
-            o.f,
+            o.as,
             frame,
             fr.u,
             kp ? { x: kp.x, y: kp.y } : undefined,
@@ -417,13 +427,13 @@ export async function renderReel({
         } else if (fr.cam === "group" || fr.cam === "settled")
           camera = C.group(
             fact,
-            o.f,
+            o.as,
             frame,
             fr.u,
             fr.focus,
             fr.cam === "settled",
           );
-        else camera = C.land(fact, o.f, frame, fr.u);
+        else camera = C.land(fact, o.as, frame, fr.u);
       }
       if (capture) {
         capture(o.f, { camera, items, scene });

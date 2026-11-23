@@ -4,9 +4,16 @@
 //
 //   node tools/reel/render.mjs --replay <file> [--code <pitch>] [--out <dir>]
 //        [--formats tall,wide] [--name <reel>] [--peek <n>] [--scene <id>]
+//        [--title <s>] [--end-card <s>] [--min-seconds <s>] [--max-seconds <s>]
 //
 // --scene draws the reel in that scene (src/render/scenes.js) instead of the match's
 // own, to look at one.
+// --formats also takes iphone (886x1920) and ipad (1200x1600), the App Store's App
+// Preview sizes, drawn as the tall reel is. --title and --end-card give those cards'
+// lengths (0 leaves the card out) and --min-seconds and --max-seconds the reel's, in
+// place of the shared reel's (backend/reels/highlights.mjs `tune`): a preview is 15 to
+// 30 s and carries no address, so
+//   --formats iphone --title 1.2 --end-card 0 --min-seconds 25 --max-seconds 29.5
 // Writes <out>/<name>-tall.mp4, <name>-wide.mp4, <name>.edit.json (the edit list) and
 // <name>-<format>-sheet.png (one still per moment and the cards, cut from the MP4 by
 // ffmpeg). FFMPEG names the ffmpeg to use (the one on the PATH otherwise). The replay
@@ -52,6 +59,7 @@ export async function renderReel({
   peek = 0,
   capture = null,
   scene = null,
+  cut = {},
 }) {
   if (!sources) {
     const e = replayEngine(replay);
@@ -72,6 +80,7 @@ export async function renderReel({
     peek,
     capture,
     scene,
+    cut,
   });
   if (peek || capture) return result;
   const files = {};
@@ -99,10 +108,11 @@ export async function renderReel({
 }
 
 async function contactSheet(mp4, file, stills, edit, o) {
+  // a card the cut leaves out (--title 0, --end-card 0) has no still
   const times = [
-    { t: stills.title, label: "TITLE" },
+    ...(edit.title > 0 ? [{ t: stills.title, label: "TITLE" }] : []),
     ...stills.moments.map((t, i) => ({ t, label: edit.moments[i].caption })),
-    { t: stills.end, label: "END" },
+    ...(edit.endCard > 0 ? [{ t: stills.end, label: "END" }] : []),
   ];
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "reel-"));
   const imgs = [];
@@ -174,6 +184,22 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   }
   const replay = JSON.parse(fs.readFileSync(file, "utf8"));
   const name = arg("name", path.basename(file).replace(/\.json$/, ""));
+  // the reel's lengths, where given (pickHighlights' `cut`)
+  const cut = {};
+  for (const [flag, key] of [
+    ["title", "titleSeconds"],
+    ["end-card", "endSeconds"],
+    ["min-seconds", "minSeconds"],
+    ["max-seconds", "maxSeconds"],
+  ]) {
+    const v = arg(flag);
+    if (v == null) continue;
+    if (!(Number(v) >= 0)) {
+      console.error(`--${flag} takes a number of seconds`);
+      process.exit(2);
+    }
+    cut[key] = Number(v);
+  }
   try {
     await renderReel({
       replay,
@@ -183,6 +209,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       formats: arg("formats", "tall,wide").split(","),
       peek: Number(arg("peek", 0)),
       scene: arg("scene"),
+      cut,
     });
   } catch (error) {
     if (error?.code !== REEL_EMPTY) throw error;

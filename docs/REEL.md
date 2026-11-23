@@ -154,6 +154,40 @@ PNG per format. Both formats are H.264 High, yuv420p, 30 fps, AAC sound and fast
   knock takes at each touch (seeded, with the same rate spread as the game) and its
   C-G-C triangle chord for the king. It is a 16-bit WAV, muxed to AAC.
 
+### A cut for the App Store
+
+An App Preview is a reel in Apple's shape (2026-11-22, for the iPhone app's page: three
+reels, one each in Park, Techno and Camping): 886 x 1920 on an iPhone, 1200 x 1600 on an
+iPad, 15 to 30 s, play from the start, no address. The command line makes one; the reel
+function never does, and a reel made without these flags is byte for byte what it was.
+
+```
+node tools/reel/solo.mjs --scene neon 17       # the match in its scene, as a device names it
+FFMPEG=tools/reel/preview-ffmpeg.sh node tools/reel/render.mjs \
+  --replay build/reel/matches/solo-17-neon.json --formats iphone,ipad \
+  --title 1.2 --end-card 0 --min-seconds 25 --max-seconds 29.5
+```
+
+- `--formats iphone` and `ipad` (`FORMATS` in `backend/reels/render.mjs`) are the tall
+  reel's cameras and layout in another shape: the frame is drawn at that size, never
+  cropped or scaled from the tall one, and the type is set in proportion to the width
+  (`layoutFor`). The iPad's shorter frame centres the action a little higher (`cy`), clear
+  of the caption.
+- `--title`, `--end-card`, `--min-seconds` and `--max-seconds` replace those four numbers
+  of the picker's `tune` (`pickHighlights`' `cut`). A card of 0 s has no frame, so
+  `--end-card 0` ends the cut on the last moment's beat: the king down, held. A shorter
+  reel is fewer whole moments, never one cut short. 29.5 leaves room for the frames'
+  rounding under Apple's 30 s.
+- `tools/reel/preview-ffmpeg.sh`, named in `FFMPEG`, gives the renderer's own two ffmpeg
+  calls Apple's numbers: H.264 High at level 4.0 aiming at 11 Mbps, tagged BT.709, and
+  AAC stereo at a constant 256 kbps, 48 kHz. The picture is flat colour, so the video
+  comes out at 5 to 8 Mbps at the encoder's finest steps; more would be filler.
+- `solo.mjs --scene <id>` plays the match in that scene. A scene owns its surface, so a
+  seed in Techno (`neon`) is not the same match as that seed in the park; Camping
+  (`night`) plays the park's.
+- Apple's poster is the frame at 5.0 s. With a 1.2 s title that is the first moment about
+  half a second after its hit; look at it before choosing the match.
+
 ### The end card
 
 The last 3.6 s of every reel (`endSeconds`; it fades in over its first 0.6 s, so it

@@ -402,8 +402,15 @@ export class NoHighlights extends Error {
 }
 
 // The edit list. throws: scan.mjs's facts; end: how the match ended. No throws, no
-// moments: { moments: [], seconds: 0 } and no title or end card.
-export function pickHighlights({ throws, end = null, teams = null }) {
+// moments: { moments: [], seconds: 0 } and no title or end card. `cut` may give the
+// reel's own lengths in place of `tune`'s (minSeconds, maxSeconds, titleSeconds,
+// endSeconds: a card of 0 s is left out), for a cut that is not the shared reel
+// (tools/reel/render.mjs, an App Store preview); nothing else of `tune` is read from it.
+export function pickHighlights({ throws, end = null, teams = null }, cut = {}) {
+  const { minSeconds, maxSeconds, titleSeconds, endSeconds } = {
+    ...tune,
+    ...cut,
+  };
   const groups = drillGroups(throws);
   const ctx = { end, teams, groups };
   const rated = throws.map((t) => ({ t, r: rateThrow(t, ctx) }));
@@ -417,7 +424,7 @@ export function pickHighlights({ throws, end = null, teams = null }) {
     ending = hits[hits.length - 1] ?? last;
   }
   const chosen = [ending];
-  const budget = tune.maxSeconds - tune.titleSeconds - tune.endSeconds;
+  const budget = maxSeconds - titleSeconds - endSeconds;
   const secs = (x) =>
     shotSeconds(
       shotsFor(x.t, x.r.kind, x.r.score, drillFocus(x.t, x.r, groups)),
@@ -515,7 +522,7 @@ export function pickHighlights({ throws, end = null, teams = null }) {
   const moments = chosen.map((x) => moment(x.t, x.r, groups));
   const reel = moments.reduce((s, m) => s + m.seconds, 0);
   // too short: stretch the beats (never the throws) toward the shortest reel
-  const short = tune.minSeconds - tune.titleSeconds - tune.endSeconds - reel;
+  const short = minSeconds - titleSeconds - endSeconds - reel;
   if (short > 0) {
     const each = short / moments.length;
     for (const m of moments) {
@@ -525,16 +532,14 @@ export function pickHighlights({ throws, end = null, teams = null }) {
     }
   }
   const seconds =
-    tune.titleSeconds +
-    tune.endSeconds +
-    moments.reduce((s, m) => s + m.seconds, 0);
+    titleSeconds + endSeconds + moments.reduce((s, m) => s + m.seconds, 0);
   return {
     moments,
     seconds: Math.round(seconds * 100) / 100,
     end,
     teams,
-    title: tune.titleSeconds,
-    endCard: tune.endSeconds,
+    title: titleSeconds,
+    endCard: endSeconds,
   };
 }
 

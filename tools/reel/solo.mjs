@@ -7,6 +7,8 @@
 //
 //   node tools/reel/solo.mjs 5 9                 write build/reel/matches/solo-<n>.json
 //   node tools/reel/solo.mjs --level beginner 3  both sides at that level (club by default)
+//   node tools/reel/solo.mjs --scene neon 3      in that scene (the engine's id), as a
+//                                                device names it: solo-<n>-<scene>.json
 //
 // The file is what a phone keeps of a solo match today (docs/REEL.md "The iPhone"): the
 // first snapshot and every action, no hashes. `end` is what the device would claim: the
@@ -207,14 +209,17 @@ export async function verifySolo(sub, sources = bundleLua()) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const li = process.argv.indexOf("--level");
   const level = li > 0 ? process.argv[li + 1] : "club";
+  const si = process.argv.indexOf("--scene");
+  const scene = si > 0 ? process.argv[si + 1] : null;
+  const flags = ["--level", "--scene"];
   const seeds = process.argv
     .slice(2)
-    .filter((a, i, all) => all[i - 1] !== "--level" && a !== "--level")
+    .filter((a, i, all) => !flags.includes(all[i - 1]) && !flags.includes(a))
     .map(Number)
     .filter(Number.isFinite);
   if (!seeds.length) {
     console.error(
-      "usage: node tools/reel/solo.mjs [--level beginner|club|pro] <seed> [<seed> ...]",
+      "usage: node tools/reel/solo.mjs [--level beginner|club|pro] [--scene <id>] <seed> [<seed> ...]",
     );
     process.exit(2);
   }
@@ -223,12 +228,15 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   for (const seed of seeds) {
     const t0 = Date.now();
     const { human, ...sub } = await playSolo(
-      soloSetup(seed, { level }),
+      soloSetup(seed, scene ? { level, scene } : { level }),
       sources,
     );
     const t1 = Date.now();
     const v = await verifySolo(sub, sources);
-    const file = path.join(OUT, `solo-${seed}.json`);
+    const file = path.join(
+      OUT,
+      scene ? `solo-${seed}-${scene}.json` : `solo-${seed}.json`,
+    );
     const text = JSON.stringify(sub);
     fs.writeFileSync(file, text + "\n");
     console.log(

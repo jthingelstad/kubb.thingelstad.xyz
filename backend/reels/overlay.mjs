@@ -14,20 +14,25 @@ export const DISPLAY = '"Londrina Solid"';
 export const LABEL = "Inter";
 
 export function layoutFor(format, W, H) {
-  if (format === "tall")
+  if (format === "tall") {
+    // the type is sized for a frame 1080 wide; another width (a store preview's,
+    // render.mjs FORMATS) takes it in proportion
+    const unit = W / 1080;
+    const u = (n) => Math.round(n * unit);
     return {
       W,
       H,
       left: Math.round(W * 0.06),
       right: Math.round(W * 0.84), // the platforms' buttons stand to the right of this
-      top: Math.round(H * 0.14) + 24,
-      bottom: Math.round(H * 0.8) - 28,
-      caption: 74,
-      kicker: 38,
-      score: 58,
-      tag: 42,
-      unit: W / 1080,
+      top: Math.round(H * 0.14) + u(24),
+      bottom: Math.round(H * 0.8) - u(28),
+      caption: u(74),
+      kicker: u(38),
+      score: u(58),
+      tag: u(42),
+      unit,
     };
+  }
   return {
     W,
     H,
