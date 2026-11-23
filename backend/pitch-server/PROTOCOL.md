@@ -16,12 +16,13 @@ lists.
 
 ## 1. Connecting
 
-One WebSocket per pitch: `wss://<host>/ws?pitch=<code>` (the address is still the
-owner's call, section 11 of the spec). A code is 8 to 24 of
+One WebSocket per pitch: `wss://<host>/ws?pitch=<code>` (the apps use
+`wss://throwingwood-pitches.throwingwood.workers.dev`, the owner's call in section 11 of
+the spec). A code is 8 to 24 of
 `23456789abcdefghjkmnpqrstuvwxyz`. Every message both ways is one JSON object as one
 text frame, with a type `t`. There is no splitting into parts: a frame may be as large
-as the limits below (the iPhone's `maximumMessageSize` of 32 KB must be raised; a join
-with the full state is larger).
+as the limits below (the iPhone's `maximumMessageSize` was raised from 32 KB to 256 KB
+for this; a join with the full state is larger than 32 KB).
 
 The upgrade is refused before it reaches the pitch with HTTP 426 (not a WebSocket
 upgrade), 400 (no code, or not a code) or 403 (an `Origin` header that is not one of the
@@ -407,7 +408,8 @@ which happens only after it has been idle longer than any of their windows.
 
 - `rebuildPitch({ code, stored, conns, now, options, alarm }) -> { state, effects }`:
   build the pitch from storage (in the constructor, inside `blockConcurrencyWhile`).
-  `stored` is the six records below (all absent for a new code); `conns` is
+  `stored` is the records below as persisted (`pitch`, `doc`, `members`, `match`,
+  `head`, `acts`, `outbox`; all absent for a new code); `conns` is
   `ctx.getWebSockets()` as `{ conn, member, role }` from each socket's attachment;
   `alarm` is `await ctx.storage.getAlarm()` (null for none). The saved `alarmAt` can be
   ahead of the real alarm when the object died between a persist and its alarm effect,
@@ -421,7 +423,9 @@ which happens only after it has been idle longer than any of their windows.
   `{ type: "tick", now }` (`alarm`) and `{ type: "pushed", k, now }` (the AWS function
   confirmed push `k`). It changes `state` in place.
 - `createPitch`, `resolveOptions`, `LIMITS`, `OPTIONS`, `thinAllow`, `matchView`,
-  `listingEntry`, `keptReplay`, `utf8Length`, `PITCH_CODE`, `MEMBER_ID`, `ACT_ID`.
+  `listingEntry`, `keptReplay`, `utf8Length`, `PITCH_CODE`, `MEMBER_ID`, `ACT_ID`,
+  `CLIENT_TAG`, `ROLES`, `OPEN_STATES`, `PitchError`, and the names check's `checkedMe`
+  and `badNames` (section 6a).
 
 `conn` is any string the object gives each socket (kept in its attachment). Options:
 `{ commitOrder, unknownPitch, limits: { ...overrides } }`.
@@ -504,7 +508,9 @@ an untaken push is retried for as long as the pitch lives.
 
 The body is the envelope `{ "v": 1, pitch, made, k, topic, sent, body }`: `topic` and
 `body` as in the table above, `sent` the object's clock when this attempt was made (it
-changes between retries; the key does not). Verify the signature over the exact bytes
+changes between retries; the key does not). The dev Worker's envelope also carries
+`dev: true` (`PUSH_DEV`; backend/api/API.md "Dev pushes"); a production one has no such
+field. Verify the signature over the exact bytes
 received, before parsing, with a constant-time compare.
 
 Any 2xx means taken, a duplicate included: answer 200 to a key already stored. Anything

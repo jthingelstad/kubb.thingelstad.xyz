@@ -100,7 +100,8 @@ At Cloudflare:
   - Timers are alarms (`ctx.storage.setAlarm`), never `setTimeout`, which would keep the
     object awake.
   - `setWebSocketAutoResponse` answers a literal `ping` without waking the object.
-- One `LobbyDO` holds the open-games list (today's `open` partition in DynamoDB).
+- One `LobbyDO` holds the open-games list (the rooms server's `open` partition in
+  DynamoDB before it).
 
 In AWS, unchanged: the site and CloudFront, the pitch pages function and the reels
 function. New, in the `throwing-wood-pitches` stack: the api function, its own table
@@ -183,7 +184,8 @@ HTTPS calls (replacing `src/net/ask.js`). docs/MULTIPLAYER.md "What the iPhone a
 mirrors" is the list for the iPhone.
 
 iPhone (`throwingwood-ios`): `RoomsClient.swift`, `Transport.swift` (its
-`maximumMessageSize = 32 * 1024` must be raised: a join with the full state is larger),
+`maximumMessageSize = 32 * 1024` had to be raised, a join with the full state being
+larger: it is `256 * 1024` since 2026-11-21),
 `PitchController.swift`, `OnlinePitch.swift`.
 
 Both:
@@ -342,20 +344,23 @@ stack can later go whole:
 - `ApiRole`, its execution role (a generated name), which may only:
   - `GetItem`, `PutItem`, `UpdateItem`, `DeleteItem` on the pitches table, for keys that
     start `pitch#`, `share#`, `reels#` or `shares#`;
-  - `PutObject` under `games/pitch/`, `games/browser/` and `reports/` in the pitches
-    games bucket (no reads, no deletes);
+  - `PutObject` under `games/pitch/`, `games/dev/pitch/`, `games/browser/` and
+    `reports/` in the pitches games bucket (no reads, no deletes);
   - `GetSecretValue` on the push secret only;
   - write its own log group;
   - invoke the reels function, when the renderer is on.
 - `throwing-wood/push-secret`: the shared secret, made by Secrets Manager (64 letters and
   digits). Nobody types it and it is never in a template, a parameter or a log. The
   function reads it when it runs.
+- `throwing-wood/pitch-dev-key` (`DevKey`): the dev Worker's bearer key for `/dev/pitch`,
+  made by Secrets Manager (48 letters and digits), read only by
+  `backend/pitch-server/deploy.sh dev`; the api's role cannot read it.
 - The pitches table (a generated name, `throwing-wood-pitches-PitchesTable-...`): `pk`
   and `sk` strings, TTL on `exp`, on demand, no point-in-time recovery, deleted with the
   stack: as the rooms table.
 - `throwing-wood-pitches-games-<account>`: the private games bucket, kept when the stack
-  goes; public access blocked, SSE-S3, bucket owner enforced, TLS only, no versioning or
-  lifecycle: as the rooms games bucket.
+  goes; public access blocked, SSE-S3, bucket owner enforced, TLS only, no versioning: as
+  the rooms games bucket. One lifecycle rule: `games/dev/` expires after 14 days.
 - Outputs `ApiUrl`, `ApiFunctionName`, `PushSecretArn`, `TableName`, `GamesBucket`,
   exported as `throwing-wood-api-url`, `throwing-wood-api-function`,
   `throwing-wood-push-secret-arn`, `throwing-wood-pitches-table` and
@@ -380,7 +385,7 @@ the authority; the 1Password item `Pitch Server Push Secret - throwing-wood` (va
    `throwing-wood/push-secret`, "Retrieve secret value", and copy it into the 1Password
    item's `credential` field.
 2. In `backend/pitch-server/`, render the secrets file from the committed template and
-   deploy the Worker (its README.md "Deploy"):
+   deploy the Worker (its README.md "Deploy by hand, from 1Password"):
    `op inject -i .prod.vars.tpl -o .prod.vars && chmod 600 .prod.vars`, then
    `npx cf deploy --mode production --secrets-file .prod.vars </dev/null` (the dev Worker
    the same with `.dev.vars.tpl` and `.dev.vars`, no `--mode`). The rendered files are
