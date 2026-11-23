@@ -31,15 +31,17 @@ for an engine a row still names, `--drop` only for one no row names.
 | Build                             | App version       | Engine | As of      |
 | --------------------------------- | ----------------- | ------ | ---------- |
 | App Store                         | none yet          |        | 2026-11-22 |
-| TestFlight Beta (outside testers) | 1.0.0 (build 260) | 1.0.0  | 2026-11-22 |
+| TestFlight Beta (outside testers) | 0.6 (build 162)   | 0.9.0  | 2026-11-22 |
+| TestFlight Beta, in review        | 1.0.0 (build 260) | 1.0.0  | 2026-11-22 |
 | TestFlight Dev (internal)         | 1.0.0 (build 256) | 1.0.0  | 2026-11-22 |
 
-Both rows were filled on 2026-11-22 from App Store Connect. Build 256 is in the Internal
+The rows were filled on 2026-11-22 from App Store Connect. Build 256 is in the Internal
 group. Build 260, the same app at a later commit that changed only its docs, is in the
-Beta group and was submitted to Beta App Review that day; until Apple passes it, outside
-testers still have build 162, `0.6 (0.9.0)`, whose engine the site dropped on 2026-11-21,
-so that build plays no pitch with the site. Every row is 1.0 and the site carries what the
-rule asks.
+Beta group and was submitted to Beta App Review that day. Until Apple passes it, the build
+outside testers have is 162, `0.6 (0.9.0)`. The site does not carry 0.9: it was dropped on
+2026-11-21, before this rule, so build 162 plays no pitch with the site, and that gap
+closes when 260 passes. Whoever sees it pass removes the "in review" row and makes the Beta
+row 1.0.0 (build 260); then every row is 1.0 and the site carries what the rule asks.
 
 - **Today the site carries one engine: 1.0 (1.0.0).** It replaced 0.18 (0.18.0) with
   `--drop` on 2026-11-22. 1.0.0 is the released engine, a major by declaration (the
