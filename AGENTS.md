@@ -127,10 +127,22 @@ to the live list.
 
 `npm ci`, then `npm run check` and `npm run format:check`. `check` runs, in order:
 `vendor:check`, `shared:check`, the `infra/site.json` sync check, every `*.test.mjs` under
-`tests/` with `node --test` (among them the engine's golden corpus under this wasmoon and
-the kept replay fixture: `node tools/replay-fixture.mjs` writes it again), the build, and `validate:site` (links and routes
+`tests/` with `node --test` (among them the kept replay fixture: `node tools/replay-fixture.mjs` writes it again), the build, and `validate:site` (links and routes
 resolve through the real viewer request function, required tags, no inline script, no email
 address or home path in `dist/`, no account id in Markdown).
+
+- **The engine's whole golden corpus is played when it is due or asked for, not on
+  every check** (2026-11-22, after the owner found deploys slow: it was 8 of a run's 9.5
+  minutes in CI). `tests/engine/golden.test.mjs` plays every carried engine's corpus
+  under this wasmoon, hash for hash. `check` leaves it out unless something it depends
+  on differs from the base: `vendor/`, `src/engine/`, `tools/lua-bundle.mjs`, wasmoon in
+  `package-lock.json`, `.nvmrc`, or the test, the rule, `tools/check.mjs` and the
+  workflow themselves (`GOLDEN_INPUTS` in `tools/golden-due.mjs`). In doubt it plays,
+  and `check` prints which and why. So an engine sync or a wasmoon change is still held
+  to every hash before it merges and again before it deploys. To ask for it, run
+  `npm run golden` (the corpus alone), pass `--golden` to `tools/check.mjs`, or start
+  the workflow by hand with its box ticked. Every check still plays the kept replay
+  fixture hash for hash, and one corpus match for each engine with two carried.
 
 - **What a build talks to.** The deploy build (`KUBB_PRODUCTION=true`) gives the page
   the production pitch server; every other build (local, `npm run build` with `npm run

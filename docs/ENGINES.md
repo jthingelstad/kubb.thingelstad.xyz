@@ -157,8 +157,9 @@ with "This match has a name the game did not make, so it cannot be shown."
   with the throws that go differently listed (`--engine <mm>` plays all on one);
   `node tools/replay-fixture.mjs` writes the kept replay fixture,
   `tests/fixtures/replay-north-south.json` (its sides now generated names).
-- **Tests**: the carried engine plays its golden corpus and the kept replay
-  (`tests/engine/`); an old match's sentence in every place above is
+- **Tests**: the carried engine plays the kept replay on every check and its golden
+  corpus when the engine or wasmoon changed, or when asked (`npm run golden`;
+  `tests/engine/`); an old match's sentence in every place above is
   `tests/game/engines-client.test.mjs`; the machinery for several engines, with a second
   made at test time, is `tests/net/engines-replay.test.mjs` and `tests/reel/engines.test.mjs`.
 

@@ -3,6 +3,11 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      golden:
+        description: Play the engine's whole golden corpus (minutes)
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -24,7 +29,14 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # The engine's whole golden corpus takes minutes, so check plays it only when
+      # the engine, wasmoon or their host changed (tools/golden-due.mjs), or when the
+      # run was started by hand with the box ticked. On main the base is the commit
+      # before the push; elsewhere it is where the branch left main.
       - run: npm run format:check && npm run check
+        env:
+          KUBB_GOLDEN: ${{ inputs.golden && '1' || '' }}
+          KUBB_GOLDEN_BASE: ${{ github.ref == 'refs/heads/main' && github.event.before || '' }}
       # The pitch server's Durable Object tests, in workerd (backend/pitch-server/README.md).
       - run: npm ci --prefix backend/pitch-server
       - run: npm run test:do --prefix backend/pitch-server

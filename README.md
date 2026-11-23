@@ -17,6 +17,7 @@ Node 24 (`.nvmrc`). Lua 5.4 for the game logic's tests.
 ```sh
 npm ci
 npm run check          # vendor and shared checks, tests, build, site checks
+npm run golden         # the engine's whole golden corpus (minutes; check plays it when the engine changed)
 npm run format:check   # prettier
 npm run preview        # dist/ on http://127.0.0.1:4322, /p/<code> as live
 npm run dev            # rebuild on change, plus the local pitch server on ws://127.0.0.1:8797

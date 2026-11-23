@@ -5,8 +5,10 @@
 //                     and the pitch server's names-words.json is its names.words
 //   2. shared:check   the vendored shared type and sites.json are current
 //   3. infra/site.json carries infra/viewer-request.js and the CSP
-//   4. node --test    every *.test.mjs under tests/ (the engine's golden corpus
-//                     among them, under wasmoon)
+//   4. node --test    every *.test.mjs under tests/. The engine's whole golden
+//                     corpus under wasmoon (tests/engine/golden.test.mjs, minutes)
+//                     is among them only when the engine, wasmoon or their host
+//                     changed, or with --golden (tools/golden-due.mjs)
 //   5. build          dist/
 //   6. validate:site  the built site and the repository's Markdown
 //
@@ -15,6 +17,7 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { GOLDEN_TEST, goldenDue } from "./golden-due.mjs";
 
 function run(label, command, args) {
   console.log(`\n> ${label}`);
@@ -38,7 +41,15 @@ node("vendor:check", "tools/vendor.mjs", "check");
 node("names-words", "tools/names-words.mjs", "check");
 node("shared:check", "tools/shared.mjs", "check");
 node("infra/site.json", "tools/site-template.mjs", "check");
-const tests = testFiles("tests");
+const golden = goldenDue();
+console.log(
+  golden
+    ? `\ngolden corpus: played (${golden})`
+    : "\ngolden corpus: not played, nothing it depends on changed (npm run golden plays it)",
+);
+const tests = testFiles("tests").filter(
+  (f) => golden || f !== path.normalize(GOLDEN_TEST),
+);
 if (tests.length)
   node(`node --test (${tests.length} files)`, "--test", ...tests);
 node("build", "tools/build.mjs");
