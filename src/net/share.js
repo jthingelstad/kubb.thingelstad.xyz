@@ -1,5 +1,5 @@
 // Sharing a match against the computer (docs/REEL.md "Sharing a match against the
-// computer", docs/ROOMS.md section 13, docs/CLIENT.md "Sharing a match"): the part with
+// computer", backend/api/API.md "share", docs/CLIENT.md "Sharing a match"): the part with
 // no DOM. The name the share card allows, the `share` message made with the engine's own
 // calls, what can be known before sending, and the card's states as a pure reducer, so
 // tests/net/share-client.test.mjs can walk every answer. The card is src/ui/share.js.

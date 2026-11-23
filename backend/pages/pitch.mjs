@@ -73,11 +73,11 @@ export const sameMatch = (kept, state) =>
 // is "none" and the page keeps the site's own preview.
 //
 // computer: the side the computer played and its level, for a match of a person against
-// it (a shared match, docs/ROOMS.md section 13, or a pitch where one side was the
+// it (a shared match, backend/api/API.md "share", or a pitch where one side was the
 // computer); null otherwise.
 //
 // reel: the kept replay's finished highlight reel ({ wide: site path }), or null;
-// shown only beside a replay (docs/REEL.md, docs/ROOMS.md section 12).
+// shown only beside a replay (docs/REEL.md, backend/api/API.md "reel").
 export function pitchState({
   state = null,
   kept = null,

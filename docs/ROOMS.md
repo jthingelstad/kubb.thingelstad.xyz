@@ -740,6 +740,11 @@ rooms table by a second function, in the site stack (`infra/site.json`), not thi
 
 ## 12. Highlight reels
 
+**The live contract is `backend/api/API.md` "reel"** (`POST /api/reel`, `{ pitch, v? }`).
+What follows is the rooms message it came from, kept as the record: the socket, `room`
+for `pitch`, the 3 renders a connection and the `room#` items are gone, and
+`npm run dev` renders no reels.
+
 A finished pitch's highlight reel: a video of its best throws, tall (1080x1920) and wide
 (1920x1080), made on the server from the kept replay with this engine (Jamie,
 2026-11-19; the design and what a player sees are `docs/REEL.md`, deploying it
@@ -818,6 +823,11 @@ once it is shared (section 13): its sealed pitch has a kept replay of version 1.
   `/reels/...` (`tools/reels-dev.mjs`).
 
 ## 13. Sharing a match against the computer
+
+**The live contract is `backend/api/API.md` "share"** (`POST /api/share`, `{ g }`).
+What follows is the rooms message it came from, kept as the record: the socket, its
+parts, the `too-many` cap of 2 checks a connection, the typed name's rules and the
+`room#` items are gone.
 
 A match against the computer is played on one device and has no room. Sharing it sends
 the finished match once, when the player asks; the server plays it again through the

@@ -1,5 +1,5 @@
 // The renderer's check of a shared match against the computer (backend/reels/check.mjs,
-// docs/ROOMS.md section 13) on a real match: a short club game played the way the
+// backend/api/API.md "share") on a real match: a short club game played the way the
 // iPhone's solo game plays it (tools/reel/solo.mjs), then changed one way at a time.
 import assert from "node:assert/strict";
 import { test } from "node:test";
