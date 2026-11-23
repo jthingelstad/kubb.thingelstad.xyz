@@ -30,7 +30,7 @@ match the frame is the throwing side's (the defending side's for raising and pun
 | `tools/lua-bundle.mjs`     | Writes `build/lua-sources-<mm>.json` per carried engine: `{ "core/world": "<source>", ... }`, keys sorted: the engine's own bundle. |
 | `src/engine/index.js`      | `Engine`: wasmoon, the `import` shim, typed wrappers over `kubbCall`. Browser and Node; no DOM.                                     |
 | `src/engine/registry.js`   | The carried engines by major.minor: `loadEngine(mm)` makes each once, from the config's `engines` map.                              |
-| `tests/engine/`            | The bundle is the engine's, the start-up calls, the engine's golden corpus hash for hash under this wasmoon, and the kept fixtures. |
+| `tests/engine/`            | The bundle is the engine's, the start-up calls, the kept fixtures and the engine's golden corpus hash for hash (when due or asked). |
 | `tools/replay-fixture.mjs` | Writes `tests/fixtures/replay-north-south.json` again after an engine change that moves hashes.                                     |
 
 Lua modules use the Playdate's `import "core/x"` convention and the `tw.*` namespace; in
@@ -384,3 +384,9 @@ that the shipped bundle is the engine's byte for byte, that `Engine.create` make
 start-up calls, that the engine's golden corpus (`vendor/engine/golden`) comes out hash
 for hash under this repository's wasmoon (pinned at exactly 1.16.0), and that the kept
 replay fixture still plays to its hashes.
+
+The whole corpus (`tests/engine/golden.test.mjs`) takes minutes, so `npm run check`
+plays it only when the engine, wasmoon or the host that loads them changed
+(`tools/golden-due.mjs` lists what counts and `check` prints its reason), and otherwise
+it is played when asked for: `npm run golden`, `--golden` passed to `tools/check.mjs`,
+or the command above, which names the folder and so plays everything in it.
