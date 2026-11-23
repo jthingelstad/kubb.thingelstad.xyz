@@ -28,15 +28,18 @@ build or releases one changes its row in the same sitting (throwingwood-ios
 docs/DISTRIBUTION.md says so), and a move to a new engine minor reads it first: `--keep`
 for an engine a row still names, `--drop` only for one no row names.
 
-| Build                             | App version  | Engine | As of      |
-| --------------------------------- | ------------ | ------ | ---------- |
-| App Store                         | none yet     |        | 2026-11-22 |
-| TestFlight Beta (outside testers) | not recorded |        | 2026-11-22 |
-| TestFlight Dev (internal)         | not recorded |        | 2026-11-22 |
+| Build                             | App version       | Engine | As of      |
+| --------------------------------- | ----------------- | ------ | ---------- |
+| App Store                         | none yet          |        | 2026-11-22 |
+| TestFlight Beta (outside testers) | 1.0.0 (build 260) | 1.0.0  | 2026-11-22 |
+| TestFlight Dev (internal)         | 1.0.0 (build 256) | 1.0.0  | 2026-11-22 |
 
-On 2026-11-22 the rows were not known here: the site had just moved to 1.0 alone and
-iPhone 1.0.0 (engine 1.0.0) was about to be uploaded. Once it is in both groups every row
-is 1.0 and the site carries what the rule asks.
+Both rows were filled on 2026-11-22 from App Store Connect. Build 256 is in the Internal
+group. Build 260, the same app at a later commit that changed only its docs, is in the
+Beta group and was submitted to Beta App Review that day; until Apple passes it, outside
+testers still have build 162, `0.6 (0.9.0)`, whose engine the site dropped on 2026-11-21,
+so that build plays no pitch with the site. Every row is 1.0 and the site carries what the
+rule asks.
 
 - **Today the site carries one engine: 1.0 (1.0.0).** It replaced 0.18 (0.18.0) with
   `--drop` on 2026-11-22. 1.0.0 is the released engine, a major by declaration (the
