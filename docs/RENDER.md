@@ -72,7 +72,7 @@ its only module state is a cache of the rough's texture points per surface.
 
 Back to front it draws: sky with a haze band at the horizon; the rough with its texture (grass
 tufts, sand and snow dashes); the pitch with mown stripes; the lines as true-width quads with a
-minimum of 2 frame px; the dashed centre and advantage lines; the marks on the ground; every hard
+minimum of 0.6 frame px; the dashed centre and advantage lines; the marks on the ground; every hard
 shadow in one ink fill (the light is the Playdate's: shadows fall `0.55` m right and `0.30` m
 toward the thrower per metre of height; stakes cast none, as on the Playdate); the pieces in
 depth order; the planned arc.
@@ -134,7 +134,7 @@ All in `palette.js`; the rest of the client takes its colours from there too.
 
 | Role                                     | Colour                                                                                               |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Ink (outlines, shadows, the type's edge) | `#17140f`, a warm near-black                                                                         |
+| Ink (outlines, shadows, the type's edge) | `#16130f`, a warm near-black                                                                         |
 | Paper (plates, the dial's face)          | `#fbf6ea`                                                                                            |
 | Team A                                   | marigold `#f2b705` (deep `#b98500`)                                                                  |
 | Team B                                   | violet `#8e44ad` (deep `#5e2777`)                                                                    |

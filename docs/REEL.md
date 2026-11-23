@@ -370,7 +370,7 @@ start.
 | Button on the winner card            | MAKE A HIGHLIGHT REEL (MAKING YOUR REEL while it is checked, then the reel's)                                                                  |
 | Card title                           | Share this match                                                                                                                               |
 | What sharing does                    | To make a reel, this match goes to throwingwood.com and gets its own link. Anyone with the link can watch the replay and the reel, for a year. |
-| The name                             | Name on the reel: the name row (the name, SHUFFLE, a picker and KEEP per word), starting with the name the match was played under              |
+| The name                             | Name on the reel: the name row (the name and SHUFFLE), starting with the name the match was played under                                       |
 | Under the field                      | Your side is shown by this name. The other side is Computer. Nothing else about you is sent.                                                   |
 | When it was played                   | The score sheet shows the day and time the match was played.                                                                                   |
 | Card buttons                         | SHARE AND MAKE THE REEL, NOT NOW; after sending TRY AGAIN, BACK                                                                                |
@@ -401,8 +401,8 @@ A reel is keyed by **pitch code, replay version and reel version**:
 - `reel` is a short tag of the renderer (its cameras, overlays and engine major.minor),
   so a new look renders again only when asked, never in bulk.
 
-**Built:** the tag is `r<look>-<major.minor>`, today `r1-0.7` (`backend/reels/tag.mjs`,
-`REEL_LOOK`). The files are `reels/<code>/<v>-r1-0.7/tall.mp4`, `wide.mp4` and
+**Built:** the tag is `r<look>-<major.minor>`, today `r1-1.0` (`backend/reels/tag.mjs`,
+`REEL_LOOK`). The files are `reels/<code>/<v>-r1-1.0/tall.mp4`, `wide.mp4` and
 `edit.json` (`application/json`), all `public, max-age=31536000, immutable`. A
 deploy never writes or deletes under `reels/` (`tools/delivery-plan.mjs` refuses the
 prefix; `tools/deploy.mjs` deletes nothing there).
@@ -478,7 +478,7 @@ under the stage throttle.
   1000 actions (`shareActions`, a cheap ceiling well past the engine's limit), `start`
   at most 16 KB; otherwise `{ code: null, why: "too-long" }` before anything is read;
 - `engine`: its major.minor is one the renderer carries (an environment value on the
-  rooms function, `REEL_ENGINES`: every engine the site carries, today `0.7`);
+  rooms function, `REEL_ENGINES`: every engine the site carries, today `1.0`);
   otherwise `{ code: null, why: "engine" }`. The renderer checks the match on that
   engine, so an iPhone build still on an older minor shares on the engine it played
   for as long as the site carries it (below, "Engines");
@@ -510,7 +510,7 @@ plays the match through the engine release of that major.minor, from `start`:
 4. each of the person's throws is one the dial could make (an engine request below).
    Until then a throw at 30 m/s is taken: the prototype's forged one was.
 
-**Built** on kubb-engine v0.7.2's own checks (vendored now at v0.7.4) (`backend/reels/check.mjs`): `checkStart`
+**Built** on kubb-engine v0.7.2's own checks (vendored now at v1.0.0) (`backend/reels/check.mjs`): `checkStart`
 (the start is exactly what `newMatch` makes of its options), then `replayLoad` with
 `checkCpu`, `checkThrows` and `document`, `replayFinish`, `replayDocument`, and
 `replayOf` on the document's match. Side B must be named Computer, team and players.
@@ -621,6 +621,7 @@ below has it for a device that has just shared): the server needs no join for ei
   `why: "busy"`.
 - "3 reel requests a connection" counts only requests that start a render; asking how
   one stands is free, so a device can poll. The fourth start is the error `too-many`.
+  (That count was the rooms function's; the api function has no connection to count.)
 - When the invoke itself fails, the item is taken back and the request is answered the
   error `failed`.
 - A request may name the kept version it means (`v`). When the room keeps another, it
@@ -642,7 +643,8 @@ Limits, beside the existing ones (the stage throttle, `gamesPerConn` and
   20 s keeps running in the renderer and holds one of its two places until it ends.
   A separate check function, with its own concurrency, would end both (an open
   question below);
-- 3 reel requests and 2 shares a connection;
+- 3 reel requests and 2 shares a connection (the rooms function's; gone with it,
+  `backend/api/API.md` "Limits that are not here");
 - a day's cap of 200 renders (`reels#<yyyy-mm-dd>`) and 200 shares
   (`shares#<yyyy-mm-dd>`), conditional counter items, after which the answers are
   "Reels are busy today" and "Sharing is busy today";
@@ -672,7 +674,7 @@ the one it was played on: a pitch's `match.engine`, a shared match's `engine`.
 #### Engines
 
 The renderer carries the engines the site carries (`docs/ENGINES.md`): the newest and
-every older minor kept with `vendor:sync --keep`. Today that is one, 0.7.4.
+every older minor kept with `vendor:sync --keep`. Today that is one, 1.0.0.
 
 - **The package.** `tools/reels-bundle.mjs` writes one Lua bundle per carried engine,
   `engines/<major.minor>.json` (`{ engine, sources }`, from `carriedEngines()`), where
@@ -680,7 +682,7 @@ every older minor kept with `vendor:sync --keep`. Today that is one, 0.7.4.
   engines, so its key, `reels/<sha256>.zip`, changes only when they do. Each engine adds
   about 0.7 MB unzipped and 0.2 MB zipped.
 - **`REEL_ENGINES`** is the same set, by major.minor and newest first (`reelEngines()`
-  in `tools/reels-bundle.mjs`): `0.7` today, `0.8,0.7` once 0.8 is vendored with
+  in `tools/reels-bundle.mjs`): `1.0` today, `1.1,1.0` once 1.1 is vendored with
   `--keep`. `tools/infra.mjs` passes it to the site stack, and the pitches stack takes it
   from the site stack's `ReelEngines` output, so the two always name what the deployed
   package holds. Both templates already took a list.
@@ -718,8 +720,8 @@ the layer's licence is `GPL-3.0-or-later`, and the source is ffmpeg.org's and
 videolan.org's. Its role may:
 
 - `dynamodb:GetItem` the replay and `UpdateItem` the reel item, nothing else in the
-  table (**built:** IAM can hold the partition key to `room#*` and the attributes to
-  the replay's `v`, `z` and `exp` for reads and the reel item's own for updates, but not
+  table (**built:** IAM can hold the partition key to `pitch#*` and the attributes to
+  the replay's `v`, `z`, `s` and `exp` for reads and the reel item's own for updates, but not
   the sort key: the attributes are what keep it to those two items. See
   `docs/REEL-RUNBOOK.md`);
 - `s3:PutObject` under `reels/` in the site bucket;
@@ -765,7 +767,8 @@ together, by their TTL.
 
 ## The iPhone
 
-A plan; none of it is built. The app is on engine 0.7.1.
+A plan, written before any of it was built, when the app was on engine 0.7.1. The reel card and
+share card were built on 2026-11-20 (in `../throwingwood-ios`: its `docs/ONLINE.md`).
 
 **What a finished solo match keeps today.** The save in Application Support is the
 session's snapshot after each committed action (docs/MATCH.md): the match as it stands,

@@ -78,7 +78,7 @@ and `ApiRole`.
 
 - `aws lambda get-function-configuration --function-name kubb-xyz-site-reels`:
   `arm64`, `nodejs24.x`, 3008 MB, 300 s, one layer, environment `TABLE`,
-  `SITE_BUCKET`, `REEL_ENGINES` (every engine the site carries, newest first: `0.7`
+  `SITE_BUCKET`, `REEL_ENGINES` (every engine the site carries, newest first: `1.0`
   today) and `FFMPEG`.
 - `aws lambda get-function-event-invoke-config --function-name kubb-xyz-site-reels`:
   one retry, 900 s.
@@ -91,7 +91,7 @@ and `ApiRole`.
 Asking for a reel starts a render and writes to the table and bucket, so the first live
 reel is a real one, on a real finished pitch, when Jamie wants it. Watch it with
 `aws logs tail /aws/lambda/kubb-xyz-site-reels --since 15m`: one JSON line per step
-(`render`, then `done`, or `error` and `failed`, with the room code, version, tag and
+(`render`, then `done`, or `error` and `failed`, with the pitch's code, version, tag and
 engine), never a name. Its `REPORT` line gives the
 real duration and memory, which are guesses until then.
 
