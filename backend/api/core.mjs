@@ -189,10 +189,12 @@ export function createApi({
       if (!recordPush)
         throw new ApiError("unavailable", "Pushes are not recorded here.");
       recorded = await recordPush({ key: pushKey(p), raw });
-      await foldState(p);
-      // counted once, the first time the start is kept, whatever is retried after
+      // counted once, the first time the start is recorded, and before the state is
+      // folded: a fold that fails is tried again by the pitch, and that try finds the
+      // start already recorded, so it would count nothing
       if (p.topic === "start" && recorded === "kept")
         did("match-start", startFacts(p.body.meta, p.body.n));
+      await foldState(p);
       if (p.topic === "act" && p.body.over === true)
         await store.putFinal(p.pitch, {
           made: p.made,

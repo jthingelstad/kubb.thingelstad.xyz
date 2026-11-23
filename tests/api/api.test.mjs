@@ -1439,6 +1439,30 @@ test("the log: a push line says how late it came; a match is counted once, never
   assert.ok(!JSON.stringify(h.logs).includes("snap"));
 });
 
+test("the log: a start whose state could not be folded is still counted, once", async () => {
+  const h = harness();
+  const getState = h.store.getState;
+  let failing = true;
+  h.store.getState = async (...args) => {
+    if (failing) {
+      failing = false;
+      throw new Error("the table did not answer");
+    }
+    return getState(...args);
+  };
+  const s = start();
+  // recorded, then the fold fails: the pitch is told to try again
+  assert.equal((await h.push(s)).status, 500);
+  // the try after finds the start recorded, and folds it
+  const again = await h.push(s);
+  assert.equal(again.status, 200);
+  assert.equal(again.json.duplicate, true);
+  assert.deepEqual(
+    products(h.logs).map((p) => p.action),
+    ["match-start"],
+  );
+});
+
 test("the log: a dev push is marked and counts as no play; reports and games are counted", async () => {
   const h = harness();
   await h.push(start(1, { dev: true }));
