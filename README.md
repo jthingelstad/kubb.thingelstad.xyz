@@ -6,7 +6,7 @@ batons, in the browser. It is Jamie Thingelstad's Playdate game
 [Kubb: Throwing Wood](https://playdate.thingelstad.xyz/throwing-wood/) running on the web:
 the game's own Lua core in a WebAssembly Lua VM, drawn on a canvas, with multiplayer on a
 link (start a pitch, send the link), a computer opponent and a practice pitch. The design
-is `docs/DESIGN.md`. The game is still being built; until it is, a pitch says so.
+is `docs/DESIGN.md`.
 
 Playdate is a trademark of Panic Inc. This game is not made by Panic.
 

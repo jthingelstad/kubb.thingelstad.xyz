@@ -49,12 +49,12 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
   connected ids as an array, and keep seat/actor calls cached out of the render loop.
   Keep the aim's pacing (`src/net/aim.js`) and the socket (`src/net/pitch-client.js`) in
   JavaScript. `me.engine` announces the room's
-  engine marked `+engines` and `me.engines` all the page carries (`room.announce`, re-sent
-  on member, seat and host changes); START runs on the room's engine (`room.engineFor`,
-  checked again inside the write) with `room.speakAs` members and writes `match.engine`;
+  engine marked `+engines` and `me.engines` all the page carries (`pitch.announce`, re-sent
+  on member, seat and host changes); START runs on the room's engine (`pitch.engineFor`,
+  checked again inside the write) with `pitch.speakAs` members and writes `match.engine`;
   a match plays only on `match.engine`; `mayPlay` gates team and CPU control.
   `LENIENT_ENGINES` is false. Playing requires a named, matching major.minor.
-  Read a pitch's options with `optionsOf(doc)` (the engine's `room.optionsOf` since 0.9,
+  Read a pitch's options with `optionsOf(doc)` (the engine's `pitch.optionsOf`, there since 0.9,
   which adds the computer's level and the scene from the document's `settings`; else
   `lobbyOf(doc).options`), and draw the lobby's rows from the room engine's
   `MATCH_OPTIONS`, so a row an older engine lacks is not shown.
@@ -80,7 +80,7 @@ no kept match options starts at once on Park, a Beginner computer, 2-4-6, raisin
 hand and no wind (`FIRST_MATCH`, `soloKept` in `src/ui/cards.js`; `startSolo` in
 `src/main.js`), one that has played gets the options card. The header is Play, iPhone,
 Playdate, How to play; the footer Rules, The engine, Kubb sites we love, Newsletter,
-Support (`/ios/#support`), Privacy and the version (`NAV`, `FOOT_NAV` in
+Support (`/ios/#support`), Privacy and the version (`NAV`, `footNav` in
 `src/site/layout.mjs`). `public/style.css` holds the 1.0 system's tokens: round corners
 (6 px controls, 8 px cards), a 3 px ink line, 3 px and 5 px shadows, marigold the one go
 colour (`.button--start`, one per page), wood for bands only. `/ios/`, `/playdate/`,
@@ -339,7 +339,7 @@ happened and what should have happened so we can analyze? I think yes." and "App
 build the web report action in kubb.thingelstad.xyz with a private store on AWS for the
 typed reports"), or tell us anything else (Jamie, 2026-11-19: "We have a way of reporting
 physics issues via the app -- think we should allow reports of any feedback. Not just
-physics."). MENU, SEND FEEDBACK, in every mode (practice, solo, watch, a shared pitch),
+physics."). MENU, FEEDBACK, in every mode (practice, solo, watch, a shared pitch),
 opens the "Send feedback" card with a choice: "A throw looked wrong" (the default when
 the game has a last throw) asks "What happened?" and "What should have happened?" (1000
 characters each, at least one) and lets the player mark pieces; "Something else" asks
