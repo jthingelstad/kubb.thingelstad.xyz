@@ -12,7 +12,6 @@ import {
   TINYLYTICS_SCRIPT,
   TINYLYTICS_SITE,
   NEWSLETTER_URL,
-  SUPPORT_TEXT,
   ref,
 } from "./site.mjs";
 
@@ -78,16 +77,14 @@ export const NAV = [
   { href: "/playdate/", label: "Playdate" },
   { href: "/rules/", label: "How to play" },
 ];
-// Support only once its words are set (SUPPORT_TEXT, src/site/site.mjs): before
-// that /ios/ has no #support to point at.
-export const footNav = (support = SUPPORT_TEXT) => [
+// Support is the support page, /support/ (src/site/pages.mjs): the site's one
+// support text, where the App Store listing's Support URL points too.
+export const footNav = () => [
   { href: "/rules/", label: "Rules" },
   { href: "/engine/", label: "The engine" },
   { href: "/love/", label: "Kubb sites we love" },
   { href: NEWSLETTER_URL, label: "Newsletter", external: true },
-  ...(support
-    ? [{ href: "/ios/#support", page: "/ios/", label: "Support" }]
-    : []),
+  { href: "/support/", label: "Support" },
   { href: "/privacy/", label: "Privacy" },
 ];
 // an entry is the current page only when it opens the page itself, not a section
@@ -95,10 +92,10 @@ const current = (href, path) => (href === path ? ' aria-current="page"' : "");
 
 // release: the release label ("0.2.0 (0.8.1)": the app's version and the newest engine's,
 // src/site/release.js), small at the foot; none in a build without one.
-export function footer(release = null, path = "", support = SUPPORT_TEXT) {
+export function footer(release = null, path = "") {
   return `<footer class="foot">
   <div class="frame">
-    <nav class="foot__nav" aria-label="Throwing Wood"><ul>${footNav(support)
+    <nav class="foot__nav" aria-label="Throwing Wood"><ul>${footNav()
       .map(
         ({ href, label, external }) =>
           `<li><a href="${href}"${external ? ' rel="noopener"' : current(href, path)}>${esc(label)}</a></li>`,

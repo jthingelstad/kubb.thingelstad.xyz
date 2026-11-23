@@ -1,7 +1,7 @@
 // Every page of the site: the path it is served at, the file it is built to,
 // and its HTML. The game pages take the build's runtime config and assets.
 import { esc, gamePage, page } from "./layout.mjs";
-import { GAME_READY, SITE_TITLE } from "./site.mjs";
+import { GAME_READY, SITE_TITLE, SUPPORT_EMAIL } from "./site.mjs";
 import { LANDING_PAGES } from "./landing.mjs";
 
 // HOW TO PLAY, the Playdate game's six cards (playdate-kubb
@@ -183,6 +183,66 @@ function privacy({ tinylytics, config = {} }) {
   });
 }
 
+// The support page (the owner, 2026-11-22: "Approved: build
+// throwingwood.com/support/"): the App Store listing's Support URL, the footer's
+// Support link and where /ios/#support points. The site's one support text, and
+// the one page with an address on it (SUPPORT_EMAIL). Each answer is held to the
+// game and to the privacy page; when one of them changes, change it here too:
+// - MENU, FEEDBACK opens the "Send feedback" card in a match and in practice, on
+//   the web (src/ui/menu.js, AGENTS.md "Reports") and in the iPhone app
+//   (throwingwood-ios MatchCards.swift MenuGrid and PracticeMenu, ThrowReport.swift).
+//   A report has no contact field (src/net/report.js), so nothing can be answered.
+// - Start a pitch and SHARE THE LINK are the web's words (src/site/landing.mjs,
+//   src/ui/lobby.js); PLAY ONLINE, START A PITCH and SHARE the iPhone's
+//   (MatchCards.swift, OnlineCards.swift). The app and the web share a match only
+//   on the same engine (docs/ENGINES.md), hence "up to date".
+// - Names: AGENTS.md "Names". HOW TO THROW is in MENU on both.
+// - What is kept says no more than /privacy/ does ("Playing a match", "Questions,
+//   or taking a match out").
+// Nothing here names the App Store: the app is not there yet.
+function support({ tinylytics, config = {} }) {
+  const mail = `<a href="mailto:${esc(SUPPORT_EMAIL)}">${esc(SUPPORT_EMAIL)}</a>`;
+  const body = `<section class="frame intro">
+  <h1 class="display">Support</h1>
+  <p class="lede">Kubb: Throwing Wood is made by one person, Jamie Thingelstad, in his spare time. If something in the game is wobbly, or you have an idea, he wants to hear it.</p>
+</section>
+<section class="frame prose" aria-labelledby="reach">
+  <h2 class="display" id="reach">Reach Jamie</h2>
+  <p>In the game, open MENU and pick FEEDBACK. That opens Send feedback. Say a throw looked wrong, or anything else. It is there in a match and in practice, in the iPhone app and on the web.</p>
+  <p>Feedback sent from the game has no return address, so Jamie can’t write back. For a question, email him at ${mail}.</p>
+</section>
+<section class="frame prose" aria-labelledby="answers">
+  <h2 class="display" id="answers">Quick answers</h2>
+  <h3>Do I need an account?</h3>
+  <p>No. There are no accounts and nothing to sign in to. Just throw.</p>
+  <h3>How do I play a friend?</h3>
+  <p>Start a pitch and send its link. On the web, press Start a pitch on the <a href="/#play">home page</a>, then SHARE THE LINK. In the iPhone app, tap PLAY ONLINE, then START A PITCH, then SHARE. Your friend opens the link and picks a side. The iPhone app and the web can share one match, as long as the app is up to date.</p>
+  <h3>Can I change my name?</h3>
+  <p>Yes, in Settings. The game makes every name from its own words, like Mighty Maple. You pick one. You never type one.</p>
+  <h3>Where are the rules?</h3>
+  <p>On <a href="/rules/">How to play</a>: kubb in five short cards. Stuck on the throw? MENU has HOW TO THROW.</p>
+  <h3>What does the game keep?</h3>
+  <p>Matches are recorded to help make the game better. Practice is not. Jamie keeps the records to himself. When a match on a pitch ends, anyone with its link can watch the replay for a year. Want a match taken out? Email Jamie the pitch’s link and he will remove its records. The <a href="/privacy/">privacy page</a> has the rest.</p>
+</section>
+<section class="frame prose" aria-labelledby="more">
+  <h2 class="display" id="more">More</h2>
+  <ul>
+    <li><a href="/rules/">How to play</a>: the rules of kubb, and how to throw.</li>
+    <li><a href="/privacy/">Privacy</a>: what the game keeps and who sees it.</li>
+    <li><a href="/ios/">iPhone and iPad</a>: the app.</li>
+  </ul>
+</section>`;
+  return page({
+    path: "/support/",
+    title: `Support · ${SITE_TITLE}`,
+    description:
+      "How to reach Jamie Thingelstad, who makes Kubb: Throwing Wood, and quick answers about playing on the web and on iPhone.",
+    body,
+    tinylytics,
+    release: config.release?.text,
+  });
+}
+
 function notFound({ tinylytics, config = {} }) {
   return page({
     path: "/404.html",
@@ -303,6 +363,12 @@ export const PAGES = [
     path: "/privacy/",
     file: "privacy/index.html",
     render: privacy,
+    sources: ["src/site"],
+  },
+  {
+    path: "/support/",
+    file: "support/index.html",
+    render: support,
     sources: ["src/site"],
   },
   {

@@ -35,9 +35,10 @@ npm run dev            # rebuild on change, plus the local pitch server on ws://
 | `/p/?solo=1` | A pitch of your own against the computer                                             |
 | `/practice/` | The practice pitch                                                                   |
 | `/rules/`    | How Kubb is played, and how to throw on the web                                      |
+| `/support/`  | How to reach Jamie, and quick answers (the App Store listing's Support URL)          |
 
-Every page is in `src/site/`: the landing pages in `landing.mjs`, rules, privacy and the
-game pages in `pages.mjs`. A path without its trailing slash
+Every page is in `src/site/`: the landing pages in `landing.mjs`, rules, privacy, support
+and the game pages in `pages.mjs`. A path without its trailing slash
 redirects to it (`infra/viewer-request.js`). The landing pages' pictures are real
 captures in `public/landing/` (WebP; each `<img>` takes its size from the file).
 

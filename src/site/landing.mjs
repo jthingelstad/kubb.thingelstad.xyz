@@ -22,7 +22,6 @@ import {
   IOS_REPO,
   PLAYDATE_REPO,
   SITE_TITLE,
-  SUPPORT_TEXT,
   TESTFLIGHT_URL,
   WEB_REPO,
 } from "./site.mjs";
@@ -236,22 +235,19 @@ export function iosJoin(url = TESTFLIGHT_URL, appStore = APP_STORE_URL) {
 <p><a class="button" href="/#play">Play on the web</a></p>`;
 }
 
-// The two sections the App Store listing's links point at (the 1.0 build list,
-// "The iPhone page for the store"): /ios/#support and /ios/#privacy. Support is
-// there only once its words are set (SUPPORT_TEXT in src/site/site.mjs, the
-// owner's to give; empty today, so the page has no Support section and the footer
-// no Support link). Privacy is the privacy page's own words, and a link to it.
-export function storeSections(support = SUPPORT_TEXT) {
-  const help = support
-    ? `
+// The two sections of /ios/ for someone who came from the App Store listing (the
+// 1.0 build list, "The iPhone page for the store"): #support and #privacy. Each
+// is a pointer, never a second copy of the words: Support links the support page
+// (/support/, the listing's Support URL and the site's one support text), Privacy
+// the privacy page.
+export function storeSections() {
+  return `<section class="band band--baton" aria-label="Support and privacy">
+  <div class="frame help">
     <div class="help__one" id="support">
       <h2 class="display">Support</h2>
-      <p data-test="support">${esc(support)}</p>
-      <p><a class="more" href="/rules/">How to play and how to throw</a></p>
-    </div>`
-    : "";
-  return `<section class="band band--baton" aria-label="${support ? "Support and privacy" : "Privacy"}">
-  <div class="frame help">${help}
+      <p>Something wobbly, or an idea? The support page says how to reach Jamie, and has a few quick answers.</p>
+      <p><a class="more" href="/support/">The support page</a></p>
+    </div>
     <div class="help__one" id="privacy">
       <h2 class="display">Privacy</h2>
       <p>There are no accounts and no ads, and nothing is ever sold. The privacy page says what the game keeps, on the web and in the app.</p>

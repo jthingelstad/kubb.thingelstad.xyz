@@ -25,7 +25,7 @@ import {
   NEWSLETTER_URL,
   PITCH_URL,
   APP_STORE_URL,
-  SUPPORT_TEXT,
+  SUPPORT_EMAIL,
   TESTFLIGHT_URL,
   ref,
 } from "../../src/site/site.mjs";
@@ -629,8 +629,8 @@ test("the version label: package.json's version and the newest engine's, never t
   const sha = "a2659b744210e4c5baa5b69c672e11ec87f9bfab";
   const release = releaseOf(pkg.version, sha, carried);
   assert.equal(release.text, `${pkg.version} (${carried[0].version})`);
-  // this checkout: 1.0.1 on 1.0.0, the one engine it carries (docs/ENGINES.md)
-  assert.equal(release.text, "1.0.1 (1.0.0)");
+  // this checkout: 1.1.0 on 1.0.0, the one engine it carries (docs/ENGINES.md)
+  assert.equal(release.text, "1.1.0 (1.0.0)");
   assert.equal(release.detail, null);
   // more than one carried (when the owner decides one is supported): "Also plays"
   const two = [carried[0], { ...carried[0], mm: "0.9", version: "0.9.0" }];
@@ -639,7 +639,7 @@ test("the version label: package.json's version and the newest engine's, never t
   // one engine carried: no detail
   assert.equal(releaseOf("0.2.0", sha, carried.slice(0, 1)).detail, null);
   const foot = footer(release.text);
-  assert.match(foot, /data-release>Version 1\.0\.1 \(1\.0\.0\)<\/p>/);
+  assert.match(foot, /data-release>Version 1\.1\.0 \(1\.0\.0\)<\/p>/);
   assert.ok(!foot.includes(sha.slice(0, 7)));
 });
 
@@ -660,45 +660,83 @@ test("the landing site: / is the game and its web game, each nav entry a page", 
     ],
   );
   // the footer: Rules, The engine, Kubb sites we love, Newsletter (Buttondown's
-  // own page), Support once its words are set, Privacy, then the version; the
+  // own page), Support (the support page), Privacy, then the version; the
   // current page marked
-  const labels = (support) => footNav(support).map((n) => n.label);
-  assert.deepEqual(labels("Some words."), [
-    "Rules",
-    "The engine",
-    "Kubb sites we love",
-    "Newsletter",
-    "Support",
-    "Privacy",
-  ]);
   assert.deepEqual(
-    labels(""),
-    labels("Some words.").filter((l) => l !== "Support"),
+    footNav().map((n) => n.label),
+    [
+      "Rules",
+      "The engine",
+      "Kubb sites we love",
+      "Newsletter",
+      "Support",
+      "Privacy",
+    ],
   );
-  // today: no support words, so no Support link to a section that is not there
-  assert.equal(SUPPORT_TEXT, "");
   const foot = footer("0.8.0 (0.9.0)", "/love/");
-  assert.ok(!foot.includes("#support"));
   for (const { href } of footNav()) assert.ok(foot.includes(`href="${href}"`));
   assert.match(foot, /href="\/love\/" aria-current="page"/);
   assert.ok(
     foot.includes(`<a href="${NEWSLETTER_URL}" rel="noopener">Newsletter</a>`),
   );
-  assert.ok(
-    footer(null, "", "Some words.").includes(
-      '<a href="/ios/#support">Support</a>',
-    ),
+  assert.ok(foot.includes('<a href="/support/">Support</a>'));
+  assert.match(
+    footer(null, "/support/"),
+    /href="\/support\/" aria-current="page">Support/,
   );
   assert.ok(
     foot.indexOf("Privacy</a>") < foot.indexOf("data-release>Version"),
     "the version ends the row",
   );
-  // no page links #support while there is none
-  for (const p of PAGES)
+});
+
+test("/support/: how to reach Jamie, the one page with an address, nothing not live", () => {
+  const html = PAGES.find((p) => p.path === "/support/").render({
+    config: {},
+  });
+  assert.ok(!PAGES.find((p) => p.path === "/support/").noindex, "indexed");
+  // the address once, as a mailto link, on this page alone
+  assert.equal(html.split(`href="mailto:${SUPPORT_EMAIL}"`).length - 1, 1);
+  for (const p of PAGES.filter((p) => p.path !== "/support/"))
     assert.ok(
-      !p.render({ config: {}, assets: { main: "/m.js" } }).includes("#support"),
+      !p
+        .render({ config: {}, assets: { main: "/m.js" } })
+        .includes(SUPPORT_EMAIL),
       p.path,
     );
+  // who makes it, and the game's own words for the way in, on both screens
+  assert.match(
+    html,
+    /made by one person, Jamie Thingelstad, in his spare time/,
+  );
+  assert.match(
+    html,
+    /open MENU and pick FEEDBACK\. That opens Send feedback\./,
+  );
+  assert.match(
+    html,
+    /press Start a pitch on the <a href="\/#play">home page<\/a>, then SHARE THE LINK/,
+  );
+  assert.match(html, /tap PLAY ONLINE, then START A PITCH, then SHARE\./);
+  // the pages it points at
+  for (const href of ["/rules/", "/privacy/", "/ios/", "/#play"])
+    assert.ok(html.includes(`href="${href}"`), href);
+  // it promises no reply to feedback (a report carries no contact: "Reports")
+  assert.match(html, /has no return address, so Jamie can’t write back/);
+  // what is kept: the privacy page's own words, no more
+  const privacy = PAGES.find((p) => p.path === "/privacy/").render({
+    config: {},
+  });
+  assert.match(html, /Matches are recorded to help make the game better\./);
+  assert.match(privacy, /Matches are recorded to help make the game better\./);
+  assert.match(html, /anyone with its link can watch the replay for a year/);
+  assert.match(privacy, /its replay is kept for a year/);
+  assert.match(html, /he will remove its records/);
+  assert.match(privacy, /I’ll remove its records/);
+  // nothing that is not live: its own words name no store, no beta and no date
+  const words = html.slice(html.indexOf("<main"), html.indexOf("</main>"));
+  assert.ok(words.includes("<h1"), "the page's own words");
+  assert.doesNotMatch(words, /App Store|TestFlight|coming|soon|20\d\d/i);
 });
 
 test("/: the one landing page, PLAY NOW its one go button, the web game under #play", () => {
@@ -781,22 +819,19 @@ test("the store badge is one switch: APP_STORE_URL in place of the TestFlight wo
   );
 });
 
-test("/ios/: the privacy section the store listing points at, and support once its words are set", () => {
+test("/ios/: the support and privacy sections the store listing points at", () => {
   const html = PAGES.find((p) => p.path === "/ios/").render({ config: {} });
-  // today: #privacy, and no Support section, placeholder or dashed box
+  // one #support, a pointer to the support page (its words live there), before #privacy
+  assert.equal(html.split('id="support"').length - 1, 1, "#support");
   assert.equal(html.split('id="privacy"').length - 1, 1, "#privacy");
-  assert.ok(!html.includes('id="support"'), "no #support yet");
   assert.doesNotMatch(html, /placeholder|\[Support/);
+  const support = html.slice(
+    html.indexOf('id="support"'),
+    html.indexOf('id="privacy"'),
+  );
+  assert.ok(support.includes('href="/support/"'));
   const privacy = html.slice(html.indexOf('id="privacy"'));
   assert.ok(privacy.includes('href="/privacy/"'));
-  assert.equal(storeSections(), storeSections(""));
-  // set: one #support with the words, escaped, before #privacy
-  const set = storeSections("Write to us <here>.");
-  assert.equal(set.split('id="support"').length - 1, 1);
-  assert.ok(
-    set.includes('<p data-test="support">Write to us &lt;here&gt;.</p>'),
-  );
-  assert.ok(set.indexOf('id="support"') < set.indexOf('id="privacy"'));
   // still TestFlight until the app is live
   assert.ok(html.includes("In beta on TestFlight"));
   assert.ok(html.includes('data-test="testflight"'));
@@ -1033,6 +1068,7 @@ test("robots.txt: crawlers stay off per-match addresses, link previews do not", 
     "/engine/",
     "/love/",
     "/rules/",
+    "/support/",
     "/privacy/",
     "/practice/",
   ])

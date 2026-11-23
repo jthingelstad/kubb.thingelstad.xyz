@@ -81,12 +81,13 @@ export const TESTFLIGHT_URL = "https://testflight.apple.com/join/rTx8uTn1";
 export const APP_STORE_URL = "";
 export const APP_STORE_BADGE = "/landing/app-store-badge.svg";
 
-// The words of /ios/#support, where the App Store listing's support link points:
-// the owner's to give (what it says and how to reach him). The one switch for
-// support: empty, /ios/ has no Support section and the footer no Support link, so
-// nothing on the site points at a section that is not there; set, both appear,
-// the words as plain text. This repository is public: no email address here.
-export const SUPPORT_TEXT = "";
+// The address on /support/ (the owner, 2026-11-22: "Approved: build
+// throwingwood.com/support/"), where the App Store listing's Support URL points.
+// It is Jamie's public contact address (thingelstad.com/contact/ gives the same
+// one), and the one email address this public repository and the built site
+// carry (AGENTS.md "Rules"): written here and nowhere else in the repository,
+// and validate:site allows it on dist/support/index.html alone.
+export const SUPPORT_EMAIL = "jamie@thingelstad.com";
 
 // The newsletter: a Buttondown list (Jamie, 2026-11-20: "Here is mailing list
 // subscribe information for the website. Use the link or modify the embed
