@@ -83,11 +83,11 @@ export const APP_STORE_BADGE = "/landing/app-store-badge.svg";
 
 // The address on /support/ (the owner, 2026-11-22: "Approved: build
 // throwingwood.com/support/"), where the App Store listing's Support URL points.
-// It is Jamie's public contact address (thingelstad.com/contact/ gives the same
-// one), and the one email address this public repository and the built site
-// carry (AGENTS.md "Rules"): written here and nowhere else in the repository,
+// It is the game's own address (the owner, 2026-11-22: "use
+// hello@throwingwood.com"), and the one email address this public repository
+// and the built site carry (AGENTS.md "Rules"): written here and nowhere else in the repository,
 // and validate:site allows it on dist/support/index.html alone.
-export const SUPPORT_EMAIL = "jamie@thingelstad.com";
+export const SUPPORT_EMAIL = "hello@throwingwood.com";
 
 // The newsletter: a Buttondown list (Jamie, 2026-11-20: "Here is mailing list
 // subscribe information for the website. Use the link or modify the embed
