@@ -39,7 +39,7 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
 - **This repository is public.** Keep email addresses, device serials, home-directory
   paths and secrets out of files and commits. Write
   the AWS account as `<account>` in Markdown. The one address it carries is the support
-  page's, the owner's public contact address: `SUPPORT_EMAIL` in `src/site/site.mjs`,
+  page's, the game's own contact address: `SUPPORT_EMAIL` in `src/site/site.mjs`,
   written there and nowhere else ("The site", the support page).
 - **Game logic in Lua, in kubb-engine** (tested there); this repository has no Lua of its
   own. JavaScript draws, listens and talks to the network. JS and Lua exchange JSON strings in
@@ -200,7 +200,7 @@ preview`, the browser tests, CI) gives it the pitch server on this machine
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `1.1.0 (1.0.0)`, at the foot of
+the full version of the newest engine the site carries, `1.1.1 (1.0.0)`, at the foot of
 every reading page and of MENU, with "Also plays ..." under it in MENU only while older
 engines are carried (none today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
