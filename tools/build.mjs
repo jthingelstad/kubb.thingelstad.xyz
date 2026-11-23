@@ -231,6 +231,7 @@ export async function buildSite({
 - [Kubb sites we love](${ORIGIN}/love/): USA Kubb, the Kubb World Championship, Minnesota Kubb, Planet Kubb and JP's Backyard Games.
 - [How to play](${ORIGIN}/rules/): the rules of kubb in five short cards, and how to throw on the web.
 - [Practice](${ORIGIN}/practice/): the practice pitch.
+- [Support](${ORIGIN}/support/): how to reach Jamie, who makes the game, and quick answers.
 - [Privacy](${ORIGIN}/privacy/): what the game keeps, on the web and on iPhone.
 - [Newsletter](${NEWSLETTER_URL}): news when there is something new to throw, sent by Buttondown. The sign-up form is at the end of the home page.
 

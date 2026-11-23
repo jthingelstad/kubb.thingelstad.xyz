@@ -13,6 +13,7 @@ import { robotsTxt } from "../src/site/robots.mjs";
 import {
   NEWSLETTER_ACTION,
   ORIGIN,
+  SUPPORT_EMAIL,
   TESTFLIGHT_URL,
   TINYLYTICS_SITE,
 } from "../src/site/site.mjs";
@@ -304,8 +305,19 @@ const EMAIL =
 const HOME = /\/Users\/[a-z]|\/home\/(?!web_user\b)[a-z]/;
 const ACCOUNT = /\b\d{12}\b/;
 const TEXT = [".html", ".txt", ".xml", ".css", ".js", ".json", ".map"];
+// The one exception: Jamie's public contact address on the support page
+// (SUPPORT_EMAIL, src/site/site.mjs), which must be there.
+const SUPPORT_FILE = path.join("dist", "support", "index.html");
+assert.ok(
+  (await fs.readFile(SUPPORT_FILE, "utf8")).includes(
+    `href="mailto:${SUPPORT_EMAIL}"`,
+  ),
+  "/support/ gives the support address",
+);
 for (const file of files.filter((f) => TEXT.includes(path.extname(f)))) {
-  const text = await fs.readFile(file, "utf8");
+  let text = await fs.readFile(file, "utf8");
+  if (path.normalize(file) === SUPPORT_FILE)
+    text = text.split(SUPPORT_EMAIL).join("");
   const email = text.match(EMAIL);
   assert.ok(!email, `${file}: an email address (${email?.[0]})`);
   assert.ok(!HOME.test(text), `${file}: a home-directory path`);

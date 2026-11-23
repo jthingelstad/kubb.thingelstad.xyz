@@ -38,7 +38,9 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
   playdate-kubb checkouts from here. wasmoon stays pinned at exactly 1.16.0.
 - **This repository is public.** Keep email addresses, device serials, home-directory
   paths and secrets out of files and commits. Write
-  the AWS account as `<account>` in Markdown.
+  the AWS account as `<account>` in Markdown. The one address it carries is the support
+  page's, the owner's public contact address: `SUPPORT_EMAIL` in `src/site/site.mjs`,
+  written there and nowhere else ("The site", the support page).
 - **Game logic in Lua, in kubb-engine** (tested there); this repository has no Lua of its
   own. JavaScript draws, listens and talks to the network. JS and Lua exchange JSON strings in
   a few coarse calls a frame.
@@ -80,23 +82,35 @@ no kept match options starts at once on Park, a Beginner computer, 2-4-6, raisin
 hand and no wind (`FIRST_MATCH`, `soloKept` in `src/ui/cards.js`; `startSolo` in
 `src/main.js`), one that has played gets the options card. The header is Play, iPhone,
 Playdate, How to play; the footer Rules, The engine, Kubb sites we love, Newsletter,
-Support (`/ios/#support`), Privacy and the version (`NAV`, `footNav` in
+Support (`/support/`), Privacy and the version (`NAV`, `footNav` in
 `src/site/layout.mjs`). `public/style.css` holds the 1.0 system's tokens: round corners
 (6 px controls, 8 px cards), a 3 px ink line, 3 px and 5 px shadows, marigold the one go
 colour (`.button--start`, one per page), wood for bands only. `/ios/`, `/playdate/`,
 `/engine/` and `/love/` are the other landing pages (`src/site/landing.mjs`; `/rules/`,
-`/privacy/` and the game pages are in `src/site/pages.mjs`). A path without its trailing
+`/privacy/`, `/support/` and the game pages are in `src/site/pages.mjs`). A path without its trailing
 slash answers with a 301 to the slashed one. `/love/` lists the five kubb sites Jamie named, in his order, under his heading; a
 check pins the names, URLs and order. `TESTFLIGHT_URL` in `src/site/site.mjs` is the one
 switch for `/ios/`: set, the page shows "Join the TestFlight"; empty, it says the beta is
 by invitation and shows no button. `APP_STORE_URL` beside it is the store badge's switch:
 empty (until the app is live), / and /ios/ keep the TestFlight wording; set, they show
 Apple's badge (`storeLink`), whose artwork goes in at `APP_STORE_BADGE` with it. `/ios/`
-has `#privacy` for the App Store listing's link, and `#support` only once
-`SUPPORT_TEXT` in `src/site/site.mjs` is set (the support words are the owner's to
-give; empty today, so there is no Support section and no footer Support link). Every claim on `/engine/` has a source in the engine's
+has `#privacy` and `#support` (`storeSections`), each a pointer to its page and never a
+second copy of the words. Every claim on `/engine/` has a source in the engine's
 docs or tests; keep it that way. The pages announce nothing that is not live: no dates,
 no store, no features in progress.
+
+`/support/` is the support page (the owner, 2026-11-22: "Approved: build
+throwingwood.com/support/"; `support` in `src/site/pages.mjs`, modelled on Road Sign
+Math's): the iPhone app's App Store listing's Support URL, the footer's Support link and
+where `/ios/#support` points. It is the site's one support text. It says who makes the
+game, how to reach him (MENU, FEEDBACK in the game, which cannot be answered, "Reports";
+or email, `SUPPORT_EMAIL` in `src/site/site.mjs`, the one page with an address on it),
+and five quick answers: no accounts, playing a friend, names, where the rules are and
+what the game keeps. Each answer is held to the game's own words on the web and in the
+iPhone app (the function's comment lists the sources) and, for what is kept, to
+`/privacy/`: change the game's words or the privacy page and this page changes with
+them. It names no store while `APP_STORE_URL` is empty. It is in the sitemap and
+`llms.txt`, and a site test pins its words.
 
 `/playdate/` shows the Playdate game's reel and installs it on the page itself (Jamie,
 2026-11-20: "do not require people to go to the playdate site to download and install…
@@ -129,7 +143,8 @@ to the live list.
 `vendor:check`, `shared:check`, the `infra/site.json` sync check, every `*.test.mjs` under
 `tests/` with `node --test` (among them the kept replay fixture: `node tools/replay-fixture.mjs` writes it again), the build, and `validate:site` (links and routes
 resolve through the real viewer request function, required tags, no inline script, no email
-address or home path in `dist/`, no account id in Markdown).
+address or home path in `dist/` but the support address on `/support/`, which must be there,
+no account id in Markdown).
 
 - **The engine's whole golden corpus is played when it is due or asked for, not on
   every check** (2026-11-22, after the owner found deploys slow: it was 8 of a run's 9.5
@@ -185,7 +200,7 @@ preview`, the browser tests, CI) gives it the pitch server on this machine
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `1.0.1 (1.0.0)`, at the foot of
+the full version of the newest engine the site carries, `1.1.0 (1.0.0)`, at the foot of
 every reading page and of MENU, with "Also plays ..." under it in MENU only while older
 engines are carried (none today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
@@ -347,7 +362,7 @@ characters each, at least one) and lets the player mark pieces; "Something else"
 way the browser sends what was typed with the game as it stood when the card opened,
 enough to play a reported throw again here (`src/net/report.js` says exactly what; no
 name field, no contact field, no user agent, no member id). There is no reply channel:
-the site promises none. It goes as one `report` message (`kind: "throw"` or
+the site promises none, and `/support/` says so and gives an address for a question. It goes as one `report` message (`kind: "throw"` or
 `"feedback"`; a message with no `kind` is a throw report, as older clients and the
 iPhone app's current builds send) as `POST /api/report` (`backend/api/API.md`), which
 writes one gzipped object to the private games bucket
