@@ -7,7 +7,7 @@ play. It replaces the old rooms function's non-play messages (`report`, `game`,
 `replay`, `reel`, `share`) with plain HTTPS. The design is `docs/PITCH-SERVER.md`; the
 pitch server's side of a push is `backend/pitch-server/PROTOCOL.md`.
 
-It is off until `"pitchesStack": true` in `infra/deployment.json` (docs/PITCH-SERVER.md
+It is on: `"pitchesStack": true` in `infra/deployment.json` since 2026-11-21 (docs/PITCH-SERVER.md
 "Step 3: turning it on").
 
 ## Addresses
@@ -98,7 +98,7 @@ person; clients branch on `error`.
 
 A request with an `Origin` header is answered only when that origin is in the function's
 `ALLOWED_ORIGINS` (the pitches stack's `AllowedOrigins`, the same list the old
-WebSocket API checks: the site, `app.throwingwood.com`, and `http://localhost` and
+WebSocket API checked: the site, `app.throwingwood.com`, and `http://localhost` and
 `http://127.0.0.1` on any port), with `access-control-allow-origin: <origin>` and
 `vary: origin`. Another origin gets `403 forbidden`. A request with no `Origin` (the
 iPhone app, curl) is answered as it is. `OPTIONS` answers the preflight (204, the call's
