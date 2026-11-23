@@ -245,7 +245,7 @@ export function createApi({
     );
   }
 
-  // ---------- highlight reels (docs/ROOMS.md section 12, on pitch# records) ----------
+  // ---------- highlight reels (API.md "reel") ----------
 
   const reelView = (item, staleBefore) =>
     item.state === "rendering" &&

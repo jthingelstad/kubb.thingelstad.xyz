@@ -20,7 +20,7 @@ finished online pitches** ("The server" below says what was built and where it c
 from the design; deploying it is `docs/REEL-RUNBOOK.md`), and the browser's buttons, cards
 and home and privacy wording for them (docs/CLIENT.md "Highlight reels"). **Built
 (2026-11-19): the server side of sharing a match against the computer** (`share`, the
-renderer's check, sealed rooms; the protocol is `docs/ROOMS.md` section 13), and **the
+renderer's check, sealed pitches; the contract is `backend/api/API.md` "share"), and **the
 browser's share card and a sealed pitch's page** (docs/CLIENT.md "Sharing a match";
 its words are "The share card" below). **Built (2026-11-20): the iPhone app's reel card
 and share card**, in its own repository, on the same messages and words. The renderer's
@@ -389,7 +389,8 @@ start.
 ## The server
 
 Built for finished online pitches (2026-11-19). Where the build differs from the design
-below, it says so in a **Built:** line. The protocol is `docs/ROOMS.md` section 12.
+below, it says so in a **Built:** line. The contract a client builds to is
+`backend/api/API.md` "reel".
 
 ### Render once, cache for good
 
@@ -440,9 +441,10 @@ This is the choice over the alternatives:
 - **Send the private record and publish from it.** The record carries the typed names
   and the build, and was promised private. Sharing is a separate act with its own words.
 
-**The message.** On a socket of its own, with no join, as a report is sent, cut into
-parts like any long message (`docs/ROOMS.md` section 2.1), as `game` and `report`
-already are:
+**The message.** As designed for the rooms socket, where it was built first: on a
+socket of its own, with no join, as a report was sent, cut into parts like any long
+message. Since 2026-11-21 it is one `POST /api/share` with `{ "g": ... }`, the same `g`
+with no `t`, `id` or parts; the contract is `backend/api/API.md` "share".
 
 ```
 { "t": "share", "id": 1, "g": {
@@ -657,7 +659,7 @@ invoke config: one retry, events kept at most 15 minutes). The renderer counts i
 on the reel item; a failure on the first try is thrown back for the retry, on the second
 it marks the item `failed` with `why: "render"`. A stale takeover keeps the count, and a
 try past the second is failed without rendering, so a job renders twice at most in all
-(`docs/ROOMS.md` section 12). A match with nothing to show (no throw at all, as when a
+(`backend/api/API.md` "reel"). A match with nothing to show (no throw at all, as when a
 player resigned before the first, or no moment picked) gets no reel: it is marked
 `failed` with `why: "empty"` at once, before any encoder starts, and never retried; a
 later UI can say there were no highlights to show. `failed` is final for that version

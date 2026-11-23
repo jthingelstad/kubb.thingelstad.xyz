@@ -1,5 +1,5 @@
 // A finished pitch's highlight reel, as the browser asks for it and shows it (docs/REEL.md
-// "What a player sees", docs/ROOMS.md section 12, docs/CLIENT.md "Highlight reels"). This
+// "What a player sees", backend/api/API.md "reel", docs/CLIENT.md "Highlight reels"). This
 // file is the part with no DOM: the request, what the page already knows on load, and the
 // card's states as a pure reducer, so tests/net/reel-client.test.mjs can walk every
 // answer. The card itself is src/ui/reel.js.
