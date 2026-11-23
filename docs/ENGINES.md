@@ -100,7 +100,7 @@ A pitch plays on the room's engine, the newest the host and every player carry
 one engine carried that is the newest or nothing:
 
 - **What the page says.** It joins announcing what it carries,
-  `me = { engine: "0.13+engines", engines: ["0.13"] }` (`room.announce`).
+  `me = { engine: "1.0+engines", engines: ["1.0"] }` (`room.announce`).
 - **A player on an older client** (an iPhone build on 0.9, an old tab) leaves the players
   with no engine in common. The lobby says so on both sides, and START is off
   (`Pitch.blockedText`, `src/net/pitch.js`):
