@@ -89,11 +89,15 @@ colour (`.button--start`, one per page), wood for bands only. `/ios/`, `/playdat
 `/engine/` and `/love/` are the other landing pages (`src/site/landing.mjs`; `/rules/`,
 `/privacy/`, `/support/` and the game pages are in `src/site/pages.mjs`). A path without its trailing
 slash answers with a 301 to the slashed one. `/love/` lists the five kubb sites Jamie named, in his order, under his heading; a
-check pins the names, URLs and order. `TESTFLIGHT_URL` in `src/site/site.mjs` is the one
-switch for `/ios/`: set, the page shows "Join the TestFlight"; empty, it says the beta is
-by invitation and shows no button. `APP_STORE_URL` beside it is the store badge's switch:
-empty (until the app is live), / and /ios/ keep the TestFlight wording; set, they show
-Apple's badge (`storeLink`), whose artwork goes in at `APP_STORE_BADGE` with it. `/ios/`
+check pins the names, URLs and order. The iPhone app is in the App Store
+(1.0.0, 2026-11-24), and the store is the highlight (the owner, 2026-11-24: "I still want to
+allow people into the test flight to be part of testing new versions but the primary
+highlight should be the App Store version."). `APP_STORE_URL` in `src/site/site.mjs` is the
+store badge's switch: / and /ios/ show Apple's badge (`storeLink`; the artwork at
+`APP_STORE_BADGE` is Apple's own, never redrawn or recoloured). `TESTFLIGHT_URL` beside it
+is the second way in, on /ios/ only: a "Test new versions" section with a plain "Join the
+TestFlight" button (`iosBeta`), gone when the link is emptied. With `APP_STORE_URL` emptied
+the pages fall back to the TestFlight wording in the badge's place. `/ios/`
 has `#privacy` and `#support` (`storeSections`), each a pointer to its page and never a
 second copy of the words. Every claim on `/engine/` has a source in the engine's
 docs or tests; keep it that way. The pages announce nothing that is not live: no dates,
@@ -200,7 +204,7 @@ preview`, the browser tests, CI) gives it the pitch server on this machine
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `1.1.1 (1.0.0)`, at the foot of
+the full version of the newest engine the site carries, `1.2.0 (1.0.0)`, at the foot of
 every reading page and of MENU, with "Also plays ..." under it in MENU only while older
 engines are carried (none today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.

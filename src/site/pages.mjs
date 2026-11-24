@@ -199,7 +199,7 @@ function privacy({ tinylytics, config = {} }) {
 // - Names: AGENTS.md "Names". HOW TO THROW is in MENU on both.
 // - What is kept says no more than /privacy/ does ("Playing a match", "Questions,
 //   or taking a match out").
-// Nothing here names the App Store: the app is not there yet.
+// Nothing here names the App Store or the TestFlight: /ios/ is where the app is got.
 function support({ tinylytics, config = {} }) {
   const mail = `<a href="mailto:${esc(SUPPORT_EMAIL)}">${esc(SUPPORT_EMAIL)}</a>`;
   const body = `<section class="frame intro">

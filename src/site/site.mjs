@@ -68,17 +68,21 @@ export const WEB_REPO = "https://github.com/jthingelstad/kubb.thingelstad.xyz";
 export const IOS_REPO = "https://github.com/jthingelstad/throwingwood-ios";
 export const PLAYDATE_REPO = "https://github.com/jthingelstad/playdate-kubb";
 
-// The iPhone app's public TestFlight link (Jamie, 2026-11-20). /ios/ shows
-// JOIN THE TESTFLIGHT pointing here. Cleared to "", /ios/ says the beta is by
-// invitation and shows no button (src/site/landing.mjs iosJoin).
+// The iPhone app's public TestFlight link (Jamie, 2026-11-20). With the app in
+// the App Store it is the second way in: /ios/ has a section for testing new
+// versions early, with JOIN THE TESTFLIGHT pointing here (the owner, 2026-11-24:
+// "I still want to allow people into the test flight to be part of testing new
+// versions but the primary highlight should be the App Store version."). Cleared
+// to "", that section goes (src/site/landing.mjs iosBeta).
 export const TESTFLIGHT_URL = "https://testflight.apple.com/join/rTx8uTn1";
 
-// The iPhone app's App Store page, once the app is live: the one switch for the
-// store badge (src/site/landing.mjs storeLink). Empty, every page keeps the
-// TestFlight wording above. Set, / and /ios/ show Apple's "Download on the App
-// Store" badge in its place, from APP_STORE_BADGE (Apple's own artwork, added to
-// public/landing/ with the switch; validate:site fails while it is missing).
-export const APP_STORE_URL = "";
+// The iPhone app's App Store page (live since 2026-11-24, version 1.0.0): the one
+// switch for the store badge (src/site/landing.mjs storeLink). Set, / and /ios/
+// show Apple's "Download on the App Store" badge, from APP_STORE_BADGE (Apple's
+// own artwork, unchanged, in public/landing/). Emptied, every page falls back to
+// the TestFlight wording.
+export const APP_STORE_URL =
+  "https://apps.apple.com/us/app/kubb-throwing-wood/id6836326990";
 export const APP_STORE_BADGE = "/landing/app-store-badge.svg";
 
 // The address on /support/ (the owner, 2026-11-22: "Approved: build

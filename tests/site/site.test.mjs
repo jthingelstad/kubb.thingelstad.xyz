@@ -51,6 +51,7 @@ import {
   GOLDEN_COUNT,
   PLAYDATE_BUILD,
   PLAY_NOW,
+  iosBeta,
   iosJoin,
   playNow,
   playdateBuildVersion,
@@ -629,8 +630,8 @@ test("the version label: package.json's version and the newest engine's, never t
   const sha = "a2659b744210e4c5baa5b69c672e11ec87f9bfab";
   const release = releaseOf(pkg.version, sha, carried);
   assert.equal(release.text, `${pkg.version} (${carried[0].version})`);
-  // this checkout: 1.1.1 on 1.0.0, the one engine it carries (docs/ENGINES.md)
-  assert.equal(release.text, "1.1.1 (1.0.0)");
+  // this checkout: 1.2.0 on 1.0.0, the one engine it carries (docs/ENGINES.md)
+  assert.equal(release.text, "1.2.0 (1.0.0)");
   assert.equal(release.detail, null);
   // more than one carried (when the owner decides one is supported): "Also plays"
   const two = [carried[0], { ...carried[0], mm: "0.9", version: "0.9.0" }];
@@ -639,7 +640,7 @@ test("the version label: package.json's version and the newest engine's, never t
   // one engine carried: no detail
   assert.equal(releaseOf("0.2.0", sha, carried.slice(0, 1)).detail, null);
   const foot = footer(release.text);
-  assert.match(foot, /data-release>Version 1\.1\.1 \(1\.0\.0\)<\/p>/);
+  assert.match(foot, /data-release>Version 1\.2\.0 \(1\.0\.0\)<\/p>/);
   assert.ok(!foot.includes(sha.slice(0, 7)));
 });
 
@@ -756,9 +757,10 @@ test("/: the one landing page, PLAY NOW its one go button, the web game under #p
     /^<a class="button button--start" href="\/p\/\?solo=1&amp;play=1" data-pitch="\?solo=1&amp;play=1"/,
   );
   assert.equal(html.split("button--start").length - 1, 1, "one go button");
-  // the store's place: the TestFlight wording until the app is live
+  // the store's place: Apple's badge, and no TestFlight on the home page
   assert.ok(hero.includes(storeLink()));
-  assert.match(storeLink(), /data-test="testflight">Join the TestFlight<\/a>/);
+  assert.match(storeLink(), /data-test="app-store"/);
+  assert.ok(!html.includes("TestFlight"), "the TestFlight is on /ios/ only");
   // the sections, in the design's order
   const order = [
     'id="play"',
@@ -802,7 +804,15 @@ test("/: the one landing page, PLAY NOW its one go button, the web game under #p
 });
 
 test("the store badge is one switch: APP_STORE_URL in place of the TestFlight wording", () => {
-  assert.equal(APP_STORE_URL, "", "the app is not live yet");
+  assert.equal(
+    APP_STORE_URL,
+    "https://apps.apple.com/us/app/kubb-throwing-wood/id6836326990",
+    "the app's store page",
+  );
+  assert.match(
+    storeLink({ appStore: "", testflight: TESTFLIGHT_URL }),
+    /data-test="testflight">Join the TestFlight<\/a>/,
+  );
   const live = storeLink({ appStore: "https://apps.apple.com/app/id1" });
   assert.match(
     live,
@@ -832,9 +842,32 @@ test("/ios/: the support and privacy sections the store listing points at", () =
   assert.ok(support.includes('href="/support/"'));
   const privacy = html.slice(html.indexOf('id="privacy"'));
   assert.ok(privacy.includes('href="/privacy/"'));
-  // still TestFlight until the app is live
-  assert.ok(html.includes("In beta on TestFlight"));
-  assert.ok(html.includes('data-test="testflight"'));
+});
+
+test("/ios/: the App Store first, the TestFlight for testing new versions", () => {
+  const html = PAGES.find((p) => p.path === "/ios/").render({ config: {} });
+  const hero = html.slice(0, html.indexOf("</section>"));
+  // the highlight: Apple's badge in the hero, and no beta wording there
+  assert.ok(hero.includes(storeLink()));
+  assert.ok(hero.includes(`href="${APP_STORE_URL}"`));
+  assert.ok(!hero.includes("TestFlight"));
+  assert.ok(!html.includes("In beta on TestFlight"));
+  assert.equal(html.split('data-test="app-store"').length - 1, 1);
+  // the second way in: one plain TestFlight button, below, in its own section
+  assert.equal(html.split('data-test="testflight"').length - 1, 1);
+  assert.ok(html.includes(iosBeta()));
+  assert.ok(
+    html.indexOf('id="beta"') > html.indexOf('data-test="app-store"'),
+    "the beta comes after the store",
+  );
+  assert.match(
+    iosBeta(),
+    /<a class="button" href="https:\/\/testflight\.apple\.com\/join\/rTx8uTn1" rel="noopener" data-test="testflight">Join the TestFlight<\/a>/,
+  );
+  assert.ok(!html.includes("button--start"), "the badge is the highlight");
+  // no TestFlight link, no section; no store link, the hero has the TestFlight
+  assert.equal(iosBeta("", APP_STORE_URL), "");
+  assert.equal(iosBeta(TESTFLIGHT_URL, ""), "");
 });
 
 test("/engine/ has PLAY NOW", () => {
@@ -910,12 +943,12 @@ test("the newsletter: a plain post to Buttondown's one list, on four pages", () 
   assert.match(home, /class="frame news news--big"/);
 });
 
-test("/ios/: no TestFlight button until there is a link, then one", () => {
-  const empty = iosJoin("");
+test("/ios/ without a store page: no TestFlight button until there is a link, then one", () => {
+  const empty = iosJoin("", "");
   assert.ok(!empty.includes("TestFlight</a>"));
   assert.match(empty, /by invitation/);
   assert.match(empty, /href="\/#play"/);
-  const set = iosJoin("https://testflight.apple.com/join/EXAMPLE1");
+  const set = iosJoin("https://testflight.apple.com/join/EXAMPLE1", "");
   assert.match(
     set,
     /<a class="button button--start" href="https:\/\/testflight\.apple\.com\/join\/EXAMPLE1" rel="noopener" data-test="testflight">Join the TestFlight<\/a>/,
@@ -924,7 +957,7 @@ test("/ios/: no TestFlight button until there is a link, then one", () => {
   // the site's value: Jamie's public link
   assert.equal(TESTFLIGHT_URL, "https://testflight.apple.com/join/rTx8uTn1");
   assert.match(
-    iosJoin(),
+    iosJoin(TESTFLIGHT_URL, ""),
     /href="https:\/\/testflight\.apple\.com\/join\/rTx8uTn1"/,
   );
 });

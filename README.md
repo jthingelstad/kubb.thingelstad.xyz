@@ -23,19 +23,19 @@ npm run preview        # dist/ on http://127.0.0.1:4322, /p/<code> as live
 npm run dev            # rebuild on change, plus the local pitch server on ws://127.0.0.1:8797
 ```
 
-| Path         | What                                                                                 |
-| ------------ | ------------------------------------------------------------------------------------ |
-| `/`          | The landing page and the web game: PLAY NOW, three ways to start, open games         |
-| `/web/`      | 301 to `/#play` (the web game's page until the 1.0 design)                           |
-| `/ios/`      | The iPhone and iPad app, in beta on TestFlight (`TESTFLIGHT_URL`, src/site/site.mjs) |
-| `/playdate/` | The Playdate game, in development                                                    |
-| `/engine/`   | The Kubb Engine                                                                      |
-| `/love/`     | Kubb sites we love                                                                   |
-| `/p/<code>`  | A pitch: every code serves the one game page (not indexed)                           |
-| `/p/?solo=1` | A pitch of your own against the computer                                             |
-| `/practice/` | The practice pitch                                                                   |
-| `/rules/`    | How Kubb is played, and how to throw on the web                                      |
-| `/support/`  | How to reach Jamie, and quick answers (the App Store listing's Support URL)          |
+| Path         | What                                                                                        |
+| ------------ | ------------------------------------------------------------------------------------------- |
+| `/`          | The landing page and the web game: PLAY NOW, three ways to start, open games                |
+| `/web/`      | 301 to `/#play` (the web game's page until the 1.0 design)                                  |
+| `/ios/`      | The iPhone and iPad app: the App Store, and TestFlight for new versions (src/site/site.mjs) |
+| `/playdate/` | The Playdate game, in development                                                           |
+| `/engine/`   | The Kubb Engine                                                                             |
+| `/love/`     | Kubb sites we love                                                                          |
+| `/p/<code>`  | A pitch: every code serves the one game page (not indexed)                                  |
+| `/p/?solo=1` | A pitch of your own against the computer                                                    |
+| `/practice/` | The practice pitch                                                                          |
+| `/rules/`    | How Kubb is played, and how to throw on the web                                             |
+| `/support/`  | How to reach Jamie, and quick answers (the App Store listing's Support URL)                 |
 
 Every page is in `src/site/`: the landing pages in `landing.mjs`, rules, privacy, support
 and the game pages in `pages.mjs`. A path without its trailing slash

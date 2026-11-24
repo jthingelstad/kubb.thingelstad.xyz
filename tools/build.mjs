@@ -34,6 +34,7 @@ import { associationKey } from "./delivery-plan.mjs";
 import { robotsTxt } from "../src/site/robots.mjs";
 import {
   API_URL,
+  APP_STORE_URL,
   DEV_PITCH_URL,
   LOCAL_PITCH_URL,
   GAME_READY,
@@ -220,12 +221,12 @@ export async function buildSite({
     "dist/llms.txt",
     `# ${SITE_TITLE}
 
-> Kubb is the lawn game where you throw sticks of wood at blocks of wood. Knock them all over, then topple the king. Kubb: Throwing Wood plays by the U.S. National Kubb Championship rules. You can play it in your browser, on iPhone and iPad (in beta on TestFlight) and on Playdate (in development). All three run one engine, the Kubb Engine. ${GAME_READY ? "On the web you can start a pitch and send the link to friends. You can also play or watch the computer, or practice." : "The game is still being built. The pages are up, but a pitch does not play yet."}
+> Kubb is the lawn game where you throw sticks of wood at blocks of wood. Knock them all over, then topple the king. Kubb: Throwing Wood plays by the U.S. National Kubb Championship rules. You can play it in your browser, on iPhone and iPad (free on the App Store) and on Playdate (in development). All three run one engine, the Kubb Engine. ${GAME_READY ? "On the web you can start a pitch and send the link to friends. You can also play or watch the computer, or practice." : "The game is still being built. The pages are up, but a pitch does not play yet."}
 
 ## Pages
 
 - [Home](${ORIGIN}/): the game, and the web game itself: play the computer, start a pitch, practice, watch the computer, or join an open game.
-- [iPhone and iPad](${ORIGIN}/ios/): the app, in beta on TestFlight.
+- [iPhone and iPad](${ORIGIN}/ios/): the app, free on the [App Store](${APP_STORE_URL}). New versions can be tested early on TestFlight.
 - [Playdate](${ORIGIN}/playdate/): the Playdate game, thrown with the crank. Still in development.
 - [The Kubb Engine](${ORIGIN}/engine/): the one engine all three run, and how it was checked against real tournament games and video.
 - [Kubb sites we love](${ORIGIN}/love/): USA Kubb, the Kubb World Championship, Minnesota Kubb, Planet Kubb and JP's Backyard Games.

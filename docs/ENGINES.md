@@ -30,7 +30,7 @@ for an engine a row still names, `--drop` only for one no row names.
 
 | Build                             | App version       | Engine | As of      |
 | --------------------------------- | ----------------- | ------ | ---------- |
-| App Store                         | none yet          |        | 2026-11-22 |
+| App Store                         | 1.0.0 (build 260) | 1.0.0  | 2026-11-24 |
 | TestFlight Beta (outside testers) | 0.6 (build 162)   | 0.9.0  | 2026-11-22 |
 | TestFlight Beta, in review        | 1.0.0 (build 260) | 1.0.0  | 2026-11-22 |
 | TestFlight Dev (internal)         | 1.0.0 (build 256) | 1.0.0  | 2026-11-22 |
@@ -42,6 +42,10 @@ outside testers have is 162, `0.6 (0.9.0)`. The site does not carry 0.9: it was 
 2026-11-21, before this rule, so build 162 plays no pitch with the site, and that gap
 closes when 260 passes. Whoever sees it pass removes the "in review" row and makes the Beta
 row 1.0.0 (build 260); then every row is 1.0 and the site carries what the rule asks.
+
+The App Store row was filled on 2026-11-24, the day Apple approved 1.0.0 and it went live
+(build 260, the one submitted for App Review). The store's own lookup names the version;
+the TestFlight rows were not read again that day.
 
 - **Today the site carries one engine: 1.0 (1.0.0).** It replaced 0.18 (0.18.0) with
   `--drop` on 2026-11-22. 1.0.0 is the released engine, a major by declaration (the
@@ -64,7 +68,7 @@ row 1.0.0 (build 260); then every row is 1.0 and the site carries what the rule 
   `--drop`. The default answer is `--drop`.
 - One engine per major.minor. A patch replaces its minor's engine.
 
-The version label a player sees names the newest: `1.1.1 (1.0.0)`, with "Also plays
+The version label a player sees names the newest: `1.2.0 (1.0.0)`, with "Also plays
 ..." under it in MENU only while an older engine is carried (none today; docs/CLIENT.md
 "Version and freshness"). A match names its own engine, never the app's version.
 

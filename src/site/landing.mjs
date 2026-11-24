@@ -86,8 +86,8 @@ export const PLAY_NOW = "?solo=1&play=1";
 export const playNow = () =>
   `<a class="button button--start" href="/p/${esc(PLAY_NOW)}" data-pitch="${esc(PLAY_NOW)}" data-test="play-now">Play now</a>`;
 
-// The iPhone app's way in, wherever a page offers it: Apple's badge once
-// APP_STORE_URL is set (src/site/site.mjs, the one switch), until then the
+// The iPhone app's way in, wherever a page offers it: Apple's badge while
+// APP_STORE_URL is set (src/site/site.mjs, the one switch), without it the
 // TestFlight wording, and the /ios/ page if neither link is there.
 export function storeLink({
   appStore = APP_STORE_URL,
@@ -221,18 +221,35 @@ ${signup({ size: "big" })}`;
   });
 }
 
-// /ios/: the iPhone and iPad app, in TestFlight. Its button comes from the
-// switches in src/site/site.mjs: APP_STORE_URL, once set, puts Apple's badge in
-// its place (storeLink); until then TESTFLIGHT_URL, and no button if that is ever
-// emptied.
+// /ios/: the iPhone and iPad app, in the App Store. The hero's way in comes from
+// the switches in src/site/site.mjs: APP_STORE_URL puts Apple's badge there
+// (storeLink) and moves the TestFlight to its own section further down (iosBeta);
+// without it the hero has TESTFLIGHT_URL's button, and no button if that is
+// emptied too.
 export function iosJoin(url = TESTFLIGHT_URL, appStore = APP_STORE_URL) {
-  if (appStore) return `<p class="actions">${storeLink({ appStore })}</p>`;
+  if (appStore)
+    return `<p class="actions">${storeLink({ appStore })}</p>
+<p class="actions__note">Free, for iPhone and iPad.</p>`;
   if (url)
     return `<p class="actions"><a class="button button--start" href="${esc(url)}" rel="noopener" data-test="testflight">Join the TestFlight</a></p>
 <p class="actions__note">TestFlight is Apple’s app for trying apps early. Get it, then open the link on your iPhone or iPad.</p>`;
   return `<p class="notice" data-test="testflight-invite">The beta is by invitation for now.</p>
 <p class="actions__note">You can play the same game in your browser.</p>
 <p><a class="button" href="/#play">Play on the web</a></p>`;
+}
+
+// /ios/'s second way in, once the App Store is the first: the TestFlight, for
+// people who want to test new versions (the owner, 2026-11-24). A plain button:
+// the badge above is the page's highlight. Nothing without both links: with no
+// App Store link the hero already carries the TestFlight (iosJoin).
+export function iosBeta(url = TESTFLIGHT_URL, appStore = APP_STORE_URL) {
+  if (!url || !appStore) return "";
+  return `<section class="frame prose" aria-labelledby="beta">
+  <h2 class="display" id="beta">Test new versions</h2>
+  <p>New versions land in TestFlight first. Join the beta, throw the new stuff early and tell Jamie what feels wobbly.</p>
+  <p><a class="button" href="${esc(url)}" rel="noopener" data-test="testflight">Join the TestFlight</a></p>
+  <p class="actions__note">TestFlight is Apple’s app for trying apps early. Get it, then open the link on your iPhone or iPad.</p>
+</section>`;
 }
 
 // The two sections of /ios/ for someone who came from the App Store listing (the
@@ -290,6 +307,7 @@ function ios({ tinylytics, config = {} }) {
     <p><a class="more" href="/engine/">How the engine keeps them together</a></p>
   </div>
 </section>
+${iosBeta()}
 <section class="frame prose" aria-labelledby="source">
   <h2 class="display" id="source">Open source</h2>
   <p>The app is open source under the MIT license. Its code is ${external(IOS_REPO, "on GitHub")}. The <a href="/privacy/">privacy page</a> says what the game keeps, on the web and in the app.</p>
@@ -299,7 +317,7 @@ ${signup()}`;
   return page({
     path: "/ios/",
     title: `iPhone and iPad · ${SITE_TITLE}`,
-    description: `Kubb: Throwing Wood for iPhone and iPad${APP_STORE_URL ? "" : ", in beta on TestFlight"}. Throw with your thumb and play friends on the web.`,
+    description: `Kubb: Throwing Wood for iPhone and iPad${APP_STORE_URL ? ", free on the App Store" : ", in beta on TestFlight"}. Throw with your thumb and play friends on the web.`,
     body,
     tinylytics,
     release: config.release?.text,
