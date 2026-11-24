@@ -14,6 +14,7 @@ import {
   NEWSLETTER_ACTION,
   ORIGIN,
   SUPPORT_EMAIL,
+  APP_STORE_URL,
   TESTFLIGHT_URL,
   TINYLYTICS_SITE,
 } from "../src/site/site.mjs";
@@ -188,8 +189,20 @@ assert.match(
   /<a class="button button--start" href="\/p\/\?solo=1&amp;play=1"/,
   "/engine/ has PLAY NOW",
 );
-// /ios/ shows a TestFlight button only when there is a link to put on it.
+// /ios/ shows a TestFlight button only when there is a link to put on it, and
+// Apple's badge, above it, while the app has a store page.
 const iosPage = await read("ios/index.html");
+assert.equal(
+  iosPage.includes('data-test="app-store"'),
+  Boolean(APP_STORE_URL),
+  "/ios/ App Store badge",
+);
+if (APP_STORE_URL && TESTFLIGHT_URL)
+  assert.ok(
+    iosPage.indexOf('data-test="app-store"') <
+      iosPage.indexOf('data-test="testflight"'),
+    "/ios/ App Store before the TestFlight",
+  );
 assert.equal(
   iosPage.includes('data-test="testflight"'),
   Boolean(TESTFLIGHT_URL),

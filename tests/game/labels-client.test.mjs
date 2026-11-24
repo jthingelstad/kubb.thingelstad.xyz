@@ -123,7 +123,7 @@ browserTest("the menu's rows say what they set and show it", async () => {
     // no "Also plays" line, as the site carries the newest engine alone
     assert.equal(
       await page.textContent("[data-test=menu-version-label]"),
-      "1.1.1 (1.0.0)",
+      "1.2.0 (1.0.0)",
     );
     assert.equal(
       await page.locator("[data-test=menu-version-also]").count(),
