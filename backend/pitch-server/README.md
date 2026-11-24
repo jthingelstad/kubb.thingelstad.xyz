@@ -154,9 +154,24 @@ Roll back by deploying the previous commit.
   The three failures are always written; the rest only where `LOG` is `1` (both deployed
   Workers; not `wrangler dev` or the tests). Nothing is written on the relay path, and no
   line has a name, a member id or a frame. `npx wrangler tail throwingwood-pitches` shows
-  them live. Cloudflare keeps them 3 days on the free plan, 7 on the paid one; they are
-  not in AWS. What AWS sees of the pitch server is its pushes: how late each came and
-  each one refused (`backend/api/API.md` "Logs").
+  them live. Cloudflare keeps them 3 days on the free plan (7 from 2026-12-01).
+
+  Since 2026-11-24 the owner's otto-ops job `send-cloudflare-to-cloudwatch` copies them
+  every 10 minutes, about 10 minutes behind, into the CloudWatch log group
+  `/otto-ops/cloudflare` (kept 731 days), with Cloudflare's own numbers for the Workers
+  and their objects: invocations, open connections, billable time, rows, storage and
+  the free plan's daily limits. The Grafana dashboard "Throwing Wood pitch server" reads
+  that group. The copy takes each line's fields as written here, so **the table above is
+  a contract with that dashboard**: a renamed event or field stops a panel, and a new
+  event is not copied until the job's list knows it (`LOG_EVENTS` in otto-ops
+  `scripts/send_cloudflare_to_cloudwatch.py`). A line's `pitch` is kept in the copy and
+  never shown on a panel. What the api sees of the pitch server is its pushes: how late
+  each came and each one refused (`backend/api/API.md` "Logs").
+
+- Is the running build the one on `main`? `GET /health` answers `ok <version>`. A merge
+  does not deploy a Worker, and twice in November 2026 a merged change waited days for
+  its deploy. otto-ops checks every hour that production answers and runs `main`'s
+  `version`, and tells the owner when it has been behind for a while.
 
 - A stuck pitch: read `/dev/pitch`, then wipe it if it must go.
 - The outbox: `outbox` and `retrying` in `/dev/pitch`. A pitch with pending pushes is
