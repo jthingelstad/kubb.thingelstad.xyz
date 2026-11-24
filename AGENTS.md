@@ -610,7 +610,10 @@ field is a decision made there). The fields are a contract with the owner's two 
 dashboards, "Throwing Wood" and "Throwing Wood product": `backend/api/API.md` "Logs".
 The pitch server logs at Cloudflare (Workers Logs, the per-request line off; its own
 lines in `backend/pitch-server/src/log.mjs`, `backend/pitch-server/README.md`
-"Operate"), and nothing on the relay path.
+"Operate"), and nothing on the relay path. Those lines and Cloudflare's numbers for the
+Workers are copied to CloudWatch for the owner's third dashboard, "Throwing Wood pitch
+server", so the events and fields in `log.mjs` are a contract too. A change to the
+pitch server is not live until it is deployed (`/health` says which build runs).
 
 ## Score sheet
 
