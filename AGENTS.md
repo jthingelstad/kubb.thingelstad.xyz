@@ -125,14 +125,26 @@ landing page for this app"; the app is the sibling `../pitchside`, read only fro
 the three URLs its App Store record names (`src/site/pitchside.mjs`, whose comment lists
 where in Pitchside's README, guide and code each claim comes from: say only what its
 `main` does). The support page carries `SUPPORT_EMAIL` as `/support/` does (Pitchside has no
-feedback button, so email is the way in). The privacy page is the app's alone: it sends
-nothing (no network code at all), keeps games and the roster in its own folder and lets a
-file go only through the share sheet; it says the website is not the app and points at
-`/privacy/` for the site. `PITCHSIDE_APP_STORE_URL` in `src/site/site.mjs` is its store
+feedback button, so email is the way in). The privacy page is the app's alone: the app
+sends nothing to us (no network code at all) and keeps games and the roster in its own
+folder; since Pitchside PR #15 each finished game it scored is also copied, as its .txt
+file with the names and turn notes, to the scorer's own iCloud Drive › Pitchside (On My
+iPhone › Kubb: Pitchside with iCloud Drive off), which the page names as Apple's, under the
+person's own Apple Account, and out of our sight; unfinished games, opened files, the
+reference games and the roster are not copied, and deleting the app leaves the iCloud
+copies. The page says the reference games' Archive file (GitHub) and Video (YouTube)
+links open outside the app, that a file goes to someone else through the share sheet,
+that the website is not the app, and points at `/privacy/` for the site. The landing
+page's privacy line and the support page's "Where are my games kept?" say the same, in the
+words of the app's own Games footer; the App Store record points App Review at this page,
+so a change to what Pitchside keeps or sends changes it first. `PITCHSIDE_APP_STORE_URL` in `src/site/site.mjs` is its store
 badge's switch, empty while the app is not in the store: then the hero says "Not in the
 App Store yet." with no badge and no button; set, Apple's badge (`APP_STORE_BADGE`) takes
 that place (`pitchsideStore`; a site test and `validate:site` pin both). It is linked from
-the footer only, never from the home page's own words, until the app is live. Its pictures
+the footer only, never from the home page's own words, until the app is live. The landing
+page has "Real games in the box" for the fourteen reference games (Pitchside PR #16: the
+first thing a new install's Games shows) and its scorer words follow the framed half
+(PR #18); its own words carry no year (a site test). Its pictures
 are the app's build captures (`pitchside/docs/design/build-shots`) as WebP in
 `public/landing/pitchside-*.webp`, iPhone captures at half size, so a new capture is a new
 file of the same name; its share card is `public/share/pitchside.png` (`pitchsideShareImage`
@@ -227,7 +239,7 @@ preview`, the browser tests, CI) gives it the pitch server on this machine
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `1.4.0 (1.0.0)`, at the foot of
+the full version of the newest engine the site carries, `1.4.1 (1.0.0)`, at the foot of
 every reading page and of MENU, with "Also plays ..." under it in MENU only while older
 engines are carried (none today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.

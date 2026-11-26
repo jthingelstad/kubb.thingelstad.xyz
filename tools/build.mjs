@@ -233,7 +233,7 @@ export async function buildSite({
 - [Kubb sites we love](${ORIGIN}/love/): USA Kubb, the Kubb World Championship, Minnesota Kubb, Planet Kubb and JP's Backyard Games.
 - [How to play](${ORIGIN}/rules/): the rules of kubb in five short cards, and how to throw on the web.
 - [Practice](${ORIGIN}/practice/): the practice pitch.
-- [Kubb: Pitchside](${ORIGIN}/pitchside/): an iPhone app for keeping score of real games of kubb, played on grass. ${PITCHSIDE_APP_STORE_URL ? `On the [App Store](${PITCHSIDE_APP_STORE_URL}).` : "Not in the App Store yet."} Its [support](${ORIGIN}/pitchside/support/) and [privacy](${ORIGIN}/pitchside/privacy/) pages are its own.
+- [Kubb: Pitchside](${ORIGIN}/pitchside/): an iPhone app for keeping score of real games of kubb, played on grass. It comes with fourteen real games from the Planet Kubb archive, and keeps each finished game on the phone and in the scorer's own iCloud Drive; nothing is sent to us. ${PITCHSIDE_APP_STORE_URL ? `On the [App Store](${PITCHSIDE_APP_STORE_URL}).` : "Not in the App Store yet."} Its [support](${ORIGIN}/pitchside/support/) and [privacy](${ORIGIN}/pitchside/privacy/) pages are its own.
 - [Support](${ORIGIN}/support/): how to reach Jamie, who makes the game, and quick answers.
 - [Privacy](${ORIGIN}/privacy/): what the game keeps, on the web and on iPhone.
 - [Newsletter](${NEWSLETTER_URL}): news when there is something new to throw, sent by Buttondown. The sign-up form is at the end of the home page.
