@@ -608,6 +608,13 @@ figure {
 .phones .shot--tall {
   width: calc(50% - 0.5rem);
 }
+.phones--three {
+  margin: 1.4rem 0 2rem;
+}
+.phones--three .shot--tall {
+  width: calc((100% - 2rem) / 3);
+  max-width: 240px;
+}
 .features {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
   gap: 1.4rem 2rem;

@@ -60,7 +60,8 @@ ${noindex ? "" : `<meta property="og:url" content="${url}">\n`}<meta property="o
 ${OWNER.relMe.map((href) => `<link rel="me" href="${href}">`).join("\n")}`;
 }
 
-const SHARE = {
+// The share card every page has, unless it names its own (/pitchside/'s, PITCHSIDE_SHARE).
+export const SHARE = {
   image: "/share/kubb.png",
   imageAlt:
     "KUBB in cut wood letters over THROWING WOOD, a baton flying at a kubb and the king on green grass",
@@ -77,12 +78,15 @@ export const NAV = [
   { href: "/playdate/", label: "Playdate" },
   { href: "/rules/", label: "How to play" },
 ];
+// Pitchside is the scorekeeper's page, /pitchside/ (src/site/pitchside.mjs):
+// in the footer only, not on the home page, while the app is not in the store.
 // Support is the support page, /support/ (src/site/pages.mjs): the site's one
 // support text, where the App Store listing's Support URL points too.
 export const footNav = () => [
   { href: "/rules/", label: "Rules" },
   { href: "/engine/", label: "The engine" },
   { href: "/love/", label: "Kubb sites we love" },
+  { href: "/pitchside/", label: "Pitchside" },
   { href: NEWSLETTER_URL, label: "Newsletter", external: true },
   { href: "/support/", label: "Support" },
   { href: "/privacy/", label: "Privacy" },
@@ -123,11 +127,12 @@ export function page({
   tinylytics = false,
   scripts = [],
   release = null,
+  share = SHARE,
 }) {
   return `<!doctype html>
 <html lang="en">
 <head>
-${head({ title, description, path, noindex, ...SHARE })}
+${head({ title, description, path, noindex, ...share })}
 </head>
 <body${bodyClass ? ` class="${bodyClass}"` : ""}>
 <a class="skip" href="#main">Skip to the page</a>

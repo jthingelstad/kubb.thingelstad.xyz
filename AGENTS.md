@@ -40,7 +40,8 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
   paths and secrets out of files and commits. Write
   the AWS account as `<account>` in Markdown. The one address it carries is the support
   page's, the game's own contact address: `SUPPORT_EMAIL` in `src/site/site.mjs`,
-  written there and nowhere else ("The site", the support page).
+  written there and nowhere else ("The site", the support pages: `/support/` and
+  `/pitchside/support/`, `SUPPORT_PAGES`).
 - **Game logic in Lua, in kubb-engine** (tested there); this repository has no Lua of its
   own. JavaScript draws, listens and talks to the network. JS and Lua exchange JSON strings in
   a few coarse calls a frame.
@@ -81,7 +82,7 @@ in-game HOME names `/#play` itself. PLAY NOW (`playNow` in
 no kept match options starts at once on Park, a Beginner computer, 2-4-6, raising by
 hand and no wind (`FIRST_MATCH`, `soloKept` in `src/ui/cards.js`; `startSolo` in
 `src/main.js`), one that has played gets the options card. The header is Play, iPhone,
-Playdate, How to play; the footer Rules, The engine, Kubb sites we love, Newsletter,
+Playdate, How to play; the footer Rules, The engine, Kubb sites we love, Pitchside, Newsletter,
 Support (`/support/`), Privacy and the version (`NAV`, `footNav` in
 `src/site/layout.mjs`). `public/style.css` holds the 1.0 system's tokens: round corners
 (6 px controls, 8 px cards), a 3 px ink line, 3 px and 5 px shadows, marigold the one go
@@ -108,13 +109,34 @@ throwingwood.com/support/"; `support` in `src/site/pages.mjs`, modelled on Road 
 Math's): the iPhone app's App Store listing's Support URL, the footer's Support link and
 where `/ios/#support` points. It is the site's one support text. It says who makes the
 game, how to reach him (MENU, FEEDBACK in the game, which cannot be answered, "Reports";
-or email, `SUPPORT_EMAIL` in `src/site/site.mjs`, the one page with an address on it),
+or email, `SUPPORT_EMAIL` in `src/site/site.mjs`, one of the two pages with an address on
+it, with `/pitchside/support/`),
 and five quick answers: no accounts, playing a friend, names, where the rules are and
 what the game keeps. Each answer is held to the game's own words on the web and in the
 iPhone app (the function's comment lists the sources) and, for what is kept, to
 `/privacy/`: change the game's words or the privacy page and this page changes with
 them. It names no store while `APP_STORE_URL` is empty. It is in the sitemap and
 `llms.txt`, and a site test pins its words.
+
+`/pitchside/` is the landing page for Kubb: Pitchside, Jamie's iPhone scorekeeper for
+real games of kubb (the owner, 2026-11-26: "lets create throwingwood.com/pitchside as the
+landing page for this app"; the app is the sibling `../pitchside`, read only from here).
+`/pitchside/support/` and `/pitchside/privacy/` are its own support and privacy pages,
+the three URLs its App Store record names (`src/site/pitchside.mjs`, whose comment lists
+where in Pitchside's README, guide and code each claim comes from: say only what its
+`main` does). The support page carries `SUPPORT_EMAIL` as `/support/` does (Pitchside has no
+feedback button, so email is the way in). The privacy page is the app's alone: it sends
+nothing (no network code at all), keeps games and the roster in its own folder and lets a
+file go only through the share sheet; it says the website is not the app and points at
+`/privacy/` for the site. `PITCHSIDE_APP_STORE_URL` in `src/site/site.mjs` is its store
+badge's switch, empty while the app is not in the store: then the hero says "Not in the
+App Store yet." with no badge and no button; set, Apple's badge (`APP_STORE_BADGE`) takes
+that place (`pitchsideStore`; a site test and `validate:site` pin both). It is linked from
+the footer only, never from the home page's own words, until the app is live. Its pictures
+are the app's build captures (`pitchside/docs/design/build-shots`) as WebP in
+`public/landing/pitchside-*.webp`, iPhone captures at half size, so a new capture is a new
+file of the same name; its share card is `public/share/pitchside.png` (`pitchsideShareImage`
+in `src/site/art.mjs`, `npm run images`).
 
 `/playdate/` shows the Playdate game's reel and installs it on the page itself (Jamie,
 2026-11-20: "do not require people to go to the playdate site to download and install…
@@ -147,7 +169,8 @@ to the live list.
 `vendor:check`, `shared:check`, the `infra/site.json` sync check, every `*.test.mjs` under
 `tests/` with `node --test` (among them the kept replay fixture: `node tools/replay-fixture.mjs` writes it again), the build, and `validate:site` (links and routes
 resolve through the real viewer request function, required tags, no inline script, no email
-address or home path in `dist/` but the support address on `/support/`, which must be there,
+address or home path in `dist/` but the support address on `/support/` and
+`/pitchside/support/`, which must be there,
 no account id in Markdown).
 
 - **The engine's whole golden corpus is played when it is due or asked for, not on
@@ -204,7 +227,7 @@ preview`, the browser tests, CI) gives it the pitch server on this machine
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `1.2.0 (1.0.0)`, at the foot of
+the full version of the newest engine the site carries, `1.3.0 (1.0.0)`, at the foot of
 every reading page and of MENU, with "Also plays ..." under it in MENU only while older
 engines are carried (none today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
