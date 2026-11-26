@@ -26,6 +26,8 @@ import {
   PITCH_URL,
   APP_STORE_URL,
   SUPPORT_EMAIL,
+  SUPPORT_PAGES,
+  PITCHSIDE_APP_STORE_URL,
   TESTFLIGHT_URL,
   ref,
 } from "../../src/site/site.mjs";
@@ -59,6 +61,11 @@ import {
   storeSections,
 } from "../../src/site/landing.mjs";
 import { PAGES } from "../../src/site/pages.mjs";
+import {
+  PITCHSIDE_PAGES,
+  PITCHSIDE_SHARE,
+  pitchsideStore,
+} from "../../src/site/pitchside.mjs";
 import { STEPS as HOWTO_STEPS } from "../../src/ui/howto.js";
 
 const json = async (file) => JSON.parse(await fs.readFile(file, "utf8"));
@@ -630,8 +637,8 @@ test("the version label: package.json's version and the newest engine's, never t
   const sha = "a2659b744210e4c5baa5b69c672e11ec87f9bfab";
   const release = releaseOf(pkg.version, sha, carried);
   assert.equal(release.text, `${pkg.version} (${carried[0].version})`);
-  // this checkout: 1.2.0 on 1.0.0, the one engine it carries (docs/ENGINES.md)
-  assert.equal(release.text, "1.2.0 (1.0.0)");
+  // this checkout: 1.3.0 on 1.0.0, the one engine it carries (docs/ENGINES.md)
+  assert.equal(release.text, "1.3.0 (1.0.0)");
   assert.equal(release.detail, null);
   // more than one carried (when the owner decides one is supported): "Also plays"
   const two = [carried[0], { ...carried[0], mm: "0.9", version: "0.9.0" }];
@@ -640,7 +647,7 @@ test("the version label: package.json's version and the newest engine's, never t
   // one engine carried: no detail
   assert.equal(releaseOf("0.2.0", sha, carried.slice(0, 1)).detail, null);
   const foot = footer(release.text);
-  assert.match(foot, /data-release>Version 1\.2\.0 \(1\.0\.0\)<\/p>/);
+  assert.match(foot, /data-release>Version 1\.3\.0 \(1\.0\.0\)<\/p>/);
   assert.ok(!foot.includes(sha.slice(0, 7)));
 });
 
@@ -660,7 +667,7 @@ test("the landing site: / is the game and its web game, each nav entry a page", 
       ["How to play", "/rules/"],
     ],
   );
-  // the footer: Rules, The engine, Kubb sites we love, Newsletter (Buttondown's
+  // the footer: Rules, The engine, Kubb sites we love, Pitchside, Newsletter (Buttondown's
   // own page), Support (the support page), Privacy, then the version; the
   // current page marked
   assert.deepEqual(
@@ -669,6 +676,7 @@ test("the landing site: / is the game and its web game, each nav entry a page", 
       "Rules",
       "The engine",
       "Kubb sites we love",
+      "Pitchside",
       "Newsletter",
       "Support",
       "Privacy",
@@ -696,9 +704,11 @@ test("/support/: how to reach Jamie, the one page with an address, nothing not l
     config: {},
   });
   assert.ok(!PAGES.find((p) => p.path === "/support/").noindex, "indexed");
-  // the address once, as a mailto link, on this page alone
+  // the address once, as a mailto link, on the support pages alone (this one
+  // and Pitchside's)
   assert.equal(html.split(`href="mailto:${SUPPORT_EMAIL}"`).length - 1, 1);
-  for (const p of PAGES.filter((p) => p.path !== "/support/"))
+  assert.deepEqual(SUPPORT_PAGES, ["/support/", "/pitchside/support/"]);
+  for (const p of PAGES.filter((p) => !SUPPORT_PAGES.includes(p.path)))
     assert.ok(
       !p
         .render({ config: {}, assets: { main: "/m.js" } })
@@ -1144,4 +1154,97 @@ test("/engine/ counts the golden corpus the site vendors", () => {
   const html = PAGES.find((p) => p.path === "/engine/").render({});
   assert.deepEqual(GOLDEN_COUNT, { matches: 21, hashes: 880 });
   assert.match(html, /We keep 880 hashes from 21 test matches\./);
+});
+
+const pitchsidePage = (path) =>
+  PAGES.find((p) => p.path === path).render({ config: {} });
+const mainOf = (html) =>
+  html.slice(html.indexOf("<main"), html.indexOf("</main>"));
+
+test("/pitchside/: three pages of its own, indexed, with its own share card", () => {
+  assert.deepEqual(
+    PITCHSIDE_PAGES.map((p) => p.path),
+    ["/pitchside/", "/pitchside/support/", "/pitchside/privacy/"],
+  );
+  for (const { path } of PITCHSIDE_PAGES) {
+    const page = PAGES.find((p) => p.path === path);
+    assert.ok(page && !page.noindex, `${path} is a page, in the sitemap`);
+    const html = pitchsidePage(path);
+    assert.ok(
+      html.includes(
+        `<meta property="og:image" content="https://throwingwood.com${PITCHSIDE_SHARE.image}">`,
+      ),
+      `${path} share card`,
+    );
+    assert.match(html, /<title>[^<]*Pitchside[^<]*<\/title>/, `${path} title`);
+    // the trailing slash: the bare path answers 301 to the slashed one
+    const bare = request(path.slice(0, -1));
+    assert.equal(bare.statusCode, 301, `${path} without its slash`);
+    assert.equal(bare.headers.location.value, path);
+  }
+  // the game's own pages keep the game's card
+  assert.ok(pitchsidePage("/ios/").includes("/share/kubb.png"));
+  // one way to it from every page, the footer, and none from the home page's own words
+  assert.ok(footNav().some((n) => n.href === "/pitchside/"));
+  assert.ok(!mainOf(pitchsidePage("/")).includes("/pitchside/"));
+});
+
+test("/pitchside/: the store badge is a switch that is off until the app is in the store", () => {
+  assert.equal(PITCHSIDE_APP_STORE_URL, "", "not in the App Store yet");
+  const html = pitchsidePage("/pitchside/");
+  const hero = html.slice(html.indexOf("<main"), html.indexOf("</section>"));
+  // off: the not-yet line, no badge, no button of any kind in the hero
+  assert.ok(hero.includes(pitchsideStore()));
+  assert.match(
+    pitchsideStore(""),
+    /data-test="pitchside-not-yet">Not in the App Store yet\.</,
+  );
+  assert.doesNotMatch(pitchsideStore(""), /<a |store-badge|button/);
+  assert.doesNotMatch(hero, /class="button|store-badge/);
+  assert.ok(!html.includes("button--start"), "no go button");
+  // on: Apple's badge, the same artwork as /ios/'s, and no not-yet line
+  const live = pitchsideStore("https://apps.apple.com/app/id2");
+  assert.match(
+    live,
+    /<a class="store-badge" href="https:\/\/apps\.apple\.com\/app\/id2" rel="noopener" data-test="pitchside-app-store"><img src="\/landing\/app-store-badge\.svg" [^>]*alt="Download on the App Store"><\/a>/,
+  );
+  assert.doesNotMatch(live, /Not in the App Store|pitchside-not-yet/);
+  // nothing not live in the page's own words: no date, no TestFlight, no promise
+  assert.doesNotMatch(mainOf(html), /TestFlight|coming|soon|20\d\d/i);
+  // the support and privacy pages are the app's, and the page points at both
+  assert.ok(html.includes('href="/pitchside/support/"'));
+  assert.ok(html.includes('href="/pitchside/privacy/"'));
+});
+
+test("/pitchside/support/: how to reach Jamie, by email, and nothing not live", () => {
+  const html = pitchsidePage("/pitchside/support/");
+  assert.equal(html.split(`href="mailto:${SUPPORT_EMAIL}"`).length - 1, 1);
+  assert.match(
+    html,
+    /made by one person, Jamie Thingelstad, in his spare time/,
+  );
+  // the app's own words for its buttons (pitchside ScoreSheetView, HomeView)
+  for (const words of ["Undo", "Score sheet PDF", "Open file"])
+    assert.ok(html.includes(words), words);
+  assert.ok(html.includes('href="/pitchside/privacy/"'));
+  assert.doesNotMatch(mainOf(html), /App Store|TestFlight|coming|soon|20\d\d/i);
+});
+
+test("/pitchside/privacy/: the app sends nothing, and the website is kept apart", () => {
+  const html = mainOf(pitchsidePage("/pitchside/privacy/"));
+  assert.match(html, /the app sends nothing to anyone/);
+  assert.match(
+    html,
+    /Pitchside does not use the internet\. There is no account, no sign-in, no ads, no analytics and no tracking\./,
+  );
+  assert.match(html, /A game leaves your phone only when you share it/);
+  // the website's counting is the website's page, never this one's claim
+  assert.match(
+    html,
+    /This website, throwingwood\.com, is not the app\. It counts visits, and it has its own <a href="\/privacy\/">privacy page<\/a>\./,
+  );
+  assert.doesNotMatch(
+    html,
+    /Tinylytics|Buttondown|Amazon Web Services|Cloudflare/,
+  );
 });

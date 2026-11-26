@@ -3,6 +3,7 @@
 import { esc, gamePage, page } from "./layout.mjs";
 import { GAME_READY, SITE_TITLE, SUPPORT_EMAIL } from "./site.mjs";
 import { LANDING_PAGES } from "./landing.mjs";
+import { PITCHSIDE_PAGES } from "./pitchside.mjs";
 
 // HOW TO PLAY, the Playdate game's six cards (playdate-kubb
 // source/core/howtoplay.lua), in sentence case. The sixth card (the score
@@ -371,6 +372,7 @@ export const PAGES = [
     render: support,
     sources: ["src/site"],
   },
+  ...PITCHSIDE_PAGES,
   {
     path: "/404.html",
     file: "404.html",

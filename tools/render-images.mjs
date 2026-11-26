@@ -1,5 +1,6 @@
 // Render the site's images from the drawings in src/site/art.mjs: the share
-// image (public/share/kubb.png, 1200 x 630), the favicon (public/favicon.png,
+// image (public/share/kubb.png, 1200 x 630), Pitchside's share image
+// (public/share/pitchside.png, 1200 x 630), the favicon (public/favicon.png,
 // 64 x 64) and the apple-touch-icon (public/apple-touch-icon.png, 180 x 180).
 //
 //   npm run images
@@ -9,7 +10,11 @@
 // PNGs are committed; run this again after changing a drawing.
 import fs from "node:fs/promises";
 import { chromium } from "playwright";
-import { iconImage, shareImage } from "../src/site/art.mjs";
+import {
+  iconImage,
+  pitchsideShareImage,
+  shareImage,
+} from "../src/site/art.mjs";
 
 const font = (
   await fs.readFile("public/fonts/LondrinaSolid-Black.woff2")
@@ -24,6 +29,7 @@ const browser = await chromium.launch();
 try {
   for (const [file, svg, size] of [
     ["public/share/kubb.png", shareImage(), [1200, 630]],
+    ["public/share/pitchside.png", pitchsideShareImage(), [1200, 630]],
     ["public/apple-touch-icon.png", iconImage(180), [180, 180]],
     ["public/favicon.png", iconImage(64), [64, 64]],
   ]) {

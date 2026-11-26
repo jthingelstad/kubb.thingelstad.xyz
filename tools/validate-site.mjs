@@ -14,7 +14,9 @@ import {
   NEWSLETTER_ACTION,
   ORIGIN,
   SUPPORT_EMAIL,
+  SUPPORT_PAGES,
   APP_STORE_URL,
+  PITCHSIDE_APP_STORE_URL,
   TESTFLIGHT_URL,
   TINYLYTICS_SITE,
 } from "../src/site/site.mjs";
@@ -213,6 +215,30 @@ assert.equal(
   !TESTFLIGHT_URL,
   "/ios/ by invitation",
 );
+// /pitchside/: Apple's badge only while PITCHSIDE_APP_STORE_URL is set; without
+// it the not-yet line and no button at all. Its support and privacy pages are
+// its own, and the home page does not name it.
+const pitchsidePage = await read("pitchside/index.html");
+assert.equal(
+  pitchsidePage.includes('data-test="pitchside-app-store"'),
+  Boolean(PITCHSIDE_APP_STORE_URL),
+  "/pitchside/ App Store badge",
+);
+assert.equal(
+  pitchsidePage.includes('data-test="pitchside-not-yet"'),
+  !PITCHSIDE_APP_STORE_URL,
+  "/pitchside/ not in the store yet",
+);
+assert.ok(!pitchsidePage.includes("button--start"), "/pitchside/ no go button");
+for (const href of ["/pitchside/support/", "/pitchside/privacy/"])
+  assert.ok(
+    pitchsidePage.includes(`href="${href}"`),
+    `/pitchside/ links ${href}`,
+  );
+assert.ok(
+  !landing.slice(0, landing.indexOf("<footer")).includes("/pitchside/"),
+  "/ does not promote Pitchside",
+);
 // /love/: the heading and the five sites, in order, each a noopener link.
 const lovePage = await read("love/index.html");
 assert.match(
@@ -318,18 +344,22 @@ const EMAIL =
 const HOME = /\/Users\/[a-z]|\/home\/(?!web_user\b)[a-z]/;
 const ACCOUNT = /\b\d{12}\b/;
 const TEXT = [".html", ".txt", ".xml", ".css", ".js", ".json", ".map"];
-// The one exception: Jamie's public contact address on the support page
-// (SUPPORT_EMAIL, src/site/site.mjs), which must be there.
-const SUPPORT_FILE = path.join("dist", "support", "index.html");
-assert.ok(
-  (await fs.readFile(SUPPORT_FILE, "utf8")).includes(
-    `href="mailto:${SUPPORT_EMAIL}"`,
-  ),
-  "/support/ gives the support address",
+// The one exception: Jamie's public contact address on the two support pages,
+// /support/ and /pitchside/support/ (SUPPORT_EMAIL and SUPPORT_PAGES,
+// src/site/site.mjs), where it must be.
+const SUPPORT_FILES = SUPPORT_PAGES.map((p) =>
+  path.join("dist", p.slice(1), "index.html"),
 );
+for (const file of SUPPORT_FILES)
+  assert.ok(
+    (await fs.readFile(file, "utf8")).includes(
+      `href="mailto:${SUPPORT_EMAIL}"`,
+    ),
+    `${file} gives the support address`,
+  );
 for (const file of files.filter((f) => TEXT.includes(path.extname(f)))) {
   let text = await fs.readFile(file, "utf8");
-  if (path.normalize(file) === SUPPORT_FILE)
+  if (SUPPORT_FILES.includes(path.normalize(file)))
     text = text.split(SUPPORT_EMAIL).join("");
   const email = text.match(EMAIL);
   assert.ok(!email, `${file}: an email address (${email?.[0]})`);

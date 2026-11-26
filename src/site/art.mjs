@@ -138,6 +138,51 @@ ${kubb(1140, G, 80)}
 </svg>`;
 }
 
+// Kubb: Pitchside's share image (1200 x 630, public/share/pitchside.png): the
+// same cut wood as the game's, PITCHSIDE in the ink band, and the pitch with a
+// kubb down and a tally beside it, because this one keeps score of the real thing.
+export function pitchsideShareImage() {
+  const W = 1200;
+  const H = 630;
+  const G = 520;
+  const word = (text, x, y, size, fill) =>
+    `<text x="${x + size * 0.06}" y="${y + size * 0.06}" font-size="${size}" fill="${C.ink}" stroke="${C.ink}" stroke-width="${size * 0.08}" stroke-linejoin="round">${text}</text>
+<text x="${x}" y="${y}" font-size="${size}" fill="${fill}" stroke="${C.ink}" stroke-width="${size * 0.07}" stroke-linejoin="round" paint-order="stroke">${text}</text>`;
+  // a kubb knocked flat on the grass, its hard shadow under it
+  const fallen = (x, h = 80) => {
+    const w = h * 0.47;
+    const sw = Math.max(2, h * 0.07);
+    return `<g>
+<rect x="${r(x + h * 0.1)}" y="${r(G - w + h * 0.06)}" width="${r(h)}" height="${r(w)}" fill="${C.ink}"/>
+<rect x="${r(x)}" y="${r(G - w)}" width="${r(h)}" height="${r(w)}" fill="${C.wood}" stroke="${C.ink}" stroke-width="${r(sw)}"/>
+<rect x="${r(x + sw / 2)}" y="${r(G - w * 0.3)}" width="${r(h - sw)}" height="${r(w * 0.3 - sw / 2)}" fill="${C.woodDark}"/>
+</g>`;
+  };
+  // four strokes and a slash across them: a tally of five, in ink
+  const tally = (x, y) =>
+    [0, 1, 2, 3]
+      .map(
+        (i) =>
+          `<line x1="${x + i * 26}" y1="${y}" x2="${x + i * 26}" y2="${y + 96}" stroke="${C.ink}" stroke-width="11" stroke-linecap="round"/>`,
+      )
+      .join("") +
+    `<line x1="${x - 18}" y1="${y + 78}" x2="${x + 96}" y2="${y + 18}" stroke="${C.ink}" stroke-width="11" stroke-linecap="round"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+<rect width="${W}" height="${H}" fill="${C.paper}"/>
+<g font-family="Londrina Solid" font-weight="900" text-anchor="start">
+${word("KUBB", 70, 250, 250, C.wood)}
+<rect x="70" y="285" width="352" height="92" fill="${C.ink}"/>
+<text x="94" y="357" font-size="72" fill="${C.paper}" letter-spacing="2">PITCHSIDE</text>
+<text x="72" y="440" font-size="40" fill="${C.ink}" letter-spacing="1">KEEP SCORE OF REAL KUBB ON YOUR IPHONE</text>
+</g>
+${tally(880, 150)}
+${ground(W, G, H - G)}
+${king(1040, G, 190)}
+${kubb(930, G, 80)}
+${fallen(1090)}
+</svg>`;
+}
+
 // The icon: the king on grass, drawn large so it reads at 32 px.
 export function iconImage(size = 180) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 180 180">

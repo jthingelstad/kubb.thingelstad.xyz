@@ -85,13 +85,25 @@ export const APP_STORE_URL =
   "https://apps.apple.com/us/app/kubb-throwing-wood/id6836326990";
 export const APP_STORE_BADGE = "/landing/app-store-badge.svg";
 
+// Kubb: Pitchside, the iPhone scorekeeper for real games of kubb (the owner,
+// 2026-11-26: "lets create throwingwood.com/pitchside as the landing page for
+// this app"). Its App Store page is the one switch for its badge
+// (src/site/pitchside.mjs pitchsideStore): empty while the app is not in the
+// store, so /pitchside/ says only that it is not there yet and shows no badge
+// and no button. Set it to the app's store URL once the listing is live, and
+// /pitchside/ shows Apple's badge in the hero, as /ios/ does.
+export const PITCHSIDE_APP_STORE_URL = "";
+export const PITCHSIDE_REPO = "https://github.com/jthingelstad/pitchside";
+
 // The address on /support/ (the owner, 2026-11-22: "Approved: build
 // throwingwood.com/support/"), where the App Store listing's Support URL points.
 // It is the game's own address (the owner, 2026-11-22: "use
 // hello@throwingwood.com"), and the one email address this public repository
 // and the built site carry (AGENTS.md "Rules"): written here and nowhere else in the repository,
-// and validate:site allows it on dist/support/index.html alone.
+// and validate:site allows it on the two support pages alone, /support/ and
+// /pitchside/support/ (SUPPORT_PAGES).
 export const SUPPORT_EMAIL = "hello@throwingwood.com";
+export const SUPPORT_PAGES = ["/support/", "/pitchside/support/"];
 
 // The newsletter: a Buttondown list (Jamie, 2026-11-20: "Here is mailing list
 // subscribe information for the website. Use the link or modify the embed
