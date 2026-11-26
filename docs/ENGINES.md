@@ -31,25 +31,26 @@ for an engine a row still names, `--drop` only for one no row names.
 | Build                             | App version       | Engine | As of      |
 | --------------------------------- | ----------------- | ------ | ---------- |
 | App Store                         | 1.0.0 (build 260) | 1.0.0  | 2026-11-24 |
-| TestFlight Beta (outside testers) | 0.6 (build 162)   | 0.9.0  | 2026-11-22 |
-| TestFlight Beta, in review        | 1.0.0 (build 260) | 1.0.0  | 2026-11-22 |
-| TestFlight Dev (internal)         | 1.0.0 (build 256) | 1.0.0  | 2026-11-22 |
+| TestFlight Beta (outside testers) | 1.0.0 (build 260) | 1.0.0  | 2026-11-26 |
+| TestFlight Beta, in review        | 1.1.0 (build 284) | 1.4.0  | 2026-11-26 |
+| TestFlight Dev (internal)         | 1.1.0 (build 284) | 1.4.0  | 2026-11-26 |
 
-The rows were filled on 2026-11-22 from App Store Connect. Build 256 is in the Internal
-group. Build 260, the same app at a later commit that changed only its docs, is in the
-Beta group and was submitted to Beta App Review that day. Until Apple passes it, the build
-outside testers have is 162, `0.6 (0.9.0)`. The site does not carry 0.9: it was dropped on
-2026-11-21, before this rule, so build 162 plays no pitch with the site, and that gap
-closes when 260 passes. Whoever sees it pass removes the "in review" row and makes the Beta
-row 1.0.0 (build 260); then every row is 1.0 and the site carries what the rule asks.
+The TestFlight rows were read from App Store Connect on 2026-11-26, the day build 284,
+`1.1.0 (1.4.0)`, was uploaded. It is in the Internal group, and it was added to the Beta
+group and submitted to Beta App Review that day. Until Apple passes it, the build outside
+testers have is 260, `1.0.0 (1.0.0)`, which has passed Beta App Review.
+Whoever sees 284 pass removes the "in review" row and makes the Beta row 1.1.0 (build
+284). The App Store row stays 1.0.0 until a new version is released there, so the site
+keeps 1.0 until then. Build 284 carries 1.0 too, so a tester on it still plays a pitch
+with someone on the App Store version, on the 1.0 game.
 
 The App Store row was filled on 2026-11-24, the day Apple approved 1.0.0 and it went live
-(build 260, the one submitted for App Review). The store's own lookup names the version;
-the TestFlight rows were not read again that day.
+(build 260, the one submitted for App Review). The store's own lookup names the version.
 
 - **Today the site carries two engines: 1.4 (1.4.0), the newest, and 1.0 (1.0.0).**
   1.4 came with web 1.5.0 (2026-11-26), vendored with `--keep`: every iPhone build in the
-  table above is on 1.0, so 1.0 stays until no row names it. 1.4 brings the throw levels
+  table above was on 1.0 that day, and the App Store's still is, so 1.0 stays until no
+  row names it. 1.4 brings the throw levels
   (1.3), the view from one side, the computer's turn fast or skipped, raising in any
   order and the throw to go (the engine's docs/CLIENTS.md, docs/SESSION.md). 1.0 and 1.4
   share no match: a match plays on the one it was started on, and a pitch with a 1.0
