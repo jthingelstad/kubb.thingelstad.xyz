@@ -676,7 +676,7 @@ the one it was played on: a pitch's `match.engine`, a shared match's `engine`.
 #### Engines
 
 The renderer carries the engines the site carries (`docs/ENGINES.md`): the newest and
-every older minor kept with `vendor:sync --keep`. Today that is one, 1.0.0.
+every older minor kept with `vendor:sync --keep`. Today that is two, 1.4.0 and 1.0.0.
 
 - **The package.** `tools/reels-bundle.mjs` writes one Lua bundle per carried engine,
   `engines/<major.minor>.json` (`{ engine, sources }`, from `carriedEngines()`), where
@@ -684,8 +684,7 @@ every older minor kept with `vendor:sync --keep`. Today that is one, 1.0.0.
   engines, so its key, `reels/<sha256>.zip`, changes only when they do. Each engine adds
   about 0.7 MB unzipped and 0.2 MB zipped.
 - **`REEL_ENGINES`** is the same set, by major.minor and newest first (`reelEngines()`
-  in `tools/reels-bundle.mjs`): `1.0` today, `1.1,1.0` once 1.1 is vendored with
-  `--keep`. `tools/infra.mjs` passes it to the site stack, and the pitches stack takes it
+  in `tools/reels-bundle.mjs`): `1.4,1.0` today (1.4 vendored with `--keep`). `tools/infra.mjs` passes it to the site stack, and the pitches stack takes it
   from the site stack's `ReelEngines` output, so the two always name what the deployed
   package holds. Both templates already took a list.
 - **A render** (`backend/reels/job.mjs`) reads the replay's `engine`, and renders only

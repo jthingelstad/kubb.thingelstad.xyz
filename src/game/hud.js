@@ -11,6 +11,7 @@ import { Tray } from "./tray.js";
 import { linearGeometry, tabRect } from "../render/linear.js";
 import { tune as layoutTune, clockShapes } from "./layout.js";
 import { dialGeometry, tune as dialTune } from "../render/dial.js";
+import { THROW_WORD } from "./throw-level.js";
 
 // The verdict chips under the flag, from the core's words (throwplan.lua
 // plan.verdictText): on target, power and release read "POWER ON" and
@@ -118,6 +119,7 @@ export function headerLine({
   of = null,
   count = "",
   cpu = null,
+  throwWord = null,
 } = {}) {
   const parts = [];
   if (turn) parts.push(`Turn ${turn}`);
@@ -125,6 +127,8 @@ export function headerLine({
   if (count) parts.push(count);
   // a computer player throws (engine 0.17, need.setup.thrower.cpu): "· computer · Pro"
   if (cpu) parts.push("computer", cpu);
+  // a person's throw level other than Standard (engine 1.3 on): "· easy throw"
+  if (throwWord) parts.push(`${throwWord} throw`);
   const t = parts.join(" · ").toLowerCase();
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
@@ -316,6 +320,30 @@ export class Hud {
     this.skip = button("SKIP", () => a.skip(), "skip-btn", {
       "data-test": "skip",
     });
+    // the computer's turn against the computer (engine 1.4): how fast it is watched
+    // (1X, 2X, 4X, kept on the device) and a skip to the person's next throw, in SKIP's
+    // place while the computer plays
+    this.cpuSpeed = button(
+      "1X",
+      () => {
+        a.speed?.();
+        this.cache.delete(this.cpuSpeed);
+      },
+      "cpu-speed",
+      {
+        "data-test": "cpu-speed",
+        "aria-label": "Computer's speed",
+      },
+    );
+    this.cpuSkip = button("", () => a.skipCpu?.(), "cpu-skip", {
+      "data-test": "cpu-skip",
+      "aria-label": "Skip the computer's turn",
+      title: "Skip the computer's turn",
+    });
+    this.cpuSkip.innerHTML =
+      '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 5l9 7-9 7z M12 5l9 7-9 7z" fill="currentColor"/><rect x="20" y="5" width="2.5" height="14" fill="currentColor"/></svg>';
+    this.cpuBar = h("div.skip-btn.cpu-bar", this.cpuSpeed, this.cpuSkip);
+    this.cpuBar.hidden = true;
     root.append(
       this.rail,
       this.center,
@@ -329,6 +357,7 @@ export class Hud {
       this.caption,
       this.coach,
       this.skip,
+      this.cpuBar,
     );
   }
 
@@ -362,6 +391,12 @@ export class Hud {
         kind: aim.drill ? "Kubbs" : "Batons",
         count: railCount(rail.r1),
       });
+    // the throw to go (engine 1.4): one baton at the king before the match
+    else if (need?.kind === "togo")
+      line = headerLine({
+        kind: need.again ? "Throw to go again" : "Throw to go",
+        throwWord: THROW_WORD[need.throwers?.[need.side]?.throw] ?? null,
+      });
     else if (rail.kind || aim.projectile) {
       // what the thrower aims at, when it is not the base kubbs the numbers show
       const at = /^(FIELD \d+|KING)$/.test(rail.r1 || "")
@@ -381,6 +416,7 @@ export class Hud {
         of: rail.of,
         count: at,
         cpu: th?.cpu ? (LEVEL_WORDS[th.level] ?? th.level ?? "") : null,
+        throwWord: THROW_WORD[need?.setup?.thrower?.throw] ?? null,
       });
     }
     this.text(what, line);
@@ -485,7 +521,18 @@ export class Hud {
       this.showCaption(null);
       this.showCoach(null);
     }
-    this.show(this.skip, !!st.playing);
+    // the computer's turn (solo): its speed and skip in SKIP's place
+    const cpu = !!this.actions.cpuTurn?.();
+    this.show(this.skip, !!st.playing && !cpu);
+    this.show(this.cpuBar, cpu);
+    if (cpu) {
+      const sp = `${this.actions.cpuSpeedNow?.() ?? 1}X`;
+      if (this.cache.get(this.cpuSpeed) !== sp) {
+        this.cache.set(this.cpuSpeed, sp);
+        this.cpuSpeed.textContent = sp;
+        this.cpuSpeed.setAttribute("aria-label", `Computer's speed: ${sp}`);
+      }
+    }
   }
 
   // The stand-ins' words and places: the prompt with the distance, the meter,

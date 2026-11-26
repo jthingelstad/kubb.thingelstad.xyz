@@ -544,7 +544,7 @@ function engine({ tinylytics, config = {} }) {
 <section class="frame prose" aria-labelledby="versions">
   <h2 class="display" id="versions">Every match keeps its engine</h2>
   <p>A change that could move a throw gets a new engine version. A match belongs to the version it started on for its whole life: its play, its replay, its reel and its score sheet.</p>
-  <p>The site plays the newest version only. A match made on an older one says so, and that it can no longer be replayed. A highlight reel already made is a video, so it still plays.</p>
+  <p>The site plays the newest version, and the older one the iPhone app still uses. A match made on any other says so, and that it can no longer be replayed. A highlight reel already made is a video, so it still plays.</p>
 </section>
 <section class="frame prose" aria-labelledby="notation">
   <h2 class="display" id="notation">What the scorekeeper writes</h2>

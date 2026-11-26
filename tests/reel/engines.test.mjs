@@ -58,8 +58,8 @@ const replayOf = (engine) => ({
 test("the package carries one bundle per engine, newest first, the same bytes every time", async () => {
   assert.equal(reelEngines(vendorDir), "0.7,0.6");
   assert.deepEqual(devReelEngines(vendorDir), ["0.7", "0.6"]);
-  // this checkout: the newest alone (docs/ENGINES.md), REEL_ENGINES "1.0"
-  assert.equal(reelEngines(), "1.0");
+  // this checkout: 1.4 and 1.0 (docs/ENGINES.md), REEL_ENGINES "1.4,1.0"
+  assert.equal(reelEngines(), "1.4,1.0");
   assert.deepEqual(
     engineEntries().map((e) => e.name),
     carriedEngines().map((e) => `engines/${e.mm}.json`),

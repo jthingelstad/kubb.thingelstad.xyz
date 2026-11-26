@@ -46,9 +46,14 @@ export const shownActor = kept((need, ctx) =>
   roomCall("shownActor", { need, ctx }),
 );
 
-// The engine's control for this browser (engine.setControl): { sides, cpu }.
-export const controlFor = kept((ctx, me) =>
-  roomCall("controlFor", { ctx, me }),
+// The engine's control for this browser (engine.setControl): { sides, cpu }, and
+// (engine 1.4) given a throw to go's need, `togo`: the sides whose baton this browser
+// throws. Any other need, or none, is left out.
+export const controlFor = kept((ctx, me, need = null) =>
+  roomCall(
+    "controlFor",
+    need?.kind === "togo" ? { ctx, me, need } : { ctx, me },
+  ),
 );
 
 export const sameControl = (a, b) =>

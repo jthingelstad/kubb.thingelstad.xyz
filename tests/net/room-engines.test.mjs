@@ -1,10 +1,11 @@
-// The room's engine through the web's wrappers (src/net/lobby.js, sync.js) with the one
-// engine this checkout carries (the owner, 2026-11-21: "Let's force all clients to the
-// most recent engine"; docs/ENGINES.md). The rules are kubb-engine's (pitch/engines.lua
-// and its tests); what these pin is the web's side of the rule: a page announces the
-// newest alone, a player on an older client (an iPhone build on 0.9) leaves the pitch
-// with no engine in common, so START cannot run, and a match on an older engine is never
-// this page's to play.
+// The room's engine through the web's wrappers (src/net/lobby.js, sync.js) with the two
+// engines this checkout carries: 1.4 the newest and 1.0 beside it, for the iPhone app's
+// App Store and TestFlight builds (docs/ENGINES.md). The rules are kubb-engine's
+// (pitch/engines.lua and its tests); what these pin is the web's side of the rule: a
+// page announces both, a pitch with a 1.0 player plays 1.0 (with none of 1.4's
+// options), a player on an older client (an iPhone build on 0.9) leaves the pitch with
+// no engine in common, so START cannot run, and a match on an engine this page does not
+// carry is never this page's to play.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -13,6 +14,7 @@ import { bundleLua, carriedEngines } from "../../tools/lua-bundle.mjs";
 import {
   ENGINE,
   useRoomEngine,
+  useOlderEngine,
   roomEngineFor,
   carriedBy,
   announce,
@@ -22,6 +24,7 @@ import {
   commitAction,
   mayPlay,
   optionsOf,
+  optionRows,
   setOptions,
   lineup,
   matchOptions,
@@ -34,30 +37,72 @@ import { decide, rider } from "../../src/net/sync.js";
 import { roomMinor } from "../../src/net/room-engine.js";
 
 const engines = carriedEngines();
-const newest = await Engine.create({ sources: bundleLua(engines[0].dir) });
+const [newest, one] = await Promise.all(
+  engines.map(({ dir }) => Engine.create({ sources: bundleLua(dir) })),
+);
 useRoomEngine(newest);
+useOlderEngine(one);
 
 const APP_VERSION = JSON.parse(
   readFileSync(new URL("../../package.json", import.meta.url)),
 ).version;
 const doc = { v: 1, teams: { A: ["a"], B: ["b"] } };
-const page = announce([ENGINE]);
+const page = announce(engines.map((e) => e.mm));
+// the iPhone app's App Store build 260 and its TestFlight builds: engine 1.0 alone
+const iphone10 = { engine: "1.0+engines", engines: ["1.0"] };
 // the iPhone app on engine 0.9, carrying 0.8 and 0.7 beside it
 const iphone09 = { engine: "0.9+engines", engines: ["0.9", "0.8", "0.7"] };
 const member = (id, me) => ({ id, connected: true, me });
 
-test("this checkout carries the newest engine alone", () => {
+test("this checkout carries 1.4 and 1.0", () => {
+  assert.equal(ENGINE, "1.4");
   assert.deepEqual(
     engines.map((e) => e.mm),
-    [ENGINE],
+    ["1.4", "1.0"],
   );
   assert.equal(newest.version, engines[0].version);
+  assert.equal(one.version, "1.0.0");
+  assert.equal(roomMinor("1.0.0"), "1.0");
   // a match of any other engine is looked up on the newest (and refused to play)
   assert.equal(roomMinor("0.9.0"), ENGINE);
   assert.equal(roomMinor(null), ENGINE);
-  // what a page says of itself: the newest, and no app version
-  assert.deepEqual(page, { engine: `${ENGINE}+engines`, engines: [ENGINE] });
-  assert.deepEqual(carriedBy(page), [ENGINE]);
+  // what a page says of itself: both, and no app version
+  assert.deepEqual(page, { engine: "1.4+engines", engines: ["1.4", "1.0"] });
+  assert.deepEqual(carriedBy(page), ["1.4", "1.0"]);
+});
+
+test("a pitch with the iPhone app on 1.0 plays 1.0, whoever hosts; 1.4's options are not there", () => {
+  const two = [member("a", page), member("b", page)];
+  assert.equal(roomEngineFor(doc, two, "a").engine, "1.4");
+  const phone = [member("a", page), member("b", iphone10)];
+  assert.equal(roomEngineFor(doc, phone, "a").engine, "1.0");
+  assert.equal(roomEngineFor(doc, phone, "b").engine, "1.0");
+  // a watcher on 1.0 does not count: the pitch plays 1.4
+  assert.equal(
+    roomEngineFor(doc, [...two, member("w", iphone10)], "a").engine,
+    "1.4",
+  );
+  // the throw to go: a row and a setting on 1.4, neither on 1.0
+  const rows = (mm) => optionRows("day", mm).rows.map(([k]) => k);
+  assert.ok(rows("1.4").includes("togo"), JSON.stringify(rows("1.4")));
+  assert.ok(!rows("1.0").includes("togo"));
+  const on = setOptions({ ...doc }, { togo: "on" });
+  assert.equal(optionsOf(on, "1.4").togo, "on");
+  // a 1.0 client's rewrite drops it (its reducers do not know it)
+  const rewritten = setOptions(on, { wind: "light" }, "1.0");
+  assert.equal(rewritten.settings?.togo, undefined);
+  // and a 1.0 match never throws to go, whatever the document says
+  const lu = lineup(on, phone);
+  const start = { year: 2026, month: 11, day: 26, hour: 12, min: 0 };
+  assert.ok(!("togo" in matchOptions(on, lu, { seed: 7, start }, "1.0")));
+  assert.equal(matchOptions(on, lu, { seed: 7, start }, "1.4").togo, "on");
+  // a person's throw level: 1.4 has the levels, 1.0 has none
+  assert.deepEqual(engineConstants("1.4").THROW_LEVELS, [
+    "easy",
+    "standard",
+    "hard",
+  ]);
+  assert.equal(engineConstants("1.0").THROW_LEVELS, undefined);
 });
 
 test("a player on an older client: no engine in common, so START cannot run", () => {

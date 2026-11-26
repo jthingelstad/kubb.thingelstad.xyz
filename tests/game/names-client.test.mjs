@@ -127,6 +127,7 @@ browserTest(
       // the match starts all the same, the old client playing as Player 1
       await host.click("[data-test=lobby-start]");
       await until(old, () => window.__kubb.pitch.mode === "match");
+      await until(host, () => !!window.__kubb.pitch.room.doc?.match);
       const m = await host.evaluate(
         () => window.__kubb.pitch.room.doc.match.players,
       );

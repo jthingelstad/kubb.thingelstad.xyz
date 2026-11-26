@@ -124,6 +124,7 @@ for (const kind of ["portrait", "desktop"])
             wind: "off",
             set: "classic",
             scene: "day",
+            togo: "on",
           },
         );
         await page.goto(env.base + "/");

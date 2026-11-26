@@ -1053,6 +1053,20 @@ body.game {
   right: calc(var(--safe-right) + 12px + var(--meter-r));
   top: calc(var(--safe-top) + 10px);
 }
+/* the computer's turn (solo): its speed and skip, in SKIP's place */
+.cpu-bar {
+  display: flex;
+  gap: 8px;
+}
+.cpu-bar[hidden] {
+  display: none;
+}
+.cpu-skip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+}
 
 .tray {
   position: absolute;

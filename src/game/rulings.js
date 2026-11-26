@@ -48,3 +48,28 @@ export function flagFor(result) {
     return short;
   return result.flag ?? null;
 }
+
+// The throw to go's verdict (engine 1.4.0, recording.result `togo`): who goes first,
+// or throw again, as the flag; how near each baton came to the king as the line under
+// it. A baton that knocks the king down loses the throw to go (the engine's core/togo).
+// `teams` is the need's { A, B } names.
+export function togoWords(r, teams = {}) {
+  const name = (s) => teams?.[s] || `Team ${s}`;
+  let flag;
+  if (r.how === "again")
+    flag =
+      r.why === "tie"
+        ? "A TIE: THROW AGAIN"
+        : r.why === "both king"
+          ? "BOTH HIT THE KING: THROW AGAIN"
+          : "THROW AGAIN";
+  else flag = `${name(r.first).toUpperCase()} GOES FIRST`;
+  const one = (s) => {
+    const x = r[s] || {};
+    if (x.toppled) return `${name(s)} hit the king`;
+    if (typeof x.mm === "number")
+      return `${name(s)} ${(x.mm / 1000).toFixed(2)} m`;
+    return name(s);
+  };
+  return { flag, rest: `${one("A")} · ${one("B")}` };
+}

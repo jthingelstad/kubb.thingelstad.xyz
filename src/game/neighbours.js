@@ -125,9 +125,14 @@ export function pitchFrameOf({
 } = {}) {
   const B = (side) => (side === "B" ? "B" : "A");
   if (mode !== "match") return "A";
-  if (need?.kind === "raise" || need?.kind === "punish") return B(need.side);
+  // engine 1.4's view from one side: every need says the frame it is in (`frame`)
+  const fr = need?.frame === "A" || need?.frame === "B" ? need.frame : null;
+  if (need?.kind === "raise" || need?.kind === "punish")
+    return B(fr ?? need.side);
   if (wide) return "A";
-  if (need?.kind === "throw" && need.side) return B(need.side);
+  if (fr) return fr;
+  if ((need?.kind === "throw" || need?.kind === "togo") && need.side)
+    return B(need.side);
   return B(thrower);
 }
 

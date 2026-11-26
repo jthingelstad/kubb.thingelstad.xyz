@@ -132,8 +132,10 @@ export function optionsOf(doc, mm = roomEngineMinor()) {
 }
 export const sideOf = (doc, id) => roomCall("sideOf", { doc, id });
 export const joinTeam = (doc, id, side) => write("joinTeam", { doc, id, side });
-export const setOptions = (doc, options) =>
-  write("setOptions", { doc, options });
+// On the newest engine's reducer unless `mm` names another (a test of what an older
+// client's rewrite keeps).
+export const setOptions = (doc, options, mm) =>
+  write("setOptions", { doc, options }, mm);
 export const setAccess = (doc, open) => write("setAccess", { doc, open });
 export const pruneTeams = (doc, present) =>
   write("pruneTeams", { doc, present });

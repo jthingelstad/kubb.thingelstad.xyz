@@ -64,7 +64,7 @@ async function floor(page, sel, { coarse = false } = {}) {
 }
 
 browserTest(
-  "Play the computer: the name row, Scene tiles, Computer level, Opening, Raising, Wind (and Surface where the scene leaves one); no Kubbs; HOME quiet at the left, START go at the right",
+  "Play the computer: the name row, Throw, Scene tiles, Computer level, Opening, Raising, Wind, Throw to go (and Surface where the scene leaves one); no Kubbs; HOME quiet at the left, START go at the right",
   async () => {
     const page = await open(env, "/p/abcdefgh?solo=1", "portrait", {
       prefs: { ...PREFS, solo: { set: "usa", wind: "light" } },
@@ -80,22 +80,26 @@ browserTest(
       // the engine's card for the scene (pitch.optionRows): Park has no Surface row
       assert.deepEqual(await rows(), [
         "solo-you",
+        "solo-opt-throw",
         "solo-opt-scene",
         "solo-opt-computer",
         "solo-opt-opening",
         "solo-opt-raising",
         "solo-opt-wind",
+        "solo-opt-togo",
       ]);
       // Black & White leaves the ground to the player: a Surface row under the Scene
       await page.click("[data-test=scene-tile-bw]");
       assert.deepEqual(await rows(), [
         "solo-you",
+        "solo-opt-throw",
         "solo-opt-scene",
         "solo-opt-surface",
         "solo-opt-computer",
         "solo-opt-opening",
         "solo-opt-raising",
         "solo-opt-wind",
+        "solo-opt-togo",
       ]);
       assert.deepEqual(
         await page.$$eval("[data-test=solo-opt-surface] [data-value]", (bs) =>

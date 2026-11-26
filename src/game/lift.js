@@ -122,10 +122,40 @@ export function liftKubb(
 // The end a raise action stands the kubb on, and where: { i, final } (i an index into
 // need.ends), or null when the need is not a two-ended raise. The action's `choice`
 // (1-based into need.choices), else the engine's own (need.default).
+// The raise need with another lying kubb first (engine 1.4.0: raise in any order): the
+// need's `lying` entry for `id` in the need's own place (pose, mode, choices, ends,
+// default), and the kubb the engine named among the others, lying where it lies. The
+// need as it is for the engine's own kubb, an unknown id, or a need with no `lying`
+// (engine 1.0).
+export function raiseNeedFor(need, id) {
+  if (!need || need.kind !== "raise" || !id || id === need.kubb) return need;
+  const e = (need.lying || []).find((l) => l?.id === id);
+  if (!e) return need;
+  const others = (need.others || []).filter((o) => o?.id !== id);
+  if (need.kubb && need.pose)
+    others.push({ id: need.kubb, pose: { ...need.pose, standing: false } });
+  return {
+    ...need,
+    kubb: e.id,
+    pose: e.pose,
+    mode: e.mode,
+    choices: e.choices,
+    ends: e.ends,
+    default: e.default,
+    others,
+  };
+}
+
 export function raiseEnd(need, action) {
+  if (action?.kubb) need = raiseNeedFor(need, action.kubb);
   if (!need || need.kind !== "raise" || !need.pose) return null;
   const choices = need.choices || [];
-  const c = choices[(action?.choice ?? need.default ?? 1) - 1] || choices[0];
+  const byWhich =
+    action?.which != null
+      ? choices.find((c) => c.which === action.which)
+      : null;
+  const c =
+    byWhich || choices[(action?.choice ?? need.default ?? 1) - 1] || choices[0];
   if (!c?.pose) return null;
   let i = (need.ends || []).findIndex((e) => e.which === c.which);
   if (i < 0) i = 0;
@@ -134,6 +164,7 @@ export function raiseEnd(need, action) {
 
 // The clip of a raise action applied to `need` (the raise as it stood before).
 export function actionClip(need, action, opts = {}) {
+  if (action?.kubb) need = raiseNeedFor(need, action.kubb);
   const end = raiseEnd(need, action);
   if (!end) return null;
   const { i, final } = end;

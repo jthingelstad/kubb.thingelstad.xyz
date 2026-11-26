@@ -107,7 +107,14 @@ browserTest("the menu's rows say what they set and show it", async () => {
     const device = await page.$$eval("[data-test=settings] .opt-label", (els) =>
       els.map((e) => e.textContent),
     );
-    assert.deepEqual(device, ["Your name", "Sound", "Meter", "Meter side"]);
+    // engine 1.4: a person's throw (Easy, Standard, Hard) under the name
+    assert.deepEqual(device, [
+      "Your name",
+      "Throw",
+      "Sound",
+      "Meter",
+      "Meter side",
+    ]);
     const sound = () =>
       page.$$eval("[data-test=mute] [role=radio]", (els) =>
         els.map((e) => `${e.textContent}:${e.getAttribute("aria-checked")}`),
@@ -119,15 +126,15 @@ browserTest("the menu's rows say what they set and show it", async () => {
     await page.click("[data-test=mute] >> text=On");
     assert.equal(await page.evaluate(() => window.__kubb.sound.muted), false);
     await page.click("[data-test=settings-done]");
-    // at the foot, small: the version label, the newest engine in the parentheses;
-    // no "Also plays" line, as the site carries the newest engine alone
+    // at the foot, small: the version label, the newest engine in the parentheses,
+    // and the older engine the site carries beside it (1.0, for the iPhone builds)
     assert.equal(
       await page.textContent("[data-test=menu-version-label]"),
-      "1.4.1 (1.0.0)",
+      "1.5.0 (1.4.0)",
     );
-    assert.equal(
-      await page.locator("[data-test=menu-version-also]").count(),
-      0,
+    assert.match(
+      await page.textContent("[data-test=menu-version-also]"),
+      /Also plays.*1\.0/,
     );
     assert.deepEqual(page.errors, []);
   } finally {

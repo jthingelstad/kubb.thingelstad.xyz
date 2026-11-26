@@ -1456,15 +1456,15 @@ The version policy (`LENIENT_ENGINES` is false) and version refusal cards are in
 - **The label** (`src/site/release.js`): every app shows its own version with the Kubb
   Engine's beside it, `<app version> (<engine version>)` (Jamie, 2026-11-20). On the web
   that is `package.json`'s version and the full version of the newest engine the page
-  carries: `1.3.0 (1.0.0)`. Nothing but that engine's version is in the parentheses: an
-  older engine the page still plays would be only in the detail, `Also plays ...` (none
-  today: the site carries the newest alone, `docs/ENGINES.md`), and the
+  carries: `1.5.0 (1.4.0)`. Nothing but that engine's version is in the parentheses: an
+  older engine the page still plays is only in the detail, `Also plays ...` (1.0 today,
+  for the iPhone builds, `docs/ENGINES.md`), and the
   web commit never shows. The release is `{ version, web, engine, also, text, detail }`
   (`text` the label, `detail` the older engines or null). The build (`tools/build.mjs`
   `releaseOf`) reads the version from `package.json`, the web commit from `GITHUB_SHA` in
   CI or `git rev-parse HEAD`, and the engines from the vendored set; it puts the release
   in the game pages' config (`config.release`) and writes it as `/version.json`.
-- **Shown** small, in the shared type tokens: "Version 1.3.0 (1.0.0)" at the foot of
+- **Shown** small, in the shared type tokens: "Version 1.5.0 (1.4.0)" at the foot of
   every reading page (beside the link to the engine page), and the label at the foot of
   MENU in the game, with "Also plays ..." under it only while an older engine is carried.
 - **Exact identity** is the web commit: freshness (below) compares it, and a feedback

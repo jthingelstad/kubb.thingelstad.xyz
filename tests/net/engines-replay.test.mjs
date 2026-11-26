@@ -1,6 +1,6 @@
 // Looking back at a match on its own engine (docs/ENGINES.md), with a second engine
-// registered from a fixture (the site carries the newest alone since 2026-11-21; the
-// machinery for several stays, for an engine the owner decides to carry): the vendored sources with only the version changed, made
+// registered from a fixture (the site's own carried set is 1.4 and
+// 1.0, docs/ENGINES.md; a made-up 0.6 keeps these independent of it): the vendored sources with only the version changed, made
 // in a temporary directory at test time (tests/engine/engine-fixture.mjs). Both play
 // alike, so a match agrees hash for hash on either; what these pin is which engine
 // each path picks, and what records and reports say played.
@@ -28,6 +28,7 @@ const V = JSON.parse(
   fs.readFileSync(new URL("../../vendor/engine.json", import.meta.url), "utf8"),
 ).tag.replace(/^v/, "");
 const Vre = V.replaceAll(".", "\\.");
+const MM = V.split(".").slice(0, 2).join(".");
 const older = fs.mkdtempSync(path.join(os.tmpdir(), "kubb-older-engine-"));
 writeEngineTree(older, "0.6.9");
 test.after(() => fs.rmSync(older, { recursive: true, force: true }));
@@ -35,7 +36,7 @@ test.after(() => fs.rmSync(older, { recursive: true, force: true }));
 const twoEngines = () =>
   makeRegistry({
     engines: {
-      "1.0": { version: V, sources: bundleLua() },
+      [MM]: { version: V, sources: bundleLua() },
       0.6: { version: "0.6.9", sources: bundleLua(older) },
     },
     newest: V,
@@ -73,8 +74,8 @@ test("the browser's registry: a carried engine for its matches, the newest for o
   const engines = twoEngines();
   assert.equal(engines.pick("0.6"), "0.6");
   assert.equal(engines.pick("0.6.2"), "0.6");
-  assert.equal(engines.pick("0.5"), "1.0");
-  assert.equal(engines.pick(null), "1.0");
+  assert.equal(engines.pick("0.5"), MM);
+  assert.equal(engines.pick(null), MM);
   const fallback = { version: "x" };
   assert.equal(engineFor(null, "0.6", fallback), fallback);
   // not loaded yet: a promise; loaded: at once
@@ -114,8 +115,8 @@ test("the tools' engines: each carried engine of a vendor folder, made once", as
     engineForMatch(engines, "0.7", { only: "0.5" }),
     /carries no engine 0\.5/,
   );
-  // this checkout's own vendor/: the newest alone (docs/ENGINES.md)
-  assert.deepEqual(checkoutEngines().carried(), ["1.0"]);
+  // this checkout's own vendor/: 1.4 and 1.0 (docs/ENGINES.md)
+  assert.deepEqual(checkoutEngines().carried(), ["1.4", "1.0"]);
 });
 
 test("the engine a record says played it", () => {
@@ -152,7 +153,7 @@ test("games:replay plays each match on its own engine, or the newest, or --engin
   await replayRecords({
     browser: [old],
     engines,
-    only: "1.0",
+    only: MM,
     log,
   });
   assert.match(said[0], new RegExp(`through kubb-engine ${Vre}`));
@@ -196,8 +197,8 @@ test("a record names the engine that played and the bundle it came from", async 
 });
 
 // Engine 1.0 replaced 0.18 with --drop (docs/ENGINES.md): a kept match of 0.18 says it
-// can no longer be replayed, wherever it is opened, and one of 1.0 plays.
-test("a kept 0.18 match is old; a 1.0 one plays", async () => {
+// can no longer be replayed, wherever it is opened, and one of the newest plays.
+test("a kept 0.18 match is old; a newest one plays", async () => {
   const { replayProblem, problemText, OLD_REPLAY } =
     await import("../../src/replay/player.js");
   const r = JSON.parse(
@@ -206,12 +207,12 @@ test("a kept 0.18 match is old; a 1.0 one plays", async () => {
       "utf8",
     ),
   );
-  assert.equal(r.engine, "1.0");
+  assert.equal(r.engine, MM);
   const engine = { version: V };
   assert.equal(replayProblem({ ...r, engine: "0.18" }, { engine }), "old");
   assert.equal(problemText("old"), OLD_REPLAY);
   const engines = makeRegistry({
-    engines: { "1.0": { version: V, sources: bundleLua() } },
+    engines: { [MM]: { version: V, sources: bundleLua() } },
     newest: V,
   });
   assert.equal(replayProblem({ ...r, engine: "0.18" }, { engines }), "old");

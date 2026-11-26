@@ -186,7 +186,18 @@ export class Engine {
     if (input.walk) a.walk = input.walk;
     // the stamp on the action this frame makes (engine 0.18.0: a match's length)
     if (input.at) a.at = input.at;
+    // the computer's throws and tip-ups run at 2 or 4 times (engine 1.4.0, solo only)
+    if (input.speed === 2 || input.speed === 4) a.speed = input.speed;
     return this.call("frame", a);
+  }
+
+  // The computer's whole turn played at once (engine 1.4.0, docs/SESSION.md "The
+  // computer's turn, fast"): { steps, need, view }; a solo match only.
+  cpuPlay(opts = {}) {
+    const a = {};
+    if (opts.at) a.at = opts.at;
+    if (opts.recordings) a.recordings = true;
+    return this.call("cpuPlay", a);
   }
   showAt(t) {
     return this.call("showAt", { t });
@@ -240,6 +251,12 @@ export class Engine {
   // null turns it off. Returns { camera, kind, farPx } or {}.
   setWide(box, kind) {
     return this.call("setWide", box ? { box, kind } : {});
+  }
+  // A view from one side (engine 1.4.0, docs/SESSION.md "A view from one side"): every
+  // output in that side's frame, the other side's throws from its end; null turns it
+  // off. The wide view wins while it is on.
+  setView(side, box) {
+    return this.call("setView", side ? (box ? { side, box } : { side }) : {});
   }
 
   // ---- aiming ----
@@ -313,7 +330,8 @@ export class Engine {
   apply(action) {
     return this.call("apply", action);
   }
-  checkPunish(x, y) {
-    return this.call("checkPunish", { x, y });
+  // `frame`: the frame x, y are in (a punish need's `frame`, engine 1.4.0), when set
+  checkPunish(x, y, frame) {
+    return this.call("checkPunish", frame ? { x, y, frame } : { x, y });
   }
 }
