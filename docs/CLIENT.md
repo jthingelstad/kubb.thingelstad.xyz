@@ -1372,7 +1372,7 @@ held on the picture only); scrolling outside it still works. Sent as `paint`, in
 report's own frame and metres (backend/api/API.md "report"), at most 32 strokes and 800
 points; past that it says "That is as much paint as one report can carry." No piece is
 picked any more, so new clients send no `selectedPieces` (older ones still may). The paint
-is never cut to fit. `npm run reports:show` prints the pieces under the paint and a text
+is never cut to fit, and a painted report's `pieces` are the ones its picture showed, never dropped, so the strokes lie on what the player saw. `npm run reports:show` prints the pieces under the paint and a text
 map of the pitch with it.
 For a long practice session, a trimmed throw report keeps an opaque checkpoint
 of the pitch before the reported throw. The report reader restores it and applies

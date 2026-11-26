@@ -19,7 +19,8 @@
 // kubb-engine version; what was typed; the build (package version, its label "0.2.0 (0.8.1)", commit, the hashed Lua bundle's
 // name); the viewport
 // size; the browser's clock; the turn and phase; the last throw's action and result; the
-// pieces where they stand (the thrower's view frame). For a match: its options (read from
+// pieces where they stand (the thrower's view frame; with a paint, where they stood in
+// its picture). For a match: its options (read from
 // the snapshot), the snapshot at its start or at the last adopt and every action applied
 // here since (start + actions replay it), and the snapshot before the last action with the
 // one after (before + last replays the reported moment). For practice: its options and
@@ -31,8 +32,9 @@
 //
 // The whole message is held to LIMITS.reportBytes as ASCII JSON. When it would not fit,
 // the parts that only help are dropped in this order (and listed in `r.dropped`): the
-// match's start and actions (or practice's ops), the pieces, the snapshot after. The typed
-// answers, the paint, the snapshot before and the last action are never cut.
+// match's start and actions (or practice's ops), the pieces (not when painted), the
+// snapshot after. The typed answers, the paint, the snapshot before and the last action
+// are never cut.
 import { apiCall, asciiJson } from "./api.js";
 import { CLIENT } from "./sync.js";
 import { luaFor } from "../site/config.js";
@@ -229,6 +231,7 @@ export function reportMessage(
   const clip = (s, n = limits.chars) =>
     [...String(s ?? "")].slice(0, n).join("");
   const r = structuredClone(state);
+  const picture = r.pickPieces;
   delete r.pickPieces;
   const practiceBefore = r.practiceBefore;
   delete r.practiceBefore;
@@ -240,9 +243,15 @@ export function reportMessage(
     r.happened = clip(happened);
     r.should = clip(should);
   }
-  // where the player painted, in the frame and units of `pieces`
+  // where the player painted, in the frame and units of `pieces`: a painted report's
+  // `pieces` are the ones its picture showed (the last throw's rest when there is one,
+  // which the next turn may have collected or turned), and they are never dropped, so
+  // a reader lays the strokes on what the player saw
   const painted = normalizePaint(paint);
-  if (painted) r.paint = painted;
+  if (painted) {
+    r.paint = painted;
+    if (Array.isArray(picture)) r.pieces = picture;
+  }
   const msg = { t: "report", id, r };
   const size = () => asciiJson(msg).length;
   const drops = [
@@ -266,7 +275,7 @@ export function reportMessage(
     ],
     ["pieces", () => (r.pieces = null)],
     ["after", () => r.snapshots && (r.snapshots.now = null)],
-  ];
+  ].filter(([name]) => !(painted && name === "pieces"));
   for (const [name, drop] of drops) {
     if (size() <= limits.bytes) break;
     drop();
