@@ -17,6 +17,7 @@ export const hollerTune = {
   wideFrom: 420, // px of room it needs for that
   narrowW: 320, // px: the stacked panel at most
   minW: 220, // px: never narrower
+  tightW: 300, // px: a panel narrower than this puts its four tabs two by two
   minH: 140, // px: a place with less height than this is a last resort
 };
 
@@ -258,6 +259,7 @@ export class HollerBar {
       keep: hollerKeep(L),
     });
     this.panel.classList.toggle("wide", at.wide);
+    this.panel.classList.toggle("tight", at.width < hollerTune.tightW);
     Object.assign(this.panel.style, {
       left: `${Math.round(at.x)}px`,
       top: `${Math.round(at.y)}px`,

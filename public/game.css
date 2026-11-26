@@ -2224,9 +2224,23 @@ body.game {
 .holler-tab.seg-btn {
   flex: 1 1 0;
   min-width: 0;
-  padding: 0 4px;
-  font-size: 13px;
-  letter-spacing: 0.02em;
+  padding: 0 2px;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+/* a narrow panel puts the four groups two by two, so no name is cut */
+.holler-panel.tight .holler-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.holler-panel.tight .holler-tab {
+  min-height: 36px;
+}
+.holler-panel.tight .holler-tab:nth-child(3) {
+  border-left: 0;
+}
+.holler-panel.tight .holler-tab:nth-child(n + 3) {
+  border-top: 2px solid var(--ink);
 }
 .holler-tab[aria-pressed="true"] {
   background: var(--ink);
@@ -2234,7 +2248,7 @@ body.game {
 }
 .holler-phrases {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
   gap: 6px;
 }
 .holler-emoji {
@@ -2261,9 +2275,10 @@ body.game {
   border-left-width: 6px;
   font-family: var(--display);
   font-weight: 900;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.05;
   text-align: left;
+  overflow-wrap: anywhere;
 }
 /* each group its own edge colour, so a glance tells them apart */
 .holler-w[data-group="cheers"] {
