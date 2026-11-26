@@ -14,14 +14,32 @@
 //   not named here.
 // - After the game: README.md (the Planet Kubb Notation file, the Score sheet
 //   PDF, Play by play, player stats, "Print a Throwing Wood game").
+// - The live scorer: README.md (the pitch frames the half where the action is and
+//   slides to the other half when the turn changes; a tab at its edge opens the
+//   thrower's half; the header button shows the whole pitch; Pitchside PR #18).
+// - Reference games: README.md "Games → Reference games" and the License section,
+//   PitchsideKit ReferenceGames/CATALOG.tsv (the fourteen and why each is there),
+//   HomeView ReferenceGamesView (read only, never in your stats), ScoreSheetView's
+//   credit card (Scored by, and two links, "Archive file" to the game's file on
+//   GitHub and "Video" to YouTube, which open outside the app; Pitchside PR #16).
 // - What it keeps (the privacy page): Pitchside has no network code at all (no
-//   URLSession or any other, no analytics, no entitlements); games and the roster
-//   are files in the app's own folder (PitchsideKit GameStore.standard(),
-//   Application Support/Pitchside: games/ and roster.json); a file leaves the
-//   phone only through the share sheet (ScoreSheetView ShareLink, the PDF
-//   preview's Share) and comes in only through Games, Open file (HomeView
-//   fileImporter). "Delete this game" (HomeView) and "Forget this name"
-//   (RosterView) are the app's own words.
+//   URLSession or any other, no analytics; docs/DISTRIBUTION.md "Data that leaves
+//   the device"); games and the roster are files in the app's own folder
+//   (PitchsideKit GameStore.standard(), Application Support/Pitchside: games/ and
+//   roster.json). Each finished game scored on the phone is also copied, as its
+//   .txt file, to the scorer's own iCloud Drive › Pitchside, or to On My iPhone ›
+//   Kubb: Pitchside with iCloud Drive off (Pitchside PR #15: PitchsideKit
+//   GameMirror, the iCloud Documents entitlement, HomeView's Games footer, whose
+//   words these follow). Unfinished games, opened files, the reference games and
+//   the roster are never copied (GameMirror.Entry.finished: status finished, origin
+//   pitchside). Delete this game removes the copy; a copy deleted in Files is
+//   written again while its game is there (GameMirror.sync). The file carries the
+//   team and player names and the turn notes (README "Add turn note"). Deleting
+//   the app does not delete what is in iCloud Drive. A file also leaves the phone
+//   through the share sheet (ScoreSheetView ShareLink, the PDF preview's Share)
+//   and comes in only through Games, Open file (HomeView fileImporter). "Delete
+//   this game" (HomeView) and "Forget this name" (RosterView) are the app's own
+//   words.
 //
 // The store link is one switch, PITCHSIDE_APP_STORE_URL in src/site/site.mjs:
 // empty, the hero says the app is not in the App Store yet and shows no badge and
@@ -70,18 +88,18 @@ function pitchside({ tinylytics, config = {} }) {
       ${pitchsideStore()}
     </div>
     <figure class="hero__shot">
-      ${img("pitchside-scorer", "Pitchside on its side. The pitch from above is on the left, with the kubbs that stand and the king. On the right are the turns so far, and Turn 5 with a big 1 down button.", { eager: true })}
+      ${img("pitchside-scorer", "Pitchside on its side. The half of the pitch being thrown at fills the left, with three kubbs on the far baseline and the king. A tab at the bottom holds the other half. On the right are the turns so far, and Turn 5's inkast with an Out button.", { eager: true })}
     </figure>
   </div>
 </section>
 <section class="frame feel" aria-labelledby="score">
   <h2 class="display" id="score">Score it as it happens</h2>
   <ol class="feel__steps">
-    <li><span class="feel__n" aria-hidden="true">1</span><p><strong>Tap the kubbs that fell.</strong> The pitch is on the screen. Tap a kubb right where it stood. A miss is one tap too.</p></li>
+    <li><span class="feel__n" aria-hidden="true">1</span><p><strong>Tap the kubbs that fell.</strong> The half you throw at fills the screen. Tap a kubb right where it stood. A miss is one tap too.</p></li>
     <li><span class="feel__n" aria-hidden="true">2</span><p><strong>It knows the rules.</strong> It knows whose turn it is, how many batons are left and when the inkast is done.</p></li>
     <li><span class="feel__n" aria-hidden="true">3</span><p><strong>Fix it later.</strong> Undo a tap. Tap an old turn to change a throw.</p></li>
   </ol>
-  <p>One hand for the batons, one thumb for the score. A drilled group of kubbs? Pinch to zoom in and tap the one that fell.</p>
+  <p>One hand for the batons, one thumb for the score. New turn? The pitch slides to the other end. A tab at the edge opens the other half, and one button shows the whole pitch. A drilled group of kubbs? Pinch to zoom in and tap the one that fell.</p>
 </section>
 <section class="band band--wood" aria-labelledby="after">
   <div class="frame">
@@ -98,12 +116,27 @@ function pitchside({ tinylytics, config = {} }) {
     </ul>
   </div>
 </section>
+<section class="frame" aria-labelledby="real-games">
+  <div class="split">
+    <div>
+      <h2 class="display" id="real-games">Real games in the box</h2>
+      <p>Open Pitchside for the first time and Games is not empty. It holds fourteen real games from the Planet Kubb archive.</p>
+      <p>A US Nationals final. The world championship on Gotland. The European Championship, where the king fell in turn 3. A semi-final on snow, a drill on a frozen lake, and 23 turns of one against one.</p>
+      <p>Each one has its score sheet, play by play and stats, and names who scored it. See how the big teams drill. They never count in your own stats.</p>
+    </div>
+    <div class="phones">
+      ${img("pitchside-games", "Games on a new install: New game, Open file, and Reference games, starting with Team Knockerheads beat Kubbsicles at the US National Kubb Championship.", { cls: "shot shot--tall" })}
+      ${img("pitchside-reference", "A reference game's score sheet: Team Knockerheads beat Tad Kubbler, king down in turn 20, at the US National Kubb Championship, with who scored it and links to the archive file and the video.", { cls: "shot shot--tall" })}
+    </div>
+  </div>
+</section>
 <section class="frame" aria-labelledby="more">
   <h2 class="display" id="more">Also in the bag</h2>
   <ul class="features">
     <li><h3>Your players</h3><p>Save the names of the people you play with. Make teams of one to six, in throwing order.</p></li>
     <li><h3>As much as you like</h3><p>Score just the turn. Or add who threw, where the kubbs stand and where each baton was thrown from. Turn any of it on or off between turns.</p></li>
     <li><h3>Notes on a turn</h3><p>Big inkast? Wild king shot? Add a note to the turn.</p></li>
+    <li><h3>In Files too</h3><p>When the king falls, the game’s file goes in the Files app, in your own iCloud Drive. Look under iCloud Drive › Pitchside.</p></li>
     <li><h3>Throwing Wood games too</h3><p>Save a score sheet in Throwing Wood. Open it in Pitchside to print it or watch it play by play.</p></li>
   </ul>
 </section>
@@ -116,7 +149,7 @@ function pitchside({ tinylytics, config = {} }) {
     </div>
     <div class="help__one" id="privacy">
       <h2 class="display">Privacy</h2>
-      <p>No account. Nothing is sent to us. Your games and names stay on your phone until you share a file.</p>
+      <p>No account. Nothing is sent to us. Your games stay on your phone, and each finished one is copied to your own iCloud Drive.</p>
       <p><a class="more" href="/pitchside/privacy/">Pitchside privacy</a></p>
     </div>
   </div>
@@ -131,7 +164,7 @@ function pitchside({ tinylytics, config = {} }) {
     path: "/pitchside/",
     title: `${PITCHSIDE_NAME} · ${SITE_TITLE}`,
     description:
-      "Kubb: Pitchside keeps score of real kubb on your iPhone. Tap the kubbs that fell. Get a Planet Kubb score sheet, play by play and stats. No account.",
+      "Kubb: Pitchside keeps score of real kubb on your iPhone. Tap the kubbs that fell. Get a Planet Kubb score sheet, play by play and stats. Fourteen real games to start. No account.",
     body,
     tinylytics,
     release: config.release?.text,
@@ -164,7 +197,9 @@ function support({ tinylytics, config = {} }) {
   <h3>Can I open a game from Throwing Wood?</h3>
   <p>Yes. In Throwing Wood, open the score sheet and tap Save on iPhone, or Download on the web. In Pitchside, go to Games, then Open file, and pick that file.</p>
   <h3>Where are my games kept?</h3>
-  <p>On your phone, in Pitchside. A game leaves it only when you share a file. The <a href="/pitchside/privacy/">privacy page</a> has the rest.</p>
+  <p>On your phone, in Pitchside. Each finished game’s file is also in the Files app, under iCloud Drive › Pitchside, in your own iCloud. With iCloud Drive off, look under On My iPhone › Kubb: Pitchside. Your roster stays on your phone. The <a href="/pitchside/privacy/">privacy page</a> has the rest.</p>
+  <h3>I deleted a game in Files and it came back.</h3>
+  <p>The copy in Files comes from the game in Pitchside. To get rid of both, open the game in Pitchside and tap Delete this game.</p>
 </section>
 <section class="frame prose" aria-labelledby="links">
   <h2 class="display" id="links">More</h2>
@@ -192,21 +227,33 @@ function support({ tinylytics, config = {} }) {
 function privacy({ tinylytics, config = {} }) {
   const body = `<section class="frame intro">
   <h1 class="display">Pitchside privacy</h1>
-  <p class="lede">Kubb: Pitchside is a hobby project. There is no company behind it, just me, Jamie Thingelstad. This page is about the Pitchside app on your iPhone. The short of it: the app sends nothing to anyone.</p>
+  <p class="lede">Kubb: Pitchside is a hobby project. There is no company behind it, just me, Jamie Thingelstad. This page is about the Pitchside app on your iPhone. The short of it: the app sends nothing to me. Your games stay with you, on your phone and in your own iCloud Drive.</p>
 </section>
 <section class="frame prose" aria-labelledby="sent">
   <h2 class="display" id="sent">What the app sends</h2>
-  <p>Nothing. Pitchside does not use the internet. There is no account, no sign-in, no ads, no analytics and no tracking. It never talks to my servers or anyone else’s.</p>
+  <p>Nothing to me. Pitchside itself does not use the internet. There is no account, no sign-in, no ads, no analytics and no tracking. It never talks to my servers or anyone else’s. I cannot see your games.</p>
 </section>
 <section class="frame prose" aria-labelledby="kept">
   <h2 class="display" id="kept">What stays on your phone</h2>
   <p>Your games, the names in your roster and the notes you add are kept on your iPhone, in Pitchside’s own folder. I never see them. Like everything else on your phone, they go into your phone’s backups if you make them.</p>
-  <p>Delete a game with Delete this game, or a name with Forget this name. Deleting the app deletes all of it.</p>
+  <p>Delete a game with Delete this game, or a name with Forget this name. Deleting the app deletes what it keeps on your phone. It does not delete the copies in iCloud Drive (below). Delete those in the Files app.</p>
+</section>
+<section class="frame prose" aria-labelledby="icloud">
+  <h2 class="display" id="icloud">Your iCloud Drive</h2>
+  <p>When a game is over, Pitchside puts a copy of its file in the Files app, under iCloud Drive › Pitchside. That is your own iCloud, under your own Apple Account. Apple keeps it with your other iCloud Drive files. I cannot see it. With iCloud Drive off, the copy goes under On My iPhone › Kubb: Pitchside instead.</p>
+  <p>The file holds the team and player names you typed for that game, and the notes on its turns.</p>
+  <p>Only games you scored and finished are copied. A game still being played, a file you opened and the reference games are not. Your roster is never copied.</p>
+  <p>Tap Delete this game in Pitchside and its copy goes too. Delete only the copy in Files and the game stays in Pitchside, which puts the copy back.</p>
 </section>
 <section class="frame prose" aria-labelledby="share">
   <h2 class="display" id="share">When you share a file</h2>
-  <p>A game leaves your phone only when you share it: its .txt file or its score sheet PDF. The file holds the names you typed for that game. It goes where you send it, and after that it is out of my hands.</p>
+  <p>Sharing is how a game goes to someone else: its .txt file or its score sheet PDF. The file holds the names you typed for that game. It goes where you send it, and after that it is out of my hands.</p>
   <p>When you open a file with Open file, Pitchside reads that one file and keeps the game on your phone.</p>
+</section>
+<section class="frame prose" aria-labelledby="links">
+  <h2 class="display" id="links">Links in the reference games</h2>
+  <p>Pitchside comes with real games from the Planet Kubb archive. They are inside the app, so reading them needs no signal.</p>
+  <p>Each one has an Archive file link to its file on GitHub, and some have a Video link to YouTube. They open only if you tap them, in your web browser or the YouTube app, outside Pitchside. Those sites have their own privacy rules.</p>
 </section>
 <section class="frame prose" aria-labelledby="site">
   <h2 class="display" id="site">This website</h2>
@@ -222,7 +269,7 @@ function privacy({ tinylytics, config = {} }) {
     path: "/pitchside/privacy/",
     title: `Privacy · ${PITCHSIDE_NAME}`,
     description:
-      "Kubb: Pitchside sends nothing to anyone. No account, no analytics. Games and names stay on your iPhone until you share a file.",
+      "Kubb: Pitchside sends nothing to us. No account, no analytics. Games stay on your iPhone, and each finished one is copied to your own iCloud Drive.",
     body,
     tinylytics,
     release: config.release?.text,

@@ -637,8 +637,8 @@ test("the version label: package.json's version and the newest engine's, never t
   const sha = "a2659b744210e4c5baa5b69c672e11ec87f9bfab";
   const release = releaseOf(pkg.version, sha, carried);
   assert.equal(release.text, `${pkg.version} (${carried[0].version})`);
-  // this checkout: 1.4.0 on 1.0.0, the one engine it carries (docs/ENGINES.md)
-  assert.equal(release.text, "1.4.0 (1.0.0)");
+  // this checkout: 1.4.1 on 1.0.0, the one engine it carries (docs/ENGINES.md)
+  assert.equal(release.text, "1.4.1 (1.0.0)");
   assert.equal(release.detail, null);
   // more than one carried (when the owner decides one is supported): "Also plays"
   const two = [carried[0], { ...carried[0], mm: "0.9", version: "0.9.0" }];
@@ -647,7 +647,7 @@ test("the version label: package.json's version and the newest engine's, never t
   // one engine carried: no detail
   assert.equal(releaseOf("0.2.0", sha, carried.slice(0, 1)).detail, null);
   const foot = footer(release.text);
-  assert.match(foot, /data-release>Version 1\.4\.0 \(1\.0\.0\)<\/p>/);
+  assert.match(foot, /data-release>Version 1\.4\.1 \(1\.0\.0\)<\/p>/);
   assert.ok(!foot.includes(sha.slice(0, 7)));
 });
 
@@ -1211,6 +1211,12 @@ test("/pitchside/: the store badge is a switch that is off until the app is in t
   assert.doesNotMatch(live, /Not in the App Store|pitchside-not-yet/);
   // nothing not live in the page's own words: no date, no TestFlight, no promise
   assert.doesNotMatch(mainOf(html), /TestFlight|coming|soon|20\d\d/i);
+  // the refresh of 2026-11-26: the reference games (Pitchside PR #16), iCloud Drive
+  // (PR #15) and the framed half (PR #18), and never the old privacy line
+  assert.match(html, /fourteen real games from the Planet Kubb archive/);
+  assert.match(html, /The half you throw at fills the screen\./);
+  assert.match(html, /copied to your own iCloud Drive/);
+  assert.doesNotMatch(html, /stay on your phone until you share/);
   // the support and privacy pages are the app's, and the page points at both
   assert.ok(html.includes('href="/pitchside/support/"'));
   assert.ok(html.includes('href="/pitchside/privacy/"'));
@@ -1228,16 +1234,43 @@ test("/pitchside/support/: how to reach Jamie, by email, and nothing not live", 
     assert.ok(html.includes(words), words);
   assert.ok(html.includes('href="/pitchside/privacy/"'));
   assert.doesNotMatch(mainOf(html), /App Store|TestFlight|coming|soon|20\d\d/i);
+  // where games are kept, as the app's Games footer says it (Pitchside PR #15)
+  assert.match(
+    html,
+    /also in the Files app, under iCloud Drive › Pitchside, in your own iCloud/,
+  );
+  assert.doesNotMatch(html, /leaves it only when you share/);
 });
 
 test("/pitchside/privacy/: the app sends nothing, and the website is kept apart", () => {
   const html = mainOf(pitchsidePage("/pitchside/privacy/"));
-  assert.match(html, /the app sends nothing to anyone/);
+  assert.match(html, /the app sends nothing to me/);
   assert.match(
     html,
-    /Pitchside does not use the internet\. There is no account, no sign-in, no ads, no analytics and no tracking\./,
+    /Pitchside itself does not use the internet\. There is no account, no sign-in, no ads, no analytics and no tracking\./,
   );
-  assert.match(html, /A game leaves your phone only when you share it/);
+  // Pitchside PR #15: each finished game's file is copied to the scorer's own
+  // iCloud Drive (HomeView's Games footer); the page must never again say a game
+  // stays on the phone until it is shared
+  assert.doesNotMatch(
+    html,
+    /sends nothing to anyone|leaves your phone only|until you share/,
+  );
+  assert.match(
+    html,
+    /iCloud Drive › Pitchside\. That is your own iCloud, under your own Apple Account\./,
+  );
+  assert.match(html, /On My iPhone › Kubb: Pitchside/);
+  assert.match(
+    html,
+    /The file holds the team and player names you typed for that game/,
+  );
+  assert.match(html, /Your roster is never copied\./);
+  assert.match(html, /It does not delete the copies in iCloud Drive/);
+  // the reference games' two links open outside the app (ScoreSheetView)
+  assert.match(html, /Archive file link to its file on GitHub/);
+  assert.match(html, /Video link to YouTube/);
+  assert.match(html, /Sharing is how a game goes to someone else/);
   // the website's counting is the website's page, never this one's claim
   assert.match(
     html,
