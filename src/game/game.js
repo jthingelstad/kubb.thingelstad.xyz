@@ -1081,7 +1081,11 @@ export class Game {
     if (n.kind === "punish") {
       this.phase = "punish";
       this.punishAt = { ...n.cursor };
-      this.punishCheck = this.engine.checkPunish(n.cursor.x, n.cursor.y);
+      this.punishCheck = this.engine.checkPunish(
+        n.cursor.x,
+        n.cursor.y,
+        n.frame === "A" || n.frame === "B" ? n.frame : undefined,
+      );
       if (this.mode === "match" && !this.mayAct()) this.phase = "wait";
     } else if (n.kind === "over") {
       this.phase = "over";
