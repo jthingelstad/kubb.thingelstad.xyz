@@ -1755,7 +1755,13 @@ export class Game {
     const n = this.raiseNeed();
     if (this.phase !== "raise") return;
     let action;
-    if (i == null) action = { type: "raise" };
+    // AUTO on engine 1.4: the kubb picked, on the engine's choice of end (an
+    // unnamed raise would stand the engine's first lying kubb instead)
+    if (i == null)
+      action =
+        Array.isArray(n.lying) && n.kubb != null
+          ? { type: "raise", kubb: n.kubb }
+          : { type: "raise" };
     else {
       const end = n.ends[i];
       if (!end || end.ok === false) return;
