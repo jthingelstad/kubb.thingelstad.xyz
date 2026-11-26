@@ -855,7 +855,9 @@ async function toRealRaise(page, acts, nth) {
           if (k >= acts.length) return { error: "out of throws" };
           e.apply(acts[k++]);
         } else if (n.kind === "raise") {
-          if (seen++ === nth) break;
+          // a turn's raising opens with its settle card (n 1): count those (engine
+          // 1.4 keeps one need for the turn's lying kubbs, picked in any order)
+          if (n.n === 1 && seen++ === nth) break;
           e.apply({ type: "raise" });
         } else if (n.kind === "punish")
           e.apply({ type: "punish", x: n.cursor.x, y: n.cursor.y });
@@ -903,7 +905,9 @@ browserTest(
       const sent = await page.evaluate(() => window.__sent);
       assert.equal(sent.length, 1, JSON.stringify(sent));
       assert.equal(sent[0].type, "raise");
-      const which = need.choices[sent[0].choice - 1].which;
+      // engine 1.4: the kubb and its end by name (raise in any order)
+      assert.equal(sent[0].kubb, need.kubb, "the kubb named");
+      const which = sent[0].which ?? need.choices[sent[0].choice - 1].which;
       return need.ends.findIndex((e) => e.which === which);
     };
     // and where the kubb stands now: on that end's footprint (the next view
@@ -933,13 +937,15 @@ browserTest(
         ? 0
         : 1;
 
-    // a tap on each half, Team B's raise then Team A's
+    // a tap at each end, Team B's raise then Team A's (engine 1.4 draws the raise
+    // through the whole group's camera, where a kubb lying toward the camera is a few
+    // pixels long: the tap goes on the end's footprint, not a fraction along it)
     const picked = { A: [], B: [] };
-    for (const [nth, side, t] of [
-      [0, "B", 0.25],
-      [0, "B", 0.75],
-      [1, "A", 0.25],
-      [1, "A", 0.75],
+    for (const [nth, side, i] of [
+      [0, "B", 0],
+      [0, "B", 1],
+      [1, "A", 0],
+      [1, "A", 1],
     ]) {
       const need = await toRealRaise(page, acts, nth);
       assert.equal(need.side, side);
@@ -947,11 +953,11 @@ browserTest(
         need.ends.map((e) => e.ok),
         [true, true],
       );
-      const { shape, feet } = await drawn();
-      const at = lerp(shape.caps, t);
+      const { feet } = await drawn();
+      const at = [feet[i].x, feet[i].y];
       const want = nearestFoot(feet, at);
       await gesture(page, [at], { type: "touch" });
-      assert.equal(await sentEnd(need), want, `${side} tap at ${t}`);
+      assert.equal(await sentEnd(need), want, `${side} tap at end ${i + 1}`);
       await standsOn(need, want);
       picked[side].push(want);
     }
@@ -961,7 +967,7 @@ browserTest(
         [0, 1],
         [0, 1],
       ],
-      "each half of the kubb is its own end",
+      "each end is its own",
     );
 
     // a drag toward the end drawn farther from where it starts
@@ -987,23 +993,23 @@ browserTest(
     // the rules refuse end 1: a tap nearer it sends nothing, the other stands
     {
       const need = await toRealRaise(page, acts, 2);
-      assert.deepEqual(
-        need.ends.map((e) => e.ok),
-        [false, true],
-      );
+      const oks = need.ends.map((e) => e.ok);
+      assert.equal(oks.filter((x) => !x).length, 1, `one end refused: ${oks}`);
+      const bad = oks.indexOf(false);
+      const good = 1 - bad;
       const { shape, feet } = await drawn();
-      const near1 = [0.2, 0.8].find(
-        (t) => nearestFoot(feet, lerp(shape.caps, t)) === 0,
+      const nearBad = [0.2, 0.8].find(
+        (t) => nearestFoot(feet, lerp(shape.caps, t)) === bad,
       );
-      await gesture(page, [lerp(shape.caps, near1)], { type: "touch" });
+      await gesture(page, [lerp(shape.caps, nearBad)], { type: "touch" });
       assert.deepEqual(await page.evaluate(() => window.__sent), []);
       assert.equal(
         await page.evaluate(() => window.__kubb.game.raiseHint?.i),
-        1,
+        good,
       );
-      await gesture(page, [lerp(shape.caps, 1 - near1)], { type: "touch" });
-      assert.equal(await sentEnd(need), 1);
-      await standsOn(need, 1);
+      await gesture(page, [lerp(shape.caps, 1 - nearBad)], { type: "touch" });
+      assert.equal(await sentEnd(need), good);
+      await standsOn(need, good);
     }
     assert.deepEqual(page.errors, []);
     await page.context().close();

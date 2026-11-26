@@ -24,6 +24,7 @@ import { segBar } from "./seg.js";
 import { sceneId, takesScene } from "../render/scenes.js";
 import { sceneTiles } from "./scene-tiles.js";
 import { ROW_ORDER } from "./cards.js";
+import { THROWS, THROW_WORD, THROW_DEFAULT } from "../game/throw-level.js";
 
 // "Computer level", as the iPhone app and the solo card say it (the engine's label
 // is "Computer")
@@ -101,6 +102,23 @@ export class Lobby {
       setName: (t) => hooks.name(t),
       caption: "You are",
     });
+
+    // the person's throw (engine 1.3 on), the device's, under the name: shown only
+    // while the next match's engine has throw levels (a pitch with an engine 1.0
+    // player has none)
+    this.throwSeg = segBar({
+      choices: THROWS,
+      value: game.throwLevel,
+      key: "throw",
+      labelledBy: "lobby-label-throw",
+      onPick: (v) => game.setThrowLevel(v),
+    });
+    this.throwRow = h(
+      "div.opt",
+      { "data-test": "lobby-opt-throw", hidden: true },
+      h("span.opt-label", { id: "lobby-label-throw" }, "Throw"),
+      this.throwSeg.el,
+    );
 
     this.teams = {};
     for (const side of ["A", "B"]) {
@@ -203,6 +221,7 @@ export class Lobby {
       h("p.kicker", `PITCH ${code}  `, this.status),
       h("h2.display", "Pick a side"),
       this.you.el,
+      this.throwRow,
       this.teamsEl,
       this.said,
       h("div.watch-row", this.watchList, this.sitOut),
@@ -326,6 +345,8 @@ export class Lobby {
     // its own level for when Kid is switched off)
     const kid = optionsOf(st.doc).computer === "kid";
     const comps = l.computers ?? {};
+    const throws = takesThrows(st.engine);
+    this.throwRow.hidden = !throws;
     // who is on each side, in throwing order: the members on the pitch and the seats
     const shown = {};
     for (const side of ["A", "B"])
@@ -363,6 +384,8 @@ export class Lobby {
             connected: !!m.connected,
             host: id === st.host,
             you: id === st.you,
+            // the person's throw beside the name (engine 1.3 on)
+            throw: throws ? throwOf(m.me) : null,
           };
         }
         const level = comps[id].level;
@@ -395,7 +418,7 @@ export class Lobby {
                   otherFull,
                   hooks: this.hooks,
                 })
-              : memberRow(byId.get(r.id), st),
+              : memberRow(byId.get(r.id), st, r.throw),
           );
       }
       t.empty.textContent = ids.length
@@ -595,6 +618,11 @@ export class Lobby {
     this.you.setName(v);
   }
 
+  // The device's throw changed (in Settings, or picked here): the row says it.
+  setThrow(v) {
+    this.throwSeg.set?.(v);
+  }
+
   // The Computer row beside seats (docs/SYSTEM.md "Computer seats"): "An empty side
   // plays as" while a side has nobody and no seat; "Kid match" Off/On with no empty
   // side and a seat on the pitch; nothing when no computer plays.
@@ -744,7 +772,21 @@ function refocus(root, { key, add }) {
   root.querySelector(`[data-focus="${add}"]`)?.focus({ preventScroll: true });
 }
 
-function memberRow(m, st) {
+// A member's throw as the lobby says it: "Easy", "Standard" or "Hard".
+const throwOf = (me) => THROW_WORD[me?.throw] ?? THROW_WORD[THROW_DEFAULT];
+
+// Whether the engine `mm` (the next match's) has throw levels (engine 1.3 on).
+function takesThrows(mm) {
+  // an engine not loaded yet is asked once it is (the lobby is drawn again then)
+  if (mm && !roomEngine(mm)) return false;
+  try {
+    return Array.isArray(engineConstants(mm || undefined)?.THROW_LEVELS);
+  } catch {
+    return false;
+  }
+}
+
+function memberRow(m, st, throwWord = null) {
   const tags = [];
   if (m.id === st.host) tags.push(h("span.tag", "HOST"));
   if (m.id === st.you) tags.push(h("span.tag.you", "YOU"));
@@ -756,6 +798,13 @@ function memberRow(m, st) {
       "aria-label": m.connected ? "connected" : "not connected",
     }),
     h("span.member-name", st.nameOf(m.id)),
+    throwWord
+      ? h(
+          "span.member-throw",
+          { "data-test": "member-throw" },
+          ` · ${throwWord} throw`,
+        )
+      : null,
     tags,
   );
 }

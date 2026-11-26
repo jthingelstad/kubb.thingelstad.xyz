@@ -7,6 +7,12 @@
 // computer's level, ...) are not here: they live on the solo card, the practice
 // MENU and the lobby.
 import { h, button } from "./dom.js";
+import {
+  THROWS,
+  THROW_NOTE,
+  loadThrow,
+  saveThrow,
+} from "../game/throw-level.js";
 import { prefs } from "../game/prefs.js";
 import { loadName, saveName } from "../game/player-name.js";
 import { nameRow } from "./name-row.js";
@@ -87,6 +93,25 @@ export function deviceRows(dev, render) {
       name.el,
     ),
     h("hr.rule"),
+    // the person's throw (engine 1.3 on): the meter's bars, the device's
+    dev.setThrowLevel
+      ? row(
+          "menu-throw",
+          "Throw",
+          seg(
+            THROWS,
+            dev.throwLevel,
+            (v) => {
+              dev.setThrowLevel(v);
+              render();
+            },
+            "throw",
+            "Throw",
+          ),
+          THROW_NOTE,
+          "menu-throw-note",
+        )
+      : null,
     // the sound as a choice that shows which it is (it was one button, SOUND: ON,
     // that read as its own state)
     dev.setMuted
@@ -159,6 +184,10 @@ export function prefsDevice(store = prefs, names) {
     setMeterSide(v) {
       this.meterSide = v === "left" ? "left" : "right";
       store.set("meterSide", this.meterSide);
+    },
+    throwLevel: loadThrow(store),
+    setThrowLevel(v) {
+      this.throwLevel = saveThrow(store, v);
     },
     muted: !!store.get("muted", false),
     setMuted(on) {

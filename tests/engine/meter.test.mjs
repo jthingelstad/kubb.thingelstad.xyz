@@ -1,8 +1,9 @@
 // The person's meter on the newest engine (kubb-engine 0.13, its docs/notes/throw.md
-// "The person's meter"): the bars the page draws (the aim view's plan and the dial's
-// powerLo..powerHi, releaseLo..releaseHi) go by the throw's distance, change as the
-// circle moves, and are the same whatever level is named. The page draws them from
-// every frame's dial (src/game/game.js aimFrame), never once a throw.
+// "The person's meter", and 1.3's "The honest meter"): the bars the page draws (the aim
+// view's plan and the dial's powerLo..powerHi, releaseLo..releaseHi) go by the throw's
+// distance, change as the circle moves, are the same whatever computer level is named,
+// and are as wide as the person's throw level (Easy, Standard, Hard). The page draws
+// them from every frame's dial (src/game/game.js aimFrame), never once a throw.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Engine } from "../../src/engine/index.js";
@@ -25,11 +26,22 @@ test("a person's bars go by the throw's distance and redraw as the circle moves"
     assert.deepEqual(bars(dial), bars(r.aim.plan), `${y} m`);
     at[y] = bars(dial);
   }
-  // full widths, twice the half widths: 5.6 and 21 degrees at 4 m, 3.8 and 14.2 at
-  // 6 m, 2 and 7.5 at 8 m (the engine's VERSIONING.md 0.13.0)
-  assert.deepEqual(at[4], { power: 11.2, release: 42 });
-  assert.deepEqual(at[6], { power: 7.6, release: 28.5 });
-  assert.deepEqual(at[8], { power: 4, release: 15 });
+  // full widths on the standard meter (1.3: the release bar is narrower than 0.13's)
+  assert.deepEqual(at[4], { power: 11.2, release: 28 });
+  assert.deepEqual(at[6], { power: 7.6, release: 19 });
+  assert.deepEqual(at[8], { power: 4, release: 10 });
+});
+
+test("a person's throw level is the width of the bars: wider on Easy, narrower on Hard", () => {
+  const at8 = (level) => {
+    engine.newPractice({ surface: "grass", throw: level });
+    engine.setTarget(0, 8, false);
+    return bars(engine.frame({ dt: 1 / 60 }).dial);
+  };
+  assert.deepEqual(at8(undefined), at8("standard"));
+  assert.deepEqual(at8("easy"), { power: 10, release: 24 });
+  assert.deepEqual(at8("standard"), { power: 4, release: 10 });
+  assert.deepEqual(at8("hard"), { power: 4, release: 7 });
 });
 
 test("the level named changes nothing in a person's bars", () => {

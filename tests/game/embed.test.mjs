@@ -143,6 +143,12 @@ browserTest(
     const { page, frame, ctx } = await host(CODES.replay);
     assert.equal(await frame.getAttribute("body", "data-embed"), "replay");
     await frame.waitForSelector("[data-test=replay-bar]");
+    // the observer says whether it is in view on its first callback, a frame or so on
+    await frame.waitForFunction(
+      () => window.__kubb.embed.player.playing,
+      null,
+      POLL,
+    );
     const seen = await frame.evaluate(() => {
       const { game, player } = window.__kubb.embed;
       return {

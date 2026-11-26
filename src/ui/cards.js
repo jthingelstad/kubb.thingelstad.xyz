@@ -8,13 +8,14 @@
 import { MAX_MINUTES } from "../game/clock.js";
 import { h, button, clear } from "./dom.js";
 import { prefs } from "../game/prefs.js";
-import { soloOptions } from "../game/throw-level.js";
+import { soloOptions, THROWS } from "../game/throw-level.js";
 import { youRow } from "./settings.js";
 import { segBar } from "./seg.js";
 import { sceneId } from "../render/scenes.js";
 import { optionRows } from "../net/lobby.js";
 import { sceneTiles } from "./scene-tiles.js";
 import {
+  HANDOFF_LINES,
   handoffCpu,
   handoffKid,
   handoffLine,
@@ -142,6 +143,33 @@ export class Cards {
           : { foot: true, onClose: () => nextControl(this.root) },
     );
     if (watched) setTimeout(done, tune.watchCardMs);
+  }
+
+  // The throw to go's card (engine 1.4; the engine has no card for it): before this
+  // browser's own baton at the king, the hand-off's short card with the thrower's
+  // name, one line and THROW. Once a round a side (a tie or both kings down throws
+  // again).
+  togoCard(need, game) {
+    const name =
+      need.throwers?.[need.side]?.name || need.teams?.[need.side] || "";
+    const mine = (game?.seat?.sides?.length ?? 1) <= 1;
+    let close;
+    const done = () => close();
+    const el = shortCard(
+      name,
+      mine,
+      {
+        state: "togo",
+        text: need.again ? HANDOFF_LINES.togoAgain : HANDOFF_LINES.togo,
+      },
+      "THROW",
+      done,
+      "togo",
+    );
+    close = this.show(el, game, {
+      foot: true,
+      onClose: () => nextControl(this.root),
+    });
   }
 
   // The winner card (the 1.0 design): the go button first and full width (REMATCH,
@@ -336,6 +364,25 @@ export class Cards {
       you.setName(v);
     });
     const values = { ...saved };
+    // the person's throw (engine 1.3 on: Easy, Standard, Hard), the device's, under
+    // the name: it is the person's, not the match's
+    const throwRow = game?.setThrowLevel
+      ? (() => {
+          const seg = segBar({
+            choices: THROWS,
+            value: game.throwLevel,
+            key: "throw",
+            labelledBy: "solo-label-throw",
+            onPick: (v) => game.setThrowLevel(v),
+          });
+          return h(
+            "div.opt",
+            { "data-test": "solo-opt-throw" },
+            h("span.opt-label", { id: "solo-label-throw" }, "Throw"),
+            seg.el,
+          );
+        })()
+      : null;
     let card = soloCard(values.scene);
     const sceneRow = card.rows.find(([k]) => k === "scene");
     const tiles = sceneTiles({
@@ -391,6 +438,7 @@ export class Cards {
       { "data-test": "options" },
       h("h2.display", "Play the computer"),
       you.el,
+      throwRow,
       h("hr.rule"),
       h(
         "div.opt.opt-scene",
@@ -471,8 +519,9 @@ export class Cards {
   // ---------- the raise and punishment panels (not modal) ----------
 
   tick(game) {
-    const n = game.need;
     const phase = game.phase;
+    // the kubb picked to raise (engine 1.4: any order), as its own raise need
+    const n = phase === "raise" ? (game.raiseNeed?.() ?? game.need) : game.need;
     const ar = game.autoRaise;
     const auto =
       phase === "raise" && ar ? (ar.game ? "game" : ar.turn ? "turn" : "") : "";
@@ -561,6 +610,8 @@ export const SOLO_DEFAULTS = {
   wind: "off",
   set: "classic",
   scene: "day",
+  // the throw to go (engine 1.4): on unless the player turns it off
+  togo: "on",
 };
 
 // PLAY NOW on the landing page (the 1.0 design: "drops a first-time visitor
@@ -584,7 +635,14 @@ export const soloKept = (saved) =>
 // The rows under the Scene tiles, in the design's order: the engine's rows (its
 // labels and values) but Computer level first, as the design put it; "Computer
 // level" as the iPhone app and the lobby say it (the engine's label is "Computer").
-export const ROW_ORDER = ["surface", "computer", "opening", "raising", "wind"];
+export const ROW_ORDER = [
+  "surface",
+  "computer",
+  "opening",
+  "raising",
+  "wind",
+  "togo",
+];
 export const ROW_LABEL = { computer: "Computer level" };
 
 // SHARE on the winner card of a finished pitch (the 1.0 design: "one SHARE button
@@ -765,9 +823,14 @@ function raisePanel(n, game) {
       "p.panel-text",
       { "data-test": "raise-text" },
       // two lines on a 390 px phone
-      game.coarse
-        ? "Touch the kubb or drag it to the end to stand it on."
-        : "Click the kubb to stand it up, nearer the end it should stand on.",
+      // engine 1.4: more than one lying, raised in any order
+      (n.lying?.length ?? 0) > 1
+        ? game.coarse
+          ? "Pick any kubb. Touch it or drag it to the end to stand it on."
+          : "Click any kubb to stand it up, nearer the end it should stand on."
+        : game.coarse
+          ? "Touch the kubb or drag it to the end to stand it on."
+          : "Click the kubb to stand it up, nearer the end it should stand on.",
     ),
     slots(
       [

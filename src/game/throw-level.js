@@ -53,3 +53,38 @@ export function soloOptions(saved) {
   delete o.level;
   return o;
 }
+
+// A person's throw (engine 1.3 on; the engine's docs/SESSION.md "A person's throw
+// level"): the meter they throw on, Easy, Standard or Hard. The levels differ only in
+// how wide the meter's bars are, never in luck. It is the device's (the `throw` pref,
+// Standard until picked): Settings and MENU, the solo card and the lobby pick it; the
+// solo match's and practice's player entries carry it, and a shared pitch hears it as
+// `me.throw`. A match on an engine before 1.3 (the iPhone's 1.0 on a mixed pitch) has
+// no such thing, and the rows that pick it are not shown there. The older `level` pref
+// above is a separate, older value and is left as it was.
+export const THROWS = [
+  ["easy", "Easy"],
+  ["standard", "Standard"],
+  ["hard", "Hard"],
+];
+export const THROW_WORD = Object.fromEntries(THROWS);
+export const THROW_DEFAULT = "standard";
+export const THROW_NOTE =
+  "Easy has wider bars on the meter. Hard has narrow ones.";
+const knownThrow = (v) => THROWS.some(([k]) => k === v);
+
+export function loadThrow(prefs) {
+  const v = prefs.get("throw", null);
+  return knownThrow(v) ? v : THROW_DEFAULT;
+}
+
+export function saveThrow(prefs, v) {
+  const t = knownThrow(v) ? v : THROW_DEFAULT;
+  prefs.set("throw", t);
+  return t;
+}
+
+// A player entry's `throw`, for an engine that takes one (constants.THROW_LEVELS):
+// nothing for Standard, which the engine does not keep either.
+export const throwEntry = (t, takes = true) =>
+  takes && knownThrow(t) && t !== THROW_DEFAULT ? { throw: t } : {};

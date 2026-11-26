@@ -114,6 +114,8 @@ test("every line is in the one table", () => {
     "inkast",
     "raise",
     "punish",
+    "togo",
+    "togoAgain",
   ]);
 });
 

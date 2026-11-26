@@ -440,6 +440,7 @@ browserTest(
     await host.click("[data-test=lobby-start]");
     await waitFor(host, () => window.__kubb.pitch.mode === "match");
     await waitFor(guest, () => window.__kubb.pitch.mode === "match");
+    await waitFor(host, () => !!window.__kubb.pitch.room.doc?.match);
     const header = (await docOf(host)).match.players;
     // a seat's name is no member's
     const people = new Set([header.A[0].name, header.B[1].name]);

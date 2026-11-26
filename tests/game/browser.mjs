@@ -83,7 +83,12 @@ export async function assertLocalBuild(root) {
 // page: a stand-in for the pages function (tools/preview.mjs).
 // args: Chromium's own flags (a test with several pages that each draw and throw passes
 // the ones that keep a page behind the others drawing frames).
-export async function serve({ build = true, page = null, args = [] } = {}) {
+export async function serve({
+  build = true,
+  page = null,
+  args = [],
+  togo = false,
+} = {}) {
   let root = "dist";
   if (build) {
     root = `build/test-dist-${process.pid}`;
@@ -97,6 +102,20 @@ export async function serve({ build = true, page = null, args = [] } = {}) {
   const server = await startPreview({ port: 0, root, page });
   const base = `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch(args.length ? { args } : {});
+  // Every page starts its matches without the throw to go (engine 1.4) unless the test
+  // is about it (togo: true here, or its own init script setting `kubb:testTogo` to
+  // anything but "off"): the older tests open on the first throw's hand-off.
+  if (!togo) {
+    const newContext = browser.newContext.bind(browser);
+    browser.newContext = async (...a) => {
+      const ctx = await newContext(...a);
+      await ctx.addInitScript(() => {
+        if (localStorage.getItem("kubb:testTogo") === null)
+          localStorage.setItem("kubb:testTogo", '"off"');
+      });
+      return ctx;
+    };
+  }
   return {
     base,
     browser,

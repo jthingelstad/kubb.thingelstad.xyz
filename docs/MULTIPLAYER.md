@@ -45,20 +45,26 @@ screen; JOIN THE GAME then only closes the card.
 
 Arriving on the link joins the pitch (`config.pitchUrl`, `/ws?pitch=<code>`) under this
 browser's member id (`kubb.member` in localStorage) as a `player` with
-`me = { name, level, engine, engines }`. `engine` is the
-vendored engine's major.minor (`"1.0"`), read from `pitch.constants`. The lobby card shows:
+`me = { name, level, throw, engine, engines }`. `engine` is the
+vendored engine's major.minor (`"1.4"`), read from `pitch.constants`. `throw` is the
+device's throw level (engine 1.3 on: `"easy"` or `"hard"`, left out for Standard). The lobby card shows:
 
 - **You are**: your name, this device's generated name (`kubb:name`), and SHUFFLE on one
   line (the name row, docs/CLIENT.md "Names"): a pick here or in MENU's Settings is kept
-  as the device's name and sent at once (`me.name`). No level is shown: from engine 0.13 every person throws on one
-  meter. `me.level` is still sent, the device's stored level (`kubb:level`, Club when
-  never chosen); it changes nothing on 0.13.
+  as the device's name and sent at once (`me.name`). Under it, **Throw**: Easy, Standard
+  or Hard, the device's throw level (the `throw` pref, Standard until picked; the same
+  row as the solo card's and Settings'), sent at once as `me.throw` (null for Standard,
+  which the pitch server takes as "remove"). Shown only while the room engine has
+  `THROW_LEVELS` (1.3 on): a pitch that plays 1.0 has no throw levels. `me.level` is
+  still sent, the device's stored level (`kubb:level`, Club when never chosen); it
+  changes nothing since 0.13.
 - **Team A** (marigold) and **Team B** (violet), up to six a side, people and computer
   players together ("Computer players", below), in throwing order, each member with a
   dot for connected and HOST and YOU tags (two with one name: the second "II", "Names"
   below). A side of several shows the name it plays as, the host's to pick in a name row
   (the name and SHUFFLE). JOIN A, JOIN B, or WATCH INSTEAD (quiet) to sit out; the
-  host's ADD COMPUTER under each. An empty side (nobody and no computer seat) says "The
+  host's ADD COMPUTER under each. On a room engine with throw levels each person's row
+  ends with their throw ("Bold Birch · Standard throw"). An empty side (nobody and no computer seat) says "The
   computer plays this side." when the other has someone.
 - **Watching**: everyone on the pitch on neither team.
 - **SHARE THE LINK**: `navigator.share` where there is one, else the clipboard.
@@ -67,7 +73,7 @@ vendored engine's major.minor (`"1.0"`), read from `pitch.constants`. The lobby 
   everyone else reads it. Starting a pitch from the landing page (`/#play`) with Open picked arrives as
   `/p/<code>?open=1`, and the new pitch's host (at `v` 0) writes it open.
 - **The match** options, each a segmented bar: the computer's level, surface, opening,
-  raising, wind and the scene; no kubb set since the 1.0 design (the scene decides the
+  raising, wind, the throw to go (engine 1.4, "Throw to go", On or Off) and the scene; no kubb set since the 1.0 design (the scene decides the
   set, as on the solo card: `HIDDEN_ROWS` in `src/ui/lobby.js`; the room's set stays as
   it is, Classic unless an older page chose another). The host sets them
   (and the host's choices are remembered as `kubb:pitchOptions` for their next pitch);
@@ -77,6 +83,12 @@ vendored engine's major.minor (`"1.0"`), read from `pitch.constants`. The lobby 
   refuses for the lineup, a pitch with no person in it, says the engine's own sentence,
   its `text`, in the lobby's note); everyone else reads "Waiting for <host> to start."
   The row stays in reach at the bottom while the card scrolls.
+
+**The throw to go** (engine 1.4) is on by default, though the engine's own default is
+off: the host writes `settings.togo` "on" (or "off" when their last pitch had it off)
+with `setOptions` when it makes the pitch, and, once a document, into a pitch with no
+`settings.togo` that has not started while the room engine has the row (a pitch made
+by an older host). A room on 1.0 has no row and never gets the setting.
 
 Teams change only between matches. A member who leaves the pitch for good is taken off their team by the host's browser.
 
@@ -241,8 +253,8 @@ calls over the same JSON bridge as the session (`kubbCall`). The engine's `docs/
 is their API; its 8,851 recorded vector steps cover the rules. There is no second
 JavaScript implementation. `useRoomEngine` reads the newest engine's constants once
 during boot; tools that use these wrappers initialize it too. A page can carry older
-engines beside it if we decide one is supported (`docs/ENGINES.md`: today it carries the
-newest alone); their calls name the major.minor. A pitch plays on the room's engine, the
+engines beside it if we decide one is supported (`docs/ENGINES.md`: today 1.4 and 1.0,
+"Engine 1.4 on a mixed pitch" below); their calls name the major.minor. A pitch plays on the room's engine, the
 newest every player and the host carry; practice, solo and watch on the newest. A player
 on an older client leaves no engine in common: both the host and that player are told
 "This pitch needs the newest version of the game", and START is off.
@@ -265,6 +277,19 @@ control and hides the player's resignation action. The house-style card says:
 
 A guest on a team in the lobby checks the host's announced engine too. A host whose
 START is refused sees which players need to reload; no match is committed.
+
+### Engine 1.4 on a mixed pitch
+
+The web carries 1.4 and 1.0 (`docs/ENGINES.md`). A pitch of web pages (and iPhone
+builds on 1.4) plays 1.4; one with an iPhone on 1.0 in it plays 1.0, for everyone. The
+lobby is drawn from the room engine's `MATCH_OPTIONS` and constants, so on a 1.0 room
+there is no Throw to go row, no Throw row and no throw words in the roster, and the
+host writes no `togo`. The match then runs on the 1.0 engine on every web page: no
+throw to go, no view from one side (`setView` is a 1.4 call; on 1.0 the pitch turns at
+a change of ends as before), raises one kubb after another with the client's own raise
+camera and `{ type: "raise", choice }`, punishment kubbs without `frame`, and no throw
+level (the `throw` the page announces is ignored). Nothing of 1.4 shows broken: each
+control is there only when the match's engine gives it.
 
 ## Staying in step
 
@@ -342,7 +367,18 @@ side, the room's host and who is connected now (`ctx.connected` is an array of i
   If they are not connected, the first connected member of that team in throwing order
   takes it (it is still that player's throw on the sheet); failing that, the host.
 - **A raise or a punishment kubb** is for any connected member of the defending team,
-  else the host. Two at once: the compare-and-set settles it.
+  else the host. Two at once: the compare-and-set settles it. On 1.4 a raise names its
+  kubb and end (`{ type: "raise", kubb, which }`, any lying kubb in any order); a raise
+  the engine refuses with `not lying` (a team-mate stood that kubb first) redraws the
+  raise from the need. A punishment kubb carries the need's `frame`.
+- **The throw to go** (engine 1.4): each side's baton is its first player's member's,
+  then a team-mate's, then the host's (`seats.actorsFor`). While the need is a `togo`
+  need every browser calls `controlFor { ctx, me, need }` and passes its `togo` list to
+  `setControl`, so a host throws only its own side's baton. Both batons are blind: a
+  browser that has thrown, or has none to throw, shows "WAITING FOR <TEAM>" and nothing
+  of a baton already in; the last baton's action brings the combined recording, played
+  on every page, then the verdict ("MIGHTY MAPLE GOES FIRST", or "A TIE: THROW AGAIN" /
+  "BOTH HIT THE KING: THROW AGAIN" and the second round).
 - **The computer** is the host's browser's (`control.cpu`), and only its. The others hold
   the computer's throw until the action arrives.
 - The engine's control for a browser (`engine.setControl`) is its own team's side, plus
@@ -359,6 +395,11 @@ browser never claims.
 The controller keeps the same context object until the members, host or match change.
 Seat and actor wrappers cache by context, need and member: repeated render-loop reads
 never cross the room bridge. Name cleanup and open-listing reads are cached too.
+
+Each player sees the match from their own end (engine 1.4 `setView`, the side this
+browser plays): their team's throws from behind, their team-mates' alongside, and the
+other team's from the end camera, so the pitch never turns at a change of ends. A
+browser with no side, an observer and a watcher keep the wide view.
 
 Whose turn it is shows by name: the status pill says YOUR THROW (marigold), MIGHTY MAPLE THROWS,
 COMPUTER THROWS, YOUR RAISE, TEAM B PLACES A KUBB and so on, and the hand-off card says
@@ -479,6 +520,15 @@ keep these the same, or the two disagree on screen:
   250 ms for its aim.
 - Pace: 0.8 s rest after a throw; an automatic raise's first kubb 0.4 s, then half a
   second a kubb, 4 s at most.
+- Engine 1.4 (web 1.5.0): `me.throw` (`"easy"`, `"hard"`, absent for Standard) and the
+  roster's "· Easy throw" words; the host's `settings.togo` "on" by default, written
+  when the pitch is made and once into a pitch that lacks it before START, never on a
+  1.0 room; the throw to go's control from `controlFor { ctx, me, need }`, "WAITING FOR
+  <TEAM>" with nothing of the other baton shown, the recording played and the verdict
+  words after; raises as `{ type: "raise", kubb, which }`, a `not lying` refusal redrawn;
+  `{ type: "punish", x, y, frame }`; `setView` with the player's own side. On a 1.0
+  room none of these: the lobby rows come from the room engine, and the match is
+  played as on 1.0.
 - HOLLER: the list below, in this order, exactly (its one source is
   `src/net/hollers.json`, read by the panel, the receiver and the tests; copy it from
   there). A phrase is sent as the cast `{ "t": "shout", "w": "<phrase>" }`, an emoji as

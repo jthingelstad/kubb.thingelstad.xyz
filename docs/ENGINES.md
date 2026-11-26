@@ -47,7 +47,15 @@ The App Store row was filled on 2026-11-24, the day Apple approved 1.0.0 and it 
 (build 260, the one submitted for App Review). The store's own lookup names the version;
 the TestFlight rows were not read again that day.
 
-- **Today the site carries one engine: 1.0 (1.0.0).** It replaced 0.18 (0.18.0) with
+- **Today the site carries two engines: 1.4 (1.4.0), the newest, and 1.0 (1.0.0).**
+  1.4 came with web 1.5.0 (2026-11-26), vendored with `--keep`: every iPhone build in the
+  table above is on 1.0, so 1.0 stays until no row names it. 1.4 brings the throw levels
+  (1.3), the view from one side, the computer's turn fast or skipped, raising in any
+  order and the throw to go (the engine's docs/CLIENTS.md, docs/SESSION.md). 1.0 and 1.4
+  share no match: a match plays on the one it was started on, and a pitch with a 1.0
+  player plays 1.0, where none of 1.4's controls show (docs/MULTIPLAYER.md "Engine 1.4
+  on a mixed pitch").
+- 1.0 (1.0.0) replaced 0.18 (0.18.0) with
   `--drop` on 2026-11-22. 1.0.0 is the released engine, a major by declaration (the
   owner, 2026-11-22: "lets move all four projects to version 1.0.0 and tag those
   releases. We will use that version to submit to the App Store as well."): no format
@@ -60,7 +68,7 @@ the TestFlight rows were not read again that day.
   web never carried 0.14), and 0.9 (0.9.0), 0.8 (0.8.2) and 0.7 (0.7.4) were carried
   until 2026-11-21 and were dropped then.
 - The supported set is written in one place: `vendor/engine.json`, its top-level `tag`
-  (the newest) and `older` (by major.minor; empty today). The build, the registry and
+  (the newest) and `older` (by major.minor; 1.0 today). The build, the registry and
   the reels' `REEL_ENGINES` read it; there is no other list. This page says why.
 - Carrying an older minor again, or keeping one when a new minor arrives, is a decision
   made when the newer one is vendored, never an accident: `vendor:sync` stops on a new
@@ -68,8 +76,8 @@ the TestFlight rows were not read again that day.
   `--drop`. The default answer is `--drop`.
 - One engine per major.minor. A patch replaces its minor's engine.
 
-The version label a player sees names the newest: `1.2.0 (1.0.0)`, with "Also plays
-..." under it in MENU only while an older engine is carried (none today; docs/CLIENT.md
+The version label a player sees names the newest: `1.5.0 (1.4.0)`, with "Also plays
+..." under it in MENU only while an older engine is carried (1.0 today; docs/CLIENT.md
 "Version and freshness"). A match names its own engine, never the app's version.
 
 Engine 0.13 renamed the shared pitch's directory `room/` to `pitch/`; the bridge
@@ -99,17 +107,18 @@ tested while the site carries one.
 ## In the browser
 
 `src/engine/registry.js` holds the set from the page config's `engines` (the build
-writes one entry per carried engine; today one). `src/main.js` loads the newest at boot.
+writes one entry per carried engine; today two). `src/main.js` loads the newest at boot.
 `roomCall(name, args)` goes to the newest; `lobby.js`'s constants are its.
 
 ## Playing together
 
 A pitch plays on the room's engine, the newest the host and every player carry
 (`room.engineFor` on the newest; the engine's `docs/PITCH.md` "The room's engine"). With
-one engine carried that is the newest or nothing:
+1.4 and 1.0 carried, a pitch of web pages plays 1.4, one with an iPhone on 1.0 plays 1.0,
+and one with a client on neither plays nothing:
 
 - **What the page says.** It joins announcing what it carries,
-  `me = { engine: "1.0+engines", engines: ["1.0"] }` (`room.announce`).
+  `me = { engine: "1.4+engines", engines: ["1.4", "1.0"] }` (`room.announce`).
 - **A player on an older client** (an iPhone build on 0.9, an old tab) leaves the players
   with no engine in common. The lobby says so on both sides, and START is off
   (`Pitch.blockedText`, `src/net/pitch.js`):

@@ -1,8 +1,8 @@
 // tests/fixtures/replay-north-south.json: a kept replay (src/net/lobby.js replayOf) of a
 // whole computer-against-computer match, Mighty Maple (Team A) against Lucky Larch (Team
 // B), generated names as every kept match now has (the engine's docs/NAMES.md; the file
-// keeps its old name, from when the sides were North and South). With seed 22 Lucky
-// Larch topples the king under 0.13 (the tests read "Lucky Larch 1, Mighty Maple 0"),
+// keeps its old name, from when the sides were North and South). With seed 2 Lucky
+// Larch topples the king under 1.4 (seed 22 under 0.13 to 1.0) (the tests read "Lucky Larch 1, Mighty Maple 0"),
 // played through this checkout's engine. The embed and
 // pitch pages tests serve it; tests/engine/fixtures fails when the engine no longer plays
 // it to the hashes it carries. After an engine change that moves hashes (a new minor
@@ -32,10 +32,11 @@ export function fixtureFor(mm, newest = carriedEngines()[0].mm) {
 }
 
 // The seed an engine's fixture is played with: 6 up to 0.9, where South wins; 22 from
-// 0.13, where seed 6 has North win.
+// 0.13, where seed 6 has North win; 2 from 1.4, where seed 22 has Mighty Maple win.
 export function seedFor(version) {
   const [major, minor] = String(version).split(".").map(Number);
-  return major === 0 && minor < 13 ? 6 : 22;
+  if (major === 0) return minor < 13 ? 6 : 22;
+  return major === 1 && minor < 4 ? 22 : 2;
 }
 
 export const SETUP = {

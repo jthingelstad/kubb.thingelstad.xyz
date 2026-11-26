@@ -59,7 +59,7 @@ import {
   tune as neighboursTune,
 } from "./neighbours.js";
 import { optionRows } from "../net/lobby.js";
-import { flagFor } from "./rulings.js";
+import { flagFor, togoWords } from "./rulings.js";
 import { viewFit } from "../render/camera.js";
 import { FreeCamera } from "./free-camera.js";
 import {
@@ -107,7 +107,7 @@ import { prefs } from "./prefs.js";
 import { pacing } from "./pacing.js";
 import { loadName, saveName } from "./player-name.js";
 import { namesOf } from "./names.js";
-import { loadThrowLevel } from "./throw-level.js";
+import { loadThrowLevel, loadThrow, saveThrow } from "./throw-level.js";
 import { NudgeTrigger, timeline, swingOf, captionFor } from "./nudge.js";
 import { coachFor, slowVerdict, shortDrive } from "./coach.js";
 import {
@@ -120,6 +120,7 @@ import {
   actionClip,
   settledClips,
   liftPace,
+  raiseNeedFor,
   tune as liftTune,
 } from "./lift.js";
 import {
@@ -207,6 +208,20 @@ const LINEAR_WORDS = {
   "FLICK!": "FLING!",
   "CRANK DOWN": "BACK TO MIDDLE",
 };
+
+// The raise view's camera: engine 1.4's own (`need.camera`, the whole group from the
+// raiser's end), else the close-up drawn round the kubb (scenes.js raiseCamera).
+const raiseCam = (n) => n?.camera ?? raiseCamera(n);
+
+// The throw to go while this browser has no baton of its own to throw (engine 1.4):
+// whose it waits for, and nothing of a baton already thrown.
+function togoWaiting(n) {
+  const owe = (n.owe || []).map((s) => n.teams?.[s] || `Team ${s}`);
+  return {
+    text: owe.length ? `WAITING FOR ${owe.join(" AND ").toUpperCase()}` : "",
+    mine: false,
+  };
+}
 
 export class Game {
   constructor({
@@ -299,6 +314,27 @@ export class Game {
     // still passed and kept, so a match on a carried 0.9 engine, a shared pitch's
     // presence and older records see the value they always had
     this.level = loadThrowLevel(prefs);
+    // the person's own throw (engine 1.3 on: Easy, Standard or Hard, the meter's bars),
+    // this device's (src/game/throw-level.js): Settings, MENU, the solo card and the
+    // lobby pick it and hear a change through onThrowLevel
+    this.throwLevel = loadThrow(prefs);
+    this.throwWatch = new Set();
+    // the computer's turn against the computer (startSolo sets `fastCpu`): watched at
+    // 1x, 2x or 4x (`cpuSpeed`, kept on the device), or skipped to the person's next
+    // throw (skipCpu, the engine's cpuPlay)
+    this.fastCpu = false;
+    this.cpuSpeed = [1, 2, 4].includes(prefs.get("cpuSpeed", 1))
+      ? prefs.get("cpuSpeed", 1)
+      : 1;
+    // the view from one side (engine 1.4 `setView`): the side this browser plays in a
+    // match (`localSide`, set by main and the pitch), whoever throws; the other side's
+    // throws come from the end camera. Off in practice, for a watcher and in the wide
+    // view (which wins). `sideKey` is what the engine was last told.
+    this._localSide = null;
+    this.sideKey = null;
+    // the raise screen's kubb (engine 1.4: any of the lying kubbs, in any order): the
+    // id picked, or null for the engine's first (raiseNeed)
+    this.raiseKubb = null;
     // the player's name, this device's too (src/game/player-name.js): a generated
     // name, rolled on the first run (the engine's names.*, src/game/names.js); the
     // solo card, the lobby and MENU hear a change through onPlayerName
@@ -384,6 +420,10 @@ export class Game {
       slide: (what, f, phase) => this.planSlide(what, f, phase),
       step: (what, s, fine) => this.planStep(what, s, fine),
       skip: () => this.skip(),
+      speed: () => this.stepCpuSpeed(),
+      skipCpu: () => this.skipCpu(),
+      cpuTurn: () => this.cpuTurn(),
+      cpuSpeedNow: () => this.cpuSpeed,
       stand: (fx, fy, phase) => this.standAt(fx, fy, phase),
       standKey: (dx, dy) => this.standStep(dx, dy),
       open: (key) => this.plateOpened(key),
@@ -398,13 +438,15 @@ export class Game {
   newPractice(opts = {}) {
     this.mode = "practice";
     this.nbSeed = null;
-    const v = this.engine.newPractice({ level: this.level, ...opts });
+    const t = { level: this.level, throw: this.throwLevel };
+    const v = this.engine.newPractice({ ...t, ...opts });
     this.engine.setLevel(this.level);
     this.trail = {
       kind: "practice",
-      opts: { level: this.level, drill: false, ...opts },
+      opts: { ...t, drill: false, ...opts },
       ops: [],
     };
+    this.applySideView();
     this.enter(this.engine.view() || v);
   }
 
@@ -415,6 +457,7 @@ export class Game {
     this.matchRaising = opts?.raising === "auto" ? "auto" : "hand";
     this.engine.newMatch(opts);
     this.engine.setControl(this.seat);
+    this.applySideView();
     this.startTrail();
     this.shownCards.clear();
     this.result = null;
@@ -444,7 +487,44 @@ export class Game {
     this.engine = engine;
     engine?.setImpacts?.(true);
     this.wide = null;
+    this.sideKey = null; // the engine taken is told the side view afresh
     this.applyWide();
+    this.applySideView();
+  }
+
+  // ---------- the view from one side (engine 1.4 setView) ----------
+
+  get localSide() {
+    return this._localSide;
+  }
+
+  set localSide(side) {
+    this._localSide = side === "A" || side === "B" ? side : null;
+    this.applySideView();
+  }
+
+  // Tell the engine the side this browser plays (every output in its frame; the other
+  // side's throws, raises and inkasts from this end, fitted to the window as the wide
+  // view's box), or that there is none (practice, a watcher). An engine before 1.4 has
+  // no side view: the match is drawn as it always was.
+  applySideView() {
+    const side = this.mode === "match" ? this._localSide : null;
+    const box =
+      side && this.W > 0 ? wideBox(this.W, this.H, this.L?.safe) : null;
+    const key = side
+      ? `${side}:${box ? [box.left, box.top, box.right, box.bottom].map((v) => v.toFixed(2)).join(",") : ""}`
+      : "";
+    if (key === this.sideKey) return;
+    this.sideKey = key;
+    try {
+      const b = box
+        ? { left: box.left, top: box.top, right: box.right, bottom: box.bottom }
+        : undefined;
+      this.engine?.setView?.(side, b);
+    } catch {
+      return; // an older engine, or none yet
+    }
+    this.refetch();
   }
 
   // ---------- the wide view ----------
@@ -568,8 +648,21 @@ export class Game {
     this.track(action);
     this.remote = null;
     if (r.recording) this.startPlayback(r.recording, false);
+    else if (action?.type === "togo" && this.keepAiming()) return r;
     else this.showAction(before, action, this.engine.view());
     return r;
+  }
+
+  // The other side's baton to go came in while this browser aims its own (both throw at
+  // once, blind): the aim goes on as it was, only the need is the newer one. Nothing of
+  // that baton shows until both are in (the engine's view leaves it out).
+  keepAiming() {
+    if (this.phase !== "aim" || this.need?.kind !== "togo") return false;
+    const v = this.engine.view();
+    if (v.need?.kind !== "togo" || v.need.side !== this.need.side) return false;
+    this.need = v.need;
+    this.viewData = v;
+    return true;
   }
 
   // ---------- watching a raise (src/game/lift.js) ----------
@@ -601,8 +694,8 @@ export class Game {
     this.enter(view);
   }
 
-  startLifts(clips, { lead = 0, beat }, then) {
-    this.liftState = { clips, k: 0, t: 0, lead, beat, then };
+  startLifts(clips, { lead = 0, beat }, then, cpu = false) {
+    this.liftState = { clips, k: 0, t: 0, lead, beat, then, cpu };
     this.phase = "lift";
     this.raiseDrag = null;
     this.raiseSel = null;
@@ -637,9 +730,11 @@ export class Game {
   drawLift(clip, u) {
     if (this.quiet) return;
     const v = this.viewData || {};
-    this.fit = stillFit(this.W, this.H, tune.raiseZoom);
+    this.fit = clip.need?.camera
+      ? null
+      : stillFit(this.W, this.H, tune.raiseZoom);
     this.begin();
-    this.world(raiseCamera(clip.need), {
+    this.world(raiseCam(clip.need), {
       surface: v.surface,
       set: v.set,
       items: clip.items(u),
@@ -699,6 +794,7 @@ export class Game {
       // the snapshot was checked by the engine; a raising it does not say is by hand
     }
     this.engine.setControl(this.seat);
+    this.applySideView();
     if (trail) {
       if (
         trail.hashes.length &&
@@ -782,6 +878,106 @@ export class Game {
     return stampOn(this.matchStart()) ?? undefined;
   }
 
+  // ---------- the computer's turn, fast (engine 1.4) ----------
+
+  // How fast the computer's turn goes now: the speed button's 1, 2 or 4 against the
+  // computer (solo), else 1. Its think and swing go faster in the engine (frame's
+  // `speed`); its playback and its raises here.
+  cpuFactor() {
+    return this.fastCpu && this.mode === "match" ? this.cpuSpeed : 1;
+  }
+
+  stepCpuSpeed() {
+    const next = { 1: 2, 2: 4, 4: 1 }[this.cpuSpeed] ?? 1;
+    this.cpuSpeed = next;
+    prefs.set("cpuSpeed", next);
+    return next;
+  }
+
+  // Whether the computer's turn is on now (the speed and skip buttons show).
+  cpuTurn() {
+    if (!this.fastCpu || this.mode !== "match") return false;
+    if (this.phase === "aim" || this.phase === "wait") return !!this.need?.cpu;
+    if (this.phase === "play") return !!this.play?.cpu;
+    if (this.phase === "lift") return !!this.liftState?.cpu;
+    return false;
+  }
+
+  // Skip the rest of the computer's turn (engine 1.4 cpuPlay): the engine plays it out
+  // to the person's next need, and each action it made is kept as if it had been seen.
+  skipCpu() {
+    if (!this.cpuTurn()) return false;
+    let r;
+    try {
+      r = this.engine.cpuPlay({ at: this.stamp() });
+    } catch {
+      return false;
+    }
+    if (!r || r.ok === false) return false;
+    this.play = null;
+    this.liftState = null;
+    this.queue.length = 0;
+    this.stage.clear();
+    this.result = null;
+    this.trackSteps(r.steps || []);
+    this.enter(r.view ?? this.engine.view());
+    return true;
+  }
+
+  trackSteps(steps) {
+    const t = this.trail;
+    if (!t || t.kind === "practice" || !steps.length) return;
+    for (const st of steps) {
+      t.actions.push(st.a);
+      t.hashes.push(st.h);
+    }
+    t.before = t.now;
+    t.now = this.engine.snapshot();
+    this.onTracked?.();
+  }
+
+  // ---------- the person's throw level (engine 1.3 on) ----------
+
+  setThrowLevel(v) {
+    const t = saveThrow(prefs, v);
+    if (t === this.throwLevel) return t;
+    this.throwLevel = t;
+    for (const f of this.throwWatch) f(t);
+    // practice throws on it from the next throw: practice set up again on it, as a
+    // scene picked there is (practiceScene)
+    if (this.mode === "practice" && this.phase === "aim") {
+      try {
+        this.newPractice({
+          surface: this.viewData?.surface ?? this.trail?.opts?.surface,
+          ...(this.viewData?.scene ? { scene: this.viewData.scene } : {}),
+          ...(this.need?.drill ? { drill: true } : {}),
+        });
+      } catch {
+        // kept for the next practice
+      }
+    }
+    return t;
+  }
+
+  onThrowLevel(f) {
+    this.throwWatch.add(f);
+    return () => this.throwWatch.delete(f);
+  }
+
+  // ---------- raising in any order (engine 1.4) ----------
+
+  // The raise need for the kubb picked (raiseKubb), as the engine's own raise need
+  // would be with that kubb first: the one the engine names when none is picked.
+  raiseNeed() {
+    const n = this.need;
+    if (n?.kind !== "raise") return n;
+    if (this.raiseMemo?.n === n && this.raiseMemo.k === this.raiseKubb)
+      return this.raiseMemo.v;
+    const v = raiseNeedFor(n, this.raiseKubb);
+    this.raiseMemo = { n, k: this.raiseKubb, v };
+    return v;
+  }
+
   resumeMatch(save) {
     this.shownCards.clear();
     this.result = null;
@@ -825,20 +1021,30 @@ export class Game {
     if (n.kind !== "raise") this.liftSkip = false;
     // the last throw set up: the pitch's frame between throws (pitchFrame)
     if (n.kind === "throw" && n.side) this.lastThrower = n.side;
+    // the throw to go (engine 1.4): this browser's baton is aimed as a throw; with
+    // none of its own to throw it waits for the others' (nothing of a baton already
+    // thrown is shown until both are in)
+    const togo = n.kind === "togo";
+    const aimTogo = togo && !!n.side && this.mayAct();
     // where its aim camera puts the far baseline (frame y), so a tall canvas fits
     // that line at layout.js anchorAt whoever throws from where (worldFit)
-    if (n.kind === "throw") this.farFrameY = farFrameOf(view.camera);
-    if (n.kind === "throw") {
+    if (n.kind === "throw" || aimTogo) this.farFrameY = farFrameOf(view.camera);
+    if (n.kind !== "raise") this.raiseKubb = null;
+    if (n.kind === "throw" || aimTogo) {
       this.phase = "aim";
       this.nudge.aimBegan();
       this.zenPause = this.zenPauseFor(n);
-      if (this.mode === "match" && this.mayAct())
+      if (this.mode === "match" && this.mayAct() && !togo)
         this.engine.setLevel(this.level);
+    } else if (togo) {
+      this.phase = "wait";
     } else if (n.kind === "raise") {
       this.phase = "raise";
       this.raiseSel = null;
       this.raiseDrag = null;
       this.raiseHint = null;
+      // the kubb picked stays picked while it still lies (another was raised first)
+      if (!n.lying?.some((e) => e.id === this.raiseKubb)) this.raiseKubb = null;
       if (this.mode === "match" && !this.mayAct()) this.phase = "wait";
     }
     // the raise screen labels the canvas with its ends (describeRaise)
@@ -879,7 +1085,16 @@ export class Game {
   // The engine's cards (hand-off, pass, settle), each shown once.
   showCard() {
     const n = this.need;
-    if (!n || !n.card || !this.cards || this.noCards) return;
+    if (!n || !this.cards || this.noCards) return;
+    // the throw to go has no engine card: this browser's own baton gets one
+    if (n.kind === "togo" && n.side && this.phase === "aim") {
+      const key = `togo:${n.round}:${n.side}`;
+      if (this.shownCards.has(key) || !this.cards.togoCard) return;
+      this.shownCards.add(key);
+      this.cards.togoCard(n, this);
+      return;
+    }
+    if (!n.card) return;
     const key = `${n.turn}:${n.throws}:${n.kind}:${n.card.kind}`;
     if (this.shownCards.has(key)) return;
     this.shownCards.add(key);
@@ -983,8 +1198,10 @@ export class Game {
     dt = this.frozen ? 0 : dt * this.timeScale;
     if (this.phase !== "play") this.stage.tick(dt);
     if (this.phase === "aim") this.aimFrame(dt, now);
-    else if (this.phase === "play") this.playFrame(dt, now);
-    else if (this.phase === "lift") this.liftFrame(dt);
+    else if (this.phase === "play")
+      this.playFrame(dt * (this.play?.cpu ? this.cpuFactor() : 1), now);
+    else if (this.phase === "lift")
+      this.liftFrame(dt * (this.liftState?.cpu ? this.cpuFactor() : 1));
     else this.drawStill();
     this.autoRaiseTick(dt);
     if (this.result) this.result.age += dt;
@@ -996,6 +1213,9 @@ export class Game {
   aimFrame(dt, now) {
     const may = this.mayAct();
     const input = { dt };
+    // the computer's think and swing at 2x or 4x (solo: the speed button)
+    const fast = this.need?.cpu ? this.cpuFactor() : 1;
+    if (fast > 1) input.speed = fast;
     if (this.zenPause > 0) {
       // a hidden tab keeps the match's pace for the data, not the watcher's
       if (this.quiet || !this.zen) this.zenPause = 0;
@@ -1062,7 +1282,9 @@ export class Game {
         this.nudgeThrown();
       if (may) this.onRelease?.(pre);
       this.emit(out.action);
-      this.startPlayback(out.recording, may, out);
+      // a baton to go with the other side's still to come: nothing plays yet
+      if (out.recording) this.startPlayback(out.recording, may, out);
+      else this.enter(this.engine.view());
       return;
     }
     if (this.nudgeEnd && fed) {
@@ -1287,6 +1509,8 @@ export class Game {
     this.play = {
       rec,
       local,
+      // the computer's throw (solo: played at the speed button's pace)
+      cpu: !local && !!this.need?.cpu,
       // a drive (engine 0.16, ARC under its knee): its SHORT verdict is coached
       drive: !!local && isDrive(aim?.plan, aim?.controls?.arc),
       t: 0,
@@ -1356,10 +1580,16 @@ export class Game {
       if (s.done) {
         p.done = true;
         const r = p.rec.result || {};
+        // the throw to go's: who goes first, or throw again, and how near each was
+        const tg = r.togo ? togoWords(r, this.need?.teams) : null;
         this.result = {
-          flag: flagFor(r),
-          verdicts: p.local ? r.verdicts : null,
-          restText: r.restText,
+          flag: tg ? tg.flag : flagFor(r),
+          verdicts: r.togo
+            ? (r[this._localSide]?.verdicts ?? null)
+            : p.local
+              ? r.verdicts
+              : null,
+          restText: tg ? tg.rest : r.restText,
           age: 0,
         };
         if (p.local) {
@@ -1391,7 +1621,7 @@ export class Game {
     // computer's own raises, watching the computer) are watched being raised
     const clips = this.settledLifts(p, v);
     if (clips.length) {
-      this.startLifts(clips, liftPace(clips.length), v);
+      this.startLifts(clips, liftPace(clips.length), v, !!p?.cpu);
       return;
     }
     this.enter(v);
@@ -1427,7 +1657,7 @@ export class Game {
   // ---------- raise and punishment ----------
 
   raiseAt(x, y) {
-    const n = this.need;
+    const n = this.raiseNeed();
     let best = null,
       bd = 0.45;
     (n.ends || []).forEach((e, i) => {
@@ -1442,30 +1672,51 @@ export class Game {
 
   // The lying kubb as drawn on the raise screen (CSS px), or null.
   raiseShape() {
-    const n = this.need;
+    const n = this.raiseNeed();
     if (!n || n.kind !== "raise") return null;
-    return raiseGeometry(this.view, raiseCamera(n), n);
+    return raiseGeometry(this.view, raiseCam(n), n);
+  }
+
+  // Engine 1.4 (raise in any order): the lying kubb, other than the one picked, drawn
+  // under (x, y), or null. Its id becomes the one picked (raiseKubb).
+  otherLyingAt(x, y) {
+    const n = this.need;
+    if (n?.kind !== "raise" || !Array.isArray(n.lying)) return null;
+    const cam = raiseCam(n);
+    for (const e of n.lying) {
+      if (!e?.id || e.id === (this.raiseKubb ?? n.kubb)) continue;
+      const g = raiseGeometry(this.view, cam, raiseNeedFor(n, e.id));
+      if (onKubb(g, x, y)) return e.id;
+    }
+    return null;
   }
 
   // Which end a tap at (x, y) means: an end's numbered label, anywhere on the
   // drawn kubb (the end nearer the tap), or near an end's footprint on the
   // ground. null for a tap on none of them.
   raisePick(x, y) {
-    let i = null;
+    // the nearer label when both are in reach (a kubb drawn short, as the whole
+    // group's camera draws one lying toward it)
+    let i = null,
+      best = raiseTune.labelR;
     this.endPoints().forEach((q, j) => {
-      if (q && Math.hypot(q.lx - x, q.ly - y) < raiseTune.labelR) i = j;
+      const d = q ? Math.hypot(q.lx - x, q.ly - y) : Infinity;
+      if (d < best) {
+        best = d;
+        i = j;
+      }
     });
     if (i != null) return i;
     const g = this.raiseShape();
     if (onKubb(g, x, y)) return nearerEnd(g, x, y);
-    const p = this.ground(x, y, raiseCamera(this.need));
+    const p = this.ground(x, y, raiseCam(this.raiseNeed()));
     return p ? this.raiseAt(p.x, p.y) : null;
   }
 
   // A tap or a drag let go on end i: stand it there, or, when the rules
   // refuse that end, light the one they allow for a moment and send nothing.
   raiseTap(i) {
-    const pick = allowedEnd(this.need, i);
+    const pick = allowedEnd(this.raiseNeed(), i);
     if (pick.ok) return this.raise(pick.i);
     if (pick.i != null)
       this.raiseHint = {
@@ -1480,10 +1731,11 @@ export class Game {
   raiseDragTo(p) {
     const g = p.raiseShape;
     const d = dragOf(g, p.x0, p.y0, p.x, p.y);
-    if (this.need.ends[d.i]?.ok === false) {
+    const n = this.raiseNeed();
+    if (n.ends[d.i]?.ok === false) {
       this.raiseDrag = null;
       this.raiseSel = null;
-      const pick = allowedEnd(this.need, d.i);
+      const pick = allowedEnd(n, d.i);
       if (pick.i != null)
         this.raiseHint = {
           i: pick.i,
@@ -1499,23 +1751,37 @@ export class Game {
   // Stand the kubb on end i (an index into need.ends), or the engine's own
   // choice with null.
   raise(i, { watch = false, lead = 0 } = {}) {
-    const n = this.need;
+    const before = this.need;
+    const n = this.raiseNeed();
     if (this.phase !== "raise") return;
     let action;
     if (i == null) action = { type: "raise" };
     else {
       const end = n.ends[i];
       if (!end || end.ok === false) return;
-      const ci = (n.choices || []).findIndex((c) => c.which === end.which);
-      action = { type: "raise", choice: ci >= 0 ? ci + 1 : undefined };
+      if (Array.isArray(n.lying)) {
+        // engine 1.4: the kubb picked and its end, by name (any order)
+        action = { type: "raise", kubb: n.kubb, which: end.which };
+      } else {
+        const ci = (n.choices || []).findIndex((c) => c.which === end.which);
+        action = { type: "raise", choice: ci >= 0 ? ci + 1 : undefined };
+      }
     }
     const at = this.stamp();
     if (at) action.at = at;
     const r = this.engine.apply(action);
-    if (r.ok === false) return r;
+    if (r.ok === false) {
+      // a team-mate raised that kubb first (a pitch): the raise as it now stands
+      if (r.why === "not lying" || r.why === "not raising") {
+        this.raiseKubb = null;
+        this.enter(this.engine.view());
+      }
+      return r;
+    }
+    this.raiseKubb = null;
     this.emit(action);
     // an automatic raise is watched (lift.js); one by hand was already seen
-    if (watch) this.showAction(n, action, this.engine.view(), { lead });
+    if (watch) this.showAction(before, action, this.engine.view(), { lead });
     else this.enter(this.engine.view());
     return r;
   }
@@ -1562,14 +1828,20 @@ export class Game {
       y = Math.max(b.yMin, Math.min(b.yMax, y));
     }
     this.punishAt = { x, y };
-    this.punishCheck = this.engine.checkPunish(x, y);
+    // engine 1.4's view from one side: x, y are in the need's `frame`
+    this.punishCheck = this.engine.checkPunish(x, y, n.frame);
   }
 
   punish() {
     if (this.phase !== "punish" || !this.punishAt) return;
     const { x, y } = this.punishAt;
     const at = this.stamp();
-    const action = at ? { type: "punish", x, y, at } : { type: "punish", x, y };
+    const action = { type: "punish", x, y };
+    // engine 1.4's view from one side: x, y are in the need's `frame` (said so only
+    // when the view is on, so an engine 1.0 match sends what it always did)
+    const fr = this.need?.frame;
+    if (fr === "A" || fr === "B") action.frame = fr;
+    if (at) action.at = at;
     const r = this.engine.apply(action);
     if (r.ok === false) {
       this.punishCheck = r;
@@ -1838,7 +2110,10 @@ export class Game {
       this.dialNext = null;
     }
     this.fit = worldFit(W, H, this.panX, this.farFrameY);
-    if (this.engine) this.applyWide();
+    if (this.engine) {
+      this.applyWide();
+      this.applySideView();
+    }
     this.placeRoom();
   }
 
@@ -2336,11 +2611,14 @@ export class Game {
   }
 
   drawStill() {
-    const n = this.need;
+    const n = this.raiseNeed();
     if (!n || this.quiet) return;
     const v = this.viewData || {};
     const still = n.kind === "raise" || n.kind === "punish";
-    if (still)
+    // engine 1.4's raise camera (the whole group, from the raiser's end) is fitted to
+    // the box the view was given: the frame's own fit
+    if (n.kind === "raise" && n.camera) this.fit = null;
+    else if (still)
       this.fit = stillFit(
         this.W,
         this.H,
@@ -2361,7 +2639,7 @@ export class Game {
       // the kubb: tipped part way up while it is dragged, else lying
       const items = settleItems(n, drag ? null : n.pose);
       if (drag) items.push(tiltItem(n, drag.i, drag.t));
-      this.world(raiseCamera(n), {
+      this.world(raiseCam(n), {
         surface: v.surface,
         set: v.set,
         items,
@@ -2411,7 +2689,7 @@ export class Game {
       watching: this.phase === "wait",
       practice: this.mode === "practice",
       layout: this.L,
-      who: this.whoActs?.(n) ?? null,
+      who: n.kind === "togo" ? togoWaiting(n) : (this.whoActs?.(n) ?? null),
       wide: !!this.wide,
     });
   }
@@ -2450,9 +2728,9 @@ export class Game {
   // Where the ends' footprints (x, y) and their numbered labels (lx, ly)
   // sit in view px (for taps and tests).
   endPoints() {
-    const n = this.need;
+    const n = this.raiseNeed();
     if (!n || n.kind !== "raise") return [];
-    const cam = raiseCamera(n);
+    const cam = raiseCam(n);
     return (n.ends || []).map((e) => {
       const p = projectView(this.view, cam, e.pose.x, e.pose.y, 0);
       // the label: just past the footprint's outer edge, along the kubb from its
@@ -2648,7 +2926,16 @@ export class Game {
       if (kind === "punish") this.punishPointer(x, y);
       // a press on the kubb may become a drag that tips it up (move)
       if (kind === "raise") {
-        const g = this.raiseShape();
+        let g = this.raiseShape();
+        // engine 1.4: a press on another lying kubb picks it (raise in any order)
+        if (!onKubb(g, x, y) && this.mayAct()) {
+          const id = this.otherLyingAt(x, y);
+          if (id) {
+            this.raiseKubb = id;
+            this.cards?.clearPanel?.();
+            g = this.raiseShape();
+          }
+        }
         raiseShape = onKubb(g, x, y) ? g : null;
       }
     } else if (this.phase === "play") kind = "none";

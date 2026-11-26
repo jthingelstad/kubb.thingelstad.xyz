@@ -121,10 +121,20 @@ test("constants, lobby arguments and values come from the engine", () => {
   assert.equal(TEAM_MAX, 6);
   assert.equal(SEATS, 12);
   // since 0.9 the computer's level is a match option too (the engine's docs/ROOM.md 9),
-  // since 0.14 the scene leads, and since 0.15 Kid is the first level
+  // since 0.14 the scene leads, since 0.15 Kid is the first level, and since 1.4 the
+  // throw to go stands before the computer
   assert.deepEqual(
     MATCH_OPTIONS.map(([k]) => k),
-    ["scene", "surface", "opening", "raising", "wind", "set", "computer"],
+    [
+      "scene",
+      "surface",
+      "opening",
+      "raising",
+      "wind",
+      "set",
+      "togo",
+      "computer",
+    ],
   );
   assert.deepEqual(LEVELS, ["kid", "beginner", "club", "pro"]);
   const doc = joinTeam(joinTeam(null, "a", "A"), "b", "B");

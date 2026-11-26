@@ -491,7 +491,8 @@ export class ReplayPlayer {
     const next = this.data.log[this.info.i];
     this.waitCpu = false;
     if (!next) this.wait = replayTune.overAfter;
-    else if (next.a.type === "throw") {
+    // a baton to go (engine 1.4) stands as a throw does
+    else if (next.a.type === "throw" || next.a.type === "togo") {
       this.waitCpu = !!n.cpu;
       this.wait = this.waitCpu ? replayTune.cpuMost : replayTune.throwAfter;
     } else this.wait = replayTune.otherAfter;
@@ -547,7 +548,8 @@ export class ReplayPlayer {
       while (!this.info.done) {
         const e = this.data.log[this.info.i];
         this.step();
-        if (e.a.type === "throw" || this.ended) break;
+        // a throw, or the throw to go's last baton (both batons play back together)
+        if (e.a.type === "throw" || g.phase === "play" || this.ended) break;
       }
     } finally {
       this.rushing = false;

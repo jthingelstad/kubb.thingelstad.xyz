@@ -37,6 +37,7 @@ import {
   announce,
   speakAs,
   compareEngines,
+  engineConstants,
   ENGINE,
 } from "./lobby.js";
 import {
@@ -51,6 +52,7 @@ import { welcomeCard, firstVisit } from "../ui/welcome.js";
 import { WatchCard } from "../ui/watching.js";
 import { WatchView } from "../ui/watch-view.js";
 import { prefs } from "../game/prefs.js";
+import { throwEntry } from "../game/throw-level.js";
 import { h, button } from "../ui/dom.js";
 import { HollerBar } from "../ui/holler.js";
 import { hollerOf, hollerCast } from "./hollers.js";
@@ -145,7 +147,7 @@ export function startPitch(env) {
 
 export class Pitch {
   // env: { game, cards, ui, config, code, home, pitchUrl, apiUrl, sheet?, menu?,
-  //        engines?, observe?, WebSocket?, fetch? }
+  //        engines?, observe?, togoOff?, WebSocket?, fetch? }
   // pitchUrl: the pitch server (wss://...); apiUrl: the api over HTTPS (kept replays,
   //   reels), "/api" on the site
   // observe: /p/<code>?observe=1, an observer (docs/OBSERVER.md): joins to watch,
@@ -252,7 +254,14 @@ export class Pitch {
         role: this.observe ? "observer" : "player",
         // engine and engines: what this page carries, the newest until it knows the
         // pitch (the engine's docs/ROOM.md "Speaking down"; Pitch.speak)
-        me: { name, level: game.level, ...this.announcement(null) },
+        // and the person's throw (engine 1.3 on), left out at Standard as the engine
+        // leaves it out
+        me: {
+          name,
+          level: game.level,
+          ...throwEntry(game.throwLevel),
+          ...this.announcement(null),
+        },
         ...(this.WebSocket ? { WebSocket: this.WebSocket } : {}),
       });
     } catch (err) {
@@ -296,6 +305,8 @@ export class Pitch {
 
     // a change of name in MENU (or the first one typed in the lobby): the pitch hears it
     this.stopName = game.onPlayerName((v) => this.nameChanged(v));
+    // a change of throw (Settings, the lobby): the pitch hears it as me.throw
+    this.stopThrow = game.onThrowLevel((t) => this.throwChanged(t));
 
     this.buildHud();
     game.seat = this.seatFor({ sides: [], cpu: false });
@@ -383,6 +394,9 @@ export class Pitch {
       // decides the surface and set, so a kept surface may come back changed)
       o.scene = sceneId(saved?.scene);
       if (saved?.surface === "grid") o.surface = "grid";
+      // the throw to go (engine 1.4): on unless the host last turned it off
+      if (this.takesTogo())
+        o.togo = this.togoOff || saved?.togo === "off" ? "off" : "on";
       const open = new URLSearchParams(location.search).get("open") === "1";
       this.write((doc) => {
         const d = setOptions(doc, o) ?? lobbyOf(doc);
@@ -681,6 +695,13 @@ export class Pitch {
     if (name === this.name) return;
     this.name = name;
     this.room?.setMe({ name });
+  }
+
+  // The person's throw changed (Settings, MENU, the lobby): me.throw, null for Standard
+  // (a merge: the field goes when it is null).
+  throwChanged(t) {
+    this.lobby?.setThrow?.(t);
+    this.room?.setMe({ throw: t === "standard" ? null : t });
   }
 
   async pickTeam(side) {
@@ -1058,12 +1079,44 @@ export class Pitch {
     const e = this.roomEngine();
     this.speak(e.speak);
     this.prefetch(e.engine);
+    this.keepTogo(e.engine);
     const text = e.engine ? null : this.blockedText(e);
     this.lobby.setEngine(text);
     const key = text && JSON.stringify([e.missing, e.unknown]);
     if (key && key !== this.blockedKey)
       this.note("engine-blocked", e.missing.length, e.unknown.length);
     this.blockedKey = key;
+  }
+
+  // Whether the room's engine (or the one named) has the throw to go (engine 1.4).
+  takesTogo(mm = undefined) {
+    try {
+      return (engineConstants(mm).MATCH_OPTIONS || []).some(
+        ([k]) => k === "togo",
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  // The host keeps the throw to go's setting in the document (engine 1.4): the engine's
+  // own default is off, the game's is on, and a write by an engine before 1.4 (an
+  // iPhone host before this one) drops it. Written once a document while the next
+  // match's engine has it, nobody has started, and it is missing.
+  keepTogo(mm) {
+    const r = this.room;
+    if (!r?.isHost() || !mm || !this.takesTogo(mm)) return;
+    const doc = r.doc;
+    if (!doc || doc.started || doc.settings?.togo) return;
+    if (this.togoKept === doc) return;
+    this.togoKept = doc;
+    const saved = prefs.get("pitchOptions", {});
+    const togo = this.togoOff || saved?.togo === "off" ? "off" : "on";
+    this.write((d) =>
+      d.settings?.togo
+        ? null
+        : setOptions(d, { scene: sceneId(optionsOf(d).scene), togo }),
+    );
   }
 
   // Load a carried engine before it is needed (the room's, ahead of START).
@@ -1363,15 +1416,18 @@ export class Pitch {
 
   // This browser's control: none while its engine may not play this match (mayPlay).
   controlHere() {
+    // a throw to go's need says whose baton this browser throws (engine 1.4)
+    const n = this.game?.need;
     return this.refused || this.observe
       ? NO_CONTROL
-      : controlFor(this.ctx(), this.you);
+      : controlFor(this.ctx(), this.you, n?.kind === "togo" ? n : null);
   }
 
   seatFor(control) {
     return {
       sides: control.sides,
       cpu: control.cpu,
+      ...(Array.isArray(control.togo) ? { togo: control.togo } : {}),
       mayAct: (need) =>
         this.mode === "match" &&
         !this.refused &&
@@ -2096,6 +2152,18 @@ export class Pitch {
   // Who acts, for the HUD and the engine's cards.
   who(need) {
     if (this.mode !== "match" || !need || need.kind === "over") return null;
+    // the throw to go (engine 1.4): this browser's own baton, else the teams still
+    // owing theirs (Game.drawStill says the same while it waits)
+    if (need.kind === "togo") {
+      if (need.side && this.game.mayAct(need))
+        return { text: "YOUR THROW TO GO", mine: true };
+      const owe = (need.owe || []).map((s) =>
+        (need.teams?.[s] || `Team ${s}`).toUpperCase(),
+      );
+      return owe.length
+        ? { text: `WAITING FOR ${owe.join(" AND ")}`, mine: false }
+        : null;
+    }
     const ctx = this.ctx();
     const actor = shownActor(need, ctx);
     if (actor === "cpu") {

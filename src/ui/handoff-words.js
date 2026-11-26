@@ -44,6 +44,9 @@ export const HANDOFF_LINES = {
   // not in the design's list: placing punishment kubbs (the settle card when
   // there is nothing to raise), in the same plain words
   punish: (n) => `Place ${many(n, "punishment kubb", "punishment kubbs")}.`,
+  // not in the design's list: the throw to go (engine 1.4), one baton at the king
+  togo: "Throw to go. Closest to the king goes first.",
+  togoAgain: "Throw again. Closest to the king goes first.",
 };
 
 // A Kid match (engine 0.15, its docs/notes/kid-mode.md): the card's kicker over the

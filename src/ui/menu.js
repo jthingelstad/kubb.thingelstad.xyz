@@ -48,6 +48,10 @@ function gameDevice(game, sound) {
       return game.meterSide;
     },
     setMeterSide: (v) => game.setMeterSide(v),
+    get throwLevel() {
+      return game.throwLevel;
+    },
+    setThrowLevel: (v) => game.setThrowLevel(v),
     get muted() {
       return sound?.muted;
     },

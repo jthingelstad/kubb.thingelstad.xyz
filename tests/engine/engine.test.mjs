@@ -61,18 +61,18 @@ test("Engine.create loads the pointer tune and labels the game file", async () =
 
 test("with two engines carried, each plays from its own corpus", async (t) => {
   // stand-ins of the newest, numbered from it on: a corpus is never newer than its engine
-  const repo = makeEngineRepo(["1.0.0", "1.1.0"]);
+  const repo = makeEngineRepo(["1.4.0", "1.5.0"]);
   const root = makeVendorRoot();
   t.after(() => {
     repo.clean();
     root.clean();
   });
-  sync({ root: root.dir, repo: repo.dir, tag: "v1.0.0" });
-  sync({ root: root.dir, repo: repo.dir, tag: "v1.1.0", keep: true });
+  sync({ root: root.dir, repo: repo.dir, tag: "v1.4.0" });
+  sync({ root: root.dir, repo: repo.dir, tag: "v1.5.0", keep: true });
   const carried = carriedEngines(path.join(root.dir, "vendor"));
   assert.deepEqual(
     carried.map((e) => e.version),
-    ["1.1.0", "1.0.0"],
+    ["1.5.0", "1.4.0"],
   );
   // Both trees are copies of the newest's (tests/engine/engine-fixture.mjs), whose
   // whole corpus is golden.test.mjs. What is held here is that each engine loads and

@@ -22,15 +22,16 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
   those three versions and whatever version it is running natively."; the Playdate is
   bundled with its own and never counts). Which engines those builds carry is the table in
   `docs/ENGINES.md` "The iPhone builds people have": read it before a move to a new minor,
-  `--keep` an engine a row names, `--drop` only one no row names. Today that is the newest alone, 1.0
-  (1.0.0, the released engine); 0.18 was dropped with the move to 1.0, 0.16 with the
+  `--keep` an engine a row names, `--drop` only one no row names. Today that is 1.4
+  (1.4.0, the newest, since web 1.5.0) and 1.0 (1.0.0, kept for the iPhone builds, all on
+  it); 0.18 was dropped with the move to 1.0, 0.16 with the
   move to 0.18 (the web never carried 0.17), 0.15 with the move to 0.16 and 0.13 with
   the move to 0.15 (all 2026-11-22; the web never carried 0.14), and 0.9, 0.8 and 0.7 on
   2026-11-21, so a client on one of them (an iPhone build on 0.18) cannot share a pitch
   with the web and
   is told to update, and a kept match of one says it can no longer be replayed
   (`docs/ENGINES.md`). The supported
-  set is written in one place, `vendor/engine.json` (the newest and `older`, empty
+  set is written in one place, `vendor/engine.json` (the newest and `older`, 1.0
   today), read by the build, the registry and the reels' `REEL_ENGINES`; carrying an
   older minor again would be its own decision, vendored into `vendor/engines/<mm>/`. A
   new minor is vendored with `--keep` or `--drop`, never by accident. The bridge says
@@ -239,9 +240,9 @@ preview`, the browser tests, CI) gives it the pitch server on this machine
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `1.4.1 (1.0.0)`, at the foot of
+the full version of the newest engine the site carries, `1.5.0 (1.4.0)`, at the foot of
 every reading page and of MENU, with "Also plays ..." under it in MENU only while older
-engines are carried (none today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
+engines are carried (1.0 today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
 The app's version never goes on the room wire, the rider or a kept match, replay, embed,
 share or reel: those name only the engine a match was played on.
@@ -825,7 +826,7 @@ labels are plain words.
   name row), Sound (On/Off, once a SOUND: ON button), Meter, Meter side. docs/CLIENT.md
   "Match flow" and "The 1.0 system".
 - **Settings by scope** (the owner's settings sheet, 2026-11-20). Device settings (your
-  name, meter, meter side, sound) are one set of rows (`src/ui/settings.js`), the Settings
+  name, throw, meter, meter side, sound) are one set of rows (`src/ui/settings.js`), the Settings
   card, from MENU's SETTINGS in every mode and on `/settings/`, linked from the web game's
   page, closing with DONE at the bottom right;
   never asked per match. Game settings (Computer level, surface, opening, raising, wind,
@@ -834,16 +835,31 @@ labels are plain words.
   throw controls. Your name is the device's generated name, picked in the name row
   wherever it is shown (Settings, the solo card's and the lobby's You row): "Names"
   below. docs/CLIENT.md "Settings".
-- **One level: the computer's** (the owner, 2026-11-21, with engine 0.13: "player level
-  really should only mean for the computer opponent. It doesn't mean anything for the
-  human player."). From engine 0.13 every person throws on one meter, the bars going by
-  the throw's distance, so the web asks nobody for their own level: MENU's Your level
-  row and the solo card's and lobby's "Throwing at ..." line are gone, and the You row
-  is the name alone. A device's stored level (`level` pref) is still read, passed and
-  kept, never reset (`src/game/throw-level.js`): it changes nothing since 0.13, and the
-  site no longer carries the 0.9 engine where it counted. The computer's level is a match
-  option, Computer level (Kid, Beginner, Club, Pro since 0.15), on the solo card and, set
-  by the host, in the lobby.
+- **Levels: the computer's, and a person's throw** (the owner, 2026-11-21, with engine
+  0.13: "player level really should only mean for the computer opponent. It doesn't
+  mean anything for the human player."). From engine 0.13 every person threw on one
+  meter; engine 1.3 gave each person a throw, Easy, Standard or Hard, which only sets how
+  wide the meter's bars are (never luck). Since web 1.5.0 it is a device setting,
+  "Throw" (the `throw` pref, Standard by default): Settings (with one line on what it
+  does), the solo card under the name, and the lobby, sent as `me.throw`; each person in
+  the lobby reads "· Standard throw", and the header says "· easy throw" for a level
+  other than Standard. A pitch on 1.0 shows none of it. A change mid-match leaves the
+  running match alone; practice starts again on it. The older stored level (`level`
+  pref) is still read, passed and kept, never reset, and changes nothing
+  (`src/game/throw-level.js`). The computer's level is a match option, Computer level
+  (Kid, Beginner, Club, Pro since 0.15), on the solo card and, set by the host, in the
+  lobby.
+- **Engine 1.4's play** (web 1.5.0; the engine's docs/CLIENTS.md "1.4"). The throw to
+  go is on by default (the solo card's and lobby's "Throw to go"; `togo` on `newMatch`,
+  the host's `setOptions { togo: "on" }`): a short card, one blind baton each at the king
+  ("WAITING FOR <TEAM>" until both are in), the two played back together, then "<TEAM>
+  GOES FIRST" or "THROW AGAIN". Each player sees the match from their own end
+  (`setView`); watchers keep the wide view. Against the computer its turn has 1X/2X/4X
+  (the `cpuSpeed` pref) and a skip (`cpuPlay`), solo only. A raise by hand shows the
+  whole group through the engine's `need.camera`, and any lying kubb may be picked and
+  stood first. A pitch on 1.0 has none of these: docs/MULTIPLAYER.md "Engine 1.4 on a
+  mixed pitch". The browser tests start matches without the throw to go unless they are
+  about it (the `testTogo` pref, `serve({ togo })` in `tests/game/browser.mjs`).
 - **Sliders, not step buttons** (Jamie: "the finger must not cover the control; teach on
   the control"). From engine 0.9 ARC, TILT and SPIN take any value in `aim.controls`'
   range (`setArc`, `setTilt`, `setSpin`), ticks drawn from `tick`; a kubb's spin is kept

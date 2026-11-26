@@ -25,7 +25,10 @@ test("the engine's golden corpus, every hash, under this wasmoon", async () => {
   const played = [];
   for (const { dir, version } of carried)
     played.push([version, await playGolden(dir)]);
-  // 1.0.0's corpus: 21 matches, 880 actions. The site carries the newest engine
-  // alone (docs/ENGINES.md): 0.18 was dropped with the move to 1.0.
-  assert.deepEqual(played, [[manifest.version, 880]]);
+  // 1.4.0's corpus: 21 matches, 886 actions (the throw to go's batons among them);
+  // 1.0.0's, carried for the iPhone app (docs/ENGINES.md): 21 matches, 880 actions.
+  assert.deepEqual(played, [
+    [manifest.version, 886],
+    ["1.0.0", 880],
+  ]);
 });

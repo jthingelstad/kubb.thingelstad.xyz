@@ -33,9 +33,11 @@ import { Share } from "./ui/share.js";
 import { shareable } from "./net/share.js";
 import { openSheet } from "./ui/sheet.js";
 import { recordMatch } from "./net/record.js";
+import { throwEntry } from "./game/throw-level.js";
 import { clientLabel, LOCATION } from "./net/sync.js";
 import {
   MATCH_OPTIONS,
+  engineConstants,
   OPTION_DEFAULTS,
   useOlderEngine,
   useRoomEngine,
@@ -77,6 +79,10 @@ const testing =
   params.get("test") === "1" ||
   location.hostname === "127.0.0.1" ||
   location.hostname === "localhost";
+// a local browser test that is not about the throw to go starts its matches without
+// it (the `testTogo` pref, set by tests/game/browser.mjs; honoured only where
+// `testing` is)
+const togoOff = testing && prefs.get("testTogo", null) === "off";
 
 // the page carries the loading card from its first paint (src/site/layout.mjs LOADING)
 const loading =
@@ -327,6 +333,7 @@ async function boot() {
   } else {
     pitch = startPitch({
       game,
+      togoOff,
       cards,
       ui,
       code,
@@ -423,10 +430,21 @@ function startPractice(game, cards, asked) {
 // the match's setup); the computer's player entry names it too, which is how an
 // older engine is told.
 const takesComputer = () => MATCH_OPTIONS.some(([k]) => k === "computer");
+// engine 1.4's throw to go, and engine 1.3's throw levels, by what the newest engine has
+const takesTogo = () => MATCH_OPTIONS.some(([k]) => k === "togo");
+const takesThrow = () => {
+  try {
+    return Array.isArray(engineConstants()?.THROW_LEVELS);
+  } catch {
+    return false;
+  }
+};
 
 function startSolo(game, cards, { sheet, record, recording, menu, asked }) {
   game.seat = { sides: ["A"], cpu: true };
   game.localSide = "A";
+  // the computer's turn at 1x, 2x or 4x, or skipped (engine 1.4; Game.cpuFactor)
+  game.fastCpu = true;
   // the match is kept on the device after every action (src/game/solo-save.js): it
   // claims the slot when it starts or is resumed, then writes while the slot is its own;
   // a newer match in another tab takes it, and this one is told once
@@ -483,7 +501,17 @@ function startSolo(game, cards, { sheet, record, recording, menu, asked }) {
     game.newMatch({
       seed: Math.floor(Math.random() * 2 ** 31),
       teams: {
-        A: { name: o.name, players: [{ name: o.name, level: game.level }] },
+        A: {
+          name: o.name,
+          players: [
+            {
+              name: o.name,
+              level: game.level,
+              // the person's throw (engine 1.3 on), the device's
+              ...throwEntry(game.throwLevel, takesThrow()),
+            },
+          ],
+        },
         B: {
           name: "Computer",
           players: [{ name: "Computer", level: o.computer }],
@@ -498,6 +526,8 @@ function startSolo(game, cards, { sheet, record, recording, menu, asked }) {
       wind: o.wind,
       surface: o.surface,
       set: o.set,
+      // the throw to go (engine 1.4): on unless the card turned it off
+      ...(takesTogo() ? { togo: o.togo !== "off" && !togoOff } : {}),
       start: startStamp(now),
     });
     own(playingId());
@@ -639,6 +669,7 @@ export const watchTune = {
 function startWatch(game, cards, { sheet, record, menu, asked }) {
   game.seat = { sides: [], cpu: true };
   game.localSide = null;
+  game.fastCpu = false;
   game.unattended = true;
   game.zen = watchTune.zen;
   watchView(game, menu);
