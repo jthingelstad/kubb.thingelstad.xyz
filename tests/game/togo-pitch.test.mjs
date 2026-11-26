@@ -108,8 +108,8 @@ async function throwOnce(page) {
 }
 
 // This browser's baton to go: its card, then aiming.
-async function myTogo(page) {
-  await page.waitForSelector("[data-test=togo]", { timeout: 20000 });
+async function myTogo(page, ms = 20000) {
+  await page.waitForSelector("[data-test=togo]", { timeout: ms });
   await page.click("[data-test=togo-go]");
   await waitFor(
     page,
@@ -293,6 +293,72 @@ browserTest(
     } finally {
       await host.context().close();
       await guest.context().close();
+    }
+  },
+);
+
+browserTest(
+  "the host stands in for a player who left: that baton is aimed from the thrower's end",
+  async () => {
+    const code = makePitchCode();
+    const host = await join(code, "Happy Hazel");
+    const guest = await join(code, "Gentle Ginkgo", "portrait");
+    try {
+      await host.click("[data-test=join-A]");
+      await guest.click("[data-test=join-B]");
+      await waitFor(host, () =>
+        /Throw to go\s*On/.test(
+          document.querySelector(".lobby-options")?.textContent || "",
+        ),
+      );
+      await host.click("[data-test=lobby-start]");
+      await waitFor(guest, () => window.__kubb.pitch.state().mode === "match");
+      await inStep([host, guest]);
+      await myTogo(host);
+      // the host's own baton: seen from its own end, Team A's
+      assert.equal(
+        await host.evaluate(() => window.__kubb.game.engine.view().need.frame),
+        "A",
+      );
+      await throwOnce(host);
+      await waitFor(host, () => window.__kubb.game.phase === "wait");
+      // the guest goes before throwing: the host throws Team B's baton for it
+      await guest.context().close();
+      await myTogo(host, 45000); // once the pitch has the guest gone
+      const seen = await host.evaluate(() => {
+        const g = window.__kubb.game;
+        const v = g.engine.view();
+        return { side: g.need.side, frame: v.need.frame, local: g.localSide };
+      });
+      assert.deepEqual(
+        seen,
+        { side: "B", frame: "B", local: "A" },
+        "aimed in the thrower's frame, where setTarget takes it",
+      );
+      await throwOnce(host);
+      await waitFor(
+        host,
+        () =>
+          /GOES FIRST|THROW AGAIN/.test(
+            document.querySelector("[data-test=flag]")?.textContent || "",
+          ),
+        null,
+        30000,
+      );
+      // and back to its own end after
+      await waitFor(
+        host,
+        () => window.__kubb.game.engine.view().need.frame === "A",
+        null,
+        30000,
+      );
+      assert.deepEqual(host.errors, []);
+    } finally {
+      await host.context().close();
+      await guest
+        .context()
+        .close()
+        .catch(() => {});
     }
   },
 );

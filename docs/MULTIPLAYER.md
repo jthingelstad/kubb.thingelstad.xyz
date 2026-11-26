@@ -404,7 +404,11 @@ never cross the room bridge. Name cleanup and open-listing reads are cached too.
 Each player sees the match from their own end (engine 1.4 `setView`, the side this
 browser plays): their team's throws from behind, their team-mates' alongside, and the
 other team's from the end camera, so the pitch never turns at a change of ends. A
-browser with no side, an observer and a watcher keep the wide view.
+browser with no side, an observer and a watcher keep the wide view. A throw this
+browser aims for the other side (the host standing in for a player who left) is seen
+from the thrower's end (`setView` with that side), because the aim calls (`setTarget`,
+`setStance`) take the thrower's frame; the view goes back to the player's own end
+after it.
 
 Whose turn it is shows by name: the status pill says YOUR THROW (marigold), MIGHTY MAPLE THROWS,
 COMPUTER THROWS, YOUR RAISE, TEAM B PLACES A KUBB and so on, and the hand-off card says
@@ -533,7 +537,8 @@ keep these the same, or the two disagree on screen:
   words after; a baton to go refused for its seq applied again and committed after
   the resync; raises as `{ type: "raise", kubb, which }` (AUTO: `{ type: "raise",
 kubb }`, the end the engine's), a `not lying` refusal redrawn;
-  `{ type: "punish", x, y, frame }`; `setView` with the player's own side. On a 1.0
+  `{ type: "punish", x, y, frame }`; `setView` with the player's own side (the
+  thrower's while standing in for the other side's throw). On a 1.0
   room none of these: the lobby rows come from the room engine, and the match is
   played as on 1.0.
 - HOLLER: the list below, in this order, exactly (its one source is
