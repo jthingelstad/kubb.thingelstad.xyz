@@ -45,7 +45,8 @@ characters after trimming), optional `pitch` (a code), `client`, `engine`, optio
 as it stood. At most 64 KB.
 
 `paint` (either kind, optional) is where the player painted on a picture of the pitch, in
-the same frame and units as the report's `pieces` (the thrower's view frame, metres: x
+the same frame and units as the report's `pieces`, which with a `paint` are the pieces
+its picture showed (the last throw's rest when there is one) and are never dropped to fit (the thrower's view frame, metres: x
 across, y along the pitch): `{ "brush": <radius in metres>, "strokes": [ [ [x, y], ... ],
 ... ] }`. Numbers to 2 decimals; `brush` 0.05 to 1; at most 32 strokes and 800 points in
 all, each stroke at least one point; x from -6 to 6 and y from -4 to 12. A `paint` out of

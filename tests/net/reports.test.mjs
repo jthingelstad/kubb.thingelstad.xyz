@@ -591,8 +591,12 @@ test("answers are clipped, and a report too big drops history, then pieces, neve
     { happened: "h", paint, selected: ["king"] },
     { limits: { ...REPORT_LIMITS, bytes } },
   );
-  assert.equal(marked.r.pieces, null);
-  assert.deepEqual(marked.r.paint, paint, "the paint is kept when pieces go");
+  assert.ok(
+    Array.isArray(marked.r.pieces),
+    "a painted report keeps its pieces",
+  );
+  assert.ok(!marked.r.dropped?.includes("pieces"));
+  assert.deepEqual(marked.r.paint, paint);
   assert.equal(marked.r.selectedPieces, undefined, "no longer sent");
   assert.equal(marked.r.pickPieces, undefined);
   const tinyPaint = reportMessage(

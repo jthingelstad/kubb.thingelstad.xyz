@@ -115,10 +115,6 @@ export function describePaint(r) {
   out.push(
     `  Under the paint: ${under.length ? under.map(pieceName).join(", ") : "no piece"}`,
   );
-  if (r.lastThrow)
-    out.push(
-      "  (Painted on the last throw's rest. These are the pieces as they stood when the card opened: the same unless the turn had moved on.)",
-    );
   out.push(
     "  Map (far baseline at the top; # paint, K king, A/B kubbs, lower case down, / baton):",
   );

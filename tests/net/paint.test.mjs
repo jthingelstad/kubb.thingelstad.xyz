@@ -208,3 +208,23 @@ test("the pieces under the paint, and the text map", () => {
     "  Paint: not readable",
   ]);
 });
+
+test("a painted report's pieces are the ones its picture showed, never dropped", async () => {
+  const { reportMessage } = await import("../../src/net/report.js");
+  const now = [{ id: "king", kind: "king", x: 0, y: 4 }];
+  const rest = [...now, { id: "baton1", kind: "baton", x: 1, y: 7 }];
+  const state = { mode: "solo", pieces: now, pickPieces: rest, lastThrow: {} };
+  const paint = { brush: 0.2, strokes: [[[1, 7]]] };
+  const m = reportMessage(state, { happened: "h", paint });
+  assert.deepEqual(m.r.pieces, rest, "the last throw's rest, as drawn");
+  assert.equal(m.r.pickPieces, undefined);
+  const plain = reportMessage(state, { happened: "h" });
+  assert.deepEqual(plain.r.pieces, now, "unpainted: the pitch as it stood");
+  const tiny = reportMessage(
+    state,
+    { happened: "h", paint },
+    { limits: { bytes: 10, chars: 1000, feedbackChars: 2000 } },
+  );
+  assert.deepEqual(tiny.r.pieces, rest);
+  assert.ok(!tiny.r.dropped?.includes("pieces"));
+});
