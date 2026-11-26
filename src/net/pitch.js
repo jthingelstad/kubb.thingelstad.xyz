@@ -1487,6 +1487,9 @@ export class Pitch {
     if (over) this.overSnap = snap;
     this.room.act({ n, seq, a: action, h: hash, snap, over });
     this.note("commit", seq);
+    // a baton to go is kept until the pitch takes it: both sides release at once, so
+    // the other's may take this seq first (onRefused)
+    if (action?.type === "togo") this.togoSent = { n, seq, a: action };
   }
 
   onOk({ seq, dup }) {
@@ -1498,7 +1501,22 @@ export class Pitch {
   onRefused({ seq, why }) {
     this.note("refused", seq, why);
     this.queue.length = 0;
+    // our baton to go lost the race for its seq to the other side's: it is thrown
+    // again here once the pitch's state is in (retryTogo), not lost
+    const t = this.togoSent;
+    if (t && t.n === this.local.n && seq <= t.seq) this.togoRetry = t;
+    this.togoSent = null;
     this.room.resync();
+  }
+
+  // After the pitch's state is taken: the baton to go the pitch refused, applied again
+  // and committed as the next action, while the match still owes it.
+  retryTogo() {
+    const t = this.togoRetry;
+    if (!t) return;
+    this.togoRetry = null;
+    if (this.mode !== "match" || this.local.n !== t.n) return;
+    if (this.game.reapplyTogo(t.a)) this.note("togo again", t.a.side);
   }
 
   // ---------- the pitch's news ----------
@@ -1543,6 +1561,7 @@ export class Pitch {
       // a resume of a match this page is not in (it cannot be, but be safe)
       this.room.resync();
     }
+    this.retryTogo();
     this.onMembers();
   }
 

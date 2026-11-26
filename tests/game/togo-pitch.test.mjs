@@ -229,6 +229,74 @@ browserTest(
   },
 );
 
+browserTest(
+  "both batons to go released at once: the one the pitch refused is thrown again, not lost",
+  async () => {
+    const code = makePitchCode();
+    const host = await join(code, "Happy Hazel");
+    const guest = await join(code, "Gentle Ginkgo", "portrait");
+    try {
+      await host.click("[data-test=join-A]");
+      await guest.click("[data-test=join-B]");
+      await waitFor(host, () =>
+        /Throw to go\s*On/.test(
+          document.querySelector(".lobby-options")?.textContent || "",
+        ),
+      );
+      await host.click("[data-test=lobby-start]");
+      await waitFor(guest, () => window.__kubb.pitch.state().mode === "match");
+      await inStep([host, guest]);
+      await myTogo(host);
+      await myTogo(guest);
+      // the host's commit is held back (as if still on the wire) while the guest's
+      // reaches the pitch first: both are for the same seq
+      await host.evaluate(() => {
+        const room = window.__kubb.pitch.room;
+        const act = room.act.bind(room);
+        window.__held = [];
+        window.__release = () => {
+          room.act = act;
+          for (const m of window.__held) act(m);
+        };
+        room.act = (m) => window.__held.push(m);
+      });
+      await throwOnce(host);
+      await waitFor(host, () => window.__held.length === 1);
+      const seq = await host.evaluate(() => window.__held[0].seq);
+      await throwOnce(guest);
+      await waitFor(guest, () => window.__kubb.pitch.state().docSeq >= 1);
+      assert.equal(
+        rooms.pitch(code).match.seq,
+        seq,
+        "the guest's took the seq",
+      );
+      // now the host's arrives late: refused, the pitch taken, the baton again
+      await host.evaluate(() => window.__release());
+      const flags = [];
+      for (const p of [host, guest]) {
+        await waitFor(
+          p,
+          () =>
+            /GOES FIRST|THROW AGAIN/.test(
+              document.querySelector("[data-test=flag]")?.textContent || "",
+            ),
+          null,
+          30000,
+        );
+        flags.push(await p.textContent("[data-test=flag]"));
+      }
+      assert.equal(flags[0], flags[1], "one verdict");
+      const [h] = await inStep([host, guest]);
+      assert.equal(h.docSeq, seq + 1, "both batons are in the match");
+      assert.deepEqual(host.errors, []);
+      assert.deepEqual(guest.errors, []);
+    } finally {
+      await host.context().close();
+      await guest.context().close();
+    }
+  },
+);
+
 // This page announces only `carries` from here on (an iPhone build that carries less).
 const only = (page, carries) =>
   page.evaluate((c) => {
