@@ -1858,6 +1858,30 @@ export class Game {
     return r;
   }
 
+  // This browser's baton to go again, as it was released (a pitch: both batons were
+  // released at once and the pitch took the other's commit first, so ours was refused
+  // and the pitch's state adopted). Applied only while the need still owes that side's
+  // baton in that round and this browser throws it; then committed as a new action.
+  // Returns whether it went in.
+  reapplyTogo(action) {
+    const n = this.need;
+    if (
+      this.mode !== "match" ||
+      action?.type !== "togo" ||
+      n?.kind !== "togo" ||
+      n.round !== action.round ||
+      !(n.owe || []).includes(action.side) ||
+      !this.mayAct({ ...n, side: action.side })
+    )
+      return false;
+    const r = this.engine.apply(action);
+    if (r.ok === false) return false;
+    this.emit(action);
+    if (r.recording) this.startPlayback(r.recording, true);
+    else this.enter(this.engine.view());
+    return true;
+  }
+
   // A resign carries the clock (`at`): the sender's UTC clock on the match's start's
   // basis (src/game/clock.js stampOn: the host's offset at the start, which the start
   // carries), so the length is right whoever resigns and wherever they are; a start

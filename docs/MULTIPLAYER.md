@@ -378,7 +378,12 @@ side, the room's host and who is connected now (`ctx.connected` is an array of i
   browser that has thrown, or has none to throw, shows "WAITING FOR <TEAM>" and nothing
   of a baton already in; the last baton's action brings the combined recording, played
   on every page, then the verdict ("MIGHTY MAPLE GOES FIRST", or "A TIE: THROW AGAIN" /
-  "BOTH HIT THE KING: THROW AGAIN" and the second round).
+  "BOTH HIT THE KING: THROW AGAIN" and the second round). Both sides release at once,
+  so both commits can be for the same seq: the pitch takes the first and refuses the
+  other (`refused`). The refused browser keeps its baton's action, takes the pitch's
+  state (`resync`), and, while the need still owes that side's baton in that round,
+  applies the same action again and commits it as the next seq. Its baton is not lost
+  and its player does not throw twice.
 - **The computer** is the host's browser's (`control.cpu`), and only its. The others hold
   the computer's throw until the action arrives.
 - The engine's control for a browser (`engine.setControl`) is its own team's side, plus
@@ -525,7 +530,9 @@ keep these the same, or the two disagree on screen:
   when the pitch is made and once into a pitch that lacks it before START, never on a
   1.0 room; the throw to go's control from `controlFor { ctx, me, need }`, "WAITING FOR
   <TEAM>" with nothing of the other baton shown, the recording played and the verdict
-  words after; raises as `{ type: "raise", kubb, which }`, a `not lying` refusal redrawn;
+  words after; a baton to go refused for its seq applied again and committed after
+  the resync; raises as `{ type: "raise", kubb, which }` (AUTO: `{ type: "raise",
+kubb }`, the end the engine's), a `not lying` refusal redrawn;
   `{ type: "punish", x, y, frame }`; `setView` with the player's own side. On a 1.0
   room none of these: the lobby rows come from the room engine, and the match is
   played as on 1.0.
