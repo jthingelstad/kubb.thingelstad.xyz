@@ -1,6 +1,7 @@
 // The feedback card (MENU, SEND FEEDBACK; docs/CLIENT.md "Reports"): first a choice, "A
-// throw looked wrong" (two answers, what happened and what should have happened, and the
-// pieces to mark) or "Something else" (one box, anything at all; Jamie, 2026-11-19), sent
+// throw looked wrong" (two answers, what happened and what should have happened) or
+// "Something else" (one box, anything at all; Jamie, 2026-11-19), either with a picture
+// of the pitch to paint on where it happened (src/ui/paint.js), sent
 // with the game as it stood when the card opened (src/net/report.js). While it is open the game is modal, as under the menu: no
 // input reaches the pitch and a throw being aimed here waits, but a throw already playing
 // back, the computer's turn and an unattended match (watching the computer) go on. The
@@ -13,6 +14,7 @@ import {
   reportReady,
   sendReport,
 } from "../net/report.js";
+import { PaintPad } from "./paint.js";
 
 export const REPORT_SENTENCE =
   "This sends what you typed with this game as it stands (its options, names and throws), so the throw can be played again and tested. It is kept privately and not published.";
@@ -31,70 +33,6 @@ const FAILURES = {
   closed: "The server could not be reached.",
   unavailable: "Feedback cannot be sent from here.",
 };
-
-// Both controls toggle the same piece. The list also reaches pieces whose
-// footprints overlap on the overhead pitch.
-function piecePicker(pieces, selected) {
-  if (!pieces.length) return null;
-  const map = h("div.report-pitch");
-  const list = h("div.report-piece-list");
-  const summary = h("summary", "Mark pieces");
-  const xs = pieces.map((p) => p.x),
-    ys = pieces.map((p) => p.y);
-  const left = Math.min(0, ...ys) - 0.6,
-    right = Math.max(8, ...ys) + 0.6;
-  const top = Math.min(-2.5, ...xs) - 0.5,
-    bottom = Math.max(2.5, ...xs) + 0.5;
-  const along = (y) => ((y - left) / (right - left)) * 100 + "%";
-  const across = (x) => ((x - top) / (bottom - top)) * 100 + "%";
-  map.append(
-    h("div.report-lines", {
-      style: {
-        left: along(0),
-        top: across(-2.5),
-        width: 800 / (right - left) + "%",
-        height: 500 / (bottom - top) + "%",
-      },
-    }),
-  );
-  for (const p of pieces) {
-    const number = p.id.startsWith(p.kind)
-      ? p.id.slice(p.kind.length)
-      : p.id.toUpperCase();
-    const label = [p.kind[0].toUpperCase() + p.kind.slice(1), number]
-      .filter(Boolean)
-      .join(" ");
-    const toggle = () => {
-      if (selected.has(p.id)) selected.delete(p.id);
-      else selected.add(p.id);
-      for (const el of [dot, item])
-        el.setAttribute("aria-pressed", String(selected.has(p.id)));
-      summary.textContent = selected.size
-        ? `Mark pieces (${selected.size})`
-        : "Mark pieces";
-    };
-    const attrs = {
-      type: "button",
-      "aria-label": label,
-      "aria-pressed": "false",
-      onclick: toggle,
-    };
-    const dot = h(
-      "button.report-dot",
-      {
-        ...attrs,
-        title: label,
-        "data-kind": p.kind,
-        style: { left: along(p.y), top: across(p.x) },
-      },
-      p.id.toUpperCase(),
-    );
-    const item = h("button.report-chip", attrs, label);
-    map.append(dot);
-    list.append(item);
-  }
-  return h("details.report-picker", summary, map, list);
-}
 
 // opts: { game, mode, config, pitch?, url, send? (for tests) }
 export function openReport(root, opts) {
@@ -148,13 +86,12 @@ export function openReport(root, opts) {
     "data-test": "report-status",
   });
   const actions = h("div.row");
-  const selected = new Set();
-  const picker = piecePicker(state.pickPieces, selected);
+  // the picture to paint on, in both kinds, whenever there is a pitch to show
+  const pad = state.pickPieces?.length ? new PaintPad(state.pickPieces) : null;
   const note = h("p.report-note");
   const throwPart = h(
     "div.report-part",
     { "data-kind": "throw" },
-    picker,
     happenedRow,
     shouldRow,
   );
@@ -202,6 +139,7 @@ export function openReport(root, opts) {
     kinds,
     throwPart,
     feedbackPart,
+    pad?.el,
     note,
     status,
     actions,
@@ -219,6 +157,7 @@ export function openReport(root, opts) {
     if (closed) return;
     closed = true;
     scrim.remove();
+    pad?.destroy();
     for (const el of quieted) el.inert = false;
     window.removeEventListener("keydown", esc);
     game.modal = Math.max(0, game.modal - 1);
@@ -236,20 +175,16 @@ export function openReport(root, opts) {
     );
   };
   const lock = (on) => {
-    if (picker) picker.inert = on;
+    if (pad) pad.disabled = on;
     kinds.disabled = on;
     for (const el of typing) el.disabled = on;
   };
   async function go() {
+    const paint = pad?.value() ?? null;
     const answers =
       kind === "throw"
-        ? {
-            kind,
-            happened: happened.value,
-            should: should.value,
-            selected: [...selected],
-          }
-        : { kind, text: feedback.value };
+        ? { kind, happened: happened.value, should: should.value, paint }
+        : { kind, text: feedback.value, paint };
     if (!reportReady(answers)) {
       status.textContent =
         kind === "throw"
@@ -291,6 +226,10 @@ export function openReport(root, opts) {
   const quieted = [...root.children].filter((el) => el !== scrim && !el.inert);
   for (const el of quieted) el.inert = true;
   window.addEventListener("keydown", esc);
-  requestAnimationFrame(() => firstField().focus({ preventScroll: true }));
+  pad?.fit();
+  requestAnimationFrame(() => {
+    pad?.fit();
+    firstField().focus({ preventScroll: true });
+  });
   return { close, state };
 }

@@ -24,6 +24,7 @@ import { startPitchServer } from "../../tools/pitch-dev.mjs";
 import { Engine } from "../../src/engine/index.js";
 import { bundleLua } from "../../tools/lua-bundle.mjs";
 import { replayReport } from "../../tools/reports.mjs";
+import { paintProblem } from "../../src/net/paint.js";
 import { browserMatch, replayBrowser } from "../../tools/games.mjs";
 
 // The local api's kept records under `prefix` ("reports/", "games/browser/"), oldest
@@ -2059,17 +2060,37 @@ browserTest(
         await page.textContent("[data-test=report-card]"),
         /kept privately and not published/,
       );
-      await page.click(".report-picker summary");
-      await page.locator('.report-dot[aria-label="King"]').click();
-      await page.locator('.report-chip[aria-label="Baton 1"]').click();
-      await page.locator('.report-chip[aria-label="King"]').click();
-      assert.equal(
-        await page
-          .locator('.report-dot[aria-label="King"]')
-          .getAttribute("aria-pressed"),
-        "false",
-      );
-      await page.locator('.report-chip[aria-label="Kubb B1"]').click();
+      // paint on the pitch picture: two strokes, UNDO, CLEAR, then one to send
+      const pad = page.locator("[data-test=report-paint]");
+      await pad.scrollIntoViewIfNeeded();
+      const scroller = () =>
+        page.evaluate(
+          () => document.querySelector("[data-test=report-card]").scrollTop,
+        );
+      const stroke = async (fx0, fy0, fx1, fy1) => {
+        const b = await pad.boundingBox();
+        await page.mouse.move(b.x + b.width * fx0, b.y + b.height * fy0);
+        await page.mouse.down();
+        for (let i = 1; i <= 8; i++)
+          await page.mouse.move(
+            b.x + b.width * (fx0 + ((fx1 - fx0) * i) / 8),
+            b.y + b.height * (fy0 + ((fy1 - fy0) * i) / 8),
+          );
+        await page.mouse.up();
+      };
+      const strokes = () =>
+        pad.getAttribute("data-strokes").then((n) => Number(n ?? 0));
+      const top = await scroller();
+      await stroke(0.3, 0.2, 0.6, 0.3);
+      await stroke(0.4, 0.6, 0.5, 0.7);
+      assert.equal(await scroller(), top, "painting does not scroll the card");
+      assert.equal(await strokes(), 2);
+      await page.click("[data-test=report-paint-undo]");
+      assert.equal(await strokes(), 1);
+      await page.click("[data-test=report-paint-clear]");
+      assert.equal(await strokes(), 0);
+      await stroke(0.35, 0.25, 0.65, 0.35);
+      assert.equal(await strokes(), 1);
       // the game holds: modal, and typing reaches the card, not the pitch
       const before = await page.evaluate(() => {
         const g = window.__kubb.game;
@@ -2121,10 +2142,10 @@ browserTest(
       const r = kept.report;
       assert.equal(r.mode, "solo");
       assert.equal(r.happened, "The baton went through the kubb. ÅÄÖ");
-      assert.deepEqual(r.selectedPieces.map((p) => p.id).sort(), [
-        "b1",
-        "baton1",
-      ]);
+      assert.equal(r.selectedPieces, undefined, "no longer sent");
+      assert.equal(r.paint.strokes.length, 1);
+      assert.ok(r.paint.strokes[0].length >= 2);
+      assert.equal(paintProblem(r.paint), null);
       assert.equal(r.should, "It should have knocked it down.");
       assert.equal(r.options.cpu.join(), "B");
       assert.ok(Number.isInteger(r.options.seed));

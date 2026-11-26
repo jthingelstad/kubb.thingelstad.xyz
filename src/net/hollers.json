@@ -1,0 +1,66 @@
+{
+  "groups": [
+    {
+      "id": "cheers",
+      "name": "Cheers",
+      "phrases": [
+        "NICE!",
+        "NICE STICK!",
+        "HOLY COW!",
+        "LIGHTS OUT!",
+        "YOU CAN DO IT!",
+        "NEXT ONE!"
+      ]
+    },
+    {
+      "id": "groans",
+      "name": "Groans",
+      "phrases": [
+        "OOH!",
+        "UNLUCKY",
+        "OH NO!",
+        "TICKLED IT!",
+        "KNOCKERHEAD!",
+        "SO CLOSE!"
+      ]
+    },
+    {
+      "id": "banter",
+      "name": "Banter",
+      "phrases": [
+        "SHORT PORCH!",
+        "WOOD ON WOOD!",
+        "CHERRY PICKED!",
+        "NO PRESSURE",
+        "WATCH THIS",
+        "TOO EASY"
+      ]
+    },
+    {
+      "id": "calls",
+      "name": "Calls",
+      "phrases": [
+        "TOK!",
+        "DOUBLE!",
+        "WOODPILE!",
+        "IN THE BASKET!",
+        "EIGHT METER!",
+        "KING SHOT!"
+      ]
+    }
+  ],
+  "emoji": [
+    "🎯",
+    "🔥",
+    "🎉",
+    "😮",
+    "😬",
+    "😅",
+    "😭",
+    "😏",
+    "😂",
+    "👀",
+    "👑",
+    "🪵"
+  ]
+}

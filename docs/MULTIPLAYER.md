@@ -8,7 +8,7 @@ the calls that are not live (replays, reels, shares, reports, records) are the a
 
 | File                              | What it does                                                                                          |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `src/net/pitch.js`                | `Pitch`, the controller: joins the pitch, runs the lobby, drives the Game, sends aim and shouts.      |
+| `src/net/pitch.js`                | `Pitch`, the controller: joins the pitch, runs the lobby, drives the Game, sends aim and hollers.     |
 | `src/net/pitch-client.js`         | `PitchClient`, the socket: join and resume, lobby writes, actions in flight, casts, reconnects.       |
 | `src/net/aim.js`                  | The aim on the wire: the sender's rate and the watcher's buffer, drawn 100 ms behind between samples. |
 | `src/net/api.js`                  | The HTTPS api's one call (`apiCall`), its address from the page's `kubb-config`.                      |
@@ -402,11 +402,19 @@ clears when they are back; RECONNECTING, a browser's own drop, comes first.
   then each is watched for half a second, 4 s at most (`src/game/lift.js` `liftPace`;
   0.7 s a kubb before web 0.17.0, when raises were not watched). The rest is the value
   from before the pitch server, and online play keeps it (the owner, 2026-11-21).
-- **Shouts**: SHOUT opens NICE!, OOH!, TOK!, UNLUCKY; each is a cast `{ t: "shout", w }`
-  with `all: true`, so the observer feed's thinning never drops it (at most one each
-  0.7 s from a browser) and shows for 2.6 s under the rail as the
-  sender's name and the word, on every screen including the sender's. Observers cannot
-  cast.
+- **HOLLER** (`src/ui/holler.js` over `src/net/hollers.js`): HOLLER under the rail
+  opens a panel of 24 phrases in four groups (CHEERS, GROANS, BANTER, CALLS, one group
+  at a time on a segmented bar) and 12 emoji; one tap on one sends it and closes the
+  panel. The panel stands where it covers neither the tray nor the meter
+  (`hollerPlace`, `hollerKeep`) and scrolls inside itself where it is short; Escape or
+  a press outside closes it. A phrase is the cast `{ t: "shout", w }`, an emoji
+  `{ t: "shout", e }` with no `w`, each with `all: true`, so the observer feed's
+  thinning never drops it (at most one each 0.7 s from a browser, spending the aim's
+  slot). It shows for 2.6 s under the rail as the sender's name and the phrase, or the
+  emoji drawn large, on every screen including the sender's. A receiver draws only an
+  exact member of the list and drops anything else without a word, so no text a player
+  could write ever reaches a screen. Observers cannot cast. The list is under "What the
+  iPhone app mirrors".
 
 ## The edges
 
@@ -418,7 +426,7 @@ clears when they are back; RECONNECTING, a browser's own drop, comes first.
 - **Observers** (`/p/<code>?observe=1`, WATCH on the open games list): join with
   `role: "observer"` under a member id of their own. They never take a side, the computer
   or the host (the server never makes one host), never write the document and cannot
-  cast, so they have no SHOUT; between matches they see their own card, not the lobby.
+  cast, so they have no HOLLER; between matches they see their own card, not the lobby.
   Listed under Watching like anyone on neither team. An observer arriving at a pitch with
   no player connected, or refused `no-pitch` (the pitch server keeps no pitch for the
   code), leaves at once and looks at the api's answer for the code (asked beside the
@@ -471,6 +479,24 @@ keep these the same, or the two disagree on screen:
   250 ms for its aim.
 - Pace: 0.8 s rest after a throw; an automatic raise's first kubb 0.4 s, then half a
   second a kubb, 4 s at most.
+- HOLLER: the list below, in this order, exactly (its one source is
+  `src/net/hollers.json`, read by the panel, the receiver and the tests; copy it from
+  there). A phrase is sent as the cast `{ "t": "shout", "w": "<phrase>" }`, an emoji as
+  `{ "t": "shout", "e": "<emoji>" }` with no `w`, with `all: true`, at most one each
+  0.7 s, spending the aim's slot. A receiver shows a `w` only when it is exactly one of
+  the 24 phrases and an `e` only when it is exactly one of the 12 emoji, and drops
+  anything else silently: never draw text that is not on the list. Observers send none.
+  An app on an older list (the iPhone's App Store 1.0.0 knows only NICE!, OOH!, TOK!
+  and UNLUCKY) shows nothing for the others.
+
+  | Group  | Phrases                                                                                    |
+  | ------ | ------------------------------------------------------------------------------------------ |
+  | Cheers | `NICE!`, `NICE STICK!`, `HOLY COW!`, `LIGHTS OUT!`, `YOU CAN DO IT!`, `NEXT ONE!`          |
+  | Groans | `OOH!`, `UNLUCKY`, `OH NO!`, `TICKLED IT!`, `KNOCKERHEAD!`, `SO CLOSE!`                    |
+  | Banter | `SHORT PORCH!`, `WOOD ON WOOD!`, `CHERRY PICKED!`, `NO PRESSURE`, `WATCH THIS`, `TOO EASY` |
+  | Calls  | `TOK!`, `DOUBLE!`, `WOODPILE!`, `IN THE BASKET!`, `EIGHT METER!`, `KING SHOT!`             |
+
+  Emoji: 🎯 🔥 🎉 😮 😬 😅 😭 😏 😂 👀 👑 🪵
 
 ## Tests
 

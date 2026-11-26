@@ -44,7 +44,7 @@ An observer:
 - never becomes host (the host runs the computer and keeps the open listing): the pitch
   server hands the host only to players, so an observer has nothing to do about it. When
   only observers are left on a pitch it has no host until a player comes back;
-- has no SHOUT and sends no aim: the server takes no cast from an observer. It still
+- has no HOLLER and sends no aim: the server takes no cast from an observer. It still
   hears every cast, thinned to about 10 a second except each release's frame;
 - sees the hand-off card (the 1.0 design's short card: a title, one line, one go
   button) with the team's name, never "Your turn": "North’s turn", the line of what

@@ -62,7 +62,7 @@ options card, as `?solo=1`. The HOW TO THROW overlay
 | `src/game/neighbours.js`, `src/engine/neighbours-worker.js`, `src/engine/neighbours-host.js` | The Tournament's live neighbours: the page's half (when, the clock, the model, `playRecording`, the people, the turn) and the worker running a second engine (docs/SCENES.md "The Tournament's live neighbours").                                            |
 | `src/game/rulings.js`                                                                        | The flag after a throw, with a Kid match's rulings in their own words.                                                                                                                                                                                       |
 | `src/game/free-camera.js`                                                                    | `FreeCamera`: the mouse, fingers, wheel and keys that move the free camera (docs/OBSERVER.md).                                                                                                                                                               |
-| `src/net/pitch.js`                                                                           | `Pitch`: the shared pitch's controller: joins the pitch, runs the lobby, drives the Game through the seam, aim casts, shouts.                                                                                                                                |
+| `src/net/pitch.js`                                                                           | `Pitch`: the shared pitch's controller: joins the pitch, runs the lobby, drives the Game through the seam, aim casts, hollers.                                                                                                                               |
 | `src/net/lobby.js`, `seats.js`, `sync.js`                                                    | Thin wrappers over kubb-engine's `pitch.*` rules; cached seat/actor reads keep these calls out of the render loop (docs/MULTIPLAYER.md).                                                                                                                     |
 | `src/net/pitch-client.js`, `src/net/aim.js`                                                  | The pitch server's client (`backend/pitch-server/PROTOCOL.md`) and the aim on the wire (docs/MULTIPLAYER.md).                                                                                                                                                |
 | `src/net/api.js`                                                                             | `apiCall`: the HTTPS api (`backend/api/API.md`) that replays, reels, shares, reports and records go through.                                                                                                                                                 |
@@ -395,8 +395,8 @@ strongly prefers the circle, so the dial stays and stays the default.
   gives it at least 265 pt, over its 260. The other numbers are the iPhone app's
   (`WideLayout`, `LinearMeter.layout`). Where the box comes up into the header row, the plates at that
   top corner move in beside it, `tune.meterGap` (10 px) off its body: MENU, the practice
-  tray or the view tray, SKIP and the update note at the right, the rail, the shout bar
-  and the shouts at the left
+  tray or the view tray, SKIP and the update note at the right, the rail, HOLLER
+  and the hollers at the left
   (`meterRoom`; the game sets `--meter-r` and `--meter-l` for `game.css`; nothing moves in
   the wide view, which draws no meter). The tray, the coach line and the nudge go as
   below.
@@ -525,8 +525,8 @@ top on its inner side. It never lies across the minimap (web 1.0.0, a QA note: o
 upright phone with the clock the ARC caption did): where the two share a band it stops 8
 px short of the minimap and wraps, and beside a plate, where that would leave it under
 its 160 px floor (a phone on its side), it starts under the minimap instead (`hud.js`
-`showCaption`, `clearOfMap`; "the plan keeps clear" holds it in every layout). The iPhone's caption strip beside SHOUT has no web counterpart. On
-a short screen only the newest shout shows.
+`showCaption`, `clearOfMap`; "the plan keeps clear" holds it in every layout). The iPhone's caption strip beside HOLLER has no web counterpart. On
+a short screen only the newest holler shows.
 
 **The nudge** (2026-11-19). Jamie: "A couple of users have had a lot of confusion on how
 to throw. It would be awesome if we see the user not making progress on a throw to
@@ -1074,7 +1074,7 @@ data, ... })` fetches a replay by its pitch code and plays it. It needs nothing 
   `watchView`), SHEET, and BACK TO THE PITCH where there is a pitch to go back to. Space
   plays and pauses. The score sheet stands beside the pitch from 900 px wide and opens
   over it below that; on a phone the bar spans the width. The status pill names who acts
-  (COMPUTER THROWS, HANNA THROWS, TEAM B RAISES); the shout bar and advice are hidden.
+  (COMPUTER THROWS, HANNA THROWS, TEAM B RAISES); HOLLER and advice are hidden.
 - **The end.** The winner card with REPLAY AGAIN (the lead), SCORE SHEET, BACK TO THE
   PITCH and HOME. A replay that differs, or that did not end on the result, shows the
   match's own last snapshot instead, with "This replay may differ from the match as
@@ -1343,15 +1343,15 @@ keys move between them): "A throw looked wrong" and "Something else". The first 
 when this game has a last throw to report (`state.lastThrow`), otherwise the second.
 
 - **A throw looked wrong**: "What happened?" and "What should have happened?" (1000
-  characters each; SEND with both blank asks for one), the pieces to mark, and the
+  characters each; SEND with both blank asks for one), the pitch picture to paint on, and the
   sentence "This sends what you typed with this game as it stands (its options, names and
   throws), so the throw can be played again and tested. It is kept privately and not
-  published." Sent as `kind: "throw"` with `happened`, `should` and `selectedPieces`.
+  published." Sent as `kind: "throw"` with `happened`, `should` and `paint`.
 - **Something else**: "What would you like to tell us?" with "A problem, an idea,
   something you liked or did not. Anything." under it, one box of 2000 characters (SEND
   with it blank asks for it), and the same sentence without "so the throw can be played
   again and tested". Sent as `kind: "feedback"` with `text` (trimmed) and neither answer;
-  the game context goes with it just the same.
+  the game context goes with it just the same, and `paint` when there is a picture.
 
 What was typed in the other kind stays in its box while the player switches, but only the
 chosen kind is sent. SEND and CANCEL (Escape cancels). SEND shows "Sending...", then
@@ -1359,7 +1359,21 @@ chosen kind is sent. SEND and CANCEL (Escape cancels). SEND shows "Sending...", 
 was not sent." for the other kind) with the reason, and what was typed stays to send
 again. There is no contact field and no reply.
 
-The throw report can mark several pieces on an overhead pitch or by name. The picker uses the last throw’s rest poses, including the baton after a handoff. The report keeps the marked IDs and poses even when the full piece list is dropped to fit.
+**The paint** (`src/ui/paint.js` over `src/net/paint.js`). Whenever the game has a pitch,
+both kinds show it from above, under "If it helps, paint where it happened on the pitch."
+(optional): the lines and stakes, the king and every kubb and baton at its real place and
+size, standing ones solid with a ring and lying ones paler, drawn from the last throw's
+rest (the baton included, after a hand-off) or else the pitch as it stands. It is upright
+(the far baseline at the top) or turned on its side, whichever draws it bigger in the
+card. A finger or the mouse paints on it with a translucent brush (13 px at the size it
+was first drawn, held in metres after that); UNDO takes the last stroke off and CLEAR all
+of them. Painting never scrolls the card (`touch-action: none` and the touch's default
+held on the picture only); scrolling outside it still works. Sent as `paint`, in the
+report's own frame and metres (backend/api/API.md "report"), at most 32 strokes and 800
+points; past that it says "That is as much paint as one report can carry." No piece is
+picked any more, so new clients send no `selectedPieces` (older ones still may). The paint
+is never cut to fit. `npm run reports:show` prints the pieces under the paint and a text
+map of the pitch with it.
 For a long practice session, a trimmed throw report keeps an opaque checkpoint
 of the pitch before the reported throw. The report reader restores it and applies
 the last throw, including collisions with previously thrown wood.
@@ -1428,7 +1442,7 @@ played through the same action path.
 
 ## Version and freshness
 
-Two versions: the web game's own (`version` in `package.json`, 1.3.0) and the version of
+Two versions: the web game's own (`version` in `package.json`, 1.4.0) and the version of
 each kubb-engine it vendors (`vendor/engine/engine.json`, and `vendor/engines/<mm>/` for
 the older ones it still plays, none today; read in Lua as `engineVersion`).
 The game file's "Scored by" is "Throwing Wood web <web version>" (`setClient`); records,

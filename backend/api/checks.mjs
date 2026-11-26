@@ -3,6 +3,7 @@
 // rules, moved here unchanged when it was retired on 2026-11-21). Pure: no AWS. The contract is backend/api/API.md.
 
 import { createHash } from "node:crypto";
+import { PAINT_LIMITS, paintProblem } from "../../src/net/paint.js";
 
 export const LIMITS = Object.freeze({
   bodyBytes: 300 * 1024, // a whole request body from a player (not a push)
@@ -26,6 +27,7 @@ export const LIMITS = Object.freeze({
   shareStartBytes: 16 * 1024, // a share's first snapshot
   sharesPerDay: 200, // shares checked a day, all devices together (UTC days)
   shareWaitMs: 20_000, // how long the function waits for the renderer's check
+  paint: PAINT_LIMITS, // a report's optional `paint` (src/net/paint.js, the one source)
 });
 
 // Pitch codes are made by the client: 8 to 24 characters with no 0, 1, i, l or o.
@@ -103,7 +105,9 @@ function checkTags(x) {
       );
 }
 
-// A report: { r: { kind?, mode, happened?, should?, text?, pitch?, client?, engine?, ... } }.
+// A report: { r: { kind?, mode, happened?, should?, text?, paint?, pitch?, client?, engine?, ... } }.
+// `paint`, where the player painted on the picture of the pitch, is held to its shape
+// and limits (src/net/paint.js); `selectedPieces` from older clients passes as it is.
 // `bytes` is the request body's size. Returns the report to keep, with its `kind` set.
 export function checkReport(msg, bytes, limits = LIMITS) {
   if (bytes > limits.reportBytes)
@@ -143,6 +147,10 @@ export function checkReport(msg, bytes, limits = LIMITS) {
     if (r[k] !== undefined && r[k] !== null)
       if (typeof r[k] !== "string" || !PITCH_CODE.test(r[k]))
         fail("bad-pitch", "That is not a pitch code.");
+  if (r.paint !== undefined && r.paint !== null) {
+    const why = paintProblem(r.paint, limits.paint ?? PAINT_LIMITS);
+    if (why) fail("bad-message", why);
+  }
   checkTags(r);
   return { ...r, kind };
 }

@@ -52,6 +52,8 @@ import { WatchCard } from "../ui/watching.js";
 import { WatchView } from "../ui/watch-view.js";
 import { prefs } from "../game/prefs.js";
 import { h, button } from "../ui/dom.js";
+import { HollerBar } from "../ui/holler.js";
+import { hollerOf, hollerCast } from "./hollers.js";
 import {
   NAMES_REPLAY,
   ReplayPlayer,
@@ -85,8 +87,6 @@ export const tune = {
   stuckMs: 8000, // still not connected after this: say so
   watchNoteMs: 7000,
 };
-
-export const SHOUTS = ["NICE!", "OOH!", "TOK!", "UNLUCKY"];
 
 // The seat of a browser that may not play (watching, or an engine the match's is not).
 const NO_CONTROL = Object.freeze({ sides: [], cpu: false });
@@ -565,7 +565,7 @@ export class Pitch {
   async showSealed({ join = false } = {}) {
     this.mode = "sealed";
     this.sealedJoin = join;
-    if (this.shoutBar) this.shoutBar.hidden = true;
+    this.holler?.hide(true);
     const r = await fetchReplay({
       ...this.apiOpts(),
       code: this.code,
@@ -1721,7 +1721,7 @@ export class Pitch {
   }
 
   afterEnter() {
-    this.shoutBar.hidden = this.observe;
+    this.holler.hide(this.observe);
     this.aimOut.reset();
   }
 
@@ -1795,7 +1795,7 @@ export class Pitch {
     this.game.useEngine(this.newestEngine);
     const o = optionsOf(this.room.doc);
     this.game.newPractice({ surface: o.surface, scene: sceneId(o.scene) });
-    this.shoutBar.hidden = true;
+    this.holler.hide(true);
     this.syncView();
     this.lobby.show();
     this.renderLobby();
@@ -1955,7 +1955,7 @@ export class Pitch {
     this.lobby?.hide();
     this.cards.close();
     this.cards.clearPanel?.();
-    this.shoutBar.hidden = true;
+    this.holler.hide(true);
     this.syncView();
     this.replay = new ReplayPlayer({
       game: this.game,
@@ -2059,7 +2059,7 @@ export class Pitch {
     if (from === "match") {
       // back where the match was (the snapshot the Game held is the engine's now: the
       // replay played on it), then the pitch as it is now
-      this.shoutBar.hidden = this.observe;
+      this.holler.hide(this.observe);
       this.syncView();
       if (this.overSnap) this.adoptSnap(this.overSnap);
       this.catchUp(true);
@@ -2188,8 +2188,11 @@ export class Pitch {
     const d = e.d;
     if (!d || typeof d !== "object") return;
     if (d.t === "aim" && this.mode === "match") this.aimIn.push(e, Date.now());
-    else if (d.t === "shout" && SHOUTS.includes(d.w))
-      this.showShout(e.from, d.w);
+    else if (d.t === "shout") {
+      // only a phrase or emoji on the list is drawn; anything else is dropped
+      const said = hollerOf(d);
+      if (said) this.showShout(e.from, said);
+    }
   }
 
   // Someone else's aim for this frame (Game.remoteFeed): drawn about 100 ms behind,
@@ -2273,49 +2276,39 @@ export class Pitch {
     else this.view.off();
   }
 
-  // ---------- the HUD: connection, shouts ----------
+  // ---------- the HUD: connection, HOLLER ----------
 
   buildHud() {
     this.net = h("div.hud.net", { "data-test": "net", hidden: true });
     this.shouts = h("ul.shouts", { "aria-live": "polite" });
-    const opts = h(
-      "div.shout-opts",
-      { hidden: true },
-      SHOUTS.map((w) =>
-        button(w, () => this.shout(w), "small", { "data-shout": w }),
-      ),
-    );
-    const toggle = button(
-      "SHOUT",
-      () => {
-        opts.hidden = !opts.hidden;
-        toggle.setAttribute("aria-expanded", String(!opts.hidden));
-      },
-      "small",
-      { "aria-expanded": "false", "data-test": "shout" },
-    );
-    this.shoutOpts = opts;
-    this.shoutBar = h("div.shout-bar", { hidden: true }, toggle, opts);
-    this.ui.append(this.net, this.shoutBar, this.shouts);
+    this.holler = new HollerBar({
+      ui: this.ui,
+      layout: () => this.game.L,
+      send: (item) => this.shout(item),
+    });
+    this.ui.append(this.net, this.holler.bar, this.holler.panel, this.shouts);
   }
 
-  shout(w) {
+  // item: { phrase } or { emoji } from src/net/hollers.json
+  shout(item) {
     const now = Date.now();
-    this.shoutOpts.hidden = true;
     if (now - this.lastShout < tune.shoutGapMs) return;
+    if (this.observe || !this.room) return;
     this.lastShout = now;
     this.aimOut.spend(performance.now());
-    // all: a shout is never thinned from the observer feed as an aim sample can be
-    this.room.cast({ t: "shout", w }, true);
-    this.showShout(this.you, w);
+    // all: a holler is never thinned from the observer feed as an aim sample can be
+    this.room.cast(hollerCast(item), true);
+    this.showShout(this.you, item);
   }
 
-  showShout(from, w) {
+  showShout(from, { phrase, emoji }) {
     const li = h(
       "li.shout",
-      { "data-from": from },
+      { "data-from": from, ...(emoji ? { "data-emoji": "" } : {}) },
       h("span.shout-name", this.nameOf(from)),
-      h("span.shout-word", w),
+      emoji
+        ? h("span.shout-emoji", { role: "img", "aria-label": emoji }, emoji)
+        : h("span.shout-word", phrase),
     );
     this.shouts.append(li);
     while (this.shouts.children.length > 4) this.shouts.firstChild.remove();

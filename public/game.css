@@ -1604,70 +1604,37 @@ body.game {
   margin: 0;
   font-size: 14px;
 }
-.report-picker {
-  margin-block: 8px;
+/* the picture of the pitch to paint on (src/ui/paint.js): it takes its own touches,
+   so painting never scrolls the card; the card scrolls from anywhere else */
+.report-paint {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
 }
-.report-picker summary {
-  cursor: pointer;
-  font-weight: 700;
-  padding: 8px 0;
+.report-paint-frame {
+  display: flex;
+  justify-content: center;
 }
-.report-pitch {
-  position: relative;
-  aspect-ratio: 8 / 4.5;
-  background: #55744f;
-  border: 2px solid var(--ink);
-  margin: 5px 0 10px;
-  border-radius: 4px;
+.report-paint-canvas {
+  display: block;
+  max-width: 100%;
+  border: 3px solid var(--ink);
+  border-radius: var(--radius-control);
+  touch-action: none;
+  cursor: crosshair;
 }
-.report-lines {
-  position: absolute;
-  border: 1px solid white;
-  background: linear-gradient(
-    to right,
-    transparent 49.8%,
-    white 50%,
-    transparent 50.2%
-  );
-}
-.report-dot,
-.report-chip {
-  cursor: pointer;
-  color: var(--ink);
-  background: var(--paper);
-  border: 1px solid var(--ink);
-  font-weight: 700;
-  border-radius: 3px;
-}
-.report-dot {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  font-size: 14px;
-  padding: 3px;
-  min-width: 18px;
-  z-index: 1;
-}
-.report-dot[data-kind="stake"] {
-  font-size: 0;
-  min-width: 8px;
-  width: 8px;
-  height: 8px;
-  padding: 0;
-  border-radius: 50%;
-  z-index: auto;
-}
-.report-piece-list {
+.report-paint-tools {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
 }
-.report-chip {
-  padding: 5px 7px;
+.report-paint-full {
+  margin: 0;
+  font-size: 14px;
 }
-.report-picker [aria-pressed="true"] {
-  background: #ffc848;
-  outline: 2px solid var(--ink);
-  z-index: 2;
+.report-paint.is-locked {
+  opacity: 0.6;
 }
 .report-field {
   display: grid;
@@ -2220,10 +2187,101 @@ body.game {
   gap: 6px;
   max-width: calc(100% - 24px - var(--meter-l) - var(--meter-r));
 }
-.shout-opts {
+/* HOLLER's panel (src/ui/holler.js): placed by the script clear of the tray and
+   the meter, scrolling inside itself where the room is short. The phrases one
+   group at a time under a segmented bar, the emoji in their own grid: under the
+   phrases when narrow, beside them when wide. */
+.holler-panel {
+  position: absolute;
+  z-index: 6;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 10px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: var(--line) solid var(--ink);
+  border-radius: var(--radius-card, 8px);
+  background: var(--paper);
+  box-shadow: 5px 5px 0 var(--ink);
+}
+.holler-panel[hidden] {
+  display: none;
+}
+.holler-panel.wide {
+  grid-template-columns: minmax(0, 1fr) 156px;
+  align-items: start;
+}
+.holler-words {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.holler-tabs {
   display: flex;
-  flex-wrap: wrap;
+  width: 100%;
+}
+.holler-tab.seg-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 4px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+.holler-tab[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+}
+.holler-phrases {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
   gap: 6px;
+}
+.holler-emoji {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 4px;
+}
+.holler-btn {
+  appearance: none;
+  min-height: 44px;
+  margin: 0;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-control);
+  background: var(--field);
+  color: var(--ink);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.holler-btn:active {
+  transform: translate(2px, 2px);
+}
+.holler-w {
+  padding: 4px 6px;
+  border-left-width: 6px;
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 16px;
+  line-height: 1.05;
+  text-align: left;
+}
+/* each group its own edge colour, so a glance tells them apart */
+.holler-w[data-group="cheers"] {
+  border-left-color: #2f8f4e;
+}
+.holler-w[data-group="groans"] {
+  border-left-color: #3a6fb0;
+}
+.holler-w[data-group="banter"] {
+  border-left-color: var(--violet);
+}
+.holler-w[data-group="calls"] {
+  border-left-color: var(--power);
+}
+.holler-e {
+  padding: 0;
+  font-size: 26px;
+  line-height: 1;
 }
 .shouts {
   position: absolute;
@@ -2255,6 +2313,18 @@ body.game {
   font-family: var(--display);
   font-weight: 900;
   font-size: 20px;
+}
+/* a received emoji: clearly bigger than a phrase beside the name */
+.shout-emoji {
+  display: inline-block;
+  font-size: 40px;
+  line-height: 1;
+  vertical-align: middle;
+}
+.shout[data-emoji] {
+  display: flex;
+  align-items: center;
+  padding: 2px 10px;
 }
 @keyframes shout-in {
   from {
@@ -2344,7 +2414,8 @@ body.game {
 }
 /* the advantage line and the shouts give the bottom to the replay */
 .replaying .adv,
-.replaying .shout-bar {
+.replaying .shout-bar,
+.replaying .holler-panel {
   display: none;
 }
 .teams-line {

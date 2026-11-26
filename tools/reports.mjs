@@ -22,6 +22,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseRecord, openGamesBucket } from "./games.mjs";
+import {
+  paintMap,
+  paintProblem,
+  pieceName,
+  piecesUnder,
+} from "../src/net/paint.js";
 
 const PREFIX = "reports/";
 const KEY = /^(\d{4}-\d{2}-\d{2})\/(\d{13}-[2-9a-hjkmnp-z]{4,16}\.json\.gz)$/;
@@ -63,6 +69,7 @@ export function describeReport(obj, file = "") {
         .map((p) => `${p.kind} ${p.id} (${p.x}, ${p.y})`)
         .join(", "),
     );
+  lines.push(...describePaint(r));
   const n = r.need ?? {};
   const turn =
     n.turn !== undefined ? `turn ${n.turn}, throw ${n.throws ?? "?"}` : "";
@@ -87,6 +94,36 @@ export function describeReport(obj, file = "") {
     `  Build: ${r.build?.label ?? r.build?.version ?? "?"} ${String(r.build?.commit ?? "?").slice(0, 10)}, ${r.build?.lua ?? "?"}, ${typeof r.engine === "string" ? `engine ${r.engine}` : `core ${String(r.build?.core ?? "?").slice(0, 10)}`}; ${r.viewport?.w ?? "?"}x${r.viewport?.h ?? "?"}`,
   );
   return lines;
+}
+
+// The paint on a report (src/net/paint.js) as lines: the strokes, the pieces under it
+// and a text map of the pitch with the painted ground.
+export function describePaint(r) {
+  const paint = r?.paint;
+  if (paint === undefined || paint === null) return [];
+  if (paintProblem(paint)) return ["  Paint: not readable"];
+  const points = paint.strokes.reduce((n, s) => n + s.length, 0);
+  const out = [
+    `  Paint: ${paint.strokes.length} stroke${paint.strokes.length === 1 ? "" : "s"}, ${points} points, brush ${paint.brush} m`,
+  ];
+  const pieces = Array.isArray(r.pieces) ? r.pieces : null;
+  if (!pieces) {
+    out.push("  Under the paint: the pieces were dropped to fit");
+    return out;
+  }
+  const under = piecesUnder(pieces, paint);
+  out.push(
+    `  Under the paint: ${under.length ? under.map(pieceName).join(", ") : "no piece"}`,
+  );
+  if (r.lastThrow)
+    out.push(
+      "  (Painted on the last throw's rest. These are the pieces as they stood when the card opened: the same unless the turn had moved on.)",
+    );
+  out.push(
+    "  Map (far baseline at the top; # paint, K king, A/B kubbs, lower case down, / baton):",
+  );
+  for (const l of paintMap(pieces, paint)) out.push(`    ${l}`);
+  return out;
 }
 
 function piecesNow(engine) {
