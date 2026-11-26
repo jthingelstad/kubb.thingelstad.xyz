@@ -41,8 +41,16 @@ whole contract: nothing here needs the retired `docs/ROOMS.md`.
 `r` as the clients build it (`src/net/report.js`): `kind` (`"throw"`, the default, or
 `"feedback"`), `mode` (`practice`, `solo`, `watch`, `pitch`), `happened` and `should`
 (throw: text, 1000 characters each, at least one not blank) or `text` (feedback: 2000
-characters after trimming), optional `pitch` (a code), `client`, `engine`, and the game
-as it stood. At most 64 KB. Answer `{ "ok": true }`. Kept gzipped under
+characters after trimming), optional `pitch` (a code), `client`, `engine`, optional `paint`, and the game
+as it stood. At most 64 KB.
+
+`paint` (either kind, optional) is where the player painted on a picture of the pitch, in
+the same frame and units as the report's `pieces` (the thrower's view frame, metres: x
+across, y along the pitch): `{ "brush": <radius in metres>, "strokes": [ [ [x, y], ... ],
+... ] }`. Numbers to 2 decimals; `brush` 0.05 to 1; at most 32 strokes and 800 points in
+all, each stroke at least one point; x from -6 to 6 and y from -4 to 12. A `paint` out of
+that shape is `400 bad-message`. New clients no longer send `selectedPieces` (pieces
+marked by name); one from an older client is still accepted as it is. Answer `{ "ok": true }`. Kept gzipped under
 `reports/<yyyy-mm-dd>/` in the private games bucket, for good.
 
 ### game

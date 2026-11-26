@@ -196,6 +196,67 @@ test("a report with no kind is a throw report, kept with kind throw (older clien
   for (const k of all) assert.equal(JSON.parse(k.text).report.kind, "throw");
 });
 
+test("a report's paint: kept when it is in shape, refused when it is not; older marked pieces still pass", async () => {
+  const h = harness();
+  const paint = {
+    brush: 0.25,
+    strokes: [
+      [
+        [0, 4],
+        [0.5, 4.25],
+      ],
+      [[-1.2, 6.03]],
+    ],
+  };
+  assert.deepEqual((await h.post(minimal({ paint }))).json, { ok: true });
+  assert.deepEqual(JSON.parse(h.kept()[0].text).report.paint, paint);
+  h.tick(1);
+  assert.deepEqual(
+    (await h.post(feedback({ paint, selectedPieces: [{ id: "king" }] }))).json,
+    { ok: true },
+    "feedback may carry it too, beside an older client's pieces",
+  );
+  const bad = async (p, why) => {
+    const res = await h.post(minimal({ paint: p }));
+    assert.equal(res.status, 400, why);
+    assert.equal(res.json.error, "bad-message", why);
+  };
+  const pts = (n) => Array.from({ length: n }, (_, i) => [0, (i % 100) / 10]);
+  await bad([], "not an object");
+  await bad({ brush: 0.25 }, "no strokes");
+  await bad({ brush: 0.25, strokes: [] }, "no stroke");
+  await bad({ brush: 0.25, strokes: [[]] }, "an empty stroke");
+  await bad({ brush: 0.04, strokes: [[[0, 4]]] }, "brush too small");
+  await bad({ brush: 1.01, strokes: [[[0, 4]]] }, "brush too big");
+  await bad({ brush: "0.2", strokes: [[[0, 4]]] }, "brush not a number");
+  await bad({ brush: 0.25, strokes: [[[6.01, 4]]] }, "x past 6");
+  await bad({ brush: 0.25, strokes: [[[0, -4.01]]] }, "y under -4");
+  await bad({ brush: 0.25, strokes: [[[0, 12.5]]] }, "y past 12");
+  await bad({ brush: 0.25, strokes: [[[0.123, 4]]] }, "3 decimals");
+  await bad({ brush: 0.25, strokes: [[[0, 4, 1]]] }, "three numbers");
+  await bad({ brush: 0.25, strokes: [[["0", 4]]] }, "text for a number");
+  await bad(
+    { brush: 0.25, strokes: Array.from({ length: 33 }, () => [[0, 4]]) },
+    "33 strokes",
+  );
+  await bad({ brush: 0.25, strokes: [pts(400), pts(401)] }, "801 points");
+  assert.deepEqual(
+    (
+      await h.post(
+        minimal({
+          paint: {
+            brush: 1,
+            strokes: [pts(400), pts(400)],
+          },
+        }),
+      )
+    ).json,
+    { ok: true },
+    "800 points is the most",
+  );
+  assert.equal(h.kept().length, 3, "nothing refused is kept");
+});
+
 test("feedback about anything: one text, kept with its kind and the game context", async () => {
   const h = harness();
   const res = await h.post(
@@ -516,17 +577,30 @@ test("answers are clipped, and a report too big drops history, then pieces, neve
   );
   assert.deepEqual(small.r.dropped, ["history", "pieces"]);
   assert.equal(small.r.pieces, null);
+  const paint = {
+    brush: 0.25,
+    strokes: [
+      [
+        [0, 4],
+        [0.4, 4.2],
+      ],
+    ],
+  };
   const marked = reportMessage(
     state,
-    { happened: "h", selected: ["king", "unknown", "king"] },
+    { happened: "h", paint, selected: ["king"] },
     { limits: { ...REPORT_LIMITS, bytes } },
   );
   assert.equal(marked.r.pieces, null);
-  assert.deepEqual(
-    marked.r.selectedPieces.map((p) => p.id),
-    ["king"],
-  );
+  assert.deepEqual(marked.r.paint, paint, "the paint is kept when pieces go");
+  assert.equal(marked.r.selectedPieces, undefined, "no longer sent");
   assert.equal(marked.r.pickPieces, undefined);
+  const tinyPaint = reportMessage(
+    state,
+    { happened: "h", paint },
+    { limits: { ...REPORT_LIMITS, bytes: 10 } },
+  );
+  assert.deepEqual(tinyPaint.r.paint, paint, "never cut");
   const tiny = reportMessage(
     state,
     { happened: "h", should: "s" },
@@ -749,11 +823,14 @@ test("practice: options and every step replay to the pieces the browser had", as
   r.practice.ops.unshift(
     ...Array(3000).fill({ type: "surface", surface: "sand" }),
   );
-  const compact = reportMessage(r, { happened: "stuck", selected: ["king"] });
+  const compact = reportMessage(r, {
+    happened: "stuck",
+    paint: { brush: 0.3, strokes: [[[0.123, 4.567]]] },
+  });
   assert.ok(asciiJson(compact).length <= REPORT_LIMITS.bytes);
   assert.equal(compact.r.practice.ops, null);
   assert.equal(typeof compact.r.practice.before, "string");
-  assert.equal(compact.r.selectedPieces[0].id, "king");
+  assert.deepEqual(compact.r.paint, { brush: 0.3, strokes: [[[0.12, 4.57]]] });
   assert.equal(replayReport(fresh, compact.r).kind, "practice");
   assert.deepEqual(fresh.recording(), original);
 });

@@ -300,15 +300,48 @@ browserTest("two browsers on opposite teams play the same throws", async () => {
   assert.equal(await late.locator("[data-test=lobby]").count(), 0);
   assert.deepEqual(late.errors, []);
 
-  // a shout reaches the others
+  // a holler reaches the others: a phrase from the Calls group, then an emoji
+  assert.equal(await guest.textContent("[data-test=shout]"), "HOLLER");
   await guest.click("[data-test=shout]");
+  await guest.click(".holler-tab[data-group=calls]");
   await guest.click("[data-shout='TOK!']");
+  assert.equal(
+    await guest.locator("[data-test=holler-panel]").isVisible(),
+    false,
+    "one tap sends and closes",
+  );
   await waitFor(host, () =>
     [...document.querySelectorAll(".shout")].some(
       (e) =>
         e.textContent.includes("Gentle Ginkgo") &&
         e.textContent.includes("TOK!"),
     ),
+  );
+  await guest.waitForTimeout(750); // the gap between one browser's hollers
+  await guest.click("[data-test=shout]");
+  await guest.click("[data-shout-e='🪵']");
+  await waitFor(host, () =>
+    [...document.querySelectorAll(".shout[data-emoji]")].some((e) =>
+      e.textContent.includes("🪵"),
+    ),
+  );
+  // a cast that is not on the list is never drawn
+  const drawn = await host.locator(".shout").count();
+  await guest.evaluate(() => {
+    const room = window.__kubb.pitch.room;
+    room.cast({ t: "shout", w: "ANYTHING I LIKE" }, true);
+    room.cast({ t: "shout", e: "💩" }, true);
+  });
+  await host.waitForTimeout(400);
+  assert.ok((await host.locator(".shout").count()) <= drawn);
+  assert.equal(
+    await host.evaluate(() =>
+      [...document.querySelectorAll(".shout")].some(
+        (e) =>
+          e.textContent.includes("ANYTHING") || e.textContent.includes("💩"),
+      ),
+    ),
+    false,
   );
 
   // the guest's connection drops: it comes back and is still in step

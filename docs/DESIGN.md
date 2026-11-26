@@ -148,8 +148,8 @@ recording back; the session supplies the camera for any shown time.
 - **Being there.** While someone aims, their browser sends their aim a few times a
   second (target circle, stance, plan, the arm on the dial), and everyone else sees the
   pitch through the thrower's camera with the circle moving and the arm winding: the
-  Playdate's WATCH, with a person on the other end. Reactions (a few words to shout:
-  NICE!, OOH!, TOK!) go the same way.
+  Playdate's WATCH, with a person on the other end. Reactions (HOLLER: a fixed list of
+  phrases such as NICE STICK! and TOK!, and a dozen emoji) go the same way.
 - **Who acts.** Each engine player belongs to a member of the room. The next throw is
   for the member whose player `core/order` names; if that member is not connected, any
   connected member of that team may take it (it is still that player's throw on the

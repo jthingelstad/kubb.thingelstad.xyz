@@ -227,7 +227,7 @@ preview`, the browser tests, CI) gives it the pitch server on this machine
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `1.3.0 (1.0.0)`, at the foot of
+the full version of the newest engine the site carries, `1.4.0 (1.0.0)`, at the foot of
 every reading page and of MENU, with "Also plays ..." under it in MENU only while older
 engines are carried (none today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
@@ -384,7 +384,8 @@ physics issues via the app -- think we should allow reports of any feedback. Not
 physics."). MENU, FEEDBACK, in every mode (practice, solo, watch, a shared pitch),
 opens the "Send feedback" card with a choice: "A throw looked wrong" (the default when
 the game has a last throw) asks "What happened?" and "What should have happened?" (1000
-characters each, at least one) and lets the player mark pieces; "Something else" asks
+characters each, at least one); either kind lets the player paint where it happened on a
+picture of the pitch from above (`paint`, `src/ui/paint.js`); "Something else" asks
 "What would you like to tell us?" (one box, 2000 characters). SEND and CANCEL. Either
 way the browser sends what was typed with the game as it stood when the card opened,
 enough to play a reported throw again here (`src/net/report.js` says exactly what; no
@@ -444,7 +445,7 @@ allow an observer to view open games that people are playing ... In observer mod
 should be able to fly around and position your view wherever you want to be."):
 `/p/<code>?observe=1`, WATCH beside JOIN on the open games list. It joins the pitch with
 `role: "observer"` (so the lobby's Watching line names it), is in step at once from the
-pitch's snapshot, and never acts, writes the document, shouts or hosts (the pitch server
+pitch's snapshot, and never acts, writes the document, hollers or hosts (the pitch server
 hands the host only to players). Between matches it has its own card
 (`src/ui/watching.js`). Every watcher, an observer, a member with no side, watching the
 computer and a replay outside the embed, gets the free camera in the wide view (drag,

@@ -3,15 +3,17 @@
 // HTTPS, which keeps it privately so a throw can be played again offline.
 //
 //   const state = captureReport({ game, mode, config, pitch });   // when the card opens
-//   const msg = reportMessage(state, { kind: "throw", happened, should, selected });
-//   const msg = reportMessage(state, { kind: "feedback", text });  // on SEND
+//   const msg = reportMessage(state, { kind: "throw", happened, should, paint });
+//   const msg = reportMessage(state, { kind: "feedback", text, paint });  // on SEND
 //   await sendReport({ url: config.apiUrl, message: msg });        // resolves on the ack
 //
 // Two kinds: `kind: "throw"`, a throw that looked wrong, carries the two answers
-// (`happened`, `should`) and any pieces marked (`selectedPieces`); `kind: "feedback"`,
-// anything else, carries one `text` (trimmed, 1 to REPORT_LIMITS.feedbackChars) and no
-// answers. Both carry the same game context. The server takes a report with no `kind` as
-// a throw report (older clients).
+// (`happened`, `should`); `kind: "feedback"`, anything else, carries one `text`
+// (trimmed, 1 to REPORT_LIMITS.feedbackChars) and no answers. Both carry the same game
+// context, and either may carry `paint`, where the player painted on the picture of the
+// pitch (src/net/paint.js: its shape, frame and limits). The server takes a report with
+// no `kind` as a throw report (older clients); older clients may send `selectedPieces`
+// (pieces they marked), which this one no longer does.
 //
 // What is sent (`r` in the message): the kind; the mode; `client: "web"`; `engine`, the
 // kubb-engine version; what was typed; the build (package version, its label "0.2.0 (0.8.1)", commit, the hashed Lua bundle's
@@ -30,10 +32,11 @@
 // The whole message is held to LIMITS.reportBytes as ASCII JSON. When it would not fit,
 // the parts that only help are dropped in this order (and listed in `r.dropped`): the
 // match's start and actions (or practice's ops), the pieces, the snapshot after. The typed
-// answers, the snapshot before and the last action are never cut.
+// answers, the paint, the snapshot before and the last action are never cut.
 import { apiCall, asciiJson } from "./api.js";
 import { CLIENT } from "./sync.js";
 import { luaFor } from "../site/config.js";
+import { normalizePaint } from "./paint.js";
 
 // Kept in step with backend/api/checks.mjs LIMITS (tests/net/reports.test.mjs checks).
 export const REPORT_LIMITS = Object.freeze({
@@ -220,13 +223,12 @@ export function pseudonymise(r, ids) {
 // The message for the server: the captured state with what was typed, cut to fit.
 export function reportMessage(
   state,
-  { kind = "throw", happened = "", should = "", selected = [], text = "" },
+  { kind = "throw", happened = "", should = "", text = "", paint = null },
   { id = 1, limits = REPORT_LIMITS } = {},
 ) {
   const clip = (s, n = limits.chars) =>
     [...String(s ?? "")].slice(0, n).join("");
   const r = structuredClone(state);
-  const marked = (r.pickPieces ?? []).filter((p) => selected.includes(p.id));
   delete r.pickPieces;
   const practiceBefore = r.practiceBefore;
   delete r.practiceBefore;
@@ -235,10 +237,12 @@ export function reportMessage(
     r.text = clip(String(text ?? "").trim(), limits.feedbackChars);
   } else {
     r.kind = "throw";
-    if (marked.length) r.selectedPieces = marked;
     r.happened = clip(happened);
     r.should = clip(should);
   }
+  // where the player painted, in the frame and units of `pieces`
+  const painted = normalizePaint(paint);
+  if (painted) r.paint = painted;
   const msg = { t: "report", id, r };
   const size = () => asciiJson(msg).length;
   const drops = [
