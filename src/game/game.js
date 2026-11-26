@@ -507,14 +507,25 @@ export class Game {
   // side's throws, raises and inkasts from this end, fitted to the window as the wide
   // view's box), or that there is none (practice, a watcher). An engine before 1.4 has
   // no side view: the match is drawn as it always was.
-  applySideView() {
-    const side = this.mode === "match" ? this._localSide : null;
+  // Aiming for the other side (a host standing in for a player who left): the aim calls
+  // (setTarget, setStance) take the thrower's frame, so that throw is seen from the
+  // thrower's side, and the view goes back to this browser's own after it.
+  applySideView(need = this.need, { refetch = true } = {}) {
+    let side = this.mode === "match" ? this._localSide : null;
+    if (
+      side &&
+      (need?.kind === "throw" || need?.kind === "togo") &&
+      (need.side === "A" || need.side === "B") &&
+      need.side !== side &&
+      this.mayAct(need)
+    )
+      side = need.side;
     const box =
       side && this.W > 0 ? wideBox(this.W, this.H, this.L?.safe) : null;
     const key = side
       ? `${side}:${box ? [box.left, box.top, box.right, box.bottom].map((v) => v.toFixed(2)).join(",") : ""}`
       : "";
-    if (key === this.sideKey) return;
+    if (key === this.sideKey) return false;
     this.sideKey = key;
     try {
       const b = box
@@ -522,9 +533,10 @@ export class Game {
         : undefined;
       this.engine?.setView?.(side, b);
     } catch {
-      return; // an older engine, or none yet
+      return false; // an older engine, or none yet
     }
-    this.refetch();
+    if (refetch) this.refetch();
+    return true;
   }
 
   // ---------- the wide view ----------
@@ -943,20 +955,30 @@ export class Game {
     if (t === this.throwLevel) return t;
     this.throwLevel = t;
     for (const f of this.throwWatch) f(t);
-    // practice throws on it from the next throw: practice set up again on it, as a
-    // scene picked there is (practiceScene)
-    if (this.mode === "practice" && this.phase === "aim") {
-      try {
-        this.newPractice({
-          surface: this.viewData?.surface ?? this.trail?.opts?.surface,
-          ...(this.viewData?.scene ? { scene: this.viewData.scene } : {}),
-          ...(this.need?.drill ? { drill: true } : {}),
-        });
-      } catch {
-        // kept for the next practice
-      }
-    }
+    this.practiceThrowLevel();
     return t;
+  }
+
+  // Practice throws on the level from the next throw: practice set up again on it, as
+  // a scene picked there is (practiceScene). Changed while a throw plays (MENU,
+  // Settings), it is set up once that throw has played out (endPlayback's afterPlay),
+  // the throw left to finish.
+  practiceThrowLevel() {
+    if (this.mode !== "practice") return;
+    if (this.phase === "play" && this.play) {
+      this.afterPlay = () => this.practiceThrowLevel();
+      return;
+    }
+    if (this.phase !== "aim") return;
+    try {
+      this.newPractice({
+        surface: this.viewData?.surface ?? this.trail?.opts?.surface,
+        ...(this.viewData?.scene ? { scene: this.viewData.scene } : {}),
+        ...(this.need?.drill ? { drill: true } : {}),
+      });
+    } catch {
+      // kept for the next practice
+    }
   }
 
   onThrowLevel(f) {
@@ -1004,6 +1026,10 @@ export class Game {
 
   // Take the engine's view and go where its need says.
   enter(view) {
+    // the side view for this need (applySideView: a throw aimed for the other side is
+    // seen from the thrower's); a change re-reads the view in the new frame
+    if (this.applySideView(view?.need, { refetch: false }))
+      view = this.engine.view();
     this.liftState = null;
     this.viewData = view;
     this.need = view.need;
