@@ -13,6 +13,7 @@
 import { h, button } from "./dom.js";
 import {
   PAINT_LIMITS,
+  PIECE_SIZES,
   footprint,
   normalizePaint,
   pictureBounds,
@@ -24,9 +25,10 @@ export const paintTune = {
   maxH: 0.55, // of the window's height: the most the picture may stand
   minH: 190, // px: but never under this
   step: 0.35, // of the brush: a point is kept once the finger moved this far
+  minPiecePx: 7, // a kubb or the king is drawn at least this wide...
+  grow: 1.6, // ...up to this many times its real size
   ink: "#16130f",
-  paint: "rgba(226, 72, 61, 0.45)",
-  paintSolid: "#e2483d",
+  paintSolid: "#e83cc8", // laid at 0.45 over the grass: a clear mauve, not mud
   wood: "#c8955a",
   king: "#f4ecd8",
 };
@@ -294,7 +296,18 @@ export class PaintPad {
     // the pieces: standing solid with an ink ring, lying pale with a thin line
     for (const p of this.pieces) {
       if (p.kind === "stake") continue;
-      const { poly: fp, lying } = footprint(p);
+      const { poly: real, lying } = footprint(p);
+      // a kubb or the king is 7 to 9 cm across, a few px on a phone: drawn up to
+      // half again its size round its real place, so its colour and shape show
+      const across = 2 * (PIECE_SIZES[p.kind] ?? PIECE_SIZES.kubb)[0] * f.scale;
+      const k =
+        p.kind === "baton"
+          ? 1
+          : Math.min(t.grow, Math.max(1, t.minPiecePx / across));
+      const fp = real.map(([x, y]) => [
+        p.x + (x - p.x) * k,
+        p.y + (y - p.y) * k,
+      ]);
       const fill =
         p.kind === "baton"
           ? t.wood
@@ -307,7 +320,7 @@ export class PaintPad {
       ctx.fill();
       ctx.globalAlpha = 1;
       ctx.strokeStyle = t.ink;
-      ctx.lineWidth = lying ? 1 : 2;
+      ctx.lineWidth = lying ? 1 : 1.5;
       ctx.stroke();
       if (!lying && p.kind === "king") {
         // a crown's dot, so the king is the king even at this size
