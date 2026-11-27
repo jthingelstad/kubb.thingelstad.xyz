@@ -31,18 +31,20 @@ for an engine a row still names, `--drop` only for one no row names.
 | Build                             | App version       | Engine | As of      |
 | --------------------------------- | ----------------- | ------ | ---------- |
 | App Store                         | 1.0.0 (build 260) | 1.0.0  | 2026-11-24 |
-| TestFlight Beta (outside testers) | 1.0.0 (build 260) | 1.0.0  | 2026-11-26 |
-| TestFlight Beta, in review        | 1.1.0 (build 284) | 1.4.0  | 2026-11-26 |
-| TestFlight Dev (internal)         | 1.1.0 (build 284) | 1.4.0  | 2026-11-26 |
+| TestFlight Beta (outside testers) | 1.1.0 (build 284) | 1.4.0  | 2026-11-27 |
+| TestFlight Beta, in review        | 1.1.0 (build 291) | 1.4.1  | 2026-11-27 |
+| TestFlight Dev (internal)         | 1.1.0 (build 291) | 1.4.1  | 2026-11-27 |
 
-The TestFlight rows were read from App Store Connect on 2026-11-26, the day build 284,
-`1.1.0 (1.4.0)`, was uploaded. It is in the Internal group, and it was added to the Beta
+The TestFlight rows were read from App Store Connect on 2026-11-27, the day build 291,
+`1.1.0 (1.4.1)`, was uploaded. It is in the Internal group, and it was added to the Beta
 group and submitted to Beta App Review that day. Until Apple passes it, the build outside
-testers have is 260, `1.0.0 (1.0.0)`, which has passed Beta App Review.
-Whoever sees 284 pass removes the "in review" row and makes the Beta row 1.1.0 (build
-284). The App Store row stays 1.0.0 until a new version is released there, so the site
-keeps 1.0 until then. Build 284 carries 1.0 too, so a tester on it still plays a pitch
-with someone on the App Store version, on the 1.0 game.
+testers have is 284, `1.1.0 (1.4.0)`, which passed Beta App Review.
+Whoever sees 291 pass removes the "in review" row and makes the Beta row 1.1.0 (build
+291). Engine 1.4.1 is a patch that shares matches with 1.4.0 (its cameras changed, no
+throw did), so the site's 1.4 plays with both builds. The App Store row stays 1.0.0 until
+a new version is released there, so the site keeps 1.0 until then. Builds 284 and 291
+carry 1.0 too, so a tester on either still plays a pitch with someone on the App Store
+version, on the 1.0 game.
 
 The App Store row was filled on 2026-11-24, the day Apple approved 1.0.0 and it went live
 (build 260, the one submitted for App Review). The store's own lookup names the version.
