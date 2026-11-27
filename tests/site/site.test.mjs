@@ -637,8 +637,8 @@ test("the version label: package.json's version and the newest engine's, never t
   const sha = "a2659b744210e4c5baa5b69c672e11ec87f9bfab";
   const release = releaseOf(pkg.version, sha, carried);
   assert.equal(release.text, `${pkg.version} (${carried[0].version})`);
-  // this checkout: 1.5.0 on 1.4.0, carrying 1.0 beside it (docs/ENGINES.md)
-  assert.equal(release.text, "1.5.0 (1.4.0)");
+  // this checkout: 1.5.1 on 1.4.0, carrying 1.0 beside it (docs/ENGINES.md)
+  assert.equal(release.text, "1.5.1 (1.4.0)");
   assert.equal(release.detail, "Also plays 1.0.0");
   // more than one carried (when the owner decides one is supported): "Also plays"
   const two = [carried[0], { ...carried[0], mm: "0.9", version: "0.9.0" }];
@@ -647,7 +647,7 @@ test("the version label: package.json's version and the newest engine's, never t
   // one engine carried: no detail
   assert.equal(releaseOf("0.2.0", sha, carried.slice(0, 1)).detail, null);
   const foot = footer(release.text);
-  assert.match(foot, /data-release>Version 1\.5\.0 \(1\.4\.0\)<\/p>/);
+  assert.match(foot, /data-release>Version 1\.5\.1 \(1\.4\.0\)<\/p>/);
   assert.ok(!foot.includes(sha.slice(0, 7)));
 });
 
@@ -990,20 +990,20 @@ test("/playdate/: the reel near the top, the download and the steps, all here", 
   // the same file the Playdate games site offers, by its URL there
   assert.equal(
     PLAYDATE_BUILD.url,
-    "https://files.thingelstad.com/playdate/throwing-wood/ThrowingWood-0.9.7.pdx.zip",
+    "https://files.thingelstad.com/playdate/throwing-wood/ThrowingWood-1.1.0.pdx.zip",
   );
   assert.match(
     html,
-    /<a class="button button--start" href="https:\/\/files\.thingelstad\.com\/playdate\/throwing-wood\/ThrowingWood-0\.9\.7\.pdx\.zip" rel="noopener" data-test="playdate-download">Download the game<\/a>/,
+    /<a class="button button--start" href="https:\/\/files\.thingelstad\.com\/playdate\/throwing-wood\/ThrowingWood-1\.1\.0\.pdx\.zip" rel="noopener" data-test="playdate-download">Download the game<\/a>/,
   );
   // the version shown is the file's own
-  assert.equal(playdateBuildVersion(), "0.9.7");
+  assert.equal(playdateBuildVersion(), "1.1.0");
   assert.equal(
     playdateBuildVersion("https://x.test/ThrowingWood-1.2.3.pdx.zip"),
     "1.2.3",
   );
-  assert.match(html, /test build 0\.9\.7\./);
-  assert.match(html, /<h3>New in 0\.9\.7<\/h3>/);
+  assert.match(html, /test build 1\.1\.0\./);
+  assert.match(html, /<h3>New in 1\.1\.0<\/h3>/);
   // the reel: a real video, with controls, poster and size, in the hero,
   // never autoplaying from the markup (public/js/reel.js plays it muted, and
   // only without reduced motion)

@@ -338,12 +338,13 @@ ${signup()}`;
 export const PLAYDATE_MEDIA = "https://playdate.thingelstad.xyz/throwing-wood";
 export const PLAYDATE_REEL = `${PLAYDATE_MEDIA}/reel/throwing-wood-0.9.5`;
 export const PLAYDATE_BUILD = {
-  url: "https://files.thingelstad.com/playdate/throwing-wood/ThrowingWood-0.9.7.pdx.zip",
-  size: "571 KB", // its Content-Length, 570,996 bytes
+  url: "https://files.thingelstad.com/playdate/throwing-wood/ThrowingWood-1.1.0.pdx.zip",
+  size: "768 KB", // its Content-Length, 767,512 bytes
   notes: [
-    "Club and Pro throwers try for a half turn of the baton. Long throws from the baseline wobble more.",
-    "The computer puts spin on its drilled kubbs at Club and Pro.",
-    "A sliding baton can shove a fallen kubb into another piece.",
+    "THROW TO GO: each side throws one baton at the king. The closest, without knocking the king over, throws first.",
+    "Each person throws on EASY, STANDARD or HARD, set on TEAMS. No hidden misses: what you do with the crank is what the baton does.",
+    "Against the Playdate, the screen stays on your side. Speed its turn up to 2X or 4X, or skip it.",
+    "Raise kubbs in any order, from one view of the whole group.",
   ],
 };
 export const playdateBuildFile = (url = PLAYDATE_BUILD.url) =>
