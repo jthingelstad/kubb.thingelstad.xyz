@@ -23,6 +23,18 @@ if (bar) {
   };
   for (const b of buttons)
     b.addEventListener("click", () => show(b.dataset.part, true));
+  // A link to an entry (Playing now, or a shared #web-1.6.0) shows everything when
+  // the filter hides that entry, so the link reaches it.
+  const reveal = () => {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const target = id && document.getElementById(id);
+    if (target?.matches(".change[hidden]")) {
+      show("", true);
+      target.scrollIntoView();
+    }
+  };
+  addEventListener("hashchange", reveal);
   bar.hidden = false;
   show(new URL(location.href).searchParams.get("part") ?? "", false);
+  reveal();
 }
