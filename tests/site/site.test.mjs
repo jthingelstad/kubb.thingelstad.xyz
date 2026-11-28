@@ -667,7 +667,7 @@ test("the landing site: / is the game and its web game, each nav entry a page", 
       ["How to play", "/rules/"],
     ],
   );
-  // the footer: Rules, The engine, Kubb sites we love, Pitchside, Newsletter (Buttondown's
+  // the footer: Rules, The engine, What’s new, Kubb sites we love, Pitchside, Newsletter (Buttondown's
   // own page), Support (the support page), Privacy, then the version; the
   // current page marked
   assert.deepEqual(
@@ -675,6 +675,7 @@ test("the landing site: / is the game and its web game, each nav entry a page", 
     [
       "Rules",
       "The engine",
+      "What’s new",
       "Kubb sites we love",
       "Pitchside",
       "Newsletter",

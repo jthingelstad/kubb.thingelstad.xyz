@@ -653,6 +653,118 @@ figure {
   }
 }
 
+/* What's new (/changelog/): "Playing now", the filter, then a day at a time. */
+.now {
+  list-style: none;
+  margin: 0 0 1.4rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: 1rem;
+}
+.now__part {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  background: var(--baton);
+  border: var(--line) solid var(--ink);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-control);
+  padding: 0.7rem 0.9rem;
+}
+.now__part a {
+  color: var(--ink);
+}
+.now__version {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 1.5rem;
+  text-decoration: none;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.chips[hidden] {
+  display: none;
+}
+.chip {
+  min-height: var(--touch);
+  padding: 0 0.9rem;
+  font: inherit;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+.chip[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+}
+.chip:focus-visible {
+  outline: 3px solid var(--marigold);
+  outline-offset: 2px;
+}
+.change-day {
+  padding-top: 1.2rem;
+}
+.change-day[hidden],
+.change[hidden] {
+  display: none;
+}
+.change-day h2.display {
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  border-bottom: var(--line) solid var(--ink);
+  padding-bottom: 0.3rem;
+}
+.change {
+  max-width: var(--jt-measure);
+  margin: 0 0 1.4rem;
+  scroll-margin-top: 1rem;
+}
+.change__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.2rem;
+  font-size: 1.45rem;
+}
+.change__part {
+  padding: 0.1rem 0.5rem;
+  background: var(--wood);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-control);
+}
+.change__part--engine,
+.change__part--notation {
+  background: var(--paper);
+}
+.change__beta {
+  font-family: inherit;
+  font-weight: 800;
+  font-size: var(--jt-size-label);
+  letter-spacing: var(--jt-tracking-label);
+  text-transform: uppercase;
+}
+.change__meta {
+  margin: 0 0 0.3rem;
+  color: var(--muted);
+  font-size: var(--jt-size-small);
+  font-weight: 600;
+}
+.change ul {
+  margin: 0;
+  padding-left: 1.3rem;
+}
+.change li + li {
+  margin-top: 0.3rem;
+}
+
 /* The game page: the canvas fills the window; the client draws #ui over it. */
 html.game-html,
 body.game {
