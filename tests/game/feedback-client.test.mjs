@@ -324,8 +324,15 @@ browserTest(
     await page.waitForFunction(() => window.__kubb.game.phase === "aim", null, {
       timeout: 10000,
     });
+    // AUTO names the kubb it stands, on the engine's choice of end (engine 1.4's raise in
+    // any order; web 1.5.1's "AUTO raises the kubb picked")
     const sent = await page.evaluate(() => window.__sent);
-    assert.deepEqual(sent, Array(4).fill({ type: "raise" }));
+    assert.equal(sent.length, 4);
+    for (const a of sent) {
+      assert.equal(a.type, "raise");
+      assert.equal(typeof a.kubb, "string");
+      assert.equal(a.which, undefined, "the engine's end");
+    }
     const phases = await page.evaluate(() => window.__phases);
     const lifts = phases.filter(([k]) => k.startsWith("lift:"));
     assert.ok(lifts.length >= 4, `each kubb watched: ${JSON.stringify(lifts)}`);
@@ -350,7 +357,7 @@ browserTest(
     assert.ok(Date.now() - tap < 1500, "skipped to the end");
     assert.deepEqual(
       await skip.evaluate(() => window.__sent),
-      Array(4).fill({ type: "raise" }),
+      sent,
       "the same actions",
     );
     await skip.context().close();

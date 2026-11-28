@@ -494,7 +494,15 @@ export function layoutFor(
     );
     L.minimap = tall ? minimap : minimapBox(W, H, tall, L.header);
     Object.assign(L, trayAt(L));
-    if (L.tray && linearClear(L) && headerFits(L, header)) return L;
+    if (L.tray && linearClear(L) && headerFits(L, header)) {
+      // a big wide window: the minimap at the tray's edge where it fits (edgeMap)
+      const e = edgeMap(L, header);
+      if (e) {
+        const E = { ...L, ...e };
+        if (linearClear(E)) return E;
+      }
+      return L;
+    }
   }
   const L = {
     ...base,
@@ -509,6 +517,9 @@ export function layoutFor(
     minimap,
   };
   Object.assign(L, trayAt(L));
+  // a big wide window: the minimap at the tray's edge where it fits (edgeMap)
+  const e = edgeMap(L, header);
+  if (e) Object.assign(L, e);
   delete L.edgeSide;
   // The resting knob is at six. Leave a finger room below it for a full
   // downstroke, clear of the bottom safe area, in the touch trial.
@@ -680,6 +691,65 @@ function trayAt(L) {
   };
 }
 
+// The minimap at the tray's edge on a big wide window (the owner, 2026-11-27, of the
+// iPhone app on an iPad on its side: "The map of the pitch should be all the way to the
+// left and under the other control. It is in the way in landscape on iPad."; the app's
+// WideLayout.edgeMap): at the edge away from the meter, its outer side in line with the
+// tray column's (trayEdge inside the safe area), mapGap under the header row, above the
+// tray. Only where that leaves the tray its full plates on its own foot and ARC its
+// whole open height (openArcH) with the other two plates showing, and where it meets
+// nothing (the meter, its prompt or tab, the header row's plates) inside the safe area:
+// a tablet on its side and big desktop windows. Elsewhere (a tall canvas, every phone
+// on its side, a short or narrow window) null, and the minimap keeps its place under the
+// header's right end (minimapBox). Its size is minimapBox's either way. Returns
+// { minimap, tray, plan, planEdge } (trayAt's under the map), or null.
+export function edgeMap(L, header = null) {
+  if (!L || L.tall || !L.tray || !L.minimap || !L.header) return null;
+  const t = tune;
+  const { W, H, safe: s } = L;
+  const { width: mw, height: mh } = L.minimap;
+  const x =
+    L.tray.edge === "left"
+      ? s.left + t.trayEdge
+      : W - s.right - t.trayEdge - mw;
+  const map = {
+    x,
+    y: L.header.y + L.header.height + t.mapGap,
+    width: mw,
+    height: mh,
+  };
+  const T = trayAt({ ...L, minimap: map });
+  const tr = T.tray;
+  if (!tr) return null;
+  const k = L.phone ? "phone" : "wide";
+  const full = plateSize(L.phone);
+  if (tr.plateH !== full.height) return null;
+  if (Math.abs(tr.foot - (L.dial.y + L.dial.height - t.trayFoot)) > 1e-9)
+    return null;
+  if (tr.open.arc.cover || tr.open.arc.height !== t.openArcH[k]) return null;
+  if (
+    map.x < s.left ||
+    map.x + mw > W - s.right ||
+    map.y < s.top ||
+    map.y + mh > H - s.bottom
+  )
+    return null;
+  const keep = [L.dial, L.header, headerPlates(L, header).row, T.plan];
+  if (L.meter === "linear")
+    keep.push(tabRect(linearGeometry(L.dial, L.meterSide)));
+  else {
+    const { circle: c, prompt } = clockShapes(L);
+    keep.push(prompt, {
+      x: c.cx - c.r,
+      y: c.cy - c.r,
+      width: 2 * c.r,
+      height: 2 * c.r,
+    });
+  }
+  if (keep.some((r) => meets(r, map))) return null;
+  return { minimap: map, ...T };
+}
+
 const meets = (a, b) =>
   !!a &&
   !!b &&
@@ -724,10 +794,19 @@ export function linearFirst(L, g, x, y, { touch = false, reach }) {
 // of it, top to bottom (the lower 40% of a phone on its side, about 156 px,
 // is too shallow for a whole draw back and flick; the plan block and the
 // minimap are on the other half). A mouse keeps the lower band.
-export function inLinearZone(L, x, y, { touch = false, zoneFrom = 0.6 } = {}) {
-  if (touch && !L.tall)
-    return L.meterSide === "left" ? x <= L.W / 2 : x >= L.W / 2;
-  return y >= L.H * zoneFrom;
+// `narrow` (target-ring.js zoneNarrows: the target's ring is in the upright zone; the
+// owner, 2026-11-27): the band is only the meter's half of the width, so a drag on the
+// other half moves the aim. A press on the ring itself is never the zone's (Game.down).
+export function inLinearZone(
+  L,
+  x,
+  y,
+  { touch = false, zoneFrom = 0.6, narrow = false } = {},
+) {
+  const metersHalf = L.meterSide === "left" ? x <= L.W / 2 : x >= L.W / 2;
+  if (touch && !L.tall) return metersHalf;
+  if (y < L.H * zoneFrom) return false;
+  return narrow && L.tall ? metersHalf : true;
 }
 
 // The wide view's box: where the whole pitch is fitted (vendor/engine/session/wide.lua), in

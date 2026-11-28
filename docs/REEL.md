@@ -676,7 +676,7 @@ the one it was played on: a pitch's `match.engine`, a shared match's `engine`.
 #### Engines
 
 The renderer carries the engines the site carries (`docs/ENGINES.md`): the newest and
-every older minor kept with `vendor:sync --keep`. Today that is two, 1.4.0 and 1.0.0.
+every older minor kept with `vendor:sync --keep`. Today that is two, 1.4.1 and 1.0.0.
 
 - **The package.** `tools/reels-bundle.mjs` writes one Lua bundle per carried engine,
   `engines/<major.minor>.json` (`{ engine, sources }`, from `carriedEngines()`), where

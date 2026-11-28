@@ -434,6 +434,18 @@ engine changes in kind: both still send `arm` in degrees through the dial feed.
   so the engine's arming rule (a press at 0, then back) holds as for a grab. Every
   pointer, the mouse too. The plan's sliders, buttons and STAND, the knob and the meter's body,
   the circle and the thrower all come first, and `?throw=swipe` keeps the clock.
+- **A press on the target's ring always aims** (web 1.5.2; the owner, 2026-11-27, of the
+  iPhone app on an iPad: "On iPad I'm trying to move the drill target and when I tap it is
+  activating the throw instead. I can't find a tap target to move the drill location.").
+  The ring as it is drawn (the marker's ground circle through the aim camera), 10 px round
+  its line, and never under 44 px across (`src/game/target-ring.js`, the app's
+  `TargetRing`): a press there is the target's, a tap or a drag, before the linear meter's
+  body, its throw zone and the clock's outer reach; only the knob and the clock's ring come
+  first. And upright, while the ring's centre is in the throw zone (0.6 of the height or
+  lower: a close target, a thrown kubb's, a drill's on a tall tablet), the zone is only the
+  meter's half of the width (`zoneNarrows`, `inLinearZone`'s `narrow`), so a drag on the
+  other half moves the aim; the nudge's fingertip strokes on the meter's half then. The
+  app's numbers (`MeterLayout.start`, `after`, `zoneNarrows`).
 - **Touch beside the clock's ring.** On touch and pen a press may land on the ring as
   before (within 1.25 radii of the centre, `grabSlop`) or outside it, out to 2.1 radii
   (`dial.js` `touchReach`), and the arm is the angle about the centre at any radius, so a
@@ -512,7 +524,11 @@ number.
   on a phone on its side (now everywhere); nothing on the throwing line on a wide screen.
 - **The minimap** hangs under the header's right end in every layout, 8 px under it, so it
   never moves while a control is held: the header has a fixed width for the layout
-  (`headerBox`; tall the safe width, wide 40% of it, 260 to 400 px). Since the minimap
+  (`headerBox`; tall the safe width, wide 40% of it, 260 to 400 px). On a big wide window
+  it stands at the tray's edge instead, in line with the column and above it, wherever the
+  tray keeps its full plates and ARC its whole open height (web 1.5.2, the owner's of
+  2026-11-27; `edgeMap`, docs/SYSTEM.md "Play screens"); it still never moves while a
+  control is held. Since the minimap
   can meet a narrow window's prompt tab, the linear meter now holds from 560 px wide in a
   match (it was 480), 580 in practice and 540 watching as before; with notch insets 640,
   680 and 640.
@@ -813,7 +829,20 @@ header's row on a wide screen, clear of the target, the tray, the minimap and th
   watching, and on the practice pitch that pitch's own Scene and, for Black & White, Surface (the practice
   menu was not drawn: its rows stay under the grid); BACK TO THE MATCH as the one go
   button (BACK TO THE PITCH in practice), RESIGN and HOME quiet, and the release label at
-  its foot. SETTINGS opens the device's settings as their own card in the menu's place
+  its foot. RESIGN against the computer ends the match at once (web 1.5.2; the owner,
+  2026-11-27, with the iPhone app's `PitchSession.endResignation`: "they should not have
+  to watch the computer play out its turn"): the engine takes a resignation only on the
+  side's own turn and holds it as `need.resignPending` until then, so `Game.endResignation`
+  cuts whatever plays (the throw, a watched raise, the engine's raises, the verdict; no
+  more knocks) and makes what stands between with no frames: the computer's throws as its
+  skip makes them (`cpuPlay`), this side's raises by the engine's choice (AUTO's action)
+  and a punishment kubb on the engine's own spot (the need's `cursor`), each action into
+  the trail and the kept match with the hash after it, exactly the actions and hashes the
+  resignation played out would give (`tests/game/resign-client.test.mjs`); then the winner
+  card. A kept match reopened with its resignation waiting ends on its first frame. It
+  still waits at the throw to go (only a person throws their own baton; once it is out
+  the match ends the same way), on a pitch and on an engine before 1.4
+  (`Game.resignationWaits`). SETTINGS opens the device's settings as their own card in the menu's place
   (`settingsCard`), DONE at its bottom right (or Escape) back to the menu; Escape closes
   the menu. RULES left the menu with the design (the rules are on the site). A match's
   options are never in it.
@@ -1442,9 +1471,9 @@ played through the same action path.
 
 ## Version and freshness
 
-Two versions: the web game's own (`version` in `package.json`, 1.4.0) and the version of
+Two versions: the web game's own (`version` in `package.json`, 1.5.2) and the version of
 each kubb-engine it vendors (`vendor/engine/engine.json`, and `vendor/engines/<mm>/` for
-the older ones it still plays, none today; read in Lua as `engineVersion`).
+the older ones it still plays, 1.0 today; read in Lua as `engineVersion`).
 The game file's "Scored by" is "Throwing Wood web <web version>" (`setClient`); records,
 reports and the `with` rider carry the engine's version as `engine` / `e`.
 Room joins also announce `me.engine` (the room's engine, marked `+engines`) and
@@ -1456,7 +1485,7 @@ The version policy (`LENIENT_ENGINES` is false) and version refusal cards are in
 - **The label** (`src/site/release.js`): every app shows its own version with the Kubb
   Engine's beside it, `<app version> (<engine version>)` (Jamie, 2026-11-20). On the web
   that is `package.json`'s version and the full version of the newest engine the page
-  carries: `1.5.0 (1.4.0)`. Nothing but that engine's version is in the parentheses: an
+  carries: `1.5.2 (1.4.1)`. Nothing but that engine's version is in the parentheses: an
   older engine the page still plays is only in the detail, `Also plays ...` (1.0 today,
   for the iPhone builds, `docs/ENGINES.md`), and the
   web commit never shows. The release is `{ version, web, engine, also, text, detail }`
@@ -1464,7 +1493,7 @@ The version policy (`LENIENT_ENGINES` is false) and version refusal cards are in
   `releaseOf`) reads the version from `package.json`, the web commit from `GITHUB_SHA` in
   CI or `git rev-parse HEAD`, and the engines from the vendored set; it puts the release
   in the game pages' config (`config.release`) and writes it as `/version.json`.
-- **Shown** small, in the shared type tokens: "Version 1.5.0 (1.4.0)" at the foot of
+- **Shown** small, in the shared type tokens: "Version 1.5.2 (1.4.1)" at the foot of
   every reading page (beside the link to the engine page), and the label at the foot of
   MENU in the game, with "Also plays ..." under it only while an older engine is carried.
 - **Exact identity** is the web commit: freshness (below) compares it, and a feedback

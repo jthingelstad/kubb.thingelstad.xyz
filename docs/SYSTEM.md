@@ -201,7 +201,18 @@ items 5 to 10 and 13). `src/game/layout.js` (`layoutFor`, `trayAt`, `headerBox`,
 - **The minimap** (`render/minimap.js`): a plate's look, a 3 px ink line, radius 6, a 3
   px ink shadow; it hangs from its box's top, **8 px** under the header, its right edge
   with the header's, in every layout (tall: min(78 px, 19%) wide; wide: 8.5% of the
-  width, 56 to 118 px, at most 16% of the height; twice as tall less a twentieth). Team A's
+  width, 56 to 118 px, at most 16% of the height; twice as tall less a twentieth), but
+  one: a big wide window (the owner, 2026-11-27, of the iPhone app on an iPad on its side:
+  "The map of the pitch should be all the way to the left and under the other control.
+  It is in the way in landscape on iPad."; `layout.js` `edgeMap`, the app's
+  `WideLayout.edgeMap`) puts it at the tray's edge, its outer side in line with the
+  column's (**12 px** inside the safe area), the same **8 px** under the header row, above
+  the tray, whose ceiling is then **8 px** under the map. Only where that leaves the tray its
+  full plates on its own foot and ARC its whole open height (300) with the other two
+  showing, and where the map meets nothing (the meter, its prompt or tab, the header row's
+  plates) inside the safe area: a tablet on its side, a 1280 x 800 window and bigger. Every
+  phone on its side, a short or narrow window (1280 x 768 among them) and every tall canvas
+  keep it under the header's right end, exactly as before. Team A's
   kubbs are circles, Team B's squares, as well as marigold and violet; the king a square
   with a crown.
 - **The meter's marks** (`render/dial.js`, `render/linear.js`, every scene): the power band
@@ -309,6 +320,11 @@ never under 44 px across; the drag that tips it all the way is 1.1 times its dra
 length, never under 90 px. The end numbers (17 px circles) stand **4 px** past their
 footprint's outer edge on the screen (`tune.labelR0`, `labelGap`), so however small the
 kubb is drawn they never sit on the footprint; a tap within 40 px of one takes that end.
+Since web 1.5.2 (engine 1.4.1's held raise camera stands close over the lying group, and
+draws a kubb 20 to 40 px long, where both numbers' 40 px reaches cover it) a tap goes, in
+order, to a number's own circle (its 17 px and 2 more), then to the drawn kubb itself (the
+end drawn nearer the tap), then to a number within 40 px, then to the kubb's 24 px slop
+(`raise-touch.js` `pickEnd`, the iPhone app's `raisePick`).
 On a phone on its side the panel's bar (80 px) stays under both numbers and the
 punishment half's near baseline (`tests/game/layout.test.mjs`). The punishment view is
 unchanged: it already shows the whole half the kubb may go in.

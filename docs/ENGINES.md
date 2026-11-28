@@ -49,8 +49,13 @@ version, on the 1.0 game.
 The App Store row was filled on 2026-11-24, the day Apple approved 1.0.0 and it went live
 (build 260, the one submitted for App Review). The store's own lookup names the version.
 
-- **Today the site carries two engines: 1.4 (1.4.0), the newest, and 1.0 (1.0.0).**
-  1.4 came with web 1.5.0 (2026-11-26), vendored with `--keep`: every iPhone build in the
+- **Today the site carries two engines: 1.4 (1.4.1), the newest, and 1.0 (1.0.0).**
+  1.4 came with web 1.5.0 (2026-11-26), vendored with `--keep`, and moved to the patch
+  1.4.1 with web 1.5.2 (2026-11-27; `vendor:sync -- --tag v1.4.1`, no `--keep` or
+  `--drop`, since a patch replaces its minor): the end camera is a person's eyes on the
+  player's baseline that turn with the throw, and the held raise camera stands over the
+  lying group, with no hash changed (its golden corpus is 1.4.0's), so it shares every
+  match with 1.4.0 and with builds 284 and 291 alike. every iPhone build in the
   table above was on 1.0 that day, and the App Store's still is, so 1.0 stays until no
   row names it. 1.4 brings the throw levels
   (1.3), the view from one side, the computer's turn fast or skipped, raising in any
@@ -79,7 +84,7 @@ The App Store row was filled on 2026-11-24, the day Apple approved 1.0.0 and it 
   `--drop`. The default answer is `--drop`.
 - One engine per major.minor. A patch replaces its minor's engine.
 
-The version label a player sees names the newest: `1.5.0 (1.4.0)`, with "Also plays
+The version label a player sees names the newest: `1.5.2 (1.4.1)`, with "Also plays
 ..." under it in MENU only while an older engine is carried (1.0 today; docs/CLIENT.md
 "Version and freshness"). A match names its own engine, never the app's version.
 

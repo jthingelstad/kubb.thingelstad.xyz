@@ -130,7 +130,7 @@ browserTest("the menu's rows say what they set and show it", async () => {
     // and the older engine the site carries beside it (1.0, for the iPhone builds)
     assert.equal(
       await page.textContent("[data-test=menu-version-label]"),
-      "1.5.1 (1.4.0)",
+      "1.5.2 (1.4.1)",
     );
     assert.match(
       await page.textContent("[data-test=menu-version-also]"),

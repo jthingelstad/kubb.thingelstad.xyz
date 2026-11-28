@@ -9,6 +9,7 @@ import {
   dragOf,
   allowedEnd,
   tiltItem,
+  pickEnd,
   tune,
 } from "../../src/game/raise-touch.js";
 import {
@@ -128,4 +129,51 @@ test("the raise camera stands twice as far off: the kubb drawn half as big, twic
     ys = g.outline.map((q) => q[1]);
   assert.ok(Math.max(...xs) - Math.min(...xs) + 2 * tune.margin >= 44);
   assert.ok(Math.max(...ys) - Math.min(...ys) + 2 * tune.margin >= 44);
+});
+
+// Engine 1.4.1's held raise camera draws a kubb 20 to 40 px long, where both numbers'
+// reaches (labelR, 40 px) cover it: a tap on the drawn kubb is the end drawn nearer it
+// before a number's reach, and only a tap on a number's own circle comes first (the
+// iPhone app's raisePick, its PR 65).
+test("the tap order: a number's own circle, the drawn kubb, a number's reach, a finger's width round it", () => {
+  // a kubb drawn 30 px long, end 0 at the left; its numbers 21 px past each face, the
+  // right one moved down and in (as a label kept clear of the footprint can be)
+  const g = {
+    outline: [
+      [185, 195],
+      [215, 195],
+      [215, 205],
+      [185, 205],
+    ],
+    caps: [
+      { x: 185, y: 200 },
+      { x: 215, y: 200 },
+    ],
+  };
+  const labels = [
+    { lx: 164, ly: 200 },
+    { lx: 196, ly: 226 },
+  ];
+  // on a number's own circle (its 17 px and 2 more): that end
+  assert.equal(pickEnd(g, labels, 164, 210), 0);
+  assert.equal(pickEnd(g, labels, 196, 244), 1);
+  // on the kubb's left half, nearer end 1's moved number than end 0's: still end 0,
+  // the end drawn nearer (before 1.4.1 the nearer number's reach took it: end 1)
+  const x = 198,
+    y = 204;
+  assert.ok(
+    Math.hypot(labels[1].lx - x, labels[1].ly - y) <
+      Math.hypot(labels[0].lx - x, labels[0].ly - y),
+  );
+  assert.equal(pickEnd(g, labels, x, y), 0);
+  assert.equal(pickEnd(g, labels, 212, 198), 1, "the right half");
+  // off the kubb, within a number's reach: the nearest number
+  assert.equal(pickEnd(g, labels, 150, 225), 0);
+  // a finger's width round the kubb, out of every number's reach: its nearer end
+  assert.equal(pickEnd(g, labels, 222, 180), 1);
+  // nowhere near: none (the game then tries the ground)
+  assert.equal(pickEnd(g, labels, 300, 300), null);
+  // no labels drawn (a camera that cannot): the kubb alone
+  assert.equal(pickEnd(g, [null, null], 190, 200), 0);
+  assert.equal(pickEnd(null, labels, 164, 200), 0);
 });
