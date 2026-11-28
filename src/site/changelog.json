@@ -1,6 +1,15 @@
 [
   {
     "part": "web",
+    "version": "1.6.0",
+    "date": "2026-11-27",
+    "engine": "1.4.1",
+    "notes": [
+      "A new What’s new page lists every version of the web game, the iPhone and iPad app, the Playdate game and the Kubb Engine, newest first."
+    ]
+  },
+  {
+    "part": "web",
     "version": "1.5.3",
     "date": "2026-11-27",
     "engine": "1.4.1",
