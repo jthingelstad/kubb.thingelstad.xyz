@@ -12,6 +12,7 @@
 //   opts  { swing: { back, release }, finger: "touch" | "mouse",
 //           zoneFrom: the throw zone's top, of the canvas height,
 //           ceiling: on a wide canvas, the y the fingertip's flick stays under,
+//           narrow: the upright zone is the meter's half (target-ring.js),
 //           caption: the plate's words, for its width }
 import { UI, HUD, FONT } from "./palette.js";
 import { dialGeometry, armPoint, tune as dialTune } from "./dial.js";
@@ -82,6 +83,15 @@ function zonePath(L, g, opts) {
   }
   x = right ? Math.min(x, tab) : Math.max(x, tab);
   const backPx = Math.abs(opts.swing.back) * g.scale;
+  // the upright zone narrowed to the meter's half (the target's ring is in it:
+  // target-ring.js zoneNarrows): the fingertip strokes there, halfway from the centre
+  // line to the tab, as on a wide touchscreen
+  if (L.tall && opts.narrow) {
+    const line = L.W / 2;
+    x = right
+      ? Math.max(line + R + 4, Math.min(tab, (line + tab) / 2))
+      : Math.min(line - R - 4, Math.max(tab, (line + tab) / 2));
+  }
   if (!L.tall && opts.finger === "touch") {
     // a wide touchscreen's zone is the meter's half (layout.js
     // inLinearZone): the fingertip strokes there, halfway from the centre

@@ -86,10 +86,10 @@ import {
 import {
   raiseGeometry,
   onKubb,
-  nearerEnd,
   dragOf,
   allowedEnd,
   tiltItem,
+  pickEnd,
   tune as raiseTune,
 } from "./raise-touch.js";
 import { Hud } from "./hud.js";
@@ -110,6 +110,8 @@ import { namesOf } from "./names.js";
 import { loadThrowLevel, loadThrow, saveThrow } from "./throw-level.js";
 import { NudgeTrigger, timeline, swingOf, captionFor } from "./nudge.js";
 import { coachFor, slowVerdict, shortDrive } from "./coach.js";
+import { holdEnd } from "./held-end.js";
+import { targetRing, onRing, zoneNarrows } from "./target-ring.js";
 import {
   gainFor,
   panFor as neighbourPan,
@@ -207,6 +209,15 @@ const LINEAR_WORDS = {
   "WIND BACK": "DRAW BACK",
   "FLICK!": "FLING!",
   "CRANK DOWN": "BACK TO MIDDLE",
+};
+
+// Whether an engine plays the computer's turn at once (engine 1.4's `cpuPlay`): the
+// computer's skip and a resignation against it that takes at once.
+const cpuPlays = (engine) => {
+  const [maj, min] = String(engine?.version ?? "")
+    .split(".")
+    .map(Number);
+  return maj > 1 || (maj === 1 && min >= 4);
 };
 
 // The raise view's camera: engine 1.4's own (`need.camera`, the whole group from the
@@ -512,9 +523,14 @@ export class Game {
   // thrower's side, and the view goes back to this browser's own after it.
   applySideView(need = this.need, { refetch = true } = {}) {
     let side = this.mode === "match" ? this._localSide : null;
+    // (engine 1.4.1) a raise by hand made here for the other side likewise, so the held
+    // raise camera stands over that side's kubbs from the raiser's own side, not from
+    // this end (the iPhone app's PR 65)
     if (
       side &&
-      (need?.kind === "throw" || need?.kind === "togo") &&
+      (need?.kind === "throw" ||
+        need?.kind === "togo" ||
+        need?.kind === "raise") &&
       (need.side === "A" || need.side === "B") &&
       need.side !== side &&
       this.mayAct(need)
@@ -625,7 +641,9 @@ export class Game {
       p.bursts.forEach((b, i) => {
         if (bs[i]?.anchor) b.anchor = bs[i].anchor;
       });
-      p.last = this.engine.showAt(p.t);
+      // a new box: a held end camera is fitted to it afresh (held-end.js)
+      p.heldEnd = null;
+      p.last = this.shownAt(p);
       this.stage.clear();
     } else {
       this.viewData = v;
@@ -1218,6 +1236,11 @@ export class Game {
   }
 
   tick(dt, now) {
+    // a kept match reopened with its resignation against the computer waiting ends now
+    if (this.need?.resignPending && this.resignationWaits()) {
+      this.endResignation();
+      return;
+    }
     if (!this.quiet) this.resizeIfNeeded();
     this.sceneryTick(this.frozen ? 0 : dt);
     if (!this.quiet && this.observing) {
@@ -1553,6 +1576,8 @@ export class Game {
       bursts: (tl.bursts || []).map((b) => ({ ...b, realAt: null })),
       slow: false,
       last: null,
+      // reduced motion: the end camera held for the whole throw (held-end.js)
+      heldEnd: null,
     };
     this.stage.watch(rec);
     this.phase = "play";
@@ -1564,6 +1589,18 @@ export class Game {
     if (["dial", "swipe"].includes(this.ptr?.kind)) this.ptr = null;
     this.touchSamples.length = 0;
     this.result = null;
+  }
+
+  // The playback at its time, as it is drawn: the engine's showAt, but for reduced
+  // motion, which holds the other side's end camera at its first frame's for the whole
+  // throw (engine 1.4.1 turns it toward the projectile; held-end.js).
+  shownAt(p) {
+    const r = holdEnd(this.engine.showAt(p.t), p.heldEnd, {
+      reduced: this.reduced,
+      first: () => this.engine.showAt(0)?.camera,
+    });
+    p.heldEnd = r.held;
+    return r.shown;
   }
 
   // A watcher (an observer, a member with no side) with others' actions waiting behind
@@ -1591,7 +1628,7 @@ export class Game {
     if (this.quiet && !p.skipped) this.skip();
     else if (!p.skipped && !p.local && this.catchingUp()) this.skip();
     if (!p.done) {
-      const s = this.engine.showAt(p.t);
+      const s = this.shownAt(p);
       p.last = s;
       if (!this.quiet) this.stage.observe(s.items, p.t);
       p.slow = s.speed < 0.99;
@@ -1721,24 +1758,13 @@ export class Game {
     return null;
   }
 
-  // Which end a tap at (x, y) means: an end's numbered label, anywhere on the
-  // drawn kubb (the end nearer the tap), or near an end's footprint on the
-  // ground. null for a tap on none of them.
+  // Which end a tap at (x, y) means: a number's own circle, the drawn kubb (the end
+  // nearer the tap), a number within reach, a finger's width round the kubb
+  // (raise-touch.js pickEnd, the order engine 1.4.1's close raise camera wants), or near
+  // an end's footprint on the ground. null for a tap on none of them.
   raisePick(x, y) {
-    // the nearer label when both are in reach (a kubb drawn short, as the whole
-    // group's camera draws one lying toward it)
-    let i = null,
-      best = raiseTune.labelR;
-    this.endPoints().forEach((q, j) => {
-      const d = q ? Math.hypot(q.lx - x, q.ly - y) : Infinity;
-      if (d < best) {
-        best = d;
-        i = j;
-      }
-    });
+    const i = pickEnd(this.raiseShape(), this.endPoints(), x, y);
     if (i != null) return i;
-    const g = this.raiseShape();
-    if (onKubb(g, x, y)) return nearerEnd(g, x, y);
     const p = this.ground(x, y, raiseCam(this.raiseNeed()));
     return p ? this.raiseAt(p.x, p.y) : null;
   }
@@ -1919,14 +1945,106 @@ export class Game {
   // as the finish, and every browser on a pitch applies the same stamp (it is part of
   // the action). Since engine 0.18.0 the throws the engine makes carry one too, from the
   // `at` every frame passes (Game.stamp).
+  //
+  // Against the computer (solo, engine 1.4 on) RESIGN ends the match at once: the owner,
+  // 2026-11-27, with the iPhone app's (`PitchSession.endResignation`): "they should not
+  // have to watch the computer play out its turn". The engine takes a resignation only
+  // on the side's own turn and holds it as `need.resignPending` until then, so what
+  // stands between is made now with no frames (endResignation). On a pitch, at the throw
+  // to go and on an engine before 1.4 the resignation waits for the side's turn, as
+  // before.
   resign(side) {
     const at = this.stamp();
     const action = at ? { type: "resign", side, at } : { type: "resign", side };
     const r = this.engine.apply(action);
     if (r.ok === false) return r;
     this.emit(action);
+    if (this.resignationWaits(r.need ?? this.engine.need())) {
+      this.endResignation();
+      return r;
+    }
     if (this.phase !== "play") this.enter(this.engine.view());
     return r;
+  }
+
+  // Whether a resignation against the computer is still to take, with something between
+  // it and the side's turn the person would otherwise watch or make: a throw playing, a
+  // raise watched, the computer to throw, or this side's own raise or punishment kubb.
+  // Never on a pitch (`fastCpu` is solo's), at the throw to go (only a person throws
+  // their own baton; once it is out the match ends the same way) or on an engine
+  // without `cpuPlay` (before 1.4).
+  resignationWaits(n = this.need) {
+    if (!this.fastCpu || this.mode !== "match" || !cpuPlays(this.engine))
+      return false;
+    if (!n?.resignPending || n.kind === "over" || n.kind === "togo")
+      return false;
+    return (
+      this.phase === "play" ||
+      this.phase === "lift" ||
+      n.kind === "raise" ||
+      n.kind === "punish" ||
+      (n.kind === "throw" && !!n.cpu)
+    );
+  }
+
+  // The resignation taken now: whatever plays is cut (the throw, a watched raise, the
+  // engine's own raises, the verdict; no more knocks), then what stands between it and
+  // the side's turn is made with no frames, each action into the trail with the hash
+  // after it, as a watched turn would make them: the computer's throws as its skip makes
+  // them (`cpuPlay`, no recordings; the engine's own raises among its steps), this side's
+  // raises by the engine's choice (AUTO's action) and a punishment kubb on the engine's
+  // own spot (the need's `cursor`). Then the winner card.
+  endResignation() {
+    this.play = null;
+    this.liftState = null;
+    this.liftSkip = false;
+    this.queue.length = 0;
+    this.afterPlay = null;
+    this.stage.clear();
+    this.result = null;
+    this.planOff();
+    this.slide = null;
+    this.standDrag = null;
+    this.raiseDrag = null;
+    this.raiseSel = null;
+    this.dialArm = null;
+    this.dialNext = null;
+    this.ptr = null;
+    this.touchSamples.length = 0;
+    this.cancelSwipe();
+    // each pass makes at least one action or stops; a match has far fewer than this
+    for (let i = 0; i < 200; i++) {
+      const n = this.engine.need();
+      if (!n || n.kind === "over" || !n.resignPending) break;
+      if (n.kind === "throw" && n.cpu) {
+        let r;
+        try {
+          r = this.engine.cpuPlay({ at: this.stamp() });
+        } catch {
+          break;
+        }
+        const steps = r?.ok === false ? [] : r?.steps || [];
+        if (!steps.length) break;
+        this.trackSteps(steps);
+      } else if (n.kind === "raise" || n.kind === "punish") {
+        const action =
+          n.kind === "raise"
+            ? Array.isArray(n.lying) && n.kubb != null
+              ? { type: "raise", kubb: n.kubb }
+              : { type: "raise" }
+            : { type: "punish", x: n.cursor?.x, y: n.cursor?.y };
+        if (n.kind === "punish") {
+          if (!n.cursor) break;
+          if (n.frame === "A" || n.frame === "B") action.frame = n.frame;
+        }
+        const at = this.stamp();
+        if (at) action.at = at;
+        const r = this.engine.apply(action);
+        if (r?.ok === false) break;
+        this.emit(action);
+      } else break;
+    }
+    this.enter(this.engine.view());
   }
 
   // ---------- practice ----------
@@ -2085,6 +2203,9 @@ export class Game {
       swing,
       finger: this.coarse ? "touch" : "mouse",
       zoneFrom: tune.zoneFrom,
+      // the target's ring in the upright zone: the zone is the meter's half, and the
+      // fingertip strokes there (target-ring.js zoneNarrows)
+      narrow: zoneNarrows(this.L, this.targetRing(), tune.zoneFrom),
       // the header row's foot: the fingertip stays under it on a wide canvas
       ceiling: this.L.safe.top + layoutTune.railH + layoutTune.margin * 1.5,
       caption,
@@ -2939,7 +3060,12 @@ export class Game {
         : swipe
           ? Math.hypot(x - g.cx, y - g.cy) <= g.r
           : hitTest(g, x, y);
+      // the target's ring (target-ring.js): a press on it is the aim's, whatever the
+      // linear meter's body, its zone or the clock's outer reach would make of it; only
+      // the knob and the clock's ring come before it (the owner, 2026-11-27)
+      const ring = this.targetRing();
       if (onDial) kind = swipe ? "swipe" : "dial";
+      else if (onRing(ring, x, y)) kind = "target";
       else if (onLinear) kind = onLinear;
       else if (
         this.near(aim.marker, x, y, touch ? tune.grabTouch : tune.grabMouse)
@@ -2960,7 +3086,11 @@ export class Game {
       // drag becomes the stroke (move)
       else if (
         linear &&
-        inLinearZone(this.L, x, y, { touch, zoneFrom: tune.zoneFrom })
+        inLinearZone(this.L, x, y, {
+          touch,
+          zoneFrom: tune.zoneFrom,
+          narrow: zoneNarrows(this.L, ring, tune.zoneFrom),
+        })
       )
         kind = "zone";
       else kind = "tap";
@@ -3036,6 +3166,15 @@ export class Game {
     if (!pt || !this.out?.camera) return null;
     const p = projectView(this.view, this.out.camera, pt.x, pt.y, 0);
     return p ? { x: p[0], y: p[1] } : null;
+  }
+
+  // The target's ring on the screen as the aim draws it (target-ring.js), or null.
+  targetRing() {
+    const cam = this.out?.camera;
+    if (!cam) return null;
+    return targetRing(this.out?.aim?.marker, (x, y, z) =>
+      projectView(this.view, cam, x, y, z),
+    );
   }
 
   near(pt, x, y, r) {

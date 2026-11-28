@@ -5,6 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   verdictBox,
+  edgeMap,
   layoutFor,
   worldFit,
   stillFit,
@@ -559,9 +560,14 @@ test("the meter's side: a wide canvas's clock goes lower left, a tall one's stay
     assert.equal(L.dial.width, R.dial.width);
     assert.equal(L.dial.y, R.dial.y);
     assert.ok(Math.abs(L.dial.x - (W - R.dial.x - R.dial.width)) < 1e-9);
-    // the minimap under the header's right end either way; the tray at the
+    // the minimap under the header's right end either way, or on a window with the
+    // room (1024 x 768 here) at the tray's edge, mirrored (edgeMap); the tray at the
     // edge away from the clock
-    assert.deepEqual(L.minimap, R.minimap);
+    if (W === 1024) {
+      assert.equal(R.minimap.x, tune.trayEdge);
+      assert.equal(L.minimap.x + L.minimap.width, W - tune.trayEdge);
+      assert.equal(L.minimap.y, R.minimap.y);
+    } else assert.deepEqual(L.minimap, R.minimap);
     assert.equal(overlaps(L.minimap, L.dial), false);
     assert.equal(L.planEdge, "right");
     assert.equal(R.planEdge, "left");
@@ -910,7 +916,12 @@ test("the tray: three plates of one size in a column at the edge away from the m
   }
 });
 
-test("the minimap hangs under the header's right end, in every layout", () => {
+// The sizes of SIZES_TRAY whose window has the room for the minimap at the tray's
+// edge (edgeMap, the owner's of 2026-11-27): the two desktops. The tablet on its side
+// with its bars (1180 x 820 less 44 px) is just short of ARC's whole open height.
+const EDGE_TRAY = new Set(["1280x800", "1440x900"]);
+
+test("the minimap hangs under the header's right end, in every layout but a big wide window's", () => {
   for (const [W, H, safe, coarse] of SIZES_TRAY) {
     for (const meter of ["clock", "linear"]) {
       for (const side of ["right", "left"]) {
@@ -923,7 +934,14 @@ test("the minimap hangs under the header's right end, in every layout", () => {
           const tag = `${W}x${H} ${L.meter} ${side} ${header}`;
           const m = L.minimap;
           const hd = L.header;
-          assert.ok(Math.abs(m.x + m.width - hd.x - hd.width) < 1e-9, tag);
+          if (EDGE_TRAY.has(`${W}x${H}`)) {
+            // at the tray's edge (edgeMap): tests below
+            const s = { left: 0, right: 0, ...safe };
+            if (L.tray.edge === "left")
+              assert.equal(m.x, s.left + tune.trayEdge, tag);
+            else assert.equal(m.x + m.width, W - s.right - tune.trayEdge, tag);
+          } else
+            assert.ok(Math.abs(m.x + m.width - hd.x - hd.width) < 1e-9, tag);
           assert.equal(m.y, hd.y + hd.height + tune.mapGap, tag);
           if (L.meter === "linear")
             assert.ok(!overlaps(m, L.dial), `${tag}: the meter`);
@@ -1082,5 +1100,137 @@ test("the verdict's box keeps off the header, the minimap, the tray and the mete
     // a throw's own far baseline (a Kid match's, nearer the camera) the same
     const g = worldFit(W, H, 200, 150);
     assert.ok(Math.abs((g.oy + 150 * g.k) / H - 0.41) < 1e-9);
+  }
+});
+
+// The minimap at the tray's edge on a big wide window (the owner, 2026-11-27, of the
+// iPhone app on an iPad on its side: "The map of the pitch should be all the way to the
+// left and under the other control. It is in the way in landscape on iPad."; the app's
+// WideLayout.edgeMap): at the edge away from the meter, its outer side in line with the
+// column's, mapGap under the header row, above the tray, only where the tray keeps its
+// full plates on its own foot and ARC its whole open height with the other two showing;
+// everywhere else exactly where it was, under the header's right end.
+test("the minimap at the tray's edge, where the tray keeps its room; elsewhere under the header's right end", () => {
+  let edges = 0,
+    nominal = 0;
+  const seen = new Set();
+  const windows = [];
+  for (let W = 560; W <= 2560; W += 40)
+    for (let H = 320; H <= 1440; H += 40) windows.push([W, H, {}]);
+  windows.push(
+    [1366, 1024, { top: 24, bottom: 20 }], // a 12.9-inch iPad on its side
+    [1194, 834, { top: 24, bottom: 20 }], // an 11-inch iPad on its side
+    [1133, 744, { top: 24, bottom: 20 }], // an iPad mini on its side
+    [852, 393, { left: 59, right: 59, bottom: 21 }], // a phone on its side
+  );
+  for (const [W, H, safe] of windows)
+    for (const meter of ["clock", "linear"])
+      for (const side of ["right", "left"])
+        for (const header of [null, "practice", "watch"]) {
+          const s = { top: 0, right: 0, bottom: 0, left: 0, ...safe };
+          const L = layoutFor(W, H, safe, false, meter, {
+            side,
+            coarse: true,
+            header,
+          });
+          const tag = `${W}x${H} ${L.meter} ${side} ${header}`;
+          const m = L.minimap;
+          const hd = L.header;
+          const t = L.tray;
+          if (L.tall || !t) continue;
+          assert.equal(
+            m.y,
+            hd.y + hd.height + tune.mapGap,
+            `${tag}: under the row`,
+          );
+          const atHeader = Math.abs(m.x + m.width - hd.x - hd.width) < 1e-9;
+          const atEdge =
+            t.edge === "left"
+              ? m.x === s.left + tune.trayEdge
+              : Math.abs(m.x + m.width - (W - s.right - tune.trayEdge)) < 1e-9;
+          assert.ok(atHeader || atEdge, tag);
+          if (atEdge && !atHeader) {
+            edges++;
+            seen.add(`${W}x${H}`);
+            const phone = Math.min(W, H) < 520;
+            const k = phone ? "phone" : "wide";
+            // in line with the column, above it with mapGap, on its own side
+            assert.equal(t.ceiling, m.y + m.height + tune.mapGap, tag);
+            assert.ok(t.y >= t.ceiling, `${tag}: the tray under it`);
+            assert.ok(!overlaps(m, L.plan), `${tag}: the tray`);
+            // the tray keeps its full plates on its own foot, ARC its whole height
+            assert.equal(t.plateH, phone ? 60 : 70, tag);
+            assert.ok(
+              Math.abs(t.foot - (L.dial.y + L.dial.height - tune.trayFoot)) <
+                1e-9,
+              tag,
+            );
+            assert.equal(t.open.arc.cover, false, tag);
+            assert.equal(t.open.arc.height, tune.openArcH[k], tag);
+            // and it meets nothing
+            assert.ok(!overlaps(m, L.dial), `${tag}: the meter`);
+            assert.ok(!overlaps(m, hd), `${tag}: the header`);
+            assert.ok(
+              !overlaps(m, headerPlates(L, header).row),
+              `${tag}: the row`,
+            );
+            if (L.meter === "linear")
+              assert.ok(
+                !overlaps(m, tabRect(linearGeometry(L.dial, L.meterSide))),
+                `${tag}: the tab`,
+              );
+            else {
+              const { circle: c, prompt } = clockShapes(L);
+              assert.ok(!overlaps(m, prompt), `${tag}: the prompt`);
+              const nx = Math.max(m.x, Math.min(c.cx, m.x + m.width));
+              const ny = Math.max(m.y, Math.min(c.cy, m.y + m.height));
+              assert.ok(Math.hypot(nx - c.cx, ny - c.cy) >= c.r, tag);
+            }
+            assert.ok(m.x >= s.left && m.x + m.width <= W - s.right, tag);
+            assert.ok(m.y + m.height <= H - s.bottom, tag);
+          } else {
+            nominal++;
+            // today's place: edgeMap found no room, so the layout is as it was
+            assert.ok(atHeader, tag);
+          }
+        }
+  assert.ok(
+    edges > 1000 && nominal > 1000,
+    `${edges} at the edge, ${nominal} not`,
+  );
+  // where it was reported: a 13-inch iPad and an 11-inch one on their sides, both
+  // meters, both sides; and big desktops
+  for (const k of ["1366x1024", "1194x834"]) assert.ok(seen.has(k), k);
+  for (const [W, H] of [
+    [1920, 1080],
+    [1440, 900],
+    [1280, 800],
+  ])
+    for (const side of ["right", "left"]) {
+      const L = layoutFor(W, H, {}, false, "linear", { side, coarse: true });
+      const e = edgeMap(L);
+      assert.ok(e, `${W}x${H} ${side}`);
+      assert.deepEqual(L.minimap, e.minimap);
+    }
+  // every phone on its side, a short window and a tall canvas keep it under the header
+  for (const [W, H, safe] of SIDEWAYS)
+    for (const meter of ["clock", "linear"]) {
+      const L = layoutFor(W, H, safe, false, meter, { coarse: true });
+      const hd = L.header;
+      assert.ok(
+        Math.abs(L.minimap.x + L.minimap.width - hd.x - hd.width) < 1e-9,
+        `${W}x${H} ${meter}`,
+      );
+    }
+  for (const [W, H] of [
+    [1280, 768],
+    [1280, 600],
+    [390, 844],
+    [768, 1024],
+  ]) {
+    const L = layoutFor(W, H);
+    const hd = L.header;
+    assert.ok(Math.abs(L.minimap.x + L.minimap.width - hd.x - hd.width) < 1e-9);
+    assert.equal(edgeMap(L), null, `${W}x${H}`);
   }
 });

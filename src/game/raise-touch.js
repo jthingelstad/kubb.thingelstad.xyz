@@ -136,6 +136,36 @@ export function nearerEnd(g, x, y) {
   return along(g, x, y) < 0.5 ? 0 : 1;
 }
 
+// Which end a tap at (x, y) means, of the drawn kubb `g` and its ends' numbered labels
+// (`labels`: { lx, ly } or null each, Game.endPoints), or null for neither (the game then
+// tries the ground by the footprints). In order (the iPhone app's raisePick, engine 1.4.1):
+// a tap on a number's own circle is that end's; then a tap on the drawn kubb itself is the
+// end drawn nearer it (engine 1.4.1's held raise camera draws a kubb 20 to 40 px long,
+// where both numbers' reaches cover it and a number moved clear of the footprint can be
+// the nearer to the wrong half); then the nearest number within its reach (labelR); then
+// a finger's width round the kubb (margin), its nearer end.
+export function pickEnd(g, labels, x, y) {
+  const nearest = (r) => {
+    let i = null,
+      best = r;
+    (labels || []).forEach((q, j) => {
+      const d = q ? Math.hypot(q.lx - x, q.ly - y) : Infinity;
+      if (d <= best) {
+        best = d;
+        i = j;
+      }
+    });
+    return i;
+  };
+  const own = nearest(tune.labelR0 + 2);
+  if (own != null) return own;
+  if (onKubb(g, x, y, 0)) return nearerEnd(g, x, y);
+  const reach = nearest(tune.labelR - 1e-9);
+  if (reach != null) return reach;
+  if (onKubb(g, x, y)) return nearerEnd(g, x, y);
+  return null;
+}
+
 // A drag from (x0, y0) to (x, y): toward which end, and how far up (0 to 1). The finger
 // moves toward the end the kubb will stand on, along the kubb as it is drawn; the drag that
 // tips it all the way is the kubb's drawn length (tune.travelK), never under travelMin.

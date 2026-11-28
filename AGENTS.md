@@ -23,7 +23,7 @@ game is the sibling checkout `../playdate-kubb` and its `docs/DESIGN.md` and
   bundled with its own and never counts). Which engines those builds carry is the table in
   `docs/ENGINES.md` "The iPhone builds people have": read it before a move to a new minor,
   `--keep` an engine a row names, `--drop` only one no row names. Today that is 1.4
-  (1.4.0, the newest, since web 1.5.0) and 1.0 (1.0.0, kept for the iPhone builds, all on
+  (1.4.1, the newest: 1.4.0 since web 1.5.0, its patch 1.4.1 since web 1.5.2) and 1.0 (1.0.0, kept for the iPhone builds, all on
   it); 0.18 was dropped with the move to 1.0, 0.16 with the
   move to 0.18 (the web never carried 0.17), 0.15 with the move to 0.16 and 0.13 with
   the move to 0.15 (all 2026-11-22; the web never carried 0.14), and 0.9, 0.8 and 0.7 on
@@ -240,7 +240,7 @@ preview`, the browser tests, CI) gives it the pitch server on this machine
 
 `package.json`'s `version` is the web app's version. Every app shows its own version with
 the Kubb Engine's beside it (Jamie, 2026-11-20): on the web the label is that version and
-the full version of the newest engine the site carries, `1.5.1 (1.4.0)`, at the foot of
+the full version of the newest engine the site carries, `1.5.2 (1.4.1)`, at the foot of
 every reading page and of MENU, with "Also plays ..." under it in MENU only while older
 engines are carried (1.0 today) (`src/site/release.js`, docs/CLIENT.md "Version and freshness"). The
 deployed commit stays the exact identity (freshness, reports) and is never in the label.
@@ -704,7 +704,12 @@ meter on the screen a drag in the throw zone (the lower 40% of the canvas, where
 nothing to aim at; with a finger on a wide screen, the meter's half) strokes the knob as
 a grab of it does, and a tap there still aims; on touch a press outside the clock's
 ring, out to 2.1 radii, turns the arm as the ring does
-(where a tap there could aim, only a drag does, and a tap still aims),
+(where a tap there could aim, only a drag does, and a tap still aims). A press on the
+target's ring (as drawn, 10 px round it, never under 44 px across) always aims, before the
+linear meter's body, its zone and the clock's outer reach, and upright while the ring's
+centre is in the zone the zone is only the meter's half (the owner, 2026-11-27, of the
+iPhone app on an iPad: "On iPad I'm trying to move the drill target and when I tap it is
+activating the throw instead."; `src/game/target-ring.js`, the app's numbers),
 and on a touchscreen held upright the clock is 13% smaller and raised so a finger can go
 all the way round outside its rim. A press on the ring is exactly as before. MENU, Meter side
 (Jamie, 2026-11-19: "Left and right handed folks may want it on one side or the other";
@@ -789,6 +794,8 @@ short of that nothing is sent. An end the rules refuse is never chosen: the allo
 lights for a second instead. END 1 and END 2 stay on the panel for the keyboard and screen
 readers only (hidden until focused), and the canvas names the ends. The engine gets the
 same `raise` action either way: `src/game/raise-touch.js`, docs/CLIENT.md "Match flow".
+Since engine 1.4.1's close raise camera a tap takes a number's own circle first, then the
+drawn kubb, then a number's reach (`pickEnd`, docs/SYSTEM.md "The raise view").
 
 ## Controls are the web's own
 
@@ -814,7 +821,11 @@ labels are plain words.
   column at the screen's edge away from the meter, upright and wide, mouse and touch; a
   tap opens one into its control, one at a time, ARC open is the side view, and Escape or
   a tap outside closes it. The minimap hangs under the header's right end in every
-  layout. `src/game/tray.js`, `trayAt` in `src/game/layout.js`, docs/CLIENT.md "The
+  layout but a big wide window's, where it stands at the tray's edge above the column
+  wherever the tray keeps its full plates and ARC its whole open height (the owner,
+  2026-11-27, of the iPhone app on an iPad: "The map of the pitch should be all the way to
+  the left and under the other control. It is in the way in landscape on iPad."; `edgeMap`
+  in `src/game/layout.js`, the app's `WideLayout.edgeMap`). `src/game/tray.js`, `trayAt` in `src/game/layout.js`, docs/CLIENT.md "The
   tray", the numbers in docs/SYSTEM.md "Play screens".
 - Practice's tray is BATONS | KUBBS, the one in use pressed (it was one button naming the
   other mode). The rail counts in words ("5 BASE KUBBS", "TARGET 2.3 M"), not the
@@ -855,7 +866,11 @@ labels are plain words.
   ("WAITING FOR <TEAM>" until both are in), the two played back together, then "<TEAM>
   GOES FIRST" or "THROW AGAIN". Each player sees the match from their own end
   (`setView`); watchers keep the wide view. Against the computer its turn has 1X/2X/4X
-  (the `cpuSpeed` pref) and a skip (`cpuPlay`), solo only. A raise by hand shows the
+  (the `cpuSpeed` pref) and a skip (`cpuPlay`), solo only; RESIGN against it ends
+  the match at once (web 1.5.2, the owner, 2026-11-27: `Game.endResignation`,
+  docs/CLIENT.md "Match flow"). From engine 1.4.1 the other side's throw is watched from
+  a person's eyes on the player's baseline, turning with the throw; reduced motion holds
+  its first frame's camera (`src/game/held-end.js`). A raise by hand shows the
   whole group through the engine's `need.camera`, and any lying kubb may be picked and
   stood first. A pitch on 1.0 has none of these: docs/MULTIPLAYER.md "Engine 1.4 on a
   mixed pitch". The browser tests start matches without the throw to go unless they are

@@ -408,7 +408,13 @@ browser with no side, an observer and a watcher keep the wide view. A throw this
 browser aims for the other side (the host standing in for a player who left) is seen
 from the thrower's end (`setView` with that side), because the aim calls (`setTarget`,
 `setStance`) take the thrower's frame; the view goes back to the player's own end
-after it.
+after it. Since web 1.5.2 (engine 1.4.1, whose held raise camera stands over the lying
+group from the raiser's side) a raise by hand this browser makes for the other side is
+seen from that side too, as the iPhone app's is. From engine 1.4.1 the end camera is a
+person's eyes on the player's own baseline, turning part of the way toward the baton as
+it flies (the engine's docs/SESSION.md "A view from one side"); with
+prefers-reduced-motion the page holds the recording's first frame's camera, fitted to
+the whole throw, for all of it (`src/game/held-end.js`, the app's `Playback.heldEnd`).
 
 Whose turn it is shows by name: the status pill says YOUR THROW (marigold), MIGHTY MAPLE THROWS,
 COMPUTER THROWS, YOUR RAISE, TEAM B PLACES A KUBB and so on, and the hand-off card says
@@ -538,7 +544,8 @@ keep these the same, or the two disagree on screen:
   the resync; raises as `{ type: "raise", kubb, which }` (AUTO: `{ type: "raise",
 kubb }`, the end the engine's), a `not lying` refusal redrawn;
   `{ type: "punish", x, y, frame }`; `setView` with the player's own side (the
-  thrower's while standing in for the other side's throw). On a 1.0
+  thrower's while standing in for the other side's throw, and since engine 1.4.1 the
+  raiser's while raising for it). On a 1.0
   room none of these: the lobby rows come from the room engine, and the match is
   played as on 1.0.
 - HOLLER: the list below, in this order, exactly (its one source is
