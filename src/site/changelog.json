@@ -1,0 +1,992 @@
+[
+  {
+    "part": "web",
+    "version": "1.5.3",
+    "date": "2026-11-27",
+    "engine": "1.4.1",
+    "notes": ["The Playdate page now offers the Throwing Wood 1.1.1 download."]
+  },
+  {
+    "part": "web",
+    "version": "1.5.2",
+    "date": "2026-11-27",
+    "engine": "1.4.1",
+    "notes": [
+      "Moves to engine 1.4.1: when the other side throws, you watch from your own baseline, and the view turns with the throw.",
+      "RESIGN against the computer ends the match right away.",
+      "A press on the target's ring always aims, even when it sits near the meter.",
+      "On a big wide window, the minimap sits by the controls."
+    ]
+  },
+  {
+    "part": "playdate",
+    "version": "1.1.1",
+    "date": "2026-11-27",
+    "build": 19,
+    "engine": "1.4.1",
+    "notes": [
+      "When the Playdate throws, the view from your end keeps the king, the thrower and the target circle on the screen.",
+      "When the Playdate raises its kubbs, you watch from close by."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "1.4.1",
+    "date": "2026-11-27",
+    "throws": "same",
+    "notes": [
+      "When the other side throws, you watch from your own baseline, like a person standing there.",
+      "The view turns to follow the baton or kubb as it flies, so you get to watch the throw.",
+      "When you raise kubbs, the view moves in close, so the kubbs are big and easy to see on a phone."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "1.5.1",
+    "date": "2026-11-26",
+    "engine": "1.4.0",
+    "notes": [
+      "The Playdate page now offers the Throwing Wood 1.1.0 download, with a list of what is new."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "1.5.0",
+    "date": "2026-11-26",
+    "engine": "1.4.0",
+    "notes": [
+      "Moves to engine 1.4: pick EASY, STANDARD or HARD for each thrower.",
+      "THROW TO GO starts the match. Both sides throw a baton at the same time to see who goes first.",
+      "Your view stays at your own end, and the other side throws from the far end.",
+      "Speed up the computer's turn at 2X or 4X, or skip it. Raise lying kubbs in any order you like."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "1.4.1",
+    "date": "2026-11-26",
+    "engine": "1.0.0",
+    "notes": [
+      "The Kubb: Pitchside pages catch up with the app, and its privacy page says where your games are kept."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "1.4.0",
+    "date": "2026-11-26",
+    "engine": "1.0.0",
+    "notes": [
+      "HOLLER replaces SHOUT. Send a cheer, a groan, some banter or an emoji to everyone on the pitch.",
+      "FEEDBACK shows the pitch from above. Paint on it to show what happened."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "1.3.0",
+    "date": "2026-11-26",
+    "engine": "1.0.0",
+    "notes": [
+      "New pages for Kubb: Pitchside, an iPhone app for keeping score at real kubb games, with its own support and privacy pages."
+    ]
+  },
+  {
+    "part": "iphone",
+    "version": "1.1.0",
+    "channel": "beta",
+    "date": "2026-11-26",
+    "build": 294,
+    "engine": "1.4.1",
+    "notes": [
+      "Pick your throw: Easy, Standard or Hard. It sets how wide the bars on the meter are. No hidden misses.",
+      "A match can start with the throw to go. Each team throws one baton at the king, and the closest one that leaves it standing goes first.",
+      "Watch the computer throw from your own baseline. Speed up its turn or skip it, and RESIGN ends the match right away.",
+      "Raise your kubbs in any order. HOLLER takes over from SHOUT, and a real match now plays behind the home screen."
+    ]
+  },
+  {
+    "part": "playdate",
+    "version": "1.1.0",
+    "date": "2026-11-26",
+    "build": 18,
+    "engine": "1.4.0",
+    "notes": [
+      "THROW TO GO. Before the first turn, each side throws one baton at the king. Closest without knocking it over throws first. It is on unless you turn it off.",
+      "Each person throws on EASY, STANDARD or HARD, set on TEAMS. The level is how wide the bars on the clock are. No hidden misses: what you do with the crank is what the baton does.",
+      "Against the Playdate, the screen stays on your side and its batons come at you. Press B for SPEED 1X, 2X or 4X, or A to SKIP its turn.",
+      "Raise kubbs in any order, from one view of the whole group. Pick the end, then tip it up with the crank. Auto raise is in the System Menu now."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "1.4.0",
+    "date": "2026-11-26",
+    "throws": "same",
+    "notes": [
+      "A new option: the throw to go. Before the match, each team throws one baton at the king. The closer baton wins first throw, but knock the king over and you lose it.",
+      "You can raise your kubbs in any order you like.",
+      "The computer's turn can play at two or four times speed. Its throws stay exactly the same.",
+      "Each player can see the pitch from their own end."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "1.3.0",
+    "date": "2026-11-26",
+    "throws": "changed",
+    "notes": [
+      "Your throw is honest now. No nerves, so the same swing gives the same throw every time.",
+      "Pick Easy, Standard or Hard for yourself. Easy has wider bars on the meter and Hard has narrower ones.",
+      "The club computer is easier to beat. A typical player now wins about 4 games in 10.",
+      "Any swing inside both bars knocks down a lone kubb, even from close up."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "1.2.0",
+    "date": "2026-11-26",
+    "throws": "changed",
+    "notes": [
+      "The computer drills its kubbs closer to the center line, the way real players do.",
+      "If one of the computer's kubbs goes out, it stops throwing the rest toward that kubb."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "1.2.0",
+    "date": "2026-11-24",
+    "engine": "1.0.0",
+    "notes": [
+      "The iPhone app is in the App Store, and the site shows the App Store badge.",
+      "The iPhone page keeps a TestFlight link for trying new versions early."
+    ]
+  },
+  {
+    "part": "iphone",
+    "version": "1.0.0",
+    "channel": "app-store",
+    "date": "2026-11-24",
+    "build": 260,
+    "engine": "1.0.0",
+    "notes": [
+      "Kubb: Throwing Wood is in the App Store. It has a fresh new look and a crowned king for its icon.",
+      "Seven places to play: Park, Beach, Camping, Techno, Minnesota, Tournament and Black & White. Each one has its own app icon to pick in Settings.",
+      "Play the computer from Kid to Pro. A Kid match has three kubbs a side, thrown from the cones.",
+      "Throw a DRIVE, low and hard into a group. Online, you can add computer players to either team, and every name is made for you, so there is nothing to type."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "1.1.0",
+    "date": "2026-11-24",
+    "throws": "same",
+    "notes": [
+      "The engine can now keep score of a real game of kubb on the lawn, throw by throw, and write the score sheet at the end.",
+      "It warns when something breaks the rules, and any throw can be undone or fixed."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "1.1.1",
+    "date": "2026-11-22",
+    "engine": "1.0.0",
+    "notes": ["The support page now gives the game's own email address."]
+  },
+  {
+    "part": "web",
+    "version": "1.1.0",
+    "date": "2026-11-22",
+    "engine": "1.0.0",
+    "notes": [
+      "A new support page, with quick answers and how to reach the game's maker."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "1.0.1",
+    "date": "2026-11-22",
+    "engine": "1.0.0",
+    "notes": [
+      "A highlight reel that is already made says WATCH THE REEL right away again."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "1.0.0",
+    "date": "2026-11-22",
+    "engine": "1.0.0",
+    "notes": [
+      "Moves to engine 1.0: standing kubbs settle into the grass and lean a little, like real ones.",
+      "The meter shows short distances in tenths, like 1.5 M.",
+      "A held slider's words stay clear of the minimap."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.21.0",
+    "date": "2026-11-22",
+    "engine": "0.18.0",
+    "notes": [
+      "The host can ADD COMPUTER players to a team on a pitch, each at Beginner, Club or Pro.",
+      "Play 2 v 2 with a computer partner each, or three friends against three computers.",
+      "Moves to engine 0.18: the computer drives at Club and Pro, and batons hit a little harder.",
+      "The winner card shows how long the match took."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.20.0",
+    "date": "2026-11-22",
+    "engine": "0.16.0",
+    "notes": [
+      "A match against the computer waits for you after a reload. Pick RESUME or NEW MATCH.",
+      "A thrown kubb says what happened, like IN, OUT: THROW AGAIN or ON A KUBB: LOWERED.",
+      "On a shared pitch, the game says when a player is away and who throws for them.",
+      "Watchers catch up to the live game."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.19.0",
+    "date": "2026-11-22",
+    "engine": "0.16.0",
+    "notes": [
+      "Moves to engine 0.16: the drive. Slide ARC down into DRIVE to throw low and hard into a group.",
+      "Close throws come in firm on their own.",
+      "When the computer raises its kubbs, you watch them tip up."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.17.1",
+    "date": "2026-11-22",
+    "engine": "0.15.1",
+    "notes": [
+      "Fixes from a big test pass: keyboard focus, Home and End on the sliders, and a name row that ran off small screens.",
+      "Practice now listens to BATONS, KUBBS and RESET while a throw plays.",
+      "A slow phone shows the loading card right away."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.17.0",
+    "date": "2026-11-22",
+    "engine": "0.15.1",
+    "notes": [
+      "When a kubb is raised for you, you watch it tip up. Tap to skip.",
+      "In the Tournament, the other pitches have no people, and you can hear their kubbs fall.",
+      "The raise view stands farther back, so you see more of the pitch.",
+      "The verdict gets out of your way as soon as you aim again."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.16.0",
+    "date": "2026-11-22",
+    "engine": "0.15.1",
+    "notes": [
+      "In the Tournament scene, the pitches around yours play real matches of their own."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.15.0",
+    "date": "2026-11-22",
+    "engine": "0.15.1",
+    "notes": [
+      "Moves to engine 0.15: seven scenes. New are Beach, Minnesota, Tournament and Black & White.",
+      "Kid matches: pick Kid for the computer and throw from the cones.",
+      "Techno gets a shiny floor with a ring of light where pieces land.",
+      "A fast-spinning kubb now looks like it spins."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.14.1",
+    "date": "2026-11-22",
+    "engine": "0.13.4",
+    "notes": [
+      "On a first visit, HOW TO THROW now sits on top of the your-turn card, not under it."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.14.0",
+    "date": "2026-11-22",
+    "engine": "0.13.4",
+    "notes": [
+      "New play screens. ARC, TILT and STAND sit in one column, and you open one at a time.",
+      "The meter has stripes to pull back to and a solid mark to stop on.",
+      "The minimap stays put. Team A's kubbs are circles and Team B's are squares.",
+      "The verdict, the hand-off and the coach lines are short and easy to read."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.13.0",
+    "date": "2026-11-22",
+    "engine": "0.13.4",
+    "notes": [
+      "A new look for the game's buttons, cards and menus.",
+      "Scenes are now called Park, Camping and Techno, each with its own picture tile.",
+      "MENU is a grid: Settings, Score sheet, How to throw and Feedback.",
+      "Open a friend's link for the first time and a welcome card helps you JOIN THE GAME or JUST WATCH."
+    ]
+  },
+  {
+    "part": "iphone",
+    "version": "0.6",
+    "channel": "beta",
+    "date": "2026-11-22",
+    "build": 162,
+    "engine": "0.9.0",
+    "notes": [
+      "WATCH any open game. Drag to look around, pinch to zoom, and tap RESET VIEW to go back.",
+      "Online play has a new home. The other player's aim looks smoother, a banner shows whose turn it is, and you get back in faster after a drop.",
+      "A SETTINGS button on the home screen keeps your name, level, sound, haptics and meter in one place."
+    ]
+  },
+  {
+    "part": "playdate",
+    "version": "1.0.0",
+    "date": "2026-11-22",
+    "build": 17,
+    "engine": "1.0.0",
+    "notes": [
+      "The drive. Throw a baton low and hard into a close group of kubbs. Hold B and press down past the knee to plan it. The Club and Pro computer drives too.",
+      "Kid matches. Pick KID on the COMPUTER row for gentler rules, wider bars on the clock, three base kubbs and a closer line to throw from.",
+      "Names. Pick a made-up name one word at a time with the crank, hit SHUFFLE, or TYPE A NAME of your own.",
+      "Crank feels backward? Flip it from the System Menu."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "1.0.0",
+    "date": "2026-11-22",
+    "throws": "changed",
+    "notes": [
+      "Version 1.0. This is the engine the first full release of the game plays on.",
+      "Kubbs are less stubborn. A standing kubb leans just a hair, like on a real lawn, so a solid touch is less likely to leave it standing.",
+      "A kubb or baton propped on another piece now settles down instead of wobbling on and on.",
+      "Fixed: an online match with a computer player on a team would not start."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.18.0",
+    "date": "2026-11-22",
+    "throws": "changed",
+    "notes": [
+      "The club and pro computers now drive: a low, hard baton into a group of kubbs.",
+      "The computer's king shot goes by its level. A beginner computer hits the king about half the time, a pro about 9 times in 10.",
+      "A baton that hits a kubb square on sends it flying a bit harder, more like real wood.",
+      "The score sheet can say how long a match lasted."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.17.0",
+    "date": "2026-11-22",
+    "throws": "same",
+    "notes": [
+      "Add computer players to an online match, each at its own level. Two friends can each have a pro computer partner, or a group can take on a team of computers.",
+      "A team can hold people, computers or both, up to six a side.",
+      "On a team with a computer player, everyone takes a turn throwing the kubbs in.",
+      "Fixed: a rethrown kubb now says rethrow 1 of 1, not kubb 3 of 3."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.16.0",
+    "date": "2026-11-22",
+    "throws": "changed",
+    "notes": [
+      "A new throw: the drive. Throw a baton low and hard, flat or even down, into a group of kubbs.",
+      "Your starting arc is lower for close throws.",
+      "When you throw a kubb, the meter's bars match a baton's, a little narrower than before."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.15.1",
+    "date": "2026-11-22",
+    "throws": "same",
+    "notes": [
+      "In the Tournament scene, computer teams play their own matches on the pitches around yours.",
+      "Fixed: in a Kid match the far team's Kid line shows, and a helicopter that counts says what it knocked down."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.15.0",
+    "date": "2026-11-22",
+    "throws": "same",
+    "notes": [
+      "Kid mode is here. Pick the Kid computer and the match plays by Kid rules, just for fun.",
+      "Kid rules: three base kubbs a side, and everyone throws from a Kid line 2 m in front of the baseline.",
+      "Knock the king over early and he just gets stood back up. No punishment kubbs, and a helicopter counts.",
+      "The Kid meter has much wider bars. A small child knocks down a lone kubb 3 m away about 8 times in 10."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.14.0",
+    "date": "2026-11-22",
+    "throws": "same",
+    "notes": [
+      "Scenes now pick the ground and the kubb set. There are seven: Park, Beach, Camping, Techno, Minnesota, Tournament and Black & White.",
+      "Techno gets its own floor, the grid. Batons slide farther on it and then stop short, like a magnet.",
+      "The game can now see where each piece hits the ground, so Techno can light up a ring there."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.12.0",
+    "date": "2026-11-21",
+    "engine": "0.13.4",
+    "notes": [
+      "A new look for the site, with one front page.",
+      "PLAY NOW drops you straight into a match against the computer."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.11.0",
+    "date": "2026-11-21",
+    "engine": "0.13.4",
+    "notes": [
+      "Names are made by the game now. Pick the words you like, or SHUFFLE for a new name.",
+      "A team of several plays under a name the host rolls.",
+      "If a friend has an older version of the game, the pitch tells them to update."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.10.0",
+    "date": "2026-11-21",
+    "engine": "0.13.1",
+    "notes": [
+      "Moves to engine 0.13: every person throws on the same meter. Only the computer has a level now.",
+      "The meter's bars change size with how far you throw.",
+      "A throw that goes off to the side says PULLED."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.9.1",
+    "date": "2026-11-21",
+    "engine": "0.9.0",
+    "notes": [
+      "The privacy page now says how live play gets from one player to another."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.9.0",
+    "date": "2026-11-21",
+    "engine": "0.9.0",
+    "notes": [
+      "Online play is steadier. A dropped connection comes back in about a second, and nothing is lost.",
+      "You see the other player's swing smoothly, as it happens.",
+      "Someone else's turn shows as a banner at the top, so the meter stays in view."
+    ]
+  },
+  {
+    "part": "iphone",
+    "version": "0.4",
+    "channel": "beta",
+    "date": "2026-11-21",
+    "build": 144,
+    "engine": "0.9.0",
+    "notes": [
+      "Scenes are here. Play in the Day, at Night under a full moon, or in Neon on a grid of light.",
+      "The buttons and the meter take on the scene's colors too.",
+      "A scene is only a look. It never changes a throw."
+    ]
+  },
+  {
+    "part": "iphone",
+    "version": "0.3",
+    "channel": "beta",
+    "date": "2026-11-21",
+    "build": 132,
+    "engine": "0.9.0",
+    "notes": [
+      "ARC, TILT and SPIN are sliders that stop anywhere you like.",
+      "Pick the computer's level for each match. Your own level is one setting for the whole phone.",
+      "No more kubbs balanced on an edge, and batons aim a little lower.",
+      "Batons are plain wood now."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.13.4",
+    "date": "2026-11-21",
+    "throws": "same",
+    "notes": [
+      "Shared matches and replays check every name, so nobody can sneak in a name the game did not make."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.13.3",
+    "date": "2026-11-21",
+    "throws": "same",
+    "notes": [
+      "Goofy made-up team and player names now work in the web and iPhone games too. The same roll gives the same name on every device."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.13.2",
+    "date": "2026-11-21",
+    "throws": "same",
+    "notes": [
+      "The score sheet lists throw levels only for the computer's players, since a level no longer changes how a person throws."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.13.1",
+    "date": "2026-11-21",
+    "throws": "same",
+    "notes": [
+      "Score sheets are written in Planet Kubb Notation 2, with lines that say where the kubbs stood and which ones fell."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.13.0",
+    "date": "2026-11-21",
+    "throws": "changed",
+    "notes": [
+      "Everyone throws on the same meter now. A level only sets how good the computer is.",
+      "The meter's bars change with distance: wide for a short throw, narrow for a long one.",
+      "Let go too late and the baton pulls left. Let go too early and it pulls right. The game tells you which.",
+      "The beginner computer is easier. A brand new player wins about half the time against it."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.12.0",
+    "date": "2026-11-21",
+    "throws": "changed",
+    "notes": [
+      "The computer raises its kubbs by its level. A pro raises them where your batons will have the hardest time.",
+      "The pro computer drills its kubbs in tight columns down the baton's path.",
+      "The pro computer steps to where kubbs line up, to take two with one baton.",
+      "When the game raises your kubbs for you, it picks the smartest ends."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.11.3",
+    "date": "2026-11-21",
+    "throws": "same",
+    "notes": [
+      "The engine now has the goofy name maker for players and teams.",
+      "Behind the scenes: new raising and attacking plays for the computer, built and tested but not switched on in this version."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.11.2",
+    "date": "2026-11-21",
+    "throws": "same",
+    "notes": [
+      "Behind the scenes: a new way for the computer to raise kubbs, built and tested but not switched on in this version."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.11.1",
+    "date": "2026-11-21",
+    "throws": "same",
+    "notes": [
+      "Behind the scenes: the computer player is sorted into clear parts. It plays exactly the same."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.11.0",
+    "date": "2026-11-21",
+    "throws": "changed",
+    "notes": [
+      "A spun kubb that lands nose first stops dead, then rolls the way you spun it.",
+      "More taps roll farther. On grass one tap rolls a few centimeters and three taps roll about a third of a meter.",
+      "The computer drills by level. A beginner just tosses its kubbs, while club and pro lay them side by side in a row.",
+      "Left spin is now as steady as right spin."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.10.0",
+    "date": "2026-11-21",
+    "throws": "changed",
+    "notes": [
+      "A baton's starting arc goes by how far away the target is, not what it is. A 5 m field throw peaks about waist high.",
+      "A low throw is no longer wilder just because your arm went back farther.",
+      "The aim for a thrown kubb counts its spin, so the marker shows where it will really stop.",
+      "The computer spins every kubb one tap."
+    ]
+  },
+  {
+    "part": "notation",
+    "version": "2",
+    "date": "2026-11-21",
+    "notes": [
+      "Every match Throwing Wood plays is written down as a real kubb score sheet: every kubb thrown in and every baton, one line a turn.",
+      "The sheet can also say where each kubb stood on the pitch and where the kubbs fell. Those go on lines of their own, so the turns still read like the paper sheet.",
+      "The top of the sheet says how the game was played: the ground, the rules, how many base kubbs (a Kid match has three) and the opening.",
+      "The 150 tournament games kept from the old Planet Kubb wiki, from 2011 to 2015, still read just the way they always did."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.8.0",
+    "date": "2026-11-20",
+    "engine": "0.9.0",
+    "notes": [
+      "WATCH an open game that other people are playing.",
+      "Fly the camera around while you watch: drag, pinch and zoom. RESET VIEW puts it back."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.7.1",
+    "date": "2026-11-20",
+    "engine": "0.9.0",
+    "notes": [
+      "Type your name once and the game uses it everywhere.",
+      "Your settings sit together in MENU and on a new Settings page."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.7.0",
+    "date": "2026-11-20",
+    "engine": "0.9.0",
+    "notes": [
+      "Pick a scene: Day, Night under a full moon, or Neon on a grid of light.",
+      "A scene dresses the buttons and cards too, not just the pitch.",
+      "Replays and highlight reels show a match in its own scene."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.6.0",
+    "date": "2026-11-20",
+    "engine": "0.9.0",
+    "notes": [
+      "The Playdate page shows the game's video and how to put the game on your Playdate.",
+      "Sign up for the newsletter right on the site.",
+      "The privacy page says it plainly: matches are recorded to help make the game better."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.5.0",
+    "date": "2026-11-20",
+    "engine": "0.9.0",
+    "notes": [
+      "Moves to engine 0.9: pick how good the computer is, Beginner, Club or Pro.",
+      "Set your own level once, in MENU.",
+      "ARC, TILT and SPIN slide to any spot, not just the marks.",
+      "No more kubbs resting on an edge, and batons fly a little lower."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.4.0",
+    "date": "2026-11-20",
+    "engine": "0.8.1",
+    "notes": [
+      "The site at throwingwood.com gets a front page that tells you what kubb is and how to play.",
+      "New pages for the iPhone app, the Playdate game, the Kubb Engine and kubb sites we love."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.3.0",
+    "date": "2026-11-20",
+    "engine": "0.8.1",
+    "notes": [
+      "A highlight reel ends with a QR code. Point a phone at it to open the match.",
+      "A long team name shrinks to fit the reel's last frame."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.2.1",
+    "date": "2026-11-20",
+    "engine": "0.8.1",
+    "notes": ["Batons are plain wood now, with no bands."]
+  },
+  {
+    "part": "web",
+    "version": "0.2.0",
+    "date": "2026-11-20",
+    "engine": "0.8.1",
+    "notes": [
+      "The game's version now shows at the foot of every page and in MENU."
+    ]
+  },
+  {
+    "part": "iphone",
+    "version": "0.2",
+    "channel": "beta",
+    "date": "2026-11-20",
+    "build": 121,
+    "engine": "0.8.1",
+    "notes": [
+      "A kubb one step away now takes a low, firm throw. Throw it too hard and you miss.",
+      "The menu shows which version you have.",
+      "You can still play online with a friend who is on the last version."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.9.0",
+    "date": "2026-11-20",
+    "throws": "changed",
+    "notes": [
+      "Kubbs come to rest on a face, never balanced on an edge or a corner.",
+      "Batons aim at a kubb's body, not its top, so fewer bounce off.",
+      "The computer steps right up to a close kubb and throws it low and hard.",
+      "Tilt, arc and spin slide to any value, and your spin stays set for your next kubb in the same turn."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.8.2",
+    "date": "2026-11-20",
+    "throws": "same",
+    "notes": [
+      "Short throws are worked out a little faster. Every throw lands exactly the same."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.8.1",
+    "date": "2026-11-20",
+    "throws": "same",
+    "notes": [
+      "Players on different versions can share an online pitch. The match plays on the newest engine they all have."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.8.0",
+    "date": "2026-11-20",
+    "throws": "changed",
+    "notes": [
+      "A baton thrown from closer than 2 m is now a low, firm bowl into the kubb's face, not a lob.",
+      "Swing too hard up close and the baton pops up over the kubb."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.7.4",
+    "date": "2026-11-20",
+    "throws": "same",
+    "notes": [
+      "When a team resigns, the game says RESIGNED instead of a name cut in half.",
+      "Score sheets from the web and iPhone games say they were played at throwingwood.com."
+    ]
+  },
+  {
+    "part": "iphone",
+    "version": "0.1",
+    "channel": "beta",
+    "date": "2026-11-19",
+    "build": 113,
+    "engine": "0.7.4",
+    "notes": [
+      "The first test version. Play practice, a match against the computer, or a match with a friend from a pitch link.",
+      "A phone and a web browser can play on the same pitch, and every throw lands the same on both.",
+      "Works on iPad too. Turn your phone on its side for a wide view, with the controls under your other thumb.",
+      "Make a highlight reel of a finished match and share it."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.7.3",
+    "date": "2026-11-19",
+    "throws": "same",
+    "notes": ["Behind the scenes: checking a long shared match is much faster."]
+  },
+  {
+    "part": "engine",
+    "version": "0.7.2",
+    "date": "2026-11-19",
+    "throws": "same",
+    "notes": [
+      "Shared matches against the computer can be checked for fair play before they are posted."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.7.1",
+    "date": "2026-11-19",
+    "throws": "same",
+    "notes": [
+      "Score sheets are shorter. A throw shows a player's initial instead of a full name."
+    ]
+  },
+  {
+    "part": "playdate",
+    "version": "0.9.7",
+    "date": "2026-11-18",
+    "build": 8,
+    "engine": "0.5.1",
+    "notes": [
+      "Club and Pro throwers aim for a half turn of the baton, like the real thing. Beginners flip it end over end more.",
+      "The computer puts spin on its drilled kubbs at Club and Pro.",
+      "A sliding baton can push a fallen kubb into another piece.",
+      "On the practice pitch, six batons stay in play until you pick one up for the next throw."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.7.0",
+    "date": "2026-11-18",
+    "throws": "same",
+    "notes": [
+      "The straight-through swing from 0.6 is gone, with its three practice setups. Matches play the same."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.6.0",
+    "date": "2026-11-18",
+    "throws": "same",
+    "notes": [
+      "A trial of a new straight-through swing for practice, with three setups: an 8 m base kubb, a pair of field kubbs, and a lying kubb to drill at."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.5.1",
+    "date": "2026-11-18",
+    "throws": "same",
+    "notes": ["Fixed: a long practice session can still replay its last throw."]
+  },
+  {
+    "part": "engine",
+    "version": "0.5.0",
+    "date": "2026-11-18",
+    "throws": "changed",
+    "notes": [
+      "A beginner's baton turns a bit more in the air, while club and pro throw a clean half turn.",
+      "The club and pro computers spin their kubbs when they drill.",
+      "A slow, gentle bump can now wake up a resting kubb or baton.",
+      "The computer throws at the level of whichever of its players is up."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.4.1",
+    "date": "2026-11-18",
+    "throws": "same",
+    "notes": [
+      "The engine now tells the game how hard pieces knock together and where a baton lands, for sounds and effects."
+    ]
+  },
+  {
+    "part": "playdate",
+    "version": "0.9.6",
+    "date": "2026-11-17",
+    "build": 7,
+    "notes": [
+      "A clean baton aimed at a kubb goes through it at half its height. No more landing short and hopping over.",
+      "Throws come down where they are aimed. Even a clean swing can drift a bit on a long throw, and the game tells you PULLED LEFT, STRAIGHT or PULLED RIGHT.",
+      "Drilled kubbs turn in the air and roll on from where they land, like real ones. VS PLAYDATE drills tighter groups.",
+      "A row of touching kubbs can fall as a row from one baton, and pieces settle down instead of twitching."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.4.0",
+    "date": "2026-11-17",
+    "throws": "same",
+    "notes": [
+      "A new touch swing for phones and tablets. Your finger swings the throw like an arm, and lifting it lets go."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.3.0",
+    "date": "2026-11-17",
+    "throws": "same",
+    "notes": [
+      "Online play's lobby and match rules move into the engine, so every device runs a shared pitch the same way.",
+      "A shared match only starts when everyone has the same engine."
+    ]
+  },
+  {
+    "part": "engine",
+    "version": "0.2.0",
+    "date": "2026-11-17",
+    "throws": "first",
+    "notes": [
+      "The first Kubb Engine. The Playdate game's rules and physics, now shared by the web game too, so the same throw does the same thing everywhere."
+    ]
+  },
+  {
+    "part": "web",
+    "version": "0.1.0",
+    "date": "2026-11-15",
+    "notes": [
+      "The web game opens. Practice your throws, play the computer, or START A PITCH and play friends on a link.",
+      "Watch a finished match again, or watch the computer play itself.",
+      "Pick your meter: a clock or a straight line. AUTO ALL raises your kubbs for the rest of the game.",
+      "Make a highlight reel of a match to share. The game moves to its new home, throwingwood.com."
+    ]
+  },
+  {
+    "part": "playdate",
+    "version": "0.9.5",
+    "date": "2026-11-15",
+    "build": 6,
+    "notes": [
+      "HOW TO PLAY. The rules of Kubb on six short cards, for anyone who has never played.",
+      "HOW TO THROW is back for the clock throw. It walks you through it on the practice pitch with the real crank.",
+      "Batons hit more like wood. They bounce less off a kubb and keep their spin on the ground.",
+      "Plainer words on screen, and flags that say what happened, like KING TOO EARLY: GAME OVER and OUT: THROW AGAIN."
+    ]
+  },
+  {
+    "part": "playdate",
+    "version": "0.9.0",
+    "date": "2026-11-15",
+    "build": 4,
+    "notes": [
+      "A new throw: the crank is a clock. Pull back for power, swing forward and stop it. Where it stops sets the arc.",
+      "Saved players, each with a Throw level and a history, and teams of one to six who pass one Playdate.",
+      "VS PLAYDATE throws the same way, and you see its swing on the clock.",
+      "Two new drills: DOUBLES and THE WALL."
+    ]
+  },
+  {
+    "part": "playdate",
+    "version": "0.2.0",
+    "date": "2026-11-14",
+    "build": 3,
+    "notes": [
+      "HOW TO THROW walks you through the throw on the real crank.",
+      "When you drill a kubb, where you stop the crank sets its angle.",
+      "The camera follows a drilled kubb the way it was thrown."
+    ]
+  },
+  {
+    "part": "playdate",
+    "version": "0.1.0",
+    "date": "2026-11-14",
+    "build": 2,
+    "notes": [
+      "The first build. Kubb on the Playdate, and the crank is your throwing arm. Batons, kubbs and the king are real size, and what falls is worked out, not rolled for.",
+      "Play VS PLAYDATE or PASS + PLAY, on grass, sand or snow, with wind if you want it.",
+      "PRACTICE has five drills and an open pitch. Raise kubbs by hand with the crank.",
+      "Every match is saved as a kubb score sheet, and a match you leave can be picked up again."
+    ]
+  }
+]

@@ -80,11 +80,13 @@ export const NAV = [
 ];
 // Pitchside is the scorekeeper's page, /pitchside/ (src/site/pitchside.mjs):
 // in the footer only, not on the home page, while the app is not in the store.
+// What’s new is the changelog, /changelog/ (src/site/changelog.mjs).
 // Support is the support page, /support/ (src/site/pages.mjs): the site's one
 // support text, where the App Store listing's Support URL points too.
 export const footNav = () => [
   { href: "/rules/", label: "Rules" },
   { href: "/engine/", label: "The engine" },
+  { href: "/changelog/", label: "What’s new" },
   { href: "/love/", label: "Kubb sites we love" },
   { href: "/pitchside/", label: "Pitchside" },
   { href: NEWSLETTER_URL, label: "Newsletter", external: true },

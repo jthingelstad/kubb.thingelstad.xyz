@@ -83,7 +83,7 @@ in-game HOME names `/#play` itself. PLAY NOW (`playNow` in
 no kept match options starts at once on Park, a Beginner computer, 2-4-6, raising by
 hand and no wind (`FIRST_MATCH`, `soloKept` in `src/ui/cards.js`; `startSolo` in
 `src/main.js`), one that has played gets the options card. The header is Play, iPhone,
-Playdate, How to play; the footer Rules, The engine, Kubb sites we love, Pitchside, Newsletter,
+Playdate, How to play; the footer Rules, The engine, What’s new (`/changelog/`), Kubb sites we love, Pitchside, Newsletter,
 Support (`/support/`), Privacy and the version (`NAV`, `footNav` in
 `src/site/layout.mjs`). `public/style.css` holds the 1.0 system's tokens: round corners
 (6 px controls, 8 px cards), a 3 px ink line, 3 px and 5 px shadows, marigold the one go
@@ -251,6 +251,31 @@ Bump it by hand in the pull request that changes what a player gets: the minor f
 feature or a new engine minor (`--keep` or `--drop`), the patch for a fix. A pull request
 that changes nothing a player sees or plays leaves it alone. Nothing enforces it per pull
 request.
+
+## What's new
+
+`/changelog/`, "What’s new" (the owner, 2026-11-27: "I'd actually like a changelog for
+all aspects of the project."), lists every version people got of the web game, the iPhone
+and iPad app, the Playdate game, the Kubb Engine and Planet Kubb Notation, newest first and
+a day at a time, with "Playing now" (the newest of each) on top and a filter by part
+(`?part=engine`, `public/js/changelog.js`; without the script every entry shows). The words
+are `src/site/changelog.json`, one entry a release; the page and the entry fields are in
+`src/site/changelog.mjs`.
+
+- The pull request that raises `package.json`'s version adds the web's entry, and one that
+  syncs a new engine tag adds the engine's (`tests/site/changelog.test.mjs` holds the newest
+  web, engine and Playdate entries to `package.json`, `vendor/engine.json` and the
+  `/playdate/` download, so the check fails until it does).
+- The iPhone app, the Playdate game and the notation add theirs here when they ship: an
+  iPhone version once outside testers (`"beta"`) or the App Store (`"app-store"`) have it,
+  a Playdate one once it is tagged, a notation release once it is tagged. Nothing
+  waiting on a review goes in: Kubb: Pitchside joins as its own part on the day the App
+  Store has it.
+- Notes are one to four short sentences in player words, the biggest first, in the site's
+  voice. No people's names, addresses, internal names, Gym numbers or promises, and never a
+  Playdate Catalog listing (the test checks some of this).
+- An engine entry's `throws` is `"changed"` when it moved a golden hash (old matches keep
+  their own engine) and `"same"` when every throw lands as before, opt-in features included.
 
 ## Hosting
 
