@@ -177,6 +177,10 @@ browserTest(
       // each browser is offered only its own baton
       await myTogo(host);
       await myTogo(guest);
+      // (the seat takes the need's togo control on the pitch's next seat refresh, about
+      // a tenth of a second after the card: read too soon it was not there yet)
+      for (const p of [host, guest])
+        await waitFor(p, () => !!window.__kubb.game.seat.togo, null, 5000);
       const hc = await host.evaluate(() => window.__kubb.game.seat.togo);
       const gc = await guest.evaluate(() => window.__kubb.game.seat.togo);
       assert.deepEqual([hc, gc], [["A"], ["B"]], "the togo control");
@@ -315,10 +319,13 @@ browserTest(
       await waitFor(guest, () => window.__kubb.pitch.state().mode === "match");
       await inStep([host, guest]);
       await myTogo(host);
-      // the host's own baton: seen from its own end, Team A's
-      assert.equal(
-        await host.evaluate(() => window.__kubb.game.engine.view().need.frame),
-        "A",
+      // the host's own baton: seen from its own end, Team A's (once the pitch's seat
+      // refresh has told the engine the side, a moment after the card)
+      await waitFor(
+        host,
+        () => window.__kubb.game.engine.view().need.frame === "A",
+        null,
+        5000,
       );
       await throwOnce(host);
       await waitFor(host, () => window.__kubb.game.phase === "wait");
@@ -345,12 +352,29 @@ browserTest(
         null,
         30000,
       );
-      // and back to its own end after
+      // and after it, whoever goes first: Team A first, or a tie (both batons to go
+      // again), is the host's own and back at its own end; Team B first is the host
+      // standing in for Team B's first throw, seen from the thrower's end again
+      const flag = await host.textContent("[data-test=flag]");
+      const bFirst = /GENTLE GINKGO GOES FIRST/.test(flag);
       await waitFor(
         host,
-        () => window.__kubb.game.engine.view().need.frame === "A",
-        null,
+        (b) => {
+          const g = window.__kubb.game;
+          const n = g.engine.view().need;
+          return (
+            g.phase === "aim" &&
+            n.frame === (b ? "B" : "A") &&
+            (n.side ?? "A") === (b ? "B" : "A")
+          );
+        },
+        bFirst,
         30000,
+      );
+      assert.equal(
+        await host.evaluate(() => window.__kubb.game.localSide),
+        "A",
+        "the host's own side all along",
       );
       assert.deepEqual(host.errors, []);
     } finally {
