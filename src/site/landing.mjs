@@ -338,12 +338,12 @@ ${signup()}`;
 export const PLAYDATE_MEDIA = "https://playdate.thingelstad.xyz/throwing-wood";
 export const PLAYDATE_REEL = `${PLAYDATE_MEDIA}/reel/throwing-wood-0.9.5`;
 export const PLAYDATE_BUILD = {
-  url: "https://files.thingelstad.com/playdate/throwing-wood/ThrowingWood-1.1.0.pdx.zip",
-  size: "768 KB", // its Content-Length, 767,512 bytes
+  url: "https://files.thingelstad.com/playdate/throwing-wood/ThrowingWood-1.1.1.pdx.zip",
+  size: "769 KB", // its Content-Length, 768,738 bytes
   notes: [
     "THROW TO GO: each side throws one baton at the king. The closest, without knocking the king over, throws first.",
     "Each person throws on EASY, STANDARD or HARD, set on TEAMS. No hidden misses: what you do with the crank is what the baton does.",
-    "Against the Playdate, the screen stays on your side. Speed its turn up to 2X or 4X, or skip it.",
+    "Against the Playdate, the screen stays on your side, with the king, the thrower and the target in view. Speed its turn up to 2X or 4X, or skip it.",
     "Raise kubbs in any order, from one view of the whole group.",
   ],
 };
