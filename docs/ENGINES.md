@@ -31,9 +31,9 @@ for an engine a row still names, `--drop` only for one no row names.
 | Build                             | App version       | Engine | As of      |
 | --------------------------------- | ----------------- | ------ | ---------- |
 | App Store                         | 1.0.0 (build 260) | 1.0.0  | 2026-11-24 |
-| TestFlight Beta (outside testers) | 1.1.0 (build 284) | 1.4.0  | 2026-11-27 |
-| TestFlight Beta, in review        | 1.1.0 (build 291) | 1.4.1  | 2026-11-27 |
-| TestFlight Dev (internal)         | 1.1.0 (build 291) | 1.4.1  | 2026-11-27 |
+| TestFlight Beta (outside testers) | 1.1.0 (build 291) | 1.4.1  | 2026-11-27 |
+| TestFlight Beta, in review        | 1.1.0 (build 294) | 1.4.1  | 2026-11-27 |
+| TestFlight Dev (internal)         | 1.1.0 (build 294) | 1.4.1  | 2026-11-27 |
 
 The TestFlight rows were read from App Store Connect on 2026-11-27, the day build 291,
 `1.1.0 (1.4.1)`, was uploaded. It is in the Internal group, and it was added to the Beta
